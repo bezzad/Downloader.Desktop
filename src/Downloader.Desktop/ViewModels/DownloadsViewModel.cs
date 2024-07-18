@@ -9,6 +9,10 @@ public class DownloadsViewModel : ViewModelBase
     public DownloadsViewModel()
     {
         SelectFilesCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
+        
+        // We can listen to any property changes with "WhenAnyValue" and do whatever we want in "Subscribe".
+        //this.WhenAnyValue(o => o.Name)
+            //.Subscribe(o => this.RaisePropertyChanged(nameof(Greeting)));
     }
 
     public ICommand SelectFilesCommand { get; }
