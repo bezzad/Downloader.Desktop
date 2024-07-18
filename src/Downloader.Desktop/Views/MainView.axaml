@@ -6,11 +6,55 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Downloader.Desktop.Views.MainView"
              x:DataType="vm:MainViewModel">
-  <Design.DataContext>
-    <!-- This only sets the DataContext for the previewer in an IDE,
+	<Design.DataContext>
+		<!-- This only sets the DataContext for the previewer in an IDE,
          to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-    <vm:MainViewModel />
-  </Design.DataContext>
+		<vm:MainViewModel />
+	</Design.DataContext>
 
-  <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+	<DockPanel>
+		<StackPanel DockPanel.Dock="Top" Height="100" Orientation="Horizontal" VerticalAlignment="Center">
+			<Button Classes="Menu">
+				<StackPanel>
+					<PathIcon Data="{StaticResource add_regular}" />
+					<TextBlock Text="Add"/>
+				</StackPanel>
+			</Button>
+			<Button Classes="Menu">
+				<StackPanel>
+					<PathIcon Data="{StaticResource play_regular}" />
+					<TextBlock Text="Resume" />
+				</StackPanel>
+			</Button>
+			<Button Classes="Menu">
+				<StackPanel>
+					<PathIcon Data="{StaticResource stop_regular}" />
+					<TextBlock Text="Stop" />
+				</StackPanel>
+			</Button>
+			<Button Classes="Menu" Content="Stop All">
+				<StackPanel>
+					<PathIcon Data="{StaticResource tabs_regular}" />
+					<TextBlock Text="Stop All" />
+				</StackPanel>
+			</Button>
+			<Button Classes="Menu" Content="Delete">
+				<StackPanel>
+					<PathIcon Data="{StaticResource delete_regular}" />
+					<TextBlock Text="Delete" />
+				</StackPanel>
+			</Button>
+			<Button Classes="Menu" Content="Options">
+				<StackPanel>
+					<PathIcon Data="{StaticResource settings_regular}" />
+					<TextBlock Text="Options" />
+				</StackPanel>
+			</Button>
+		</StackPanel>
+
+		<ListBox>
+			<TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+		</ListBox>
+	</DockPanel>
 </UserControl>
