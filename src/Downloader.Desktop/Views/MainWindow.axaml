@@ -6,7 +6,7 @@
         xmlns:views="clr-namespace:Downloader.Desktop.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Downloader.Desktop.Views.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/downloader.ico"
         Title="Downloader.Desktop">
         <views:MainView />
 </Window>
