@@ -1,16 +1,22 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Downloader.Desktop.ViewModels"
+		xmlns:v="using:Downloader.Desktop.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:views="clr-namespace:Downloader.Desktop.Views"
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
         x:Class="Downloader.Desktop.Views.MainWindow"
+		x:DataType="vm:MainViewModel"
+		x:CompileBindings="true"
         Icon="/Assets/downloader.ico"
         Title="Downloader">
+	<Design.DataContext>
+		<vm:MainViewModel/>
+	</Design.DataContext>
+	
 	<DockPanel>
-		<views:HeadView DockPanel.Dock="Top"/>
-		<views:MainView />
-		
+		<v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" />
+		<v:DownloadsView DataContext="{Binding Downloads}"  />
+		<Panel DockPanel.Dock="Right" Background="Cyan" Width="200" HorizontalAlignment="Right"/>
 	</DockPanel>
 </Window>

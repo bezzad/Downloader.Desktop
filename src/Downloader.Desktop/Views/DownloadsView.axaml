@@ -4,13 +4,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
-             x:Class="Downloader.Desktop.Views.MainView"
+             x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:MainViewModel">
-	<Design.DataContext>
-		<!-- This only sets the DataContext for the previewer in an IDE,
-         to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-		<vm:MainViewModel />
-	</Design.DataContext>
 
 	<!--<ScrollViewer>
 		--><!-- This ItemsControl show all added ToDoItems. --><!--

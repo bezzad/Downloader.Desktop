@@ -2,5 +2,7 @@
 
 public class MainViewModel : ViewModelBase
 {
-    public string Greeting => "Welcome to Avalonia!";
+    public DownloadsViewModel Downloads { get; } = new DownloadsViewModel();
+    public HeadViewModel Head { get; } = new HeadViewModel();
+
 }

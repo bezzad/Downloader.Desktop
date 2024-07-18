@@ -6,11 +6,6 @@
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
              x:Class="Downloader.Desktop.Views.HeadView"
              x:DataType="vm:HeadViewModel">
-	<Design.DataContext>
-		<!-- This only sets the DataContext for the previewer in an IDE,
-         to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-		<vm:HeadViewModel />
-	</Design.DataContext>
 
 	<StackPanel DockPanel.Dock="Top" Height="100" Orientation="Horizontal" VerticalAlignment="Center">
 		<Button Classes="Menu">
