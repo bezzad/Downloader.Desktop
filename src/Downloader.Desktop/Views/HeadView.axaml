@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
+             x:Class="Downloader.Desktop.Views.HeadView"
+             x:DataType="vm:HeadViewModel">
+	<Design.DataContext>
+		<!-- This only sets the DataContext for the previewer in an IDE,
+         to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+		<vm:HeadViewModel />
+	</Design.DataContext>
+
+	<StackPanel DockPanel.Dock="Top" Height="100" Orientation="Horizontal" VerticalAlignment="Center">
+		<Button Classes="Menu">
+			<StackPanel>
+				<PathIcon Data="{StaticResource add_regular}" />
+				<TextBlock Text="Add"/>
+			</StackPanel>
+		</Button>
+		<Button Classes="Menu">
+			<StackPanel>
+				<PathIcon Data="{StaticResource play_regular}" />
+				<TextBlock Text="Resume" />
+			</StackPanel>
+		</Button>
+		<Button Classes="Menu">
+			<StackPanel>
+				<PathIcon Data="{StaticResource stop_regular}" />
+				<TextBlock Text="Stop" />
+			</StackPanel>
+		</Button>
+		<Button Classes="Menu" Content="Stop All">
+			<StackPanel>
+				<PathIcon Data="{StaticResource tabs_regular}" />
+				<TextBlock Text="Stop All" />
+			</StackPanel>
+		</Button>
+		<Button Classes="Menu" Content="Delete">
+			<StackPanel>
+				<PathIcon Data="{StaticResource delete_regular}" />
+				<TextBlock Text="Delete" />
+			</StackPanel>
+		</Button>
+		<Button Classes="Menu" Content="Options">
+			<StackPanel>
+				<PathIcon Data="{StaticResource settings_regular}" />
+				<TextBlock Text="Options" />
+			</StackPanel>
+		</Button>
+	</StackPanel>
+
+</UserControl>

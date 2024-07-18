@@ -24,4 +24,10 @@
 		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.11" />
 		<PackageReference Include="Downloader" Version="3.1.2" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Views\HeadView.axaml.cs">
+	    <DependentUpon>HeadView.axaml</DependentUpon>
+	  </Compile>
+	</ItemGroup>
 </Project>

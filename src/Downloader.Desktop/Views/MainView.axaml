@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
              x:Class="Downloader.Desktop.Views.MainView"
              x:DataType="vm:MainViewModel">
 	<Design.DataContext>
@@ -12,49 +12,31 @@
 		<vm:MainViewModel />
 	</Design.DataContext>
 
-	<DockPanel>
-		<StackPanel DockPanel.Dock="Top" Height="100" Orientation="Horizontal" VerticalAlignment="Center">
-			<Button Classes="Menu">
-				<StackPanel>
-					<PathIcon Data="{StaticResource add_regular}" />
-					<TextBlock Text="Add"/>
-				</StackPanel>
-			</Button>
-			<Button Classes="Menu">
-				<StackPanel>
-					<PathIcon Data="{StaticResource play_regular}" />
-					<TextBlock Text="Resume" />
-				</StackPanel>
-			</Button>
-			<Button Classes="Menu">
-				<StackPanel>
-					<PathIcon Data="{StaticResource stop_regular}" />
-					<TextBlock Text="Stop" />
-				</StackPanel>
-			</Button>
-			<Button Classes="Menu" Content="Stop All">
-				<StackPanel>
-					<PathIcon Data="{StaticResource tabs_regular}" />
-					<TextBlock Text="Stop All" />
-				</StackPanel>
-			</Button>
-			<Button Classes="Menu" Content="Delete">
-				<StackPanel>
-					<PathIcon Data="{StaticResource delete_regular}" />
-					<TextBlock Text="Delete" />
-				</StackPanel>
-			</Button>
-			<Button Classes="Menu" Content="Options">
-				<StackPanel>
-					<PathIcon Data="{StaticResource settings_regular}" />
-					<TextBlock Text="Options" />
-				</StackPanel>
-			</Button>
-		</StackPanel>
+	<!--<ScrollViewer>
+		--><!-- This ItemsControl show all added ToDoItems. --><!--
+		--><!-- It needs to be placed inside a ScrollViewer because other than a ListBox it has not its own --><!--
+		<ItemsControl ItemsSource="{Binding ToDoItems}">
+			<ItemsControl.ItemTemplate>
+				--><!-- The ItemTemplate defines how each item should be represented --><!--
+				--><!-- Our Item will be represented by a CheckBox and a Delete-Button --><!--
+				<DataTemplate DataType="vm:ToDoItemViewModel">
+					<Grid ColumnDefinitions="*, Auto">
+						<CheckBox IsChecked="{Binding IsChecked}"
+								  Content="{Binding Content}" />
 
-		<ListBox>
-			<TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-
-		</ListBox>
-	</DockPanel>
+						--><!-- Note how we use the Root-Grid to get the MainViewModel here. As we use compiled bindings we have to cast the DataContext --><!--
+						--><!-- The command parameter is the local ToDoItemViewModel being processed --><!--
+						<Button Grid.Column="1"
+								Command="{Binding #Root.((vm:MainViewModel)DataContext).RemoveItemCommand}"
+								CommandParameter="{Binding .}">
+							<PathIcon Data="{DynamicResource DeleteIconData}"
+									  Height="15"
+									  Foreground="Red" />
+						</Button>
+					</Grid>
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+		</ItemsControl>
+	</ScrollViewer>-->
+	<TextBlock Text="TEST"/>
 </UserControl>
