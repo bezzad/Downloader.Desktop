@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -46,7 +47,7 @@ public static class FileService
         catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
         {
             // In case the file was not found, we simply return null
-            return null;
+            return Enumerable.Empty<DownloadItem>();
         }
     }
 }
