@@ -34,6 +34,7 @@ public class DownloadsViewModel : ViewModelBase
     public ObservableCollection<DownloadItemViewModel> DownloadItems { get; } = new();
 
     public ICommand SelectFilesCommand { get; }
+    public ICommand RemoveItemCommand { get; }
 
     private string[]? _SelectedFiles;
     public string[]? SelectedFiles
