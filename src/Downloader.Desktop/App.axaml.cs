@@ -5,7 +5,6 @@ using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace Downloader.Desktop;
