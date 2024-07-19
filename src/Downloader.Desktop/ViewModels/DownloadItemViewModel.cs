@@ -6,6 +6,9 @@ namespace Downloader.Desktop.ViewModels;
 
 public class DownloadItemViewModel : ViewModelBase
 {
+    private DownloadItem _item;
+    private bool _isChecked;
+
     /// <summary>
     /// Creates a new blank ToDoItemViewModel
     /// </summary>
@@ -19,7 +22,6 @@ public class DownloadItemViewModel : ViewModelBase
         _item = item ?? new();
     }
 
-    private DownloadItem _item;
     
     public ICommand SelectFilesCommand { get; }
     
@@ -47,6 +49,12 @@ public class DownloadItemViewModel : ViewModelBase
                 _item.Url = value;
             }
         }
+    }
+
+    public bool IsChecked
+    {
+        get { return _isChecked; }
+        set { this.RaiseAndSetIfChanged(ref _isChecked, value); }
     }
 
     public DownloadItem GetItem()

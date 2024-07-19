@@ -14,6 +14,7 @@ public class HeadViewModel : ViewModelBase
     }
 
     public ICommand AddUrlCommand { get; }
+    public ICommand RemoveItemCommand { get; }
 
     /// <summary>
     /// Gets or sets a list of Files
