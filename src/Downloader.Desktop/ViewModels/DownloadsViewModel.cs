@@ -1,4 +1,5 @@
 ﻿using Avalonia.Controls;
+using Downloader.Desktop.Models;
 using ReactiveUI;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ public class DownloadsViewModel : ViewModelBase
     public DownloadsViewModel()
     {
         SelectFilesCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
+        RemoveItemCommand = ReactiveCommand.CreateFromTask<DownloadItemViewModel>(RemoveDownloadItem);
 
         // We can use this to add some items for the designer. 
         // You can also use a DesignTime-ViewModel
@@ -45,6 +47,12 @@ public class DownloadsViewModel : ViewModelBase
 
     private async Task SelectFilesAsync()
     {
+        await Task.Delay(2000);
+    }
+
+    private async Task RemoveDownloadItem(DownloadItemViewModel item)
+    {
+        DownloadItems.Remove(item);
         await Task.Delay(2000);
     }
 }
