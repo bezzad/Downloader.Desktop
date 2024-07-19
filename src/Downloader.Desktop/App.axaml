@@ -20,6 +20,29 @@
         <FluentTheme />
 		<!--<StyleInclude Source="avares://AvaloniaControls/Icons.axaml" />-->
 
+		<!-- Some custom Styles -->
+		
+		<!-- Our header Style -->
+		<Style Selector="TextBlock.h1">
+			<Setter Property="FontWeight" Value="Bold" />
+			<Setter Property="FontSize" Value="15" />
+			<Setter Property="Margin" Value="5" />
+		</Style>
+
+		<!-- We want our CheckBox to be stretched horizontally (the default is left-aligned) -->
+		<Style Selector="CheckBox">
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+		</Style>
+
+		<!-- These styles add some useful feedback for the user  -->
+		<Style Selector="CheckBox:pointerover /template/ Grid#RootGrid">
+			<Setter Property="Background" Value="{DynamicResource SystemAccentColorLight3}" />
+		</Style>
+
+		<Style Selector="Button:disabled PathIcon">
+			<Setter Property="Opacity" Value="0.4" />
+		</Style>
+		
 		<Style Selector="Button.Menu" x:DataType="Button">
 			<Setter Property="FontSize" Value="14"/>
 			<Setter Property="Cursor" Value="Hand"/>
