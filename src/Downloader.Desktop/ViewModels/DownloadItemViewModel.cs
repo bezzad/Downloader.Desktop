@@ -1,6 +1,5 @@
 ﻿using Downloader.Desktop.Models;
 using ReactiveUI;
-using System.Windows.Input;
 
 namespace Downloader.Desktop.ViewModels;
 
@@ -22,9 +21,6 @@ public class DownloadItemViewModel : ViewModelBase
         _item = item ?? new();
     }
 
-    
-    public ICommand SelectFilesCommand { get; }
-    
     public string? FileName
     {
         get => _item.FileName;
@@ -37,7 +33,7 @@ public class DownloadItemViewModel : ViewModelBase
             }
         }
     }
-    
+
     public string? Url
     {
         get => _item.Url;
