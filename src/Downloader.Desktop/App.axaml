@@ -49,13 +49,6 @@
 			<Setter Property="Padding" Value="0" />
 			<Setter Property="Width" Value="100" />
 			<Setter Property="Height" Value="100" />
-			<Setter Property="Background" Value="LightCyan" />
-		</Style>
-		<Style Selector="Button.Menu:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="Transparent" />
-		</Style>
-		<Style Selector="Button.Menu:pressed /template/ ContentPresenter">
-			<Setter Property="Background" Value="Transparent" />
 		</Style>
 		<Style Selector="Button PathIcon">
 			<Setter Property="Margin" Value="10" />

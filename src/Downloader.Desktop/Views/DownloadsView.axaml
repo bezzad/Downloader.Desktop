@@ -28,7 +28,6 @@
 			</Style>-->
 			<Style Selector="TextBlock">
 				<!--<Setter Property="TextWrapping" Value="Wrap" />-->
-				<Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
 				<Setter Property="FontSize" Value="15" />
 			</Style>
 		</DataGrid.Styles>

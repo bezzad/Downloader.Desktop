@@ -4,20 +4,36 @@
 		xmlns:v="using:Downloader.Desktop.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="1800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Downloader.Desktop.Views.MainWindow"
 		x:DataType="vm:MainViewModel"
 		x:CompileBindings="true"
         Icon="/Assets/downloader.ico"
+		TransparencyLevelHint="AcrylicBlur"
+        WindowStartupLocation="CenterScreen"
         Title="Downloader">
 	<Design.DataContext>
 		<vm:MainViewModel/>
 	</Design.DataContext>
-	
-	<DockPanel>
-		<v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" />
-		<!--<Panel DockPanel.Dock="Right" Background="Cyan" Width="200" HorizontalAlignment="Right"/>-->
 
-		<v:DownloadsView DataContext="{Binding Downloads}"  />
-	</DockPanel>
+	<Panel>
+		<!--<ThemeVariantScope RequestedThemeVariant="Dark">
+			<ExperimentalAcrylicBorder IsHitTestVisible="False">
+				<ExperimentalAcrylicBorder.Material>
+					<ExperimentalAcrylicMaterial
+						BackgroundSource="Digger"
+						TintColor="Black"
+						TintOpacity="1"
+						MaterialOpacity="0.65" />
+				</ExperimentalAcrylicBorder.Material>
+			</ExperimentalAcrylicBorder>
+		</ThemeVariantScope>-->
+		
+		<DockPanel>
+			<v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" />
+			<!--<Panel DockPanel.Dock="Right" Background="Cyan" Width="200" HorizontalAlignment="Right"/>-->
+
+			<v:DownloadsView DataContext="{Binding Downloads}"  />
+		</DockPanel>
+	</Panel>
 </Window>
