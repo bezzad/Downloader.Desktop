@@ -16,6 +16,11 @@
 
 
 	<ItemGroup>
+	  <AvaloniaXaml Remove="Assets\Icons.axaml" />
+	</ItemGroup>
+
+
+	<ItemGroup>
 	  <None Remove="Assets\downloads.json" />
 	</ItemGroup>
 
@@ -30,6 +35,12 @@
 		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.11" />
 		<PackageReference Include="Downloader" Version="3.1.2" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <AvaloniaResource Update="Assets\Icons.axaml">
+	    <SubType>Designer</SubType>
+	  </AvaloniaResource>
 	</ItemGroup>
 
 	<ItemGroup>
