@@ -47,6 +47,21 @@ public class DownloadItemViewModel : ViewModelBase
         }
     }
 
+    public long Downloaded
+    {
+        get => _item.Downloaded;
+        set
+        {
+            if (_item.Downloaded != value)
+            {
+                this.RaisePropertyChanged(nameof(Downloaded));
+                _item.Downloaded = value;
+            }
+        }
+    }
+
+    public long TransferRate { get; set; }
+
     public string? Status
     {
         get => _item.Size > 0
