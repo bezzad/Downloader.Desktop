@@ -4,6 +4,8 @@ using Avalonia.Markup.Xaml;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
+using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -12,54 +14,52 @@ namespace Downloader.Desktop;
 public partial class App : Application
 {
     private bool _canClose; // This flag is used to check if window is allowed to close
+
     // This is a reference to our MainViewModel which we use to save the list on shutdown.
     // TODO: Use Dependency Injection in this App to inject ViewModels
-    private readonly MainViewModel _mainViewModel = new MainViewModel();
+    private MainViewModel? _mainViewModel;
+    private MainWindow? _mainView;
+    public new static App? Current => Application.Current as App;
+
+    /// <summary>
+    /// Gets the <see cref="IServiceProvider"/> instance to resolve application services.
+    /// </summary>
+    public IServiceProvider? Services { get; private set; }
 
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override async void OnFrameworkInitializationCompleted()
+    public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = _mainViewModel
-            };
+            _mainView = new MainWindow();
+            // IoC services added to DI
+            BuildServices();
+            _mainViewModel = new MainViewModel();
+            _mainView.DataContext = _mainViewModel;
+            desktop.MainWindow = _mainView;
 
             // Listen to the ShutdownRequested-event
             desktop.ShutdownRequested += DesktopOnShutdownRequested;
         }
-        else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
+        else
         {
-            singleViewPlatform.MainView = new DownloadsView
-            {
-                DataContext = new DownloadsViewModel()
-            };
+            throw new PlatformNotSupportedException("This application designed just for Desktop platforms!");
         }
 
         base.OnFrameworkInitializationCompleted();
-
-        // Init the MainViewModel 
-        await InitMainViewModelAsync();
     }
 
-    // Optional: Load data from disc
-    private async Task InitMainViewModelAsync()
+    private void BuildServices()
     {
-        // get the items to load
-        var itemsLoaded = await FileService.LoadFromFileAsync();
+        var services = new ServiceCollection();
 
-        if (itemsLoaded is not null)
-        {
-            foreach (var item in itemsLoaded)
-            {
-                _mainViewModel.Downloads.DownloadItems.Add(new(item));
-            }
-        }
+        services.AddSingleton<IFileService>(x => new FileService(_mainView));
+
+        Services = services.BuildServiceProvider();
     }
 
     // We want to save our downloads before we actually shutdown the App.
@@ -74,7 +74,10 @@ public partial class App : Application
             // To save the items, we map them to the ToDoItem-Model which is better suited for I/O operations
             var itemsToSave = _mainViewModel.Downloads.DownloadItems.Select(item => item.GetItem());
 
-            await FileService.SaveToFileAsync(itemsToSave);
+            var fileService = App.Current?.Services?.GetService<IFileService>();
+            if (fileService is null) throw new NullReferenceException("Missing File Service instance.");
+
+            await fileService.SaveToFileAsync(itemsToSave);
 
             // Set _canClose to true and Close this Window again
             _canClose = true;
