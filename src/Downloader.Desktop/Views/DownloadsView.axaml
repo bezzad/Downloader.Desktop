@@ -6,6 +6,7 @@
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
+	
 
 	<DataGrid x:Name="Root"
 			Margin="20"
@@ -22,15 +23,9 @@
 			Background="{DynamicResource ThemeBackgroundBrush}"
 			BorderThickness="1" BorderBrush="Gray">
 		<DataGrid.Styles>
-			<Style Selector="DataGridCell:selected">
-				<Setter Property="Background" Value="Transparent" />
-			</Style>
-			<Style Selector="DataGridRow">
-				<Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
-			</Style>
-			<Style Selector="DataGridRow:selected">
-				<Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
-			</Style>
+			<!--<Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+				<Setter Property="Fill" Value="LightBlue"/>
+			</Style>-->
 			<Style Selector="TextBlock">
 				<!--<Setter Property="TextWrapping" Value="Wrap" />-->
 				<Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
@@ -54,7 +49,8 @@
 							Command="{Binding #Root.((vm:DownloadsViewModel)DataContext).RemoveItemCommand}"
 							CommandParameter="{Binding .}"
 							Content="View"
-							Foreground="White">
+							Foreground="White"
+							Background="Transparent">
 							<PathIcon Data="{DynamicResource delete_regular}"
 									  Height="15"
 									  Foreground="Red" />

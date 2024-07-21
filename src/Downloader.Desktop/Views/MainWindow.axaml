@@ -16,7 +16,7 @@
 	
 	<DockPanel>
 		<v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" />
-		<Panel DockPanel.Dock="Right" Background="Cyan" Width="200" HorizontalAlignment="Right"/>
+		<!--<Panel DockPanel.Dock="Right" Background="Cyan" Width="200" HorizontalAlignment="Right"/>-->
 
 		<v:DownloadsView DataContext="{Binding Downloads}"  />
 	</DockPanel>
