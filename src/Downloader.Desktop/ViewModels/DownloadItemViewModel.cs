@@ -34,6 +34,31 @@ public class DownloadItemViewModel : ViewModelBase
         }
     }
 
+    public long? Size
+    {
+        get => _item.Size;
+        set
+        {
+            if (_item.Size != value)
+            {
+                this.RaisePropertyChanged(nameof(Size));
+                _item.Size = value;
+            }
+        }
+    }
+
+    public string? Status
+    {
+        get => _item.Size > 0
+                ? (_item.Downloaded / _item.Size * 100) + "%"
+                : _item.Status.ToString();
+    }
+
+    public string? LastTry
+    {
+        get => _item.LastTry?.ToString("dd MMM yyyy");
+    }
+
     public string? Url
     {
         get => _item.Url;

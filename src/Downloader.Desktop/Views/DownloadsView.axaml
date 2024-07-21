@@ -7,8 +7,13 @@
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
 
+	<DataGrid Margin="20" ItemsSource="{Binding DownloadItems}"
+          AutoGenerateColumns="True" IsReadOnly="True"
+          GridLinesVisibility="All"
+          BorderThickness="1" BorderBrush="Gray">
+	</DataGrid>
 	
-	<ScrollViewer x:Name="Root" Padding="5">
+	<!--<ScrollViewer x:Name="Root" Padding="5">
 		<ItemsControl ItemsSource="{Binding DownloadItems}">
 			<ItemsControl.ItemTemplate>
 				<DataTemplate DataType="vm:DownloadItemViewModel">
@@ -25,5 +30,5 @@
 				</DataTemplate>
 			</ItemsControl.ItemTemplate>
 		</ItemsControl>
-	</ScrollViewer>
+	</ScrollViewer>-->
 </UserControl>
