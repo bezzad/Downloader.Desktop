@@ -7,6 +7,21 @@
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+		<Title>Downloader</Title>
+		<Description>Cross-platform Downloader application with fluent user interface</Description>
+		<Copyright>2024</Copyright>
+		<PackageProjectUrl>https://github.com/bezzad/Downloader.Desktop</PackageProjectUrl>
+		<PackageLicenseUrl>https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/LICENSE</PackageLicenseUrl>
+		<PackageIcon>Assets\downloader.png</PackageIcon>
+		<RepositoryUrl>https://github.com/bezzad/Downloader.Desktop</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageTags>downloader</PackageTags>
+		<Company>Behzad Khosravifar</Company>
+		<AssemblyVersion>1.0.0</AssemblyVersion>
+		<FileVersion>1.0.0</FileVersion>
+		<PackageId>Downloader.Desktop</PackageId>
+		<Authors>Behzad Khosravifar</Authors>
+		<Product>Downloader.Desktop</Product>
 	</PropertyGroup>
 
 

@@ -17,7 +17,7 @@ public class FileService : IFileService
 {
     // This is a hard coded path to the file. It may not be available on every platform. In your real world App you may 
     // want to make this configurable
-    private static string _jsonFileName =
+    private static readonly string JsonFileName =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Downloader", "downloads.json");
 
     private readonly Window _target;
@@ -34,10 +34,10 @@ public class FileService : IFileService
     public async Task SaveToFileAsync(IEnumerable<DownloadItem> itemsToSave)
     {
         // Ensure all directories exists
-        Directory.CreateDirectory(Path.GetDirectoryName(_jsonFileName)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(JsonFileName)!);
 
         // We use a FileStream to write all items to disc
-        using var fs = File.Create(_jsonFileName);
+        await using var fs = File.Create(JsonFileName);
         await JsonSerializer.SerializeAsync(fs, itemsToSave);
     }
 
@@ -50,13 +50,13 @@ public class FileService : IFileService
         try
         {
             // We try to read the saved file and return the ToDoItemsList if successful
-            using var fs = File.OpenRead(_jsonFileName);
+            await using var fs = File.OpenRead(JsonFileName);
             return await JsonSerializer.DeserializeAsync<IEnumerable<DownloadItem>>(fs);
         }
         catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
         {
             // In case the file was not found, we simply return null
-            return Enumerable.Empty<DownloadItem>();
+            return [];
         }
     }
 
