@@ -47,7 +47,6 @@
 							HorizontalContentAlignment="Center"
 							Command="{Binding #Root.((vm:DownloadsViewModel)DataContext).RemoveItemCommand}"
 							CommandParameter="{Binding .}"
-							Content="View"
 							Foreground="White"
 							Background="Transparent">
 							<PathIcon Data="{DynamicResource delete_regular}"

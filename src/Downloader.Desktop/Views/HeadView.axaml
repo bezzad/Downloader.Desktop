@@ -26,19 +26,19 @@
 				<TextBlock Text="Stop" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu" Content="Stop All">
+		<Button Classes="Menu">
 			<StackPanel>
 				<PathIcon Data="{StaticResource tabs_regular}" />
 				<TextBlock Text="Stop All" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu" Content="Delete">
+		<Button Classes="Menu">
 			<StackPanel>
 				<PathIcon Data="{StaticResource delete_regular}" />
 				<TextBlock Text="Delete" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu" Content="Options">
+		<Button Classes="Menu">
 			<StackPanel>
 				<PathIcon Data="{StaticResource settings_regular}" />
 				<TextBlock Text="Options" />
