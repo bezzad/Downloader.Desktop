@@ -8,37 +8,38 @@
              x:DataType="vm:HeadViewModel">
 
 	<StackPanel DockPanel.Dock="Top" Height="100" Orientation="Horizontal" VerticalAlignment="Center">
-		<Button Classes="Menu">
+		<TextBox Classes="" Text="{Binding Path=DownloadUrl}"></TextBox>
+		<Button Classes="Menu" Command="{Binding Path=AddUrlCommand}">
 			<StackPanel>
 				<PathIcon Data="{StaticResource add_regular}" />
 				<TextBlock Text="Add"/>
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu">
+		<Button Classes="Menu" Command="{Binding Path= StartItemCommand}">
 			<StackPanel>
 				<PathIcon Data="{StaticResource play_regular}" />
 				<TextBlock Text="Resume" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu">
+		<Button Classes="Menu" Command="{Binding Path= StopItemCommand}">
 			<StackPanel>
 				<PathIcon Data="{StaticResource stop_regular}" />
 				<TextBlock Text="Stop" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu">
+		<Button Classes="Menu" Command="{Binding Path= StopAllCommand}">
 			<StackPanel>
 				<PathIcon Data="{StaticResource tabs_regular}" />
 				<TextBlock Text="Stop All" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu">
+		<Button Classes="Menu" Command="{Binding Path= RemoveItemCommand}">
 			<StackPanel>
 				<PathIcon Data="{StaticResource delete_regular}" />
 				<TextBlock Text="Delete" />
 			</StackPanel>
 		</Button>
-		<Button Classes="Menu">
+		<Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
 			<StackPanel>
 				<PathIcon Data="{StaticResource settings_regular}" />
 				<TextBlock Text="Options" />

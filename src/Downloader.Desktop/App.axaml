@@ -8,16 +8,16 @@
 		<!-- Change theme variant:  https://theme.xaml.live/ -->
 		<FluentTheme>
 			<FluentTheme.Palettes>
-				<ColorPaletteResources x:Key="Light" Accent="#ff28a2c7" AltHigh="White" AltLow="White" AltMedium="White" AltMediumHigh="White" AltMediumLow="White" BaseHigh="Black" BaseLow="#ff7cbee0" BaseMedium="#ff3282a8" BaseMediumHigh="#ff005a83" BaseMediumLow="#ff196e96" ChromeAltLow="#ff005a83" ChromeBlackHigh="Black" ChromeBlackLow="#ff7cbee0" ChromeBlackMedium="#ff005a83" ChromeBlackMediumLow="#ff3282a8" ChromeDisabledHigh="#ff7cbee0" ChromeDisabledLow="#ff3282a8" ChromeGray="#ff196e96" ChromeHigh="#ff7cbee0" ChromeLow="#ffc1e9fe" ChromeMedium="#ffb3e0f8" ChromeMediumLow="#ffc1e9fe" ChromeWhite="White" ListLow="#ffb3e0f8" ListMedium="#ff7cbee0" RegionColor="#ffcfeaff" />
-				<ColorPaletteResources x:Key="Dark" Accent="#ff28a2c7" AltHigh="Black" AltLow="Black" AltMedium="Black" AltMediumHigh="Black" AltMediumLow="Black" BaseHigh="White" BaseLow="#ff286892" BaseMedium="#ff8ab6d2" BaseMediumHigh="#ffa2c9e2" BaseMediumLow="#ff598fb2" ChromeAltLow="#ffa2c9e2" ChromeBlackHigh="Black" ChromeBlackLow="#ffa2c9e2" ChromeBlackMedium="Black" ChromeBlackMediumLow="Black" ChromeDisabledHigh="#ff286892" ChromeDisabledLow="#ff8ab6d2" ChromeGray="#ff71a2c2" ChromeHigh="#ff71a2c2" ChromeLow="#ff083160" ChromeMedium="#ff103f6d" ChromeMediumLow="#ff205a86" ChromeWhite="White" ListLow="#ff103f6d" ListMedium="#ff286892" RegionColor="#ff0d2644" />
+				<ColorPaletteResources x:Key="Light" Accent="#ffa8a8a8" AltHigh="White" AltLow="White" AltMedium="White" AltMediumHigh="White" AltMediumLow="White" BaseHigh="Black" BaseLow="#ffcccccc" BaseMedium="#ff898989" BaseMediumHigh="#ff5d5d5d" BaseMediumLow="#ff737373" ChromeAltLow="#ff5d5d5d" ChromeBlackHigh="Black" ChromeBlackLow="#ffcccccc" ChromeBlackMedium="#ff5d5d5d" ChromeBlackMediumLow="#ff898989" ChromeDisabledHigh="#ffcccccc" ChromeDisabledLow="#ff898989" ChromeGray="#ff737373" ChromeHigh="#ffcccccc" ChromeLow="#ffececec" ChromeMedium="#ffe6e6e6" ChromeMediumLow="#ffececec" ChromeWhite="White" ListLow="#ffe6e6e6" ListMedium="#ffcccccc" RegionColor="White" />
+				<ColorPaletteResources x:Key="Dark" Accent="#ff4c4a48" AltHigh="Black" AltLow="Black" AltMedium="Black" AltMediumHigh="Black" AltMediumLow="Black" BaseHigh="White" BaseLow="#ff333333" BaseMedium="#ff9a9a9a" BaseMediumHigh="#ffb4b4b4" BaseMediumLow="#ff676767" ChromeAltLow="#ffb4b4b4" ChromeBlackHigh="Black" ChromeBlackLow="#ffb4b4b4" ChromeBlackMedium="Black" ChromeBlackMediumLow="Black" ChromeDisabledHigh="#ff333333" ChromeDisabledLow="#ff9a9a9a" ChromeGray="Gray" ChromeHigh="Gray" ChromeLow="#ff151515" ChromeMedium="#ff1d1d1d" ChromeMediumLow="#ff2c2c2c" ChromeWhite="White" ListLow="#ff1d1d1d" ListMedium="#ff333333" RegionColor="Black" />
 			</FluentTheme.Palettes>
 		</FluentTheme>
+
 		<StyleInclude Source="avares://Downloader.Desktop/Assets/Icons.axaml" />
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 
 		<!-- Some custom Styles -->
-
-		<!-- Our header Style -->
+		
 		<Style Selector="TextBlock.h1">
 			<Setter Property="FontWeight" Value="Bold" />
 			<Setter Property="FontSize" Value="15" />
@@ -33,32 +33,47 @@
 		<Style Selector="CheckBox:pointerover /template/ Grid#RootGrid">
 			<Setter Property="Background" Value="{DynamicResource SystemAccentColorLight3}" />
 		</Style>
-
-		<Style Selector="Button:disabled PathIcon">
-			<Setter Property="Opacity" Value="0.4" />
-		</Style>
-
+		
 		<Style Selector="Button.Menu" x:DataType="Button">
-			<Setter Property="FontSize" Value="14"/>
 			<Setter Property="Cursor" Value="Hand"/>
-			<Setter Property="FontWeight" Value="Bold"/>
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="BorderThickness" Value="20" />
+			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontWeight" Value="Normal"/>
+			<Setter Property="BorderThickness" Value="10" />
 			<Setter Property="Padding" Value="0" />
-			<Setter Property="Width" Value="100" />
-			<Setter Property="Height" Value="100" />
+			<Setter Property="Width" Value="80" />
+			<Setter Property="Height" Value="80" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="White" />
+			
 		</Style>
 		<Style Selector="Button PathIcon">
-			<Setter Property="Margin" Value="10" />
+			<Setter Property="Margin" Value="5" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="White" />
 		</Style>
 		<Style Selector="Button:disabled PathIcon">
 			<Setter Property="Opacity" Value="0.4" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="White" />
 		</Style>
 		<Style Selector="Button TextBlock">
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="White" />
+		</Style>
+		
+		<Style Selector="TextBox.Menu" x:DataType="TextBox">
+			<Setter Property="FontSize" Value="14"/>
+			<Setter Property="FontWeight" Value="Normal"/>
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="HorizontalAlignment" Value="Center" />
+			<Setter Property="Margin" Value="20" />
+			<Setter Property="Height" Value="40" />
 		</Style>
 	</Application.Styles>
 </Application>

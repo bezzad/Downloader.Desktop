@@ -1,39 +1,92 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Downloader.Desktop.ViewModels"
-		xmlns:v="using:Downloader.Desktop.Views"
+        xmlns:v="using:Downloader.Desktop.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Downloader.Desktop.Views.MainWindow"
-		x:DataType="vm:MainViewModel"
-		x:CompileBindings="true"
+        x:DataType="vm:MainViewModel"
+        x:CompileBindings="true"
         Icon="/Assets/downloader.ico"
-		TransparencyLevelHint="AcrylicBlur"
+        TransparencyLevelHint="AcrylicBlur"
         WindowStartupLocation="CenterScreen"
         Title="Downloader">
-	<Design.DataContext>
-		<vm:MainViewModel/>
-	</Design.DataContext>
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
 
-	<Panel>
-		<!--<ThemeVariantScope RequestedThemeVariant="Dark">
-			<ExperimentalAcrylicBorder IsHitTestVisible="False">
-				<ExperimentalAcrylicBorder.Material>
-					<ExperimentalAcrylicMaterial
-						BackgroundSource="Digger"
-						TintColor="Black"
-						TintOpacity="1"
-						MaterialOpacity="0.65" />
-				</ExperimentalAcrylicBorder.Material>
-			</ExperimentalAcrylicBorder>
-		</ThemeVariantScope>-->
-		
-		<DockPanel>
-			<v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" />
-			<!--<Panel DockPanel.Dock="Right" Background="Cyan" Width="200" HorizontalAlignment="Right"/>-->
+    <!-- <Panel> -->
+    <!-- <ExperimentalAcrylicBorder IsHitTestVisible="False"> -->
+    <!-- 	<ExperimentalAcrylicBorder.Material> -->
+    <!-- 		<ExperimentalAcrylicMaterial -->
+    <!-- 			BackgroundSource="Digger" -->
+    <!-- 			TintColor="Black" -->
+    <!-- 			TintOpacity="1" -->
+    <!-- 			MaterialOpacity="0.65" /> -->
+    <!-- 	</ExperimentalAcrylicBorder.Material> -->
+    <!-- </ExperimentalAcrylicBorder> -->
+    <!-- <body> -->
+    <!-- </Panel> -->
 
-			<v:DownloadsView DataContext="{Binding Downloads}"  />
-		</DockPanel>
-	</Panel>
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Left" Background="DimGray"
+                    Orientation="Vertical" VerticalAlignment="Stretch">
+            <Button Classes="Menu" Command="{Binding Path=AddUrlCommand}">
+                <StackPanel>
+                    <PathIcon Data="{StaticResource add_regular}" />
+                    <TextBlock Text="Add" />
+                </StackPanel>
+            </Button>
+            <Button Classes="Menu" Command="{Binding Path= StartItemCommand}">
+                <StackPanel>
+                    <PathIcon Data="{StaticResource play_regular}" />
+                    <TextBlock Text="Resume" />
+                </StackPanel>
+            </Button>
+            <Button Classes="Menu" Command="{Binding Path= StopItemCommand}">
+                <StackPanel>
+                    <PathIcon Data="{StaticResource stop_regular}" />
+                    <TextBlock Text="Stop" />
+                </StackPanel>
+            </Button>
+            <Button Classes="Menu" Command="{Binding Path= RemoveItemCommand}">
+                <StackPanel>
+                    <PathIcon Data="{StaticResource delete_regular}" />
+                    <TextBlock Text="Delete" />
+                </StackPanel>
+            </Button>
+            <Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
+                <StackPanel>
+                    <PathIcon Data="{StaticResource settings_regular}" />
+                    <TextBlock Text="Options" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+        
+        <!-- <v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" /> -->
+        <!-- Main content area -->
+        <DockPanel Margin="10">
+            <!-- Grid for TextBox and Button -->
+            <Grid DockPanel.Dock="Top" Margin="20 5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- TextBox fills the first column -->
+                <TextBox Classes="Menu"
+                         Grid.Column="0"
+                         Text="{Binding Path=DownloadUrl}"
+                         HorizontalAlignment="Stretch"
+                         Watermark="Add download link here" />
+
+                <!-- Button in the second column -->
+                <Button Content="+" Grid.Column="1" Width="40" Height="40" />
+            </Grid>
+
+            <!-- DownloadsView positioned below the TextBox and Button -->
+            <v:DownloadsView DataContext="{Binding Downloads}" />
+        </DockPanel>
+    </DockPanel>
 </Window>
