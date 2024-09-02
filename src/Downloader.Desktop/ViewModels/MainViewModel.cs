@@ -15,26 +15,30 @@ public class MainViewModel : ViewModelBase
     public DownloadsViewModel Downloads { get; private set; }
     // public HeadViewModel Head { get; } = new HeadViewModel();
     public ICommand AddUrlCommand { get; }
-    public ICommand RemoveItemCommand { get; }
-    public ICommand StopItemCommand { get; }
-    public ICommand StartItemCommand { get; }
+    public ICommand ClearAllCommand { get; }
+    public ICommand StopAllCommand { get; }
+    public ICommand StartAllCommand { get; }
     public ICommand ShowOptionsViewCommand { get; }
     public string DownloadUrl { get; set; }
     
     /// <summary>
     /// Gets or sets a list of Files
     /// </summary>
-    private IEnumerable<string>? _SelectedFiles;
+    private IEnumerable<string>? _selectedFiles;
     private IEnumerable<string>? SelectedFiles
     {
-        get { return _SelectedFiles; }
-        set { this.RaiseAndSetIfChanged(ref _SelectedFiles, value); }
+        get => _selectedFiles;
+        set => this.RaiseAndSetIfChanged(ref _selectedFiles, value);
     }
     
     public MainViewModel()
     {
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
         AddUrlCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
+        ClearAllCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
+        StopAllCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
+        StartAllCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
+        ShowOptionsViewCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
     }
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)

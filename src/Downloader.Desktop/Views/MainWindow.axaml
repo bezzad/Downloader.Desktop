@@ -32,28 +32,22 @@
     <DockPanel>
         <StackPanel DockPanel.Dock="Left" Background="DimGray"
                     Orientation="Vertical" VerticalAlignment="Stretch">
-            <Button Classes="Menu" Command="{Binding Path=AddUrlCommand}">
-                <StackPanel>
-                    <PathIcon Data="{StaticResource add_regular}" />
-                    <TextBlock Text="Add" />
-                </StackPanel>
-            </Button>
-            <Button Classes="Menu" Command="{Binding Path= StartItemCommand}">
+            <Button Classes="Menu" Command="{Binding Path= StartAllCommand}">
                 <StackPanel>
                     <PathIcon Data="{StaticResource play_regular}" />
                     <TextBlock Text="Resume" />
                 </StackPanel>
             </Button>
-            <Button Classes="Menu" Command="{Binding Path= StopItemCommand}">
+            <Button Classes="Menu" Command="{Binding Path= StopAllCommand}">
                 <StackPanel>
                     <PathIcon Data="{StaticResource stop_regular}" />
                     <TextBlock Text="Stop" />
                 </StackPanel>
             </Button>
-            <Button Classes="Menu" Command="{Binding Path= RemoveItemCommand}">
+            <Button Classes="Menu" Command="{Binding Path= ClearAllCommand}">
                 <StackPanel>
                     <PathIcon Data="{StaticResource delete_regular}" />
-                    <TextBlock Text="Delete" />
+                    <TextBlock Text="Clear All" />
                 </StackPanel>
             </Button>
             <Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
@@ -79,10 +73,13 @@
                          Grid.Column="0"
                          Text="{Binding Path=DownloadUrl}"
                          HorizontalAlignment="Stretch"
+                         Margin="0"
                          Watermark="Add download link here" />
 
                 <!-- Button in the second column -->
-                <Button Content="+" Grid.Column="1" Width="40" Height="40" />
+                <Button Grid.Column="1" Width="40" Height="40" Command="{Binding Path= AddUrlCommand}">
+                    <PathIcon Data="{StaticResource add_regular}" />
+                </Button>
             </Grid>
 
             <!-- DownloadsView positioned below the TextBox and Button -->
