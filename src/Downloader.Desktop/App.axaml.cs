@@ -6,8 +6,6 @@ using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Downloader.Desktop;
 
@@ -57,7 +55,7 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<IFileService>(x => new FileService(_mainView));
+        services.AddSingleton<IFileService>(_ => new FileService(_mainView));
 
         Services = services.BuildServiceProvider();
     }
@@ -71,13 +69,7 @@ public partial class App : Application
 
         if (!_canClose)
         {
-            // To save the items, we map them to the ToDoItem-Model which is better suited for I/O operations
-            var itemsToSave = _mainViewModel.Downloads.DownloadItems.Select(item => item.GetItem());
-
-            var fileService = App.Current?.Services?.GetService<IFileService>();
-            if (fileService is null) throw new NullReferenceException("Missing File Service instance.");
-
-            await fileService.SaveToFileAsync(itemsToSave);
+            _mainViewModel?.Downloads.SaveDownloadItems();
 
             // Set _canClose to true and Close this Window again
             _canClose = true;

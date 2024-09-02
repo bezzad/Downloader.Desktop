@@ -10,7 +10,7 @@ namespace Downloader.Desktop.ViewModels;
 
 public class MainViewModel : ViewModelBase
 {
-    public DownloadsViewModel Downloads { get; } = new DownloadsViewModel();
+    public DownloadsViewModel Downloads { get; private set; }
     public HeadViewModel Head { get; } = new HeadViewModel();
 
     public MainViewModel()
@@ -22,6 +22,8 @@ public class MainViewModel : ViewModelBase
     {
         var filesService = App.Current?.Services?.GetService<IFileService>();
         if (filesService is null) throw new NullReferenceException("Missing File Service instance.");
+
+        Downloads = new DownloadsViewModel(filesService);
 
         // get the items to load
         var itemsLoaded = await filesService.LoadFromFileAsync();

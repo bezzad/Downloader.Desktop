@@ -17,7 +17,8 @@ public class DownloadItem
     public DownloadStatus Status { get; set; }
 
     [JsonIgnore]
-    public string? FileName { get => _fileName ?? (_fileName = Path.GetFileName(FilePath)); set => _fileName = value; }
+    public string? FileName { get => _fileName ??= Path.GetFileName(FilePath); set => _fileName = value; }
+    
     [JsonIgnore]
-    public string? FolderPath => _folderPath ?? (_folderPath = Path.GetDirectoryName(FilePath));
+    public string? FolderPath => _folderPath ??= Path.GetDirectoryName(FilePath);
 }

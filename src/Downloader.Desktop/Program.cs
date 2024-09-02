@@ -20,6 +20,10 @@ class Program
     {
         return AppBuilder.Configure<App>()
                .UsePlatformDetect()
+               .With(new X11PlatformOptions())
+               .With(new Win32PlatformOptions())
+               .With(new AvaloniaNativePlatformOptions())
+               .With(new MacOSPlatformOptions { ShowInDock = true })
                .WithInterFont()
                .LogToTrace()
                .UseReactiveUI()
