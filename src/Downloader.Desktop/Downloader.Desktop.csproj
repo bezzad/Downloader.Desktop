@@ -62,7 +62,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Update="Views\HeadView.axaml.cs">
+	  <Compile Update="Views\SettingView.axaml.cs">
 	    <DependentUpon>HeadView.axaml</DependentUpon>
 	  </Compile>
 	  <Compile Update="Views\DownloadsView.axaml.cs">

@@ -12,17 +12,7 @@ namespace Downloader.Desktop;
 public partial class App : Application
 {
     private bool _canClose; // This flag is used to check if window is allowed to close
-
-    // This is a reference to our MainViewModel which we use to save the list on shutdown.
-    // TODO: Use Dependency Injection in this App to inject ViewModels
-    private MainViewModel? _mainViewModel;
-    private MainWindow? _mainView;
-    public new static App? Current => Application.Current as App;
-
-    /// <summary>
-    /// Gets the <see cref="IServiceProvider"/> instance to resolve application services.
-    /// </summary>
-    public IServiceProvider? Services { get; private set; }
+    private IServiceProvider? _services;
 
     public override void Initialize()
     {
@@ -31,14 +21,16 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Register all the services needed for the application to run
+        ConfigureServices();
+        var vm = _services?.GetRequiredService<MainViewModel>();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _mainView = new MainWindow();
-            // IoC services added to DI
-            BuildServices();
-            _mainViewModel = new MainViewModel();
-            _mainView.DataContext = _mainViewModel;
-            desktop.MainWindow = _mainView;
+            // Resolve the MainWindow and set its DataContext via DI
+            desktop.MainWindow = new MainWindow
+            {
+                DataContext = vm
+            };
 
             // Listen to the ShutdownRequested-event
             desktop.ShutdownRequested += DesktopOnShutdownRequested;
@@ -51,13 +43,13 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void BuildServices()
+    private void ConfigureServices()
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<IFileService>(_ => new FileService(_mainView));
-
-        Services = services.BuildServiceProvider();
+        services.AddSingleton<IFileService, FileService>();
+        services.AddTransient<MainViewModel>();
+        _services = services.BuildServiceProvider();
     }
 
     // We want to save our downloads before we actually shutdown the App.
@@ -69,7 +61,7 @@ public partial class App : Application
 
         if (!_canClose)
         {
-            _mainViewModel?.Downloads.SaveDownloadItems();
+            _services?.GetRequiredService<MainViewModel>().SaveConfigFile();
 
             // Set _canClose to true and Close this Window again
             _canClose = true;

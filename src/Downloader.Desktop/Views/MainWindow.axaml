@@ -44,7 +44,7 @@
                         <TextBlock Text="Clear All" />
                     </StackPanel>
                 </Button>
-                <Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
+                <Button Classes="Menu" Command="{Binding Path= ShowSettingViewCommand}">
                     <StackPanel>
                         <PathIcon Data="{StaticResource SettingsRegular}" />
                         <TextBlock Text="Options" />
@@ -82,13 +82,13 @@
                     <!-- Storage Path + Select Path button -->
                     <TextBox Grid.Row="2" Classes="TextBar"
                              Grid.Column="0"
-                             Text="{Binding Path=StoragePath}"
+                             Text="{Binding Path=StorageFolderPath, Mode=TwoWay}"
                              Watermark="Where you want to save the file" />
 
                     <!-- Button in the second column -->
                     <Button Grid.Row="2" Grid.Column="1" Classes="TextBar" 
-                            Command="{Binding Path= AddUrlCommand}">
-                        <PathIcon Data="{StaticResource DocumentRegular}" />
+                            Command="{Binding Path= SelectFileStoragePathCommand}">
+                        <PathIcon Data="{StaticResource FolderRegular}" />
                     </Button>
                 </Grid>
 
@@ -96,6 +96,7 @@
                 <v:DownloadsView DataContext="{Binding Downloads}" />
             </DockPanel>
         </DockPanel>
-
+        
     </ExperimentalAcrylicBorder>
+    
 </Window>

@@ -1,22 +1,16 @@
-﻿using System;
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Downloader.Desktop.Models;
 using ReactiveUI;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using Downloader.Desktop.Services;
 
 namespace Downloader.Desktop.ViewModels;
 
 public class DownloadsViewModel : ViewModelBase
 {
-    private readonly IFileService _fileService;
-
-    public DownloadsViewModel(IFileService fileService)
+    public DownloadsViewModel()
     {
-        _fileService = fileService ?? throw new NullReferenceException("Missing File Service instance.");
         SelectFilesCommand = ReactiveCommand.CreateFromTask(SelectFilesAsync);
         RemoveItemCommand = ReactiveCommand.CreateFromTask<DownloadItemViewModel>(RemoveDownloadItem);
 
@@ -27,7 +21,7 @@ public class DownloadsViewModel : ViewModelBase
             DownloadItems = new(new[]
             {
                 new DownloadItemViewModel() { FileName = "Hello" },
-                new DownloadItemViewModel() { FileName = "Avalonia" }
+                new DownloadItemViewModel() { FileName = "Downloader" }
             });
         }
 
@@ -61,12 +55,5 @@ public class DownloadsViewModel : ViewModelBase
     {
         DownloadItems.Remove(item);
         await Task.Delay(2000);
-    }
-
-    public async Task SaveDownloadItems()
-    {
-        // To save the items, we map them to the ToDoItem-Model which is better suited for I/O operations
-        var itemsToSave = DownloadItems.Select(item => item.GetItem());
-        await _fileService.SaveToFileAsync(itemsToSave);
     }
 }

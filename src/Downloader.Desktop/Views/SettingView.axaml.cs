@@ -2,9 +2,9 @@
 
 namespace Downloader.Desktop.Views;
 
-public partial class HeadView : UserControl
+public partial class SettingView : Window
 {
-    public HeadView()
+    public SettingView()
     {
         InitializeComponent();
     }
