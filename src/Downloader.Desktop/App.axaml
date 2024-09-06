@@ -3,7 +3,14 @@
              x:Class="Downloader.Desktop.App"
              RequestedThemeVariant="Light">
 	<!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-
+	<Application.Resources>
+		<ResourceDictionary>
+			<!-- Define the fixed height as a resource -->
+			<x:Double x:Key="DefaultFontSize">12</x:Double>
+			<x:Double x:Key="H1FontSize">14</x:Double>
+		</ResourceDictionary>
+	</Application.Resources>
+	
 	<Application.Styles>
 		<!-- Change theme variant:  https://theme.xaml.live/ -->
 		<FluentTheme>
@@ -20,7 +27,7 @@
 		
 		<Style Selector="TextBlock.h1">
 			<Setter Property="FontWeight" Value="Bold" />
-			<Setter Property="FontSize" Value="15" />
+			<Setter Property="FontSize" Value="{StaticResource H1FontSize}" />
 			<Setter Property="Margin" Value="5" />
 		</Style>
 
@@ -39,7 +46,7 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="BorderThickness" Value="10" />
 			<Setter Property="Padding" Value="0" />
@@ -67,7 +74,7 @@
 		</Style>
 		
 		<Style Selector="TextBox.Menu" x:DataType="TextBox">
-			<Setter Property="FontSize" Value="14"/>
+			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="VerticalAlignment" Value="Center" />
@@ -81,27 +88,35 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="Padding" Value="0" />
 			<Setter Property="Width" Value="40" />
 			<Setter Property="Height" Value="40" />
-			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="BorderThickness" Value="0 1 1 1" />
 			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="CornerRadius" Value="0 5 5 0" />
+			<Setter Property="CornerRadius" Value="0 10 10 0" />
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="Foreground" Value="White" />
 		</Style>
 		
+		<Style Selector="Button.TextBar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="White" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="BorderBrush" Value="Gray" />
+			<Setter Property="CornerRadius" Value="0 10 10 0" />
+		</Style>
+		
 		<Style Selector="TextBox.TextBar" x:DataType="TextBox">
-			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="HorizontalAlignment" Value="Stretch" />
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="Margin" Value="0" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="CornerRadius" Value="5 0 0 5" />
+			<Setter Property="CornerRadius" Value="10 0 0 10" />
 		</Style>
 	</Application.Styles>
 </Application>

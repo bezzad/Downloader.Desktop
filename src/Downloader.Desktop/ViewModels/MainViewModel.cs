@@ -20,6 +20,7 @@ public class MainViewModel : ViewModelBase
     public ICommand StartAllCommand { get; }
     public ICommand ShowOptionsViewCommand { get; }
     public string DownloadUrl { get; set; }
+    public string StoragePath { get; set; }
     
     /// <summary>
     /// Gets or sets a list of Files

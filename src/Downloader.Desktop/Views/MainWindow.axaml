@@ -63,11 +63,11 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="20" />
+                        <RowDefinition Height="10" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- TextBox fills the first column -->
+                    <!-- Download URL + Add button -->
                     <TextBox Grid.Row="0" Classes="TextBar"
                              Grid.Column="0"
                              Text="{Binding Path=DownloadUrl}"
@@ -79,10 +79,10 @@
                         <PathIcon Data="{StaticResource AddRegular}" />
                     </Button>
                     
-                    <!-- TextBox fills the first column -->
+                    <!-- Storage Path + Select Path button -->
                     <TextBox Grid.Row="2" Classes="TextBar"
                              Grid.Column="0"
-                             Text="{Binding Path=DownloadUrl}"
+                             Text="{Binding Path=StoragePath}"
                              Watermark="Where you want to save the file" />
 
                     <!-- Button in the second column -->
