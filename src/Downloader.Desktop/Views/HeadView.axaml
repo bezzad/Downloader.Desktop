@@ -11,37 +11,37 @@
 		<TextBox Classes="" Text="{Binding Path=DownloadUrl}"></TextBox>
 		<Button Classes="Menu" Command="{Binding Path=AddUrlCommand}">
 			<StackPanel>
-				<PathIcon Data="{StaticResource add_regular}" />
+				<PathIcon Data="{StaticResource AddRegular}" />
 				<TextBlock Text="Add"/>
 			</StackPanel>
 		</Button>
 		<Button Classes="Menu" Command="{Binding Path= StartItemCommand}">
 			<StackPanel>
-				<PathIcon Data="{StaticResource play_regular}" />
+				<PathIcon Data="{StaticResource PlayRegular}" />
 				<TextBlock Text="Resume" />
 			</StackPanel>
 		</Button>
 		<Button Classes="Menu" Command="{Binding Path= StopItemCommand}">
 			<StackPanel>
-				<PathIcon Data="{StaticResource stop_regular}" />
+				<PathIcon Data="{StaticResource StopRegular}" />
 				<TextBlock Text="Stop" />
 			</StackPanel>
 		</Button>
 		<Button Classes="Menu" Command="{Binding Path= StopAllCommand}">
 			<StackPanel>
-				<PathIcon Data="{StaticResource tabs_regular}" />
+				<PathIcon Data="{StaticResource TabsRegular}" />
 				<TextBlock Text="Stop All" />
 			</StackPanel>
 		</Button>
 		<Button Classes="Menu" Command="{Binding Path= RemoveItemCommand}">
 			<StackPanel>
-				<PathIcon Data="{StaticResource delete_regular}" />
+				<PathIcon Data="{StaticResource DeleteRegular}" />
 				<TextBlock Text="Delete" />
 			</StackPanel>
 		</Button>
 		<Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
 			<StackPanel>
-				<PathIcon Data="{StaticResource settings_regular}" />
+				<PathIcon Data="{StaticResource SettingsRegular}" />
 				<TextBlock Text="Options" />
 			</StackPanel>
 		</Button>

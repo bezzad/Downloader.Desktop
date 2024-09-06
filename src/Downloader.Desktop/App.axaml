@@ -47,8 +47,8 @@
 			<Setter Property="Height" Value="80" />
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="Foreground" Value="White" />
-			
 		</Style>
+		
 		<Style Selector="Button PathIcon">
 			<Setter Property="Margin" Value="5" />
 			<Setter Property="Background" Value="Transparent" />
@@ -74,6 +74,34 @@
 			<Setter Property="HorizontalAlignment" Value="Center" />
 			<Setter Property="Margin" Value="20" />
 			<Setter Property="Height" Value="40" />
+		</Style>
+		
+		<Style Selector="Button.TextBar" x:DataType="Button">
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="HorizontalAlignment" Value="Center" />
+			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontWeight" Value="Normal"/>
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="Width" Value="40" />
+			<Setter Property="Height" Value="40" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="BorderBrush" Value="Gray" />
+			<Setter Property="CornerRadius" Value="0 5 5 0" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="White" />
+		</Style>
+		
+		<Style Selector="TextBox.TextBar" x:DataType="TextBox">
+			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontWeight" Value="Normal"/>
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="Margin" Value="0" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="BorderBrush" Value="Gray" />
+			<Setter Property="CornerRadius" Value="5 0 0 5" />
 		</Style>
 	</Application.Styles>
 </Application>

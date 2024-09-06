@@ -16,74 +16,86 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <!-- <Panel> -->
-    <!-- <ExperimentalAcrylicBorder IsHitTestVisible="False"> -->
-    <!-- 	<ExperimentalAcrylicBorder.Material> -->
-    <!-- 		<ExperimentalAcrylicMaterial -->
-    <!-- 			BackgroundSource="Digger" -->
-    <!-- 			TintColor="Black" -->
-    <!-- 			TintOpacity="1" -->
-    <!-- 			MaterialOpacity="0.65" /> -->
-    <!-- 	</ExperimentalAcrylicBorder.Material> -->
-    <!-- </ExperimentalAcrylicBorder> -->
-    <!-- <body> -->
-    <!-- </Panel> -->
+    <ExperimentalAcrylicBorder>
+        <ExperimentalAcrylicBorder.Material>
+            <ExperimentalAcrylicMaterial BackgroundSource="Digger" TintColor="White"
+                                         TintOpacity="1" MaterialOpacity="0.65" />
+        </ExperimentalAcrylicBorder.Material>
 
-    <DockPanel>
-        <StackPanel DockPanel.Dock="Left" Background="DimGray"
-                    Orientation="Vertical" VerticalAlignment="Stretch">
-            <Button Classes="Menu" Command="{Binding Path= StartAllCommand}">
-                <StackPanel>
-                    <PathIcon Data="{StaticResource play_regular}" />
-                    <TextBlock Text="Resume" />
-                </StackPanel>
-            </Button>
-            <Button Classes="Menu" Command="{Binding Path= StopAllCommand}">
-                <StackPanel>
-                    <PathIcon Data="{StaticResource stop_regular}" />
-                    <TextBlock Text="Stop" />
-                </StackPanel>
-            </Button>
-            <Button Classes="Menu" Command="{Binding Path= ClearAllCommand}">
-                <StackPanel>
-                    <PathIcon Data="{StaticResource delete_regular}" />
-                    <TextBlock Text="Clear All" />
-                </StackPanel>
-            </Button>
-            <Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
-                <StackPanel>
-                    <PathIcon Data="{StaticResource settings_regular}" />
-                    <TextBlock Text="Options" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
-        
-        <!-- <v:HeadView DockPanel.Dock="Top" DataContext="{Binding Head}" /> -->
-        <!-- Main content area -->
-        <DockPanel Margin="10">
-            <!-- Grid for TextBox and Button -->
-            <Grid DockPanel.Dock="Top" Margin="20 5">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <!-- TextBox fills the first column -->
-                <TextBox Classes="Menu"
-                         Grid.Column="0"
-                         Text="{Binding Path=DownloadUrl}"
-                         HorizontalAlignment="Stretch"
-                         Margin="0"
-                         Watermark="Add download link here" />
-
-                <!-- Button in the second column -->
-                <Button Grid.Column="1" Width="40" Height="40" Command="{Binding Path= AddUrlCommand}">
-                    <PathIcon Data="{StaticResource add_regular}" />
+        <DockPanel>
+            <!-- Left sidebar -->
+            <StackPanel DockPanel.Dock="Left" Background="DimGray"
+                        Orientation="Vertical" VerticalAlignment="Stretch">
+                <Button Classes="Menu" Command="{Binding Path= StartAllCommand}">
+                    <StackPanel>
+                        <PathIcon Data="{StaticResource PlayRegular}" />
+                        <TextBlock Text="Resume" />
+                    </StackPanel>
                 </Button>
-            </Grid>
+                <Button Classes="Menu" Command="{Binding Path= StopAllCommand}">
+                    <StackPanel>
+                        <PathIcon Data="{StaticResource StopRegular}" />
+                        <TextBlock Text="Stop" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="Menu" Command="{Binding Path= ClearAllCommand}">
+                    <StackPanel>
+                        <PathIcon Data="{StaticResource DeleteRegular}" />
+                        <TextBlock Text="Clear All" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="Menu" Command="{Binding Path= ShowOptionsViewCommand}">
+                    <StackPanel>
+                        <PathIcon Data="{StaticResource SettingsRegular}" />
+                        <TextBlock Text="Options" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
 
-            <!-- DownloadsView positioned below the TextBox and Button -->
-            <v:DownloadsView DataContext="{Binding Downloads}" />
+            <!-- Main content area -->
+            <DockPanel Margin="10">
+                <!-- Top header -->
+                <Grid DockPanel.Dock="Top" Margin="20 5"
+                      Background="{DynamicResource SliderContainerBackground}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="20" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- TextBox fills the first column -->
+                    <TextBox Grid.Row="0" Classes="TextBar"
+                             Grid.Column="0"
+                             Text="{Binding Path=DownloadUrl}"
+                             Watermark="Add download link here" />
+
+                    <!-- Button in the second column -->
+                    <Button Grid.Row="0" Grid.Column="1" Classes="TextBar" 
+                            Command="{Binding Path= AddUrlCommand}">
+                        <PathIcon Data="{StaticResource AddRegular}" />
+                    </Button>
+                    
+                    <!-- TextBox fills the first column -->
+                    <TextBox Grid.Row="2" Classes="TextBar"
+                             Grid.Column="0"
+                             Text="{Binding Path=DownloadUrl}"
+                             Watermark="Where you want to save the file" />
+
+                    <!-- Button in the second column -->
+                    <Button Grid.Row="2" Grid.Column="1" Classes="TextBar" 
+                            Command="{Binding Path= AddUrlCommand}">
+                        <PathIcon Data="{StaticResource DocumentRegular}" />
+                    </Button>
+                </Grid>
+
+                <!-- DownloadsView positioned below the TextBoxes -->
+                <v:DownloadsView DataContext="{Binding Downloads}" />
+            </DockPanel>
         </DockPanel>
-    </DockPanel>
+
+    </ExperimentalAcrylicBorder>
 </Window>

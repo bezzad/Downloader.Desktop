@@ -49,7 +49,7 @@
 							CommandParameter="{Binding .}"
 							Foreground="White"
 							Background="Transparent">
-							<PathIcon Data="{DynamicResource delete_regular}"
+							<PathIcon Data="{DynamicResource DeleteRegular}"
 									  Height="15"
 									  Foreground="Red" />
 						</Button>
