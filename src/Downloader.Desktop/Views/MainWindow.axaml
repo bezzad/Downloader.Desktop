@@ -11,8 +11,12 @@
         Icon="/Assets/downloader.ico"
         TransparencyLevelHint="AcrylicBlur"
         WindowStartupLocation="CenterScreen"
+        Topmost="False"
         Title="Downloader">
-    
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+N"
+                    Command="{Binding AddDownloadItemCommand, Mode=OneTime}" />
+    </Window.KeyBindings>
     <ExperimentalAcrylicBorder>
         <ExperimentalAcrylicBorder.Material>
             <ExperimentalAcrylicMaterial BackgroundSource="Digger" TintColor="White"
