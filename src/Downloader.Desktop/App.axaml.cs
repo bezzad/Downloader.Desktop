@@ -67,13 +67,13 @@ public partial class App : Application
     // We want to save our downloads before we actually shutdown the App.
     // As File I/O is async, we need to wait until file is closed 
     // before we can actually close this window
-    private async void DesktopOnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    private void DesktopOnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
     {
         e.Cancel = !_canClose; // cancel closing event first time
 
         if (!_canClose)
         {
-            await _services?.GetRequiredService<MainViewModel>().SaveConfigFile()!;
+            _services?.GetRequiredService<MainViewModel>()?.SaveConfigFile()?.Wait(TimeSpan.FromSeconds(5));
 
             // Set _canClose to true and Close this Window again
             _canClose = true;

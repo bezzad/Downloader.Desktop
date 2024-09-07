@@ -69,6 +69,7 @@ public class AddDownloadItemViewModel : ViewModelBase
                 config.ChunkCount = DownloadChunks;
             }).Build();
 
+        View.Close(download);
         
         await download.StartAsync();
     }

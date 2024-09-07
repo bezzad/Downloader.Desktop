@@ -53,12 +53,25 @@ public class MainViewModel : ViewModelBase
 
     private async Task AddDownloadItem()
     {
-        await DialogHelper.ShowDialog(new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
+        var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, IDownload>(
+            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
+
+        Downloads.DownloadItems.Add(new DownloadItemViewModel(new DownloadItem()
+        {
+            FileName = result.Filename,
+            Size = result.TotalFileSize,
+            Downloaded = result.DownloadedFileSize,
+            Url = result.Url,
+            FilePath = result.Filename,
+            Status = result.Status,
+            LastTry = DateTime.Now
+        }));
     }
 
     private async Task ShowSettingView()
     {
-        await DialogHelper.ShowDialog(new SettingView(), new SettingViewModel(_config));
+        await DialogHelper.ShowDialog<SettingView, SettingViewModel, bool>(new SettingView(), new SettingViewModel(_config));
+        await SaveConfigFile();
     }
 
     public async Task SaveConfigFile()

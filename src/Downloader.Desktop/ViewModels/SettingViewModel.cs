@@ -30,7 +30,7 @@ public class SettingViewModel : ViewModelBase
         set
         {
             this.RaiseAndSetIfChanged(ref _defaultDownloadSegments, value);
-            //_config.DefaultDownloadChunks = value;
+            _config.DefaultDownloadChunks = value;
         }
     }
 
