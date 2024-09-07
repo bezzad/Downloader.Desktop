@@ -13,26 +13,23 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class DialogHelper
 {
-    public static Window GetMainWindow()
-    {
-        // Access the main window to open the file dialog
-        return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)
-            ?.MainWindow;
-    }
-
+    public static IClassicDesktopStyleApplicationLifetime AppLifetime =>
+        Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+    
+    public static Window MainWindow => AppLifetime?.MainWindow;
+    
     public static async Task<TResult> ShowDialog<TV, TVm, TResult>(TV view, TVm viewModel)
         where TV : Window
         where TVm : ViewModelBase
     {
         // Access the main window to open the modal dialog
-        var mainWindow = GetMainWindow();
-        if (mainWindow != null)
+        if (MainWindow != null)
         {
             view.DataContext = viewModel;
             viewModel.View = view;
 
             // Show as a modal dialog and wait for it to close
-            return await view.ShowDialog<TResult>(mainWindow);
+            return await view.ShowDialog<TResult>(MainWindow);
         }
 
         return default;
@@ -40,10 +37,9 @@ public static class DialogHelper
 
     public static async Task<Uri> OpenFolderPicker(string title)
     {
-        var topWindow = GetMainWindow();
-        if (topWindow != null)
+        if (MainWindow != null)
         {
-            var result = await topWindow.StorageProvider.OpenFolderPickerAsync(
+            var result = await MainWindow.StorageProvider.OpenFolderPickerAsync(
                 new FolderPickerOpenOptions()
                 {
                     Title = title,

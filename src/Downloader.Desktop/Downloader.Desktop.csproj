@@ -1,8 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<OutputType>WinExe</OutputType>
+		<OutputType Condition=" '$(IsMacOS)' == 'true' ">Exe</OutputType>
+		<OutputType Condition=" '$(IsMacOS)' != 'true' ">WinExe</OutputType>
 		<LangVersion>latest</LangVersion>
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework Condition=" '$(IsMacBuild)' == 'true' ">net8.0-macos</TargetFramework>		
+		<TargetFramework Condition=" '$(IsMacBuild)' != 'true' ">net8.0</TargetFramework>
 		<Nullable>disable</Nullable>
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
@@ -22,6 +24,11 @@
 		<PackageId>Downloader.Desktop</PackageId>
 		<Authors>Behzad Khosravifar</Authors>
 		<Product>Downloader.Desktop</Product>
+		<ApplicationId>downloader.desktop</ApplicationId>
+		<ApplicationTitle>Downloader</ApplicationTitle>
+		<ApplicationIcon>./Assets/downloader.ico</ApplicationIcon>
+		<SelfContained>true</SelfContained>
+		<CreatePackage>false</CreatePackage>
 	</PropertyGroup>
 
 

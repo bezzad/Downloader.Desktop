@@ -30,7 +30,6 @@ public class MainViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _downloadUrl, value);
     }
 
-
     public MainViewModel(IFileService fileService)
     {
         _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
@@ -73,7 +72,8 @@ public class MainViewModel : ViewModelBase
 
     private async Task ShowSettingView()
     {
-        await DialogHelper.ShowDialog<SettingView, SettingViewModel, bool>(new SettingView(), new SettingViewModel(_config));
+        await DialogHelper.ShowDialog<SettingView, SettingViewModel, bool>(new SettingView(),
+            new SettingViewModel(_config));
         await SaveConfigFile();
     }
 
