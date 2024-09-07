@@ -13,7 +13,7 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class DialogHelper
 {
-    public static Window? GetMainWindow()
+    public static Window GetMainWindow()
     {
         // Access the main window to open the file dialog
         return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)
@@ -35,7 +35,7 @@ public static class DialogHelper
             return await view.ShowDialog<TResult>(mainWindow);
         }
 
-        return default!;
+        return default;
     }
 
     public static async Task<Uri> OpenFolderPicker(string title)

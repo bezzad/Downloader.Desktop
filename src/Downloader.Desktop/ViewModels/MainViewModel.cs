@@ -56,16 +56,19 @@ public class MainViewModel : ViewModelBase
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, IDownload>(
             new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
 
-        Downloads.DownloadItems.Add(new DownloadItemViewModel(new DownloadItem()
+        if (result != null)
         {
-            FileName = result.Filename,
-            Size = result.TotalFileSize,
-            Downloaded = result.DownloadedFileSize,
-            Url = result.Url,
-            FilePath = result.Filename,
-            Status = result.Status,
-            LastTry = DateTime.Now
-        }));
+            Downloads.DownloadItems.Add(new DownloadItemViewModel(new DownloadItem()
+            {
+                FileName = result.Filename,
+                Size = result.TotalFileSize,
+                Downloaded = result.DownloadedFileSize,
+                Url = result.Url,
+                FilePath = result.Filename,
+                Status = result.Status,
+                LastTry = DateTime.Now
+            }));
+        }
     }
 
     private async Task ShowSettingView()

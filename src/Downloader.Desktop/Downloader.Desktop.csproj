@@ -3,7 +3,7 @@
 		<OutputType>WinExe</OutputType>
 		<LangVersion>latest</LangVersion>
 		<TargetFramework>net8.0</TargetFramework>
-		<Nullable>enable</Nullable>
+		<Nullable>disable</Nullable>
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
