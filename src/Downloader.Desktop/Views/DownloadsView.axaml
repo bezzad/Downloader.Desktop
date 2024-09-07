@@ -6,56 +6,55 @@
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
-	
 
-	<DataGrid x:Name="Root"
-			Margin="20"
-			HorizontalAlignment="Center"
-			ItemsSource="{Binding DownloadItems}"
-			AutoGenerateColumns="False" IsReadOnly="True"
-			GridLinesVisibility="All"
-			CanUserReorderColumns="True"
-			CanUserResizeColumns="True"
-			CanUserSortColumns="True"
-			RowHeight="40"
-			VerticalScrollBarVisibility="Visible"
-			HorizontalScrollBarVisibility="Hidden"
-			Background="{DynamicResource ThemeBackgroundBrush}"
-			BorderThickness="1" BorderBrush="Gray">
-		<DataGrid.Styles>
-			<!--<Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+    <DataGrid x:Name="Root"
+              Margin="20"
+              HorizontalAlignment="Center"
+              ItemsSource="{Binding DownloadItems}"
+              AutoGenerateColumns="False" IsReadOnly="True"
+              GridLinesVisibility="All"
+              CanUserReorderColumns="True"
+              CanUserResizeColumns="True"
+              CanUserSortColumns="True"
+              RowHeight="40"
+              VerticalScrollBarVisibility="Visible"
+              HorizontalScrollBarVisibility="Hidden"
+              Background="{DynamicResource ThemeBackgroundBrush}"
+              BorderThickness="1" BorderBrush="Gray">
+        <DataGrid.Styles>
+            <!--<Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
 				<Setter Property="Fill" Value="LightBlue"/>
 			</Style>-->
-			<Style Selector="TextBlock">
-				<!--<Setter Property="TextWrapping" Value="Wrap" />-->
-				<Setter Property="FontSize" Value="15" />
-			</Style>
-		</DataGrid.Styles>
-		<DataGrid.Columns>
-			<DataGridTextColumn Header="File Name" Binding="{Binding FileName}" Width="Auto" />
-			<DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="100" />
-			<DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" />
-			<DataGridTextColumn Header="Downloaded" Binding="{Binding Downloaded}" Width="150" />
-			<DataGridTextColumn Header="Transfer Rate" Binding="{Binding TransferRate}" Width="150" />
-			<DataGridTextColumn Header="Last Try" Binding="{Binding LastTry}" Width="150" />
-			<DataGridTextColumn Header="Url" Binding="{Binding Url}" Width="*" />
-			<DataGridTemplateColumn Width="100" Header="Remove">
-				<DataGridTemplateColumn.CellTemplate>
-					<DataTemplate>
-						<Button
-							HorizontalAlignment="Center"
-							HorizontalContentAlignment="Center"
-							Command="{Binding #Root.((vm:DownloadsViewModel)DataContext).RemoveItemCommand}"
-							CommandParameter="{Binding .}"
-							Foreground="White"
-							Background="Transparent">
-							<PathIcon Data="{DynamicResource DeleteRegular}"
-									  Height="15"
-									  Foreground="Red" />
-						</Button>
-					</DataTemplate>
-				</DataGridTemplateColumn.CellTemplate>
-			</DataGridTemplateColumn>
-		</DataGrid.Columns>
-	</DataGrid>
+            <Style Selector="TextBlock">
+                <!--<Setter Property="TextWrapping" Value="Wrap" />-->
+                <Setter Property="FontSize" Value="15" />
+            </Style>
+        </DataGrid.Styles>
+        <DataGrid.Columns>
+            <DataGridTextColumn Header="File Name" Binding="{Binding FileName}" Width="Auto" />
+            <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="100" />
+            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" />
+            <DataGridTextColumn Header="Downloaded" Binding="{Binding Downloaded}" Width="150" />
+            <DataGridTextColumn Header="Transfer Rate" Binding="{Binding TransferRate}" Width="150" />
+            <DataGridTextColumn Header="Last Try" Binding="{Binding LastTry}" Width="150" />
+            <DataGridTextColumn Header="Url" Binding="{Binding Url}" Width="*" />
+            <DataGridTemplateColumn Width="100" Header="Remove">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <Button
+                            HorizontalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            Command="{Binding #Root.((vm:DownloadsViewModel)DataContext).RemoveItemCommand}"
+                            CommandParameter="{Binding .}"
+                            Foreground="White"
+                            Background="Transparent">
+                            <PathIcon Data="{DynamicResource DeleteRegular}"
+                                      Height="15"
+                                      Foreground="Red" />
+                        </Button>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+        </DataGrid.Columns>
+    </DataGrid>
 </UserControl>

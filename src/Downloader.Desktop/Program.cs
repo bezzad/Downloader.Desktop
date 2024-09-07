@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.ReactiveUI;
 using System;
+using Avalonia.Controls;
 
 namespace Downloader.Desktop;
 
@@ -12,7 +13,7 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnMainWindowClose);
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
@@ -20,8 +21,8 @@ class Program
     {
         return AppBuilder.Configure<App>()
                .UsePlatformDetect()
-               .With(new X11PlatformOptions())
-               .With(new Win32PlatformOptions())
+               .With(new X11PlatformOptions { EnableMultiTouch = false })
+               .With(new Win32PlatformOptions { DpiAwareness = Win32DpiAwareness.PerMonitorDpiAware })
                .With(new AvaloniaNativePlatformOptions())
                .With(new MacOSPlatformOptions { ShowInDock = true })
                .WithInterFont()

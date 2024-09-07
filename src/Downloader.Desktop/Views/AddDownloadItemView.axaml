@@ -1,0 +1,86 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:Downloader.Desktop.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="300"
+        Width="600" Height="300"
+        CanResize="False"
+        Background="LightGray"
+        x:Class="Downloader.Desktop.Views.AddDownloadItemView"
+        x:DataType="viewModels:AddDownloadItemViewModel"
+        Title="Add new download">
+    
+    <Grid Margin="50" Background="{DynamicResource SliderContainerBackground}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="120" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="30" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30" />
+            <RowDefinition Height="10" /> 
+            <RowDefinition Height="30" />
+            <RowDefinition Height="10" /> 
+            <RowDefinition Height="30" />
+            <RowDefinition Height="100" /> 
+            <RowDefinition Height="30" />
+        </Grid.RowDefinitions>
+
+        <!-- ROW 0 -->
+        <!-- File name: -->
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="File name:" 
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Right" Margin="10 0" />
+        
+        <!-- Filename TextBox -->
+        <TextBox Grid.Row="0"
+                 Grid.Column="1" Grid.ColumnSpan="2"
+                 VerticalContentAlignment="Center"
+                 CornerRadius="5"
+                 Text="{Binding Path=Filename}"
+                 Watermark="File name" />
+        
+        <!-- ROW 2 -->
+        
+        <!-- File name: -->
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Download folder:" 
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Right" Margin="10 0" />
+        
+        <!-- Download Folder TextBox -->
+        <TextBox Grid.Row="2" Classes="TextBar"
+                 Grid.Column="1"
+                 IsReadOnly="True"
+                 Text="{Binding Path=StorageFolderPath, Mode=TwoWay}"
+                 Watermark="Where you want to save the file" />
+
+        <!-- Pick a folder button -->
+        <Button Grid.Row="2" Grid.Column="2" Classes="TextBar" 
+                HorizontalAlignment="Right"
+                Command="{Binding Path= SelectFileStoragePathCommand}">
+            <PathIcon Data="{StaticResource FolderRegular}" />
+        </Button>
+        
+        <!-- ROW 4 -->
+        
+        <!-- File name: -->
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Download chunks:" 
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Right" Margin="10 0" />
+        
+        <!-- Download chunks number -->
+        <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding DownloadChunks}"
+                       VerticalAlignment="Center" HorizontalAlignment="Left"
+                       IsReadOnly="False" Increment="1" FormatString="N0"
+                       Minimum="1" Maximum="10" Width="100" />
+        
+        <!-- ROW 6 -->
+        
+        <!-- Start download button -->
+        <Button Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Content="Start download" Width="130" Height="30"
+                VerticalAlignment="Center" HorizontalContentAlignment="Center" HorizontalAlignment="Right"
+                Cursor="Hand"
+                Command="{Binding StartDownloadCommand}" />
+    </Grid>
+</Window>

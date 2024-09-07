@@ -12,10 +12,7 @@
         TransparencyLevelHint="AcrylicBlur"
         WindowStartupLocation="CenterScreen"
         Title="Downloader">
-    <Design.DataContext>
-        <vm:MainViewModel />
-    </Design.DataContext>
-
+    
     <ExperimentalAcrylicBorder>
         <ExperimentalAcrylicBorder.Material>
             <ExperimentalAcrylicMaterial BackgroundSource="Digger" TintColor="White"
@@ -55,17 +52,11 @@
             <!-- Main content area -->
             <DockPanel Margin="10">
                 <!-- Top header -->
-                <Grid DockPanel.Dock="Top" Margin="20 5"
-                      Background="{DynamicResource SliderContainerBackground}">
+                <Grid DockPanel.Dock="Top" Margin="20 5" Background="{DynamicResource SliderContainerBackground}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
 
                     <!-- Download URL + Add button -->
                     <TextBox Grid.Row="0" Classes="TextBar"
@@ -75,20 +66,8 @@
 
                     <!-- Button in the second column -->
                     <Button Grid.Row="0" Grid.Column="1" Classes="TextBar" 
-                            Command="{Binding Path= AddUrlCommand}">
+                            Command="{Binding Path= AddDownloadItemCommand}">
                         <PathIcon Data="{StaticResource AddRegular}" />
-                    </Button>
-                    
-                    <!-- Storage Path + Select Path button -->
-                    <TextBox Grid.Row="2" Classes="TextBar"
-                             Grid.Column="0"
-                             Text="{Binding Path=StorageFolderPath, Mode=TwoWay}"
-                             Watermark="Where you want to save the file" />
-
-                    <!-- Button in the second column -->
-                    <Button Grid.Row="2" Grid.Column="1" Classes="TextBar" 
-                            Command="{Binding Path= SelectFileStoragePathCommand}">
-                        <PathIcon Data="{StaticResource FolderRegular}" />
                     </Button>
                 </Grid>
 

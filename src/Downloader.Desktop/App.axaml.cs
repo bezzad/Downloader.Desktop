@@ -6,6 +6,8 @@ using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using Avalonia.Controls;
+using Downloader.Desktop.Models;
 
 namespace Downloader.Desktop;
 
@@ -24,6 +26,20 @@ public partial class App : Application
         // Register all the services needed for the application to run
         ConfigureServices();
         var vm = _services?.GetRequiredService<MainViewModel>();
+        
+        // Check if running in design mode
+        if (Design.IsDesignMode)
+        {
+            // Skip platform checks or other logic not needed in design mode
+            return;
+        }
+        
+        // Platform-specific check (e.g., for desktop platforms)
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException("This application is designed just for Desktop platforms!");
+        }
+        
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // Resolve the MainWindow and set its DataContext via DI
@@ -35,11 +51,7 @@ public partial class App : Application
             // Listen to the ShutdownRequested-event
             desktop.ShutdownRequested += DesktopOnShutdownRequested;
         }
-        else
-        {
-            throw new PlatformNotSupportedException("This application designed just for Desktop platforms!");
-        }
-
+        
         base.OnFrameworkInitializationCompleted();
     }
 
@@ -61,7 +73,7 @@ public partial class App : Application
 
         if (!_canClose)
         {
-            _services?.GetRequiredService<MainViewModel>().SaveConfigFile();
+            await _services?.GetRequiredService<MainViewModel>().SaveConfigFile()!;
 
             // Set _canClose to true and Close this Window again
             _canClose = true;

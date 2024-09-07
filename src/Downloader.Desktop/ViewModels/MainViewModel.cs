@@ -1,7 +1,5 @@
 ﻿using Downloader.Desktop.Services;
-using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Reactive.Concurrency;
@@ -15,42 +13,30 @@ namespace Downloader.Desktop.ViewModels;
 
 public class MainViewModel : ViewModelBase
 {
-    private string _storageFolderPath;
+    private readonly IFileService _fileService;
+    private string _downloadUrl;
     private Config _config;
 
     public DownloadsViewModel Downloads { get; private set; }
-    public ICommand AddUrlCommand { get; }
-    public ICommand SelectFileStoragePathCommand { get; }
+    public ICommand AddDownloadItemCommand { get; }
     public ICommand ClearAllCommand { get; }
     public ICommand StopAllCommand { get; }
     public ICommand StartAllCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
-    public string DownloadUrl { get; set; }
 
-    public string StorageFolderPath
+    public string DownloadUrl
     {
-        get => _storageFolderPath;
-        set => this.RaiseAndSetIfChanged(ref _storageFolderPath, value);
+        get => _downloadUrl;
+        set => this.RaiseAndSetIfChanged(ref _downloadUrl, value);
     }
 
-    /// <summary>
-    /// Gets or sets a list of Files
-    /// </summary>
-    private readonly IFileService _fileService;
-    private IEnumerable<string>? _selectedFiles;
-
-    private IEnumerable<string>? SelectedFiles
-    {
-        get => _selectedFiles;
-        set => this.RaiseAndSetIfChanged(ref _selectedFiles, value);
-    }
 
     public MainViewModel(IFileService fileService)
     {
         _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
-        SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         ShowSettingViewCommand = ReactiveCommand.CreateFromTask(ShowSettingView);
+        AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
     }
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
@@ -65,34 +51,21 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// A command used to select some files
-    /// </summary>
-    private async Task ShowSettingView()
+    private async Task AddDownloadItem()
     {
-        // Access the main window to open the modal dialog
-        var mainWindow = DialogHelper.GetMainWindow();
-        if (mainWindow != null)
-        {
-            var settingsWindow = new SettingView()
-            {
-                DataContext = new SettingViewModel()
-            };
-
-            // Show as a modal dialog and wait for it to close
-            await settingsWindow.ShowDialog(mainWindow);
-        }
+        await DialogHelper.ShowDialog(new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
     }
 
-    private async Task SelectFileStoragePathAsync()
+    private async Task ShowSettingView()
     {
-        var path = await DialogHelper.OpenFolderPicker("Select a folder to save the files in");
-        StorageFolderPath = path.LocalPath;
+        await DialogHelper.ShowDialog(new SettingView(), new SettingViewModel(_config));
     }
 
     public async Task SaveConfigFile()
     {
-        _config.Downloads = Downloads.DownloadItems.Select(item => item.GetItem()).ToList();
+        var downloadItems = Downloads.DownloadItems?.Select(item => item.GetItem())?.ToList();
+        if (downloadItems is not null)
+            _config.Downloads = downloadItems;
         await _fileService.SaveToFileAsync(_config);
     }
 }

@@ -3,8 +3,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="450"
-        Width="400" Height="450"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+        Width="400" Height="300"
         CanResize="False"
         Background="LightGray"
         x:Class="Downloader.Desktop.Views.SettingView"
@@ -43,8 +43,8 @@
             <TextBlock Grid.Column="0" Text="Default download segments:" VerticalAlignment="Center" />
             <NumericUpDown Grid.Column="1" Value="{Binding DefaultDownloadSegments}"
                            VerticalAlignment="Center"
-                           Increment="1" AllowSpin="False" FormatString="N0"
-                           Minimum="1" Maximum="10" Width="100" />
+                           Increment="1" FormatString="N0"
+                           Minimum="1" Maximum="10" Width="120" />
         </Grid>
 
     </StackPanel>

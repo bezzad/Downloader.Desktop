@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Downloader.Desktop.ViewModels;
 
 namespace Downloader.Desktop.Services;
 
@@ -55,8 +56,23 @@ public static class DialogHelper
         // Access the main window to open the file dialog
         return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)
             ?.MainWindow;
-
     }
+
+    public static async Task ShowDialog<V, VM>(V view, VM viewModel)
+        where V : Window
+        where VM : ViewModelBase
+    {
+        // Access the main window to open the modal dialog
+        var mainWindow = GetMainWindow();
+        if (mainWindow != null)
+        {
+            view.DataContext = viewModel;
+
+            // Show as a modal dialog and wait for it to close
+            await view.ShowDialog(mainWindow);
+        }
+    }
+
     public static async Task<Uri> OpenFolderPicker(string title)
     {
         var topWindow = GetMainWindow();

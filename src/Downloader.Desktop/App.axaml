@@ -6,8 +6,8 @@
 	<Application.Resources>
 		<ResourceDictionary>
 			<!-- Define the fixed height as a resource -->
-			<x:Double x:Key="DefaultFontSize">12</x:Double>
-			<x:Double x:Key="H1FontSize">14</x:Double>
+			<x:Double x:Key="DefaultFontSize">11</x:Double>
+			<x:Double x:Key="H1FontSize">13</x:Double>
 		</ResourceDictionary>
 	</Application.Resources>
 	
@@ -80,7 +80,7 @@
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
 			<Setter Property="Margin" Value="20" />
-			<Setter Property="Height" Value="40" />
+			<Setter Property="Height" Value="30" />
 		</Style>
 		
 		<Style Selector="Button.TextBar" x:DataType="Button">
@@ -91,11 +91,11 @@
 			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="Padding" Value="0" />
-			<Setter Property="Width" Value="40" />
-			<Setter Property="Height" Value="40" />
+			<Setter Property="Width" Value="30" />
+			<Setter Property="Height" Value="30" />
 			<Setter Property="BorderThickness" Value="0 1 1 1" />
 			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="CornerRadius" Value="0 10 10 0" />
+			<Setter Property="CornerRadius" Value="0 5 5 0" />
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="Foreground" Value="White" />
 		</Style>
@@ -105,7 +105,7 @@
 			<Setter Property="Foreground" Value="White" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="CornerRadius" Value="0 10 10 0" />
+			<Setter Property="CornerRadius" Value="0 5 5 0" />
 		</Style>
 		
 		<Style Selector="TextBox.TextBar" x:DataType="TextBox">
@@ -116,7 +116,7 @@
 			<Setter Property="Margin" Value="0" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="CornerRadius" Value="10 0 0 10" />
+			<Setter Property="CornerRadius" Value="5 0 0 5" />
 		</Style>
 	</Application.Styles>
 </Application>
