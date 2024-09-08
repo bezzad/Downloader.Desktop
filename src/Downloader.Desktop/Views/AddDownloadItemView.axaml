@@ -10,6 +10,7 @@
         Background="{DynamicResource ThemeBackgroundColor}"
         x:Class="Downloader.Desktop.Views.AddDownloadItemView"
         x:DataType="viewModels:AddDownloadItemViewModel"
+        WindowStartupLocation="CenterOwner"
         Title="Add new download">
     
     <Grid Margin="50" Background="{DynamicResource SliderContainerBackground}">

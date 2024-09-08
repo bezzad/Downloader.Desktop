@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Downloader.Desktop.App">
+             x:Class="Downloader.Desktop.App"
+             RequestedThemeVariant="Default">
 	<!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 	<Application.Resources>
 		<ResourceDictionary>
@@ -12,7 +13,7 @@
 	
 	<Application.Styles>
 		<!-- Change theme variant:  https://theme.xaml.live/ -->
-		<FluentTheme>
+		<FluentTheme DensityStyle="Compact">
 			<FluentTheme.Palettes>
 				<ColorPaletteResources x:Key="Light" Accent="#ffa8a8a8" AltHigh="White" AltLow="White" AltMedium="White" AltMediumHigh="White" AltMediumLow="White" BaseHigh="Black" BaseLow="#ffcccccc" BaseMedium="#ff898989" BaseMediumHigh="#ff5d5d5d" BaseMediumLow="#ff737373" ChromeAltLow="#ff5d5d5d" ChromeBlackHigh="Black" ChromeBlackLow="#ffcccccc" ChromeBlackMedium="#ff5d5d5d" ChromeBlackMediumLow="#ff898989" ChromeDisabledHigh="#ffcccccc" ChromeDisabledLow="#ff898989" ChromeGray="#ff737373" ChromeHigh="#ffcccccc" ChromeLow="#ffececec" ChromeMedium="#ffe6e6e6" ChromeMediumLow="#ffececec" ChromeWhite="White" ListLow="#ffe6e6e6" ListMedium="#ffcccccc" RegionColor="White" />
 				<ColorPaletteResources x:Key="Dark" Accent="#ff4c4a48" AltHigh="Black" AltLow="Black" AltMedium="Black" AltMediumHigh="Black" AltMediumLow="Black" BaseHigh="White" BaseLow="#ff333333" BaseMedium="#ff9a9a9a" BaseMediumHigh="#ffb4b4b4" BaseMediumLow="#ff676767" ChromeAltLow="#ffb4b4b4" ChromeBlackHigh="Black" ChromeBlackLow="#ffb4b4b4" ChromeBlackMedium="Black" ChromeBlackMediumLow="Black" ChromeDisabledHigh="#ff333333" ChromeDisabledLow="#ff9a9a9a" ChromeGray="Gray" ChromeHigh="Gray" ChromeLow="#ff151515" ChromeMedium="#ff1d1d1d" ChromeMediumLow="#ff2c2c2c" ChromeWhite="White" ListLow="#ff1d1d1d" ListMedium="#ff333333" RegionColor="Black" />
@@ -45,7 +46,7 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="FontSize" Value="{StaticResource H1FontSize}"/>
+			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="BorderThickness" Value="10" />
 			<Setter Property="Padding" Value="0" />
@@ -91,7 +92,7 @@
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="Padding" Value="0" />
 			<Setter Property="Width" Value="30" />
-			<Setter Property="Height" Value="32" />
+			<Setter Property="Height" Value="30" />
 			<Setter Property="BorderThickness" Value="0 1 1 1" />
 			<Setter Property="BorderBrush" Value="Gray" />
 			<Setter Property="CornerRadius" Value="0 5 5 0" />
@@ -104,7 +105,7 @@
 			<Setter Property="Foreground" Value="White" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="Height" Value="32" />
+			<Setter Property="Height" Value="30" />
 			<Setter Property="CornerRadius" Value="0 5 5 0" />
 		</Style>
 		

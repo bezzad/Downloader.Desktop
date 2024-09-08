@@ -9,6 +9,7 @@
         FontSize="{StaticResource DefaultFontSize}"
         Background="{DynamicResource ThemeBackgroundColor}"
         x:Class="Downloader.Desktop.Views.SettingView"
+        WindowStartupLocation="CenterOwner"
         x:DataType="vm:SettingViewModel">
 
     <StackPanel Margin="20">
