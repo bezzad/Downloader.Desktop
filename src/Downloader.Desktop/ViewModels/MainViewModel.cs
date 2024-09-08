@@ -6,6 +6,7 @@ using System.Reactive.Concurrency;
 using ReactiveUI;
 using System.Threading;
 using System.Windows.Input;
+using Avalonia;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Views;
 
@@ -17,25 +18,25 @@ public class MainViewModel : ViewModelBase
     private string _downloadUrl;
     private Config _config;
 
-    public DownloadsViewModel Downloads { get; private set; }
-    public ICommand AddDownloadItemCommand { get; }
-    public ICommand ClearAllCommand { get; }
-    public ICommand StopAllCommand { get; }
-    public ICommand StartAllCommand { get; }
-    public ICommand ShowSettingViewCommand { get; }
-
-    public string DownloadUrl
-    {
-        get => _downloadUrl;
-        set => this.RaiseAndSetIfChanged(ref _downloadUrl, value);
-    }
-
     public MainViewModel(IFileService fileService)
     {
         _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
         ShowSettingViewCommand = ReactiveCommand.CreateFromTask(ShowSettingView);
         AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
+    }
+    
+    public DownloadsViewModel Downloads { get; private set; }
+    public ICommand AddDownloadItemCommand { get; }
+    public ICommand ClearAllCommand { get; }
+    public ICommand StopAllCommand { get; }
+    public ICommand StartAllCommand { get; }
+    public ICommand ShowSettingViewCommand { get; }
+    
+    public string DownloadUrl
+    {
+        get => _downloadUrl;
+        set => this.RaiseAndSetIfChanged(ref _downloadUrl, value);
     }
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
@@ -44,6 +45,7 @@ public class MainViewModel : ViewModelBase
 
         // get the items to load
         _config = await _fileService.LoadFromFileAsync();
+        Application.Current!.RequestedThemeVariant = _config.ThemeMode;
         foreach (var item in _config.Downloads)
         {
             Downloads.DownloadItems.Add(new(item));
@@ -72,9 +74,10 @@ public class MainViewModel : ViewModelBase
 
     private async Task ShowSettingView()
     {
-        await DialogHelper.ShowDialog<SettingView, SettingViewModel, bool>(new SettingView(),
-            new SettingViewModel(_config));
-        await SaveConfigFile();
+        await DialogHelper.ShowDialog<SettingView, SettingViewModel, bool>(
+            new SettingView(), new SettingViewModel(_config));
+        
+        await SaveConfigFile().ConfigureAwait(false);
     }
 
     public async Task SaveConfigFile()

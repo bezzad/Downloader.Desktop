@@ -6,8 +6,8 @@
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="300"
         Width="600" Height="300"
         CanResize="False"
-        Background="LightGray"
-        Topmost="True"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="{DynamicResource ThemeBackgroundColor}"
         x:Class="Downloader.Desktop.Views.AddDownloadItemView"
         x:DataType="viewModels:AddDownloadItemViewModel"
         Title="Add new download">

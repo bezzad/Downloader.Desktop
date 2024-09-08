@@ -1,12 +1,11 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Downloader.Desktop.App"
-             RequestedThemeVariant="Light">
+             x:Class="Downloader.Desktop.App">
 	<!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 	<Application.Resources>
 		<ResourceDictionary>
 			<!-- Define the fixed height as a resource -->
-			<x:Double x:Key="DefaultFontSize">11</x:Double>
+			<x:Double x:Key="DefaultFontSize">12</x:Double>
 			<x:Double x:Key="H1FontSize">13</x:Double>
 		</ResourceDictionary>
 	</Application.Resources>
@@ -46,7 +45,7 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 			<Setter Property="VerticalAlignment" Value="Center" />
 			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
+			<Setter Property="FontSize" Value="{StaticResource H1FontSize}"/>
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="BorderThickness" Value="10" />
 			<Setter Property="Padding" Value="0" />
@@ -92,7 +91,7 @@
 			<Setter Property="FontWeight" Value="Normal"/>
 			<Setter Property="Padding" Value="0" />
 			<Setter Property="Width" Value="30" />
-			<Setter Property="Height" Value="30" />
+			<Setter Property="Height" Value="32" />
 			<Setter Property="BorderThickness" Value="0 1 1 1" />
 			<Setter Property="BorderBrush" Value="Gray" />
 			<Setter Property="CornerRadius" Value="0 5 5 0" />
@@ -105,6 +104,7 @@
 			<Setter Property="Foreground" Value="White" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="BorderBrush" Value="Gray" />
+			<Setter Property="Height" Value="32" />
 			<Setter Property="CornerRadius" Value="0 5 5 0" />
 		</Style>
 		
@@ -116,6 +116,7 @@
 			<Setter Property="Margin" Value="0" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="BorderBrush" Value="Gray" />
+			<Setter Property="Height" Value="30" />
 			<Setter Property="CornerRadius" Value="5 0 0 5" />
 		</Style>
 	</Application.Styles>

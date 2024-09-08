@@ -6,7 +6,8 @@
         mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
         Width="400" Height="300"
         CanResize="False"
-        Background="LightGray"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="{DynamicResource ThemeBackgroundColor}"
         x:Class="Downloader.Desktop.Views.SettingView"
         x:DataType="vm:SettingViewModel">
 
@@ -45,6 +46,19 @@
                            VerticalAlignment="Center"
                            Increment="1" FormatString="N0"
                            Minimum="1" Maximum="10" Width="100" />
+        </Grid>
+        
+        <!-- Default Theme -->
+        <Grid Margin="0 0 0 20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Default download segments:" VerticalAlignment="Center" />
+            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" 
+                          IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
+                          Command="{Binding SwitchThemeCommand}"
+                          OffContent="Light" OnContent="Dark"/>
         </Grid>
 
     </StackPanel>

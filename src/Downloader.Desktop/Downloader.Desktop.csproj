@@ -30,7 +30,13 @@
 		<SelfContained>true</SelfContained>
 		<CreatePackage>false</CreatePackage>
 	</PropertyGroup>
-
+	<!-- hack to force resizetizer to work outside of MAUI -->
+	<PropertyGroup Condition=" '$(IsMacBuild)' == 'true' ">
+		<_ResizetizerIsiOSApp>true</_ResizetizerIsiOSApp>
+		<ResizetizerIncludeSelfProject>true</ResizetizerIncludeSelfProject>
+		<OptimizePNGs>true</OptimizePNGs>
+		<_XSAppIconAssets>Assets.xcassets/appicon.appiconset</_XSAppIconAssets>
+	</PropertyGroup>
 
 	<ItemGroup>
 		<AvaloniaResource Include="Assets\**" />
