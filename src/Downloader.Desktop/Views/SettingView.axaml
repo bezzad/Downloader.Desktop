@@ -10,7 +10,8 @@
         Background="{DynamicResource ThemeBackgroundColor}"
         x:Class="Downloader.Desktop.Views.SettingView"
         WindowStartupLocation="CenterOwner"
-        x:DataType="vm:SettingViewModel">
+        x:DataType="vm:SettingViewModel"
+		Title="Options">
 
     <StackPanel Margin="20">
         <!-- Default Save Path Section -->
