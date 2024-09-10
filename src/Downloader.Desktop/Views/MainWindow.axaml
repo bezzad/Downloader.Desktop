@@ -71,6 +71,7 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="30" />
+                        <RowDefinition Height="10" />
                         <RowDefinition Height="30" />
                     </Grid.RowDefinitions>
 
@@ -83,18 +84,19 @@
                                Text="Downloads" />
 
                     <!-- Download URL + Add button -->
-                    <TextBox Grid.Row="1" Classes="TextBar"
+                    <TextBox Grid.Row="2" Classes="TextBar"
                              Grid.Column="0"
                              Margin="30 0 0 15"
                              Text="{Binding Path=DownloadUrl}"
                              Watermark="Add download link here" />
 
                     <!-- Button in the second column -->
-                    <Button Grid.Row="1" Grid.Column="1" Classes="TextBar"
+                    <Button Grid.Row="2" Grid.Column="1" Classes="TextBar"
                             Margin="0 0 30 15"
                             Command="{Binding Path= AddDownloadItemCommand}">
                         <PathIcon Data="{StaticResource AddRegular}" />
                     </Button>
+
                 </Grid>
 
                 <!-- DownloadsView positioned below the TextBoxes -->
