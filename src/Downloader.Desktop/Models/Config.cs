@@ -1,7 +1,7 @@
+using Avalonia.Styling;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using Avalonia.Styling;
 
 namespace Downloader.Desktop.Models;
 
@@ -11,13 +11,13 @@ public class Config
     public string DefaultSavePath { get; set; }
     public List<DownloadItem> Downloads { get; set; }
     public bool IsThemeDarkMode { get; set; }
+
     [JsonIgnore]
     public ThemeVariant ThemeMode
     {
         get => IsThemeDarkMode ? ThemeVariant.Dark : ThemeVariant.Light;
         set => IsThemeDarkMode = value == ThemeVariant.Dark;
     }
-
 
     public static Config New()
     {

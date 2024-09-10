@@ -1,6 +1,7 @@
 {
   "DefaultSavePath": "/user/bezzad/",
   "DefaultDownloadChunks": 5,
+  "IsThemeDarkMode": false,
   "Downloads": [
     {
       "FilePath": "test_10737418240.dat",

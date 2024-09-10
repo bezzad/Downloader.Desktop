@@ -24,6 +24,9 @@ public class MainViewModel : ViewModelBase
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
         ShowSettingViewCommand = ReactiveCommand.CreateFromTask(ShowSettingView);
         AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
+        ClearAllCommand = ReactiveCommand.CreateFromTask(ClearAllStoppedItems);
+        StopAllCommand = ReactiveCommand.CreateFromTask(StopAll);
+        StartAllCommand = ReactiveCommand.CreateFromTask(StartAll);
     }
     
     public DownloadsViewModel Downloads { get; private set; }
@@ -70,6 +73,21 @@ public class MainViewModel : ViewModelBase
                 LastTry = DateTime.Now
             }));
         }
+    }
+
+    private Task StopAll()
+    {
+        return Task.CompletedTask;
+    }
+
+    private Task StartAll()
+    {
+        return Task.CompletedTask;
+    }
+
+    private Task ClearAllStoppedItems()
+    {
+        return Task.CompletedTask;
     }
 
     private async Task ShowSettingView()
