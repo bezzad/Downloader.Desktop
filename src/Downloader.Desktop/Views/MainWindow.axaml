@@ -13,22 +13,27 @@
         Topmost="False"
         FontSize="{StaticResource DefaultFontSize}"
         Background="Transparent"
+        CanResize="True"
         TransparencyLevelHint="AcrylicBlur"
         ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="40"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
         Title="Downloader">
     <Window.KeyBindings>
         <KeyBinding Gesture="Ctrl+N"
                     Command="{Binding AddDownloadItemCommand, Mode=OneTime}" />
     </Window.KeyBindings>
 
-    <ExperimentalAcrylicBorder>
-        <ExperimentalAcrylicBorder.Material>
-            <ExperimentalAcrylicMaterial
-                BackgroundSource="Digger"
-                TintColor="Black"
-                TintOpacity="1"
-                MaterialOpacity="0.65" />
-        </ExperimentalAcrylicBorder.Material>
+    <Panel>
+        <ExperimentalAcrylicBorder IsHitTestVisible="False">
+            <ExperimentalAcrylicBorder.Material>
+                <ExperimentalAcrylicMaterial
+                    BackgroundSource="Digger"
+                    TintColor="Black"
+                    TintOpacity="1"
+                    MaterialOpacity="0.6" />
+            </ExperimentalAcrylicBorder.Material>
+        </ExperimentalAcrylicBorder>
 
         <DockPanel>
             <!-- Left sidebar -->
@@ -80,6 +85,7 @@
                                Grid.Column="0" Grid.ColumnSpan="2"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
+                               IsHitTestVisible="False"
                                Foreground="{DynamicResource SystemChromeAltLowColor}"
                                Text="Downloads" />
 
@@ -103,6 +109,5 @@
                 <v:DownloadsView DataContext="{Binding Downloads}" />
             </DockPanel>
         </DockPanel>
-
-    </ExperimentalAcrylicBorder>
+    </Panel>
 </Window>
