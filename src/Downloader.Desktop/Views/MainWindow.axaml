@@ -69,7 +69,8 @@
             <!-- Main content area -->
             <DockPanel>
                 <!-- Top Header -->
-                <Grid DockPanel.Dock="Top" Background="{DynamicResource  SystemChromeHighColor}">
+                <Grid DockPanel.Dock="Top" Background="{DynamicResource  SystemChromeHighColor}"
+                      PointerPressed="OnTitleBarPointerPressed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
