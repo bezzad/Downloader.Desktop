@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <OutputType Condition=" '$(IsMacOS)' == 'true' ">Exe</OutputType>
-        <OutputType Condition=" '$(IsMacOS)' != 'true' ">WinExe</OutputType>
+        <OutputType Condition="'$(IsMacOS)'=='true'">Exe</OutputType>
+        <OutputType Condition="'$(IsMacOS)'!='true'">WinExe</OutputType>
         <LangVersion>latest</LangVersion>
-        <TargetFramework Condition=" '$(IsMacBuild)' == 'true' ">net8.0-macos</TargetFramework>
-        <TargetFramework Condition=" '$(IsMacBuild)' != 'true' ">net8.0</TargetFramework>
+        <TargetFramework Condition="'$(IsMacBuild)'=='true'">net8.0-macos</TargetFramework>
+        <TargetFramework Condition="'$(IsMacBuild)'!='true'">net8.0</TargetFramework>
         <Nullable>disable</Nullable>
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -31,7 +31,7 @@
         <CreatePackage>false</CreatePackage>
     </PropertyGroup>
     <!-- hack to force resizetizer to work outside of MAUI -->
-    <PropertyGroup Condition=" '$(IsMacBuild)' == 'true' ">
+    <PropertyGroup Condition="'$(IsMacBuild)'=='true'">
         <_ResizetizerIsiOSApp>true</_ResizetizerIsiOSApp>
         <ResizetizerIncludeSelfProject>true</ResizetizerIncludeSelfProject>
         <OptimizePNGs>true</OptimizePNGs>
@@ -40,52 +40,33 @@
 
     <ItemGroup>
         <AvaloniaResource Include="Assets\**"/>
-        <Content Include="Resources\downloader.icns">
-          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-        </Content>
-        <Content Include="Resources\Info.plist">
-          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-        </Content>
-    </ItemGroup>
-
-
-    <ItemGroup>
-        <AvaloniaXaml Remove="Assets\Icons.axaml" />
-    </ItemGroup>
-    
-    <ItemGroup>
-        <!-- Include Info.plist -->
-        <None Update="Resoruces\Info.plist">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-
-        <!-- Include ICNS file -->
-        <None Update="Resoruces\downloader.icns">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
-
-
-    <ItemGroup>
-        <None Remove="Assets\downloads.json" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Avalonia" Version="11.1.3" />
-        <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.1.3" />
-        <PackageReference Include="Avalonia.Desktop" Version="11.1.3" />
-        <PackageReference Include="Avalonia.Skia" Version="11.1.3" />
-        <PackageReference Include="Avalonia.ThemeManager" Version="11.1.0" />
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3" />
-        <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.3" />
-        <PackageReference Include="Avalonia.ReactiveUI" Version="11.1.3" />
+        <AvaloniaXaml Remove="Assets\Icons.axaml"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="Assets\downloads.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.Desktop" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.Skia" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.ThemeManager" Version="11.1.0"/>
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.ReactiveUI" Version="11.1.3"/>
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.3" />
-        <PackageReference Include="Avalonia.Win32" Version="11.1.3" />
-        <PackageReference Include="Avalonia.X11" Version="11.1.3" />
-        <PackageReference Include="Downloader" Version="3.1.2" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.Win32" Version="11.1.3"/>
+        <PackageReference Include="Avalonia.X11" Version="11.1.3"/>
+        <PackageReference Include="Downloader" Version="3.1.2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.Maui.Resizetizer" Version="8.0.90"/>
     </ItemGroup>
 
     <ItemGroup>
