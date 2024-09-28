@@ -21,7 +21,7 @@ public class DownloadItemViewModel : ViewModelBase
         _item = item ?? new();
     }
 
-    public string? FileName
+    public string FileName
     {
         get => _item.FileName;
         set
@@ -62,19 +62,14 @@ public class DownloadItemViewModel : ViewModelBase
 
     public long TransferRate { get; set; }
 
-    public string? Status
-    {
-        get => _item.Size > 0
-                ? (_item.Downloaded / _item.Size * 100) + "%"
-                : _item.Status.ToString();
-    }
+    public string Status =>
+        _item.Size > 0
+            ? (_item.Downloaded / _item.Size * 100) + "%"
+            : _item.Status.ToString();
 
-    public string? LastTry
-    {
-        get => _item.LastTry?.ToString("dd MMM yyyy");
-    }
+    public string LastTry => _item.LastTry?.ToString("dd MMM yyyy");
 
-    public string? Url
+    public string Url
     {
         get => _item.Url;
         set
@@ -89,8 +84,8 @@ public class DownloadItemViewModel : ViewModelBase
 
     public bool IsChecked
     {
-        get { return _isChecked; }
-        set { this.RaiseAndSetIfChanged(ref _isChecked, value); }
+        get => _isChecked;
+        set => this.RaiseAndSetIfChanged(ref _isChecked, value);
     }
 
     public DownloadItem GetItem()

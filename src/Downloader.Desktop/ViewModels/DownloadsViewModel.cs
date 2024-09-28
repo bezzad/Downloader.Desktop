@@ -38,12 +38,12 @@ public class DownloadsViewModel : ViewModelBase
     public ICommand SelectFilesCommand { get; }
     public ICommand RemoveItemCommand { get; }
 
-    private string[]? _SelectedFiles;
+    private string[] _selectedFiles;
 
-    public string[]? SelectedFiles
+    public string[] SelectedFiles
     {
-        get { return _SelectedFiles; }
-        set { this.RaiseAndSetIfChanged(ref _SelectedFiles, value); }
+        get => _selectedFiles;
+        set => this.RaiseAndSetIfChanged(ref _selectedFiles, value);
     }
 
     private async Task SelectFilesAsync()

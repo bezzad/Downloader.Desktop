@@ -1,4 +1,5 @@
-﻿using ReactiveUI;
+﻿using System;
+using ReactiveUI;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
@@ -16,7 +17,7 @@ public class SettingViewModel : ViewModelBase
     public SettingViewModel(Config config)
     {
         // Initialize default values 
-        _config = config;
+        _config = config ?? throw new ArgumentNullException(nameof(config));
             
         // Command to open the file dialog to select the save path
         SelectSavePathCommand = ReactiveCommand.CreateFromTask(SelectSavePath);
