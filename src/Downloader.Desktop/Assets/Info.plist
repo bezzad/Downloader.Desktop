@@ -13,8 +13,14 @@
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleExecutable</key>
-        <string>Downloader</string>
+        <string>Downloader.Avalonia</string>
         <key>NSHighResolutionCapable</key>
         <true/>
+        <key>LSMinimumSystemVersion</key>
+        <string>10.12</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleShortVersionString</key>
+        <string>1.0</string>
     </dict>
 </plist>

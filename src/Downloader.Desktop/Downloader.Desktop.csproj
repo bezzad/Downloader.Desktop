@@ -29,6 +29,8 @@
         <ApplicationIcon>./Assets/downloader.ico</ApplicationIcon>
         <SelfContained>true</SelfContained>
         <CreatePackage>false</CreatePackage>
+        <RuntimeIdentifiers Condition="'$(IsMacBuild)'=='true'">osx-arm64;osx-x64</RuntimeIdentifiers>
+        <UseAppHost>true</UseAppHost>
         <!--<PublishSingleFile>true</PublishSingleFile>-->
         <!--<PublishTrimmed>true</PublishTrimmed>-->
         <!--<PublishReadyToRun>true</PublishReadyToRun>-->
