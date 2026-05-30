@@ -17,7 +17,6 @@
         TransparencyLevelHint="AcrylicBlur"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="40"
-        ExtendClientAreaChromeHints="PreferSystemChrome"
         Title="Downloader">
     <Window.KeyBindings>
         <KeyBinding Gesture="Ctrl+N"
