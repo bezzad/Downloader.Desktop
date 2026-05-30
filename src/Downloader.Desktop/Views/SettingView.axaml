@@ -28,7 +28,7 @@
             <TextBox Classes="TextBar"
                      Grid.Column="0"
                      Text="{Binding Path=DefaultSavePath, Mode=TwoWay}"
-                     Watermark="Where you want to save the file" />
+                     PlaceholderText="Where you want to save the file" />
 
             <!-- Button in the second column -->
             <Button Grid.Column="1" Classes="TextBar"

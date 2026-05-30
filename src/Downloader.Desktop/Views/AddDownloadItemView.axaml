@@ -41,7 +41,7 @@
                  VerticalContentAlignment="Center"
                  CornerRadius="5"
                  Text="{Binding Path=Filename}"
-                 Watermark="File name" />
+                 PlaceholderText="File name" />
         
         <!-- ROW 2 -->
         
@@ -55,7 +55,7 @@
                  Grid.Column="1"
                  IsReadOnly="True"
                  Text="{Binding Path=StorageFolderPath, Mode=TwoWay}"
-                 Watermark="Where you want to save the file" />
+                 PlaceholderText="Where you want to save the file" />
 
         <!-- Pick a folder button -->
         <Button Grid.Row="2" Grid.Column="2" Classes="TextBar" 

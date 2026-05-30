@@ -94,7 +94,7 @@
                              Grid.Column="0"
                              Margin="30 0 0 15"
                              Text="{Binding Path=DownloadUrl}"
-                             Watermark="Add download link here" />
+                             PlaceholderText="Add download link here" />
 
                     <!-- Button in the second column -->
                     <Button Grid.Row="2" Grid.Column="1" Classes="TextBar"
