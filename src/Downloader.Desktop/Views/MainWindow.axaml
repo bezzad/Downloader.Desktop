@@ -4,110 +4,152 @@
         xmlns:v="using:Downloader.Desktop.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="620"
         x:Class="Downloader.Desktop.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        x:CompileBindings="true"
+        x:CompileBindings="True"
         Icon="/Assets/downloader.ico"
         WindowStartupLocation="CenterScreen"
-        Topmost="False"
+        Width="1000" Height="620" MinWidth="840" MinHeight="500"
         FontSize="{StaticResource DefaultFontSize}"
-        Background="Transparent"
-        CanResize="True"
-        TransparencyLevelHint="AcrylicBlur"
-        ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaTitleBarHeightHint="40"
         Title="Downloader">
+
     <Window.KeyBindings>
-        <KeyBinding Gesture="Ctrl+N"
-                    Command="{Binding AddDownloadItemCommand, Mode=OneTime}" />
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding AddDownloadItemCommand, Mode=OneTime}" />
     </Window.KeyBindings>
 
-    <Panel>
-        <ExperimentalAcrylicBorder IsHitTestVisible="False">
-            <ExperimentalAcrylicBorder.Material>
-                <ExperimentalAcrylicMaterial
-                    BackgroundSource="Digger"
-                    TintColor="Black"
-                    TintOpacity="1"
-                    MaterialOpacity="0.6" />
-            </ExperimentalAcrylicBorder.Material>
-        </ExperimentalAcrylicBorder>
+    <Window.DataTemplates>
+        <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
+        <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
+        <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
+        <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
+    </Window.DataTemplates>
 
-        <DockPanel>
-            <!-- Left sidebar -->
-            <StackPanel DockPanel.Dock="Left" Background="DimGray"
-                        Orientation="Vertical" VerticalAlignment="Stretch">
-                <Button Classes="Menu" Margin="0 25 0 0"
-                        Command="{Binding Path= StartAllCommand}">
-                    <StackPanel>
+    <DockPanel>
+        <!-- ===== Top bar ===== -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource SystemChromeLowColor}"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 0 1"
+                Padding="14 10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource StoreMicrosoftRegular}" Height="18"
+                              Foreground="{DynamicResource SystemAccentColor}" />
+                    <TextBlock Text="Downloader" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="22 0" MaxWidth="640">
+                    <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
+                             CornerRadius="8 0 0 8" VerticalContentAlignment="Center"
+                             PlaceholderText="Paste a download link…">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding AddDownloadItemCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Grid.Column="1" Classes="accent" Content="Add" CornerRadius="0 8 8 0"
+                            Padding="16 0" Cursor="Hand"
+                            Command="{Binding AddDownloadItemCommand}" />
+                </Grid>
+
+                <TextBox Grid.Column="2" Width="200" Text="{Binding SearchText}"
+                         CornerRadius="8" VerticalContentAlignment="Center"
+                         PlaceholderText="Search" />
+            </Grid>
+        </Border>
+
+        <!-- ===== Status bar ===== -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource SystemChromeLowColor}"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 1 0 0"
+                Padding="14 7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TotalSpeedText, StringFormat='↓ {0}'}" FontWeight="SemiBold" />
+                    <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
+                               Text="{Binding ActiveCount, StringFormat='{}{0} active'}" />
+                    <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
+                               Text="{Binding QueuedCount, StringFormat='{}{0} queued'}" />
+                    <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
+                               Text="{Binding CompletedCount, StringFormat='{}{0} done'}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="icon" ToolTip.Tip="Start all" Command="{Binding StartAllCommand}">
                         <PathIcon Data="{StaticResource PlayRegular}" />
-                        <TextBlock Text="Resume" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="Menu" Command="{Binding Path= StopAllCommand}">
-                    <StackPanel>
+                    </Button>
+                    <Button Classes="icon" ToolTip.Tip="Stop all" Command="{Binding StopAllCommand}">
                         <PathIcon Data="{StaticResource StopRegular}" />
-                        <TextBlock Text="Stop" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="Menu" Command="{Binding Path= ClearAllCommand}">
-                    <StackPanel>
+                    </Button>
+                    <Button Classes="icon" ToolTip.Tip="Clear completed" Command="{Binding ClearAllCommand}">
                         <PathIcon Data="{StaticResource DeleteRegular}" />
-                        <TextBlock Text="Clear All" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===== Left nav rail ===== -->
+        <Border DockPanel.Dock="Left" Width="208"
+                Background="{DynamicResource SystemRegionColor}"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
+                Padding="10 14">
+            <StackPanel Spacing="1">
+                <TextBlock Classes="section" Text="STATUS" />
+
+                <Button Classes="nav" Classes.selected="{Binding IsAllSelected}" Command="{Binding ShowAllCommand}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="All downloads" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="pill">
+                            <TextBlock Text="{Binding AllCount}" FontSize="11" />
+                        </Border>
+                    </Grid>
+                </Button>
+                <Button Classes="nav" Classes.selected="{Binding IsActiveSelected}" Command="{Binding ShowActiveCommand}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Active" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="pill">
+                            <TextBlock Text="{Binding ActiveFilterCount}" FontSize="11" />
+                        </Border>
+                    </Grid>
+                </Button>
+                <Button Classes="nav" Classes.selected="{Binding IsCompletedSelected}" Command="{Binding ShowCompletedCommand}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Completed" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="pill">
+                            <TextBlock Text="{Binding CompletedFilterCount}" FontSize="11" />
+                        </Border>
+                    </Grid>
+                </Button>
+                <Button Classes="nav" Classes.selected="{Binding IsFailedSelected}" Command="{Binding ShowFailedCommand}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Failed / stopped" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="pill">
+                            <TextBlock Text="{Binding FailedFilterCount}" FontSize="11" />
+                        </Border>
+                    </Grid>
+                </Button>
+
+                <TextBlock Classes="section" Text="MANAGE" Margin="4 16 0 2" />
+
+                <Button Classes="nav" Classes.selected="{Binding IsQueuesSelected}" Command="{Binding ShowQueuesCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource TabsRegular}" />
+                        <TextBlock Text="Queues" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Button Classes="Menu" Command="{Binding Path= ShowSettingViewCommand}">
-                    <StackPanel>
+                <Button Classes="nav" Classes.selected="{Binding IsSchedulerSelected}" Command="{Binding ShowSchedulerCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource OptionsRegular}" />
+                        <TextBlock Text="Scheduler" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="nav" Classes.selected="{Binding IsSettingsSelected}" Command="{Binding ShowSettingViewCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
                         <PathIcon Data="{StaticResource SettingsRegular}" />
-                        <TextBlock Text="Options" />
+                        <TextBlock Text="Settings" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
+        </Border>
 
-            <!-- Main content area -->
-            <DockPanel>
-                <!-- Top Header -->
-                <Grid DockPanel.Dock="Top" Background="{DynamicResource  SystemChromeHighColor}"
-                      PointerPressed="OnTitleBarPointerPressed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="30" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="30" />
-                    </Grid.RowDefinitions>
-
-                    <!-- App Title -->
-                    <TextBlock Grid.Row="0" Classes="TextBar"
-                               Grid.Column="0" Grid.ColumnSpan="2"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Foreground="{DynamicResource SystemChromeAltLowColor}"
-                               Text="Downloads" />
-
-                    <!-- Download URL + Add button -->
-                    <TextBox Grid.Row="2" Classes="TextBar"
-                             Grid.Column="0"
-                             Margin="30 0 0 15"
-                             Text="{Binding Path=DownloadUrl}"
-                             PlaceholderText="Add download link here" />
-
-                    <!-- Button in the second column -->
-                    <Button Grid.Row="2" Grid.Column="1" Classes="TextBar"
-                            Margin="0 0 30 15"
-                            Command="{Binding Path= AddDownloadItemCommand}">
-                        <PathIcon Data="{StaticResource AddRegular}" />
-                    </Button>
-
-                </Grid>
-
-                <!-- DownloadsView positioned below the TextBoxes -->
-                <v:DownloadsView DataContext="{Binding Downloads}" />
-            </DockPanel>
-        </DockPanel>
-    </Panel>
+        <!-- ===== Central content ===== -->
+        <ContentControl Content="{Binding CurrentPage}" />
+    </DockPanel>
 </Window>

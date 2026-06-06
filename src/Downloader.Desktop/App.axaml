@@ -2,123 +2,94 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Downloader.Desktop.App"
              RequestedThemeVariant="Default">
-	<!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-	<Application.Resources>
-		<ResourceDictionary>
-			<!-- Define the fixed height as a resource -->
-			<x:Double x:Key="DefaultFontSize">12</x:Double>
-			<x:Double x:Key="H1FontSize">13</x:Double>
-		</ResourceDictionary>
-	</Application.Resources>
-	
-	<Application.Styles>
-		<!-- Change theme variant:  https://theme.xaml.live/ -->
-		<FluentTheme DensityStyle="Compact">
-			<FluentTheme.Palettes>
-				<ColorPaletteResources x:Key="Light" Accent="#ffa8a8a8" AltHigh="White" AltLow="White" AltMedium="White" AltMediumHigh="White" AltMediumLow="White" BaseHigh="Black" BaseLow="#ffcccccc" BaseMedium="#ff898989" BaseMediumHigh="#ff5d5d5d" BaseMediumLow="#ff737373" ChromeAltLow="#ff5d5d5d" ChromeBlackHigh="Black" ChromeBlackLow="#ffcccccc" ChromeBlackMedium="#ff5d5d5d" ChromeBlackMediumLow="#ff898989" ChromeDisabledHigh="#ffcccccc" ChromeDisabledLow="#ff898989" ChromeGray="#ff737373" ChromeHigh="#ffcccccc" ChromeLow="#ffececec" ChromeMedium="#ffe6e6e6" ChromeMediumLow="#ffececec" ChromeWhite="White" ListLow="#ffe6e6e6" ListMedium="#ffcccccc" RegionColor="White" />
-				<ColorPaletteResources x:Key="Dark" Accent="#ff4c4a48" AltHigh="Black" AltLow="Black" AltMedium="Black" AltMediumHigh="Black" AltMediumLow="Black" BaseHigh="White" BaseLow="#ff333333" BaseMedium="#ff9a9a9a" BaseMediumHigh="#ffb4b4b4" BaseMediumLow="#ff676767" ChromeAltLow="#ffb4b4b4" ChromeBlackHigh="Black" ChromeBlackLow="#ffb4b4b4" ChromeBlackMedium="Black" ChromeBlackMediumLow="Black" ChromeDisabledHigh="#ff333333" ChromeDisabledLow="#ff9a9a9a" ChromeGray="Gray" ChromeHigh="Gray" ChromeLow="#ff151515" ChromeMedium="#ff1d1d1d" ChromeMediumLow="#ff2c2c2c" ChromeWhite="White" ListLow="#ff1d1d1d" ListMedium="#ff333333" RegionColor="Black" />
-			</FluentTheme.Palettes>
-		</FluentTheme>
+    <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <x:Double x:Key="DefaultFontSize">13</x:Double>
+            <x:Double x:Key="H1FontSize">15</x:Double>
+        </ResourceDictionary>
+    </Application.Resources>
 
-		<StyleInclude Source="avares://Downloader.Desktop/Assets/Icons.axaml" />
-		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+    <Application.Styles>
+        <FluentTheme DensityStyle="Compact">
+            <FluentTheme.Palettes>
+                <!-- Modern minimal palette with a blue accent -->
+                <ColorPaletteResources x:Key="Light" Accent="#2D7DF6" AltHigh="White" AltLow="White" AltMedium="White" AltMediumHigh="White" AltMediumLow="White" BaseHigh="#ff1b1b1f" BaseLow="#ffd6d6da" BaseMedium="#ff8a8a90" BaseMediumHigh="#ff5d5d63" BaseMediumLow="#ff737379" ChromeAltLow="#ff5d5d63" ChromeBlackHigh="Black" ChromeBlackLow="#ffcccccc" ChromeBlackMedium="#ff5d5d5d" ChromeBlackMediumLow="#ff898989" ChromeDisabledHigh="#ffcccccc" ChromeDisabledLow="#ff898989" ChromeGray="#ff737373" ChromeHigh="#ffcccccc" ChromeLow="#fff4f4f6" ChromeMedium="#ffeaeaee" ChromeMediumLow="#fff4f4f6" ChromeWhite="White" ListLow="#ffeaeaee" ListMedium="#ffd6d6da" RegionColor="#fff7f7fa" />
+                <ColorPaletteResources x:Key="Dark" Accent="#4C8DFF" AltHigh="#ff121214" AltLow="#ff121214" AltMedium="#ff121214" AltMediumHigh="#ff121214" AltMediumLow="#ff121214" BaseHigh="White" BaseLow="#ff3a3a40" BaseMedium="#ff9a9aa2" BaseMediumHigh="#ffb4b4bc" BaseMediumLow="#ff67676d" ChromeAltLow="#ffb4b4bc" ChromeBlackHigh="Black" ChromeBlackLow="#ffb4b4b4" ChromeBlackMedium="Black" ChromeBlackMediumLow="Black" ChromeDisabledHigh="#ff333333" ChromeDisabledLow="#ff9a9a9a" ChromeGray="Gray" ChromeHigh="Gray" ChromeLow="#ff1c1c20" ChromeMedium="#ff242429" ChromeMediumLow="#ff2c2c32" ChromeWhite="White" ListLow="#ff242429" ListMedium="#ff3a3a40" RegionColor="#ff161619" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
 
-		<!-- Some custom Styles -->
-		
-		<Style Selector="TextBlock.h1">
-			<Setter Property="FontWeight" Value="Bold" />
-			<Setter Property="FontSize" Value="{StaticResource H1FontSize}" />
-			<Setter Property="Margin" Value="5" />
-		</Style>
+        <StyleInclude Source="avares://Downloader.Desktop/Assets/Icons.axaml" />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 
-		<!-- We want our CheckBox to be stretched horizontally (the default is left-aligned) -->
-		<Style Selector="CheckBox">
-			<Setter Property="HorizontalAlignment" Value="Stretch" />
-		</Style>
+        <!-- ============ Custom modern styles ============ -->
 
-		<!-- These styles add some useful feedback for the user  -->
-		<Style Selector="CheckBox:pointerover /template/ Grid#RootGrid">
-			<Setter Property="Background" Value="{DynamicResource SystemAccentColorLight3}" />
-		</Style>
-		
-		<Style Selector="Button.Menu" x:DataType="Button">
-			<Setter Property="Cursor" Value="Hand"/>
-			<Setter Property="VerticalContentAlignment" Value="Center" />
-			<Setter Property="VerticalAlignment" Value="Center" />
-			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
-			<Setter Property="FontWeight" Value="Normal"/>
-			<Setter Property="BorderThickness" Value="10" />
-			<Setter Property="Padding" Value="0" />
-			<Setter Property="Width" Value="80" />
-			<Setter Property="Height" Value="80" />
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="Foreground" Value="White" />
-		</Style>
-		
-		<Style Selector="Button PathIcon">
-			<Setter Property="Margin" Value="5" />
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="Foreground" Value="White" />
-		</Style>
-		<Style Selector="Button:disabled PathIcon">
-			<Setter Property="Opacity" Value="0.4" />
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="Foreground" Value="White" />
-		</Style>
-		<Style Selector="Button TextBlock">
-			<Setter Property="VerticalAlignment" Value="Center" />
-			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="Foreground" Value="White" />
-		</Style>
-		
-		<Style Selector="TextBox.Menu" x:DataType="TextBox">
-			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
-			<Setter Property="FontWeight" Value="Normal"/>
-			<Setter Property="VerticalContentAlignment" Value="Center" />
-			<Setter Property="VerticalAlignment" Value="Center" />
-			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="Margin" Value="20" />
-			<Setter Property="Height" Value="30" />
-		</Style>
-		
-		<Style Selector="Button.TextBar" x:DataType="Button">
-			<Setter Property="Cursor" Value="Hand"/>
-			<Setter Property="VerticalContentAlignment" Value="Center" />
-			<Setter Property="VerticalAlignment" Value="Center" />
-			<Setter Property="HorizontalAlignment" Value="Center" />
-			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
-			<Setter Property="FontWeight" Value="Normal"/>
-			<Setter Property="Padding" Value="0" />
-			<Setter Property="Width" Value="30" />
-			<Setter Property="Height" Value="30" />
-			<Setter Property="BorderThickness" Value="0 1 1 1" />
-			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="CornerRadius" Value="0 5 5 0" />
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="Foreground" Value="White" />
-		</Style>
-		
-		<Style Selector="Button.TextBar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="Foreground" Value="White" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="Height" Value="30" />
-			<Setter Property="CornerRadius" Value="0 5 5 0" />
-		</Style>
-		
-		<Style Selector="TextBox.TextBar" x:DataType="TextBox">
-			<Setter Property="FontSize" Value="{StaticResource DefaultFontSize}"/>
-			<Setter Property="FontWeight" Value="Normal"/>
-			<Setter Property="HorizontalAlignment" Value="Stretch" />
-			<Setter Property="VerticalContentAlignment" Value="Center" />
-			<Setter Property="Margin" Value="0" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="BorderBrush" Value="Gray" />
-			<Setter Property="Height" Value="30" />
-			<Setter Property="CornerRadius" Value="5 0 0 5" />
-		</Style>
-	</Application.Styles>
+        <!-- Section header in sidebar / settings -->
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+            <Setter Property="Margin" Value="4 6 0 2" />
+        </Style>
+
+        <!-- Card container -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+
+        <!-- Sidebar navigation button -->
+        <Style Selector="Button.nav">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12 9" />
+            <Setter Property="Margin" Value="0 1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="Button.nav.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="TextElement.Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.nav.selected PathIcon">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.nav PathIcon">
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Width" Value="16" />
+        </Style>
+
+        <!-- Small transparent icon button (table row actions, toolbar) -->
+        <Style Selector="Button.icon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="Button.icon PathIcon">
+            <Setter Property="Height" Value="15" />
+            <Setter Property="Width" Value="15" />
+        </Style>
+
+        <!-- Pill counter shown next to nav items -->
+        <Style Selector="Border.pill">
+            <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="7 1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Application.Styles>
 </Application>

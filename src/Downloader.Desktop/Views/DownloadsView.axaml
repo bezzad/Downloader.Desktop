@@ -3,86 +3,89 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="460"
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
 
-    <DataGrid x:Name="Root"
-              Margin="20 10 20 20"
-              ItemsSource="{Binding DownloadItems}"
-              AutoGenerateColumns="False" IsReadOnly="True"
-              GridLinesVisibility="Horizontal"
-              CanUserReorderColumns="True"
-              CanUserResizeColumns="True"
-              CanUserSortColumns="False"
-              RowHeight="44"
-              VerticalScrollBarVisibility="Auto"
-              HorizontalScrollBarVisibility="Hidden"
-              Background="{DynamicResource ThemeBackgroundBrush}"
-              BorderThickness="1" BorderBrush="Gray">
-        <DataGrid.Styles>
-            <Style Selector="TextBlock">
-                <Setter Property="FontSize" Value="14" />
-                <Setter Property="VerticalAlignment" Value="Center" />
-            </Style>
-        </DataGrid.Styles>
-        <DataGrid.Columns>
-            <DataGridTextColumn Header="Name" Binding="{Binding FileName}" Width="2*" />
-            <DataGridTextColumn Header="Size" Binding="{Binding SizeText}" Width="90" />
+    <Panel Margin="16">
+        <DataGrid x:Name="Root"
+                  ItemsSource="{Binding ItemsView}"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  GridLinesVisibility="Horizontal"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="False"
+                  RowHeight="46"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Hidden"
+                  Background="Transparent"
+                  BorderThickness="1"
+                  BorderBrush="{DynamicResource SystemBaseLowColor}"
+                  CornerRadius="10">
+            <DataGrid.Styles>
+                <Style Selector="TextBlock">
+                    <Setter Property="FontSize" Value="13" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                </Style>
+            </DataGrid.Styles>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Name" Binding="{ReflectionBinding FileName}" Width="2*" />
+                <DataGridTextColumn Header="Size" Binding="{ReflectionBinding SizeText}" Width="90" />
 
-            <!-- Progress: live bar + status/percentage text -->
-            <DataGridTemplateColumn Header="Progress" Width="200">
-                <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0">
-                            <ProgressBar Minimum="0" Maximum="100"
-                                         Value="{Binding Progress}"
-                                         Height="6" />
-                            <TextBlock Text="{Binding StatusText}"
-                                       FontSize="11" Margin="0 2 0 0"
-                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
-                        </StackPanel>
-                    </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Progress" Width="220">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0">
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="6" />
+                                <TextBlock Text="{Binding StatusText}" FontSize="11" Margin="0 3 0 0"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
 
-            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedText}" Width="100" />
-            <DataGridTextColumn Header="Url" Binding="{Binding Url}" Width="*" />
+                <DataGridTextColumn Header="Speed" Binding="{ReflectionBinding SpeedText}" Width="100" />
+                <DataGridTextColumn Header="Url" Binding="{ReflectionBinding Url}" Width="*" />
 
-            <!-- Contextual actions -->
-            <DataGridTemplateColumn Header="" Width="170">
-                <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                                    Spacing="2" VerticalAlignment="Center">
-                            <Button Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}"
-                                    Background="Transparent" ToolTip.Tip="Pause">
-                                <PathIcon Data="{DynamicResource PauseRegular}" Height="14" />
-                            </Button>
-                            <Button Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}"
-                                    Background="Transparent" ToolTip.Tip="Resume">
-                                <PathIcon Data="{DynamicResource PlayRegular}" Height="14" />
-                            </Button>
-                            <Button Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
-                                    Background="Transparent" ToolTip.Tip="Retry">
-                                <PathIcon Data="{DynamicResource PlayRegular}" Height="14" />
-                            </Button>
-                            <Button Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}"
-                                    Background="Transparent" ToolTip.Tip="Stop">
-                                <PathIcon Data="{DynamicResource StopRegular}" Height="14" />
-                            </Button>
-                            <Button Command="{Binding OpenFolderCommand}" IsVisible="{Binding IsCompleted}"
-                                    Background="Transparent" ToolTip.Tip="Open folder">
-                                <PathIcon Data="{DynamicResource FolderRegular}" Height="14" />
-                            </Button>
-                            <Button Command="{Binding RemoveCommand}"
-                                    Background="Transparent" ToolTip.Tip="Remove">
-                                <PathIcon Data="{DynamicResource DeleteRegular}" Height="14" Foreground="IndianRed" />
-                            </Button>
-                        </StackPanel>
-                    </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
-        </DataGrid.Columns>
-    </DataGrid>
+                <DataGridTemplateColumn Header="" Width="180">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                        Spacing="1" VerticalAlignment="Center">
+                                <Button Classes="icon" Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}" ToolTip.Tip="Pause">
+                                    <PathIcon Data="{DynamicResource PauseRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" ToolTip.Tip="Resume">
+                                    <PathIcon Data="{DynamicResource PlayRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" ToolTip.Tip="Retry">
+                                    <PathIcon Data="{DynamicResource PlayRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" ToolTip.Tip="Stop">
+                                    <PathIcon Data="{DynamicResource StopRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding OpenFolderCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="Open folder">
+                                    <PathIcon Data="{DynamicResource FolderRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove">
+                                    <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
+                                </Button>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Empty state -->
+        <StackPanel IsVisible="{Binding IsEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Spacing="8" IsHitTestVisible="False">
+            <PathIcon Data="{StaticResource StoreMicrosoftRegular}" Height="40"
+                      Foreground="{DynamicResource SystemBaseMediumLowColor}" />
+            <TextBlock Text="No downloads yet" FontSize="16" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Paste a link in the box above and click Add to begin."
+                       Foreground="{DynamicResource SystemBaseMediumColor}" HorizontalAlignment="Center" />
+        </StackPanel>
+    </Panel>
 </UserControl>

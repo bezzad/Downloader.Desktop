@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Downloader.Desktop.Models;
@@ -13,6 +14,16 @@ public interface IDownloadManager
 {
     /// <summary>The master, UI-bound list of downloads.</summary>
     ObservableCollection<DownloadItemViewModel> Items { get; }
+
+    /// <summary>Raised (on the UI thread) when aggregate stats change, for the status bar.</summary>
+    event Action StatsChanged;
+
+    /// <summary>Combined speed of all running downloads, bytes/second.</summary>
+    double TotalSpeed { get; }
+
+    int ActiveCount { get; }
+    int QueuedCount { get; }
+    int CompletedCount { get; }
 
     /// <summary>Loads persisted items from the given config into <see cref="Items"/>.</summary>
     void Initialize(Config config);
