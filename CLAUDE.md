@@ -1,6 +1,27 @@
 # CLAUDE.md — Downloader.Desktop
 
-Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **work in progress / "coming soon"**, so many commands are stubs.
+Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **early dev — no production release yet**; many commands are stubs.
+
+## Product vision
+- **Goal**: a GUI download manager exposing the `Downloader` engine's features (multipart, pause/resume, speed control, etc.) to **end users, not developers**.
+- **Audience**: non-technical people on Windows / Linux / macOS. Must be **stable, simple, self-explanatory** — no exposed/complex config, sensible defaults.
+- **Author owns the engine**: `bezzad` developed the `Downloader` library (https://github.com/bezzad/downloader); this app is the UI layer on top of it.
+- **Reference apps** (study for UX/feature inspiration):
+  - ab-download-manager — https://github.com/amir1376/ab-download-manager / https://abdownloadmanager.com/ (primary visual + UX reference; built in Kotlin/Compose Multiplatform).
+  - Internet Download Manager (IDM) — the global gold standard, but far larger/more feature-heavy than we need.
+- **Platform roadmap**: **Desktop first** (this repo), **mobile later** (Android/iOS — specific first platform TBD). Framework must keep a mobile path open.
+
+## Decisions (settled with the author)
+- **V1 / MVP scope** = **Core downloading + Queue & Scheduler**:
+  - Core: add URL → pick folder → multipart download with **pause / resume / cancel**, live **progress + speed**, persistent list across restarts.
+  - Plus: a **download queue** (cap concurrent downloads) and a **scheduler** (start/stop at set times).
+  - Deferred to later: browser/clipboard URL capture, categories, site grabber, full IDM parity.
+- **Visual style** = **Modern minimal, "ab-download-manager" style**: clean rounded cards, accent color, light/dark, friendly empty states. Aimed at non-developers (not the dense IDM table look).
+- **Tech stack** = **Stay on Avalonia + .NET** (author was open to alternatives; this is the recommended path). Rationale:
+  - Reuses the existing **.NET `Downloader`** engine directly.
+  - **Avalonia keeps Linux desktop** AND offers a mobile path (iOS/Android/Browser) for the next phase.
+  - **.NET MAUI** was considered but **drops Linux desktop**, conflicting with the goal; non-.NET (Kotlin/Compose) would abandon the engine. Revisit only if the author asks.
+- **Mobile**: framework chosen now (Avalonia) must support it; first mobile platform decided later. Avoid desktop-only architectural lock-in.
 
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net8.0-macos` when `IsMacBuild=true`.
@@ -40,6 +61,19 @@ macOS `.app` publish + code signing steps are in the root `README.md`.
 
 ## Related repos (siblings on disk, not referenced via project ref)
 - `../Downloader` — the core download library (separate git repo). The desktop app consumes it as the `Downloader` NuGet package.
+
+## Roadmap & next steps (toward V1)
+Rough order to turn the current skeleton into the MVP above:
+1. **Wire the engine into the list**: make `DownloadItemViewModel` track a live `IDownload` — bind progress %, speed, downloaded/total from the `Downloader` events (`DownloadProgressChanged`, `DownloadFileCompleted`). Fix the integer-division `Status` bug.
+2. **Per-item actions**: implement pause / resume / cancel / remove and reflect real status (queued, downloading, paused, completed, failed).
+3. **Bulk actions**: implement the stubbed `StartAll` / `StopAll` / `ClearAllStoppedItems`.
+4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
+5. **Queue**: cap concurrent active downloads (configurable), auto-start next when a slot frees.
+6. **Scheduler**: start/stop downloads at configured times.
+7. **UX polish**: ab-style modern UI, light/dark toggle (wiring already exists via `Config.ThemeMode`), empty states, simple Settings (only essential options surfaced).
+8. **Packaging**: per-OS installers; macOS `.app` + signing steps already drafted in `README.md`.
+
+Keep this list current as items land.
 
 ## Conventions
 - Git user: `bezzad`. Main branch: `main`.
