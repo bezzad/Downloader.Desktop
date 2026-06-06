@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -46,9 +47,9 @@ public class AddDownloadItemViewModel : ViewModelBase
     {
         _config = config;
         _url = url;
-        _filename = url;
+        _filename = DeriveFileName(url);
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
-        StartDownloadCommand = ReactiveCommand.CreateFromTask(StartDownloadAsync);
+        StartDownloadCommand = ReactiveCommand.Create(StartDownload);
     }
 
     private async Task SelectFileStoragePathAsync()
@@ -57,20 +58,31 @@ public class AddDownloadItemViewModel : ViewModelBase
         StorageFolderPath = path.LocalPath;
     }
 
-    private async Task StartDownloadAsync()
+    private void StartDownload()
     {
-        var download = DownloadBuilder.New()
-            .WithUrl(_url)
-            .WithFolder(new DirectoryInfo(StorageFolderPath))
-            .WithFileName(_filename)
-            .Configure(config =>
-            {
-                config.ParallelDownload = true;
-                config.ChunkCount = DownloadChunks;
-            }).Build();
+        // Hand a descriptor back to the caller; the DownloadManager builds and starts the engine.
+        var item = new DownloadItem
+        {
+            Url = _url,
+            FilePath = Path.Combine(StorageFolderPath ?? string.Empty, Filename ?? string.Empty),
+            FileName = Filename,
+            Status = DownloadStatus.Created,
+            LastTry = DateTime.Now
+        };
 
-        View.Close(download);
-        
-        await download.StartAsync();
+        View.Close(item);
+    }
+
+    /// <summary>Best-effort file name from the URL path, falling back to a timestamped name.</summary>
+    private static string DeriveFileName(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var name = Path.GetFileName(uri.LocalPath);
+            if (!string.IsNullOrWhiteSpace(name))
+                return name;
+        }
+
+        return $"download_{DateTime.Now:yyyyMMdd_HHmmss}";
     }
 }

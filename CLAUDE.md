@@ -16,12 +16,20 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
   - Core: add URL → pick folder → multipart download with **pause / resume / cancel**, live **progress + speed**, persistent list across restarts.
   - Plus: a **download queue** (cap concurrent downloads) and a **scheduler** (start/stop at set times).
   - Deferred to later: browser/clipboard URL capture, categories, site grabber, full IDM parity.
-- **Visual style** = **Modern minimal, "ab-download-manager" style**: clean rounded cards, accent color, light/dark, friendly empty states. Aimed at non-developers (not the dense IDM table look).
-- **Tech stack** = **Stay on Avalonia + .NET** (author was open to alternatives; this is the recommended path). Rationale:
+- **Tech stack** = **Avalonia + .NET — LOCKED** (final, do not re-litigate). Framework comparison (MAUI / Blazor Hybrid / others) was already done across prior sessions and this one; Avalonia chosen because:
   - Reuses the existing **.NET `Downloader`** engine directly.
-  - **Avalonia keeps Linux desktop** AND offers a mobile path (iOS/Android/Browser) for the next phase.
-  - **.NET MAUI** was considered but **drops Linux desktop**, conflicting with the goal; non-.NET (Kotlin/Compose) would abandon the engine. Revisit only if the author asks.
-- **Mobile**: framework chosen now (Avalonia) must support it; first mobile platform decided later. Avoid desktop-only architectural lock-in.
+  - **Keeps Linux desktop** AND offers a mobile path (iOS/Android/Browser) for the next phase. (.NET MAUI drops Linux; Kotlin/Compose drops the engine; Blazor Hybrid fragments mobile + weakens native OS integration.)
+  - **Maps to the author's WPF skills** almost 1:1 (XAML, bindings, MVVM, styles, DataTemplates). Author also knows Blazor.
+  - Native OS integration (tray, notifications, file pickers, "open folder", drag-drop) matters for a download manager and Avalonia does it natively.
+- **Visual style** = **inspired by ab-download-manager, NOT a copy**. Modern minimal: clean rounded cards, accent color, light/dark, friendly empty states; aimed at non-developers (not the dense IDM table look). **I have creative freedom to design a distinctive, special look** — propose mockups, don't clone. Keep it simple/understandable above all.
+- **Mobile**: Avalonia must keep supporting it; first mobile platform decided later. Avoid desktop-only architectural lock-in.
+
+## Working conventions (how I operate on this repo)
+- **`CLAUDE.md` is the source of truth** — update it every time decisions, conventions, scope, or structure change. Don't re-litigate settled decisions (esp. the Avalonia lock).
+- **Describe before building**: state what I'll add (files/structure/behavior) and why, before/as I write it.
+- **Small, reviewable increments** following the roadmap below; get something working early so the author can give feedback.
+- **UI = mockup first**: show a layout/structure proposal and let the author pick before committing detailed work.
+- The author steers and gives feedback; fold it in and keep this file current.
 
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net8.0-macos` when `IsMacBuild=true`.
@@ -64,9 +72,10 @@ macOS `.app` publish + code signing steps are in the root `README.md`.
 
 ## Roadmap & next steps (toward V1)
 Rough order to turn the current skeleton into the MVP above:
-1. **Wire the engine into the list**: make `DownloadItemViewModel` track a live `IDownload` — bind progress %, speed, downloaded/total from the `Downloader` events (`DownloadProgressChanged`, `DownloadFileCompleted`). Fix the integer-division `Status` bug.
-2. **Per-item actions**: implement pause / resume / cancel / remove and reflect real status (queued, downloading, paused, completed, failed).
-3. **Bulk actions**: implement the stubbed `StartAll` / `StopAll` / `ClearAllStoppedItems`.
+1. ✅ **Wire the engine into the list** (DONE, Stage 1): `Services/DownloadManager` (DI singleton, `IDownloadManager`) owns the master `ObservableCollection<DownloadItemViewModel>`, builds `IDownload` via `DownloadBuilder`, and relays engine events (`DownloadProgressChanged`/`DownloadFileCompleted`/`DownloadStarted`) to the row VM on the UI thread (`Dispatcher.UIThread`). `DownloadItemViewModel` rewritten with live `Progress`/`SpeedText`/`SizeText`/`StatusText` + per-item commands; integer-division `Status` bug fixed. `AddDownloadItemViewModel` now returns a `DownloadItem` descriptor and the manager builds/starts it.
+2. ✅ **Per-item actions** (DONE, Stage 1): pause / resume / cancel / retry / remove / open-folder, contextual in the `DownloadsView` grid via `CanPause`/`CanResume`/`CanRetry`/`IsActive`/`IsCompleted`.
+3. ✅ **Bulk actions** (DONE, Stage 1): `StartAll`/`StopAll`/`ClearCompleted` implemented on the manager and wired to `MainViewModel`.
+   - *Remaining for V1 (Stage 2+):* the full sidebar-nav + compact-table redesign, status bar, status filters, then persistence/resume, Queues, Scheduler, polish.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
 5. **Queue**: cap concurrent active downloads (configurable), auto-start next when a slot frees.
 6. **Scheduler**: start/stop downloads at configured times.

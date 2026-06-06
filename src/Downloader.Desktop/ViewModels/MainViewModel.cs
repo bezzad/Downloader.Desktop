@@ -15,18 +15,20 @@ namespace Downloader.Desktop.ViewModels;
 public class MainViewModel : ViewModelBase
 {
     private readonly IFileService _fileService;
+    private readonly IDownloadManager _downloadManager;
     private string _downloadUrl;
     private Config _config;
 
-    public MainViewModel(IFileService fileService)
+    public MainViewModel(IFileService fileService, IDownloadManager downloadManager)
     {
         _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
+        _downloadManager = downloadManager ?? throw new ArgumentNullException(nameof(downloadManager));
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
         ShowSettingViewCommand = ReactiveCommand.CreateFromTask(ShowSettingView);
         AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
-        ClearAllCommand = ReactiveCommand.CreateFromTask(ClearAllStoppedItems);
-        StopAllCommand = ReactiveCommand.CreateFromTask(StopAll);
-        StartAllCommand = ReactiveCommand.CreateFromTask(StartAll);
+        ClearAllCommand = ReactiveCommand.Create(ClearAllStoppedItems);
+        StopAllCommand = ReactiveCommand.Create(StopAll);
+        StartAllCommand = ReactiveCommand.Create(StartAll);
     }
     
     public DownloadsViewModel Downloads { get; private set; }
@@ -44,51 +46,32 @@ public class MainViewModel : ViewModelBase
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
     {
-        Downloads = new DownloadsViewModel();
-
         // get the items to load
         _config = await _fileService.LoadFromFileAsync();
         Application.Current!.RequestedThemeVariant = _config.ThemeMode;
-        foreach (var item in _config.Downloads)
-        {
-            Downloads.DownloadItems.Add(new(item));
-        }
+
+        _downloadManager.Initialize(_config);
+        Downloads = new DownloadsViewModel(_downloadManager);
+        this.RaisePropertyChanged(nameof(Downloads));
     }
 
     private async Task AddDownloadItem()
     {
-        var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, IDownload>(
+        var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, DownloadItem>(
             new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
 
         if (result != null)
         {
-            Downloads.DownloadItems.Add(new DownloadItemViewModel(new DownloadItem()
-            {
-                FileName = result.Filename,
-                Size = result.TotalFileSize,
-                Downloaded = result.DownloadedFileSize,
-                Url = result.Url,
-                FilePath = result.Filename,
-                Status = result.Status,
-                LastTry = DateTime.Now
-            }));
+            _downloadManager.Add(result, autoStart: true);
+            DownloadUrl = string.Empty;
         }
     }
 
-    private Task StopAll()
-    {
-        return Task.CompletedTask;
-    }
+    private void StopAll() => _downloadManager.StopAll();
 
-    private Task StartAll()
-    {
-        return Task.CompletedTask;
-    }
+    private void StartAll() => _downloadManager.StartAll();
 
-    private Task ClearAllStoppedItems()
-    {
-        return Task.CompletedTask;
-    }
+    private void ClearAllStoppedItems() => _downloadManager.ClearCompleted();
 
     private async Task ShowSettingView()
     {

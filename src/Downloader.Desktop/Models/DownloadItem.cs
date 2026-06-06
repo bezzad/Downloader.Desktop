@@ -9,6 +9,8 @@ public class DownloadItem
     private string _folderPath;
     private string _fileName;
 
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string QueueId { get; set; }
     public string FilePath { get; set; }
     public string Url { get; set; }
     public long? Size { get; set; }

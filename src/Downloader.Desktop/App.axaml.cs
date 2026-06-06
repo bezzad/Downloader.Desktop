@@ -60,6 +60,7 @@ public partial class App : Application
         var services = new ServiceCollection();
 
         services.AddSingleton<IFileService, FileService>();
+        services.AddSingleton<IDownloadManager, DownloadManager>();
         services.AddTransient<MainViewModel>();
         _services = services.BuildServiceProvider();
     }
