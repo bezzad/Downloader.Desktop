@@ -1,0 +1,110 @@
+using System;
+using System.Net;
+
+namespace Downloader.Desktop.Models;
+
+/// <summary>
+/// User-facing, JSON-persistable mirror of the engine's <see cref="DownloadConfiguration"/> options
+/// (which itself can't be serialized because it holds delegates and non-serializable request objects).
+/// Grouped into Basic / Advanced / Request for the Settings UI; <see cref="ToConfiguration"/> maps to the engine.
+/// </summary>
+public class DownloadSettings
+{
+    // ---- Basic ----
+    public string DefaultSavePath { get; set; }
+
+    /// <summary>Number of parts (connections) a file is split into.</summary>
+    public int ChunkCount { get; set; } = 8;
+
+    public bool ParallelDownload { get; set; } = true;
+
+    /// <summary>How many chunks download at once. 0 = same as <see cref="ChunkCount"/>.</summary>
+    public int ParallelCount { get; set; } = 0;
+
+    /// <summary>Global speed cap in bytes/second. 0 = unlimited.</summary>
+    public long MaximumBytesPerSecond { get; set; } = 0;
+
+    /// <summary>App-level cap on how many downloads run at once within a queue.</summary>
+    public int MaxConcurrentDownloads { get; set; } = 3;
+
+    // ---- Advanced ----
+    public int BufferBlockSize { get; set; } = 8192;
+    public int MaxTryAgainOnFailure { get; set; } = 5;
+    public int BlockTimeout { get; set; } = 1000;
+    public int HttpClientTimeout { get; set; } = 100_000;
+    public long MinimumSizeOfChunking { get; set; } = 512;
+    public long MinimumChunkSize { get; set; } = 0;
+
+    /// <summary>Max RAM used for buffering before flushing to disk. 0 = unlimited.</summary>
+    public long MaximumMemoryBufferBytes { get; set; } = 0;
+
+    public bool CheckDiskSizeBeforeDownload { get; set; } = true;
+    public bool EnableAutoResumeDownload { get; set; } = true;
+    public bool ClearPackageOnCompletionWithFailure { get; set; } = false;
+
+    /// <summary>What to do when the target file already exists.</summary>
+    public FileExistPolicy FileExistPolicy { get; set; } = FileExistPolicy.Rename;
+
+    public string DownloadFileExtension { get; set; } = ".download";
+
+    // ---- Request (common HTTP options) ----
+    public string UserAgent { get; set; }
+    public string Referer { get; set; }
+    public string Accept { get; set; }
+    public bool AllowAutoRedirect { get; set; } = true;
+    public int MaximumAutomaticRedirections { get; set; } = 50;
+    public int ConnectTimeout { get; set; } = 30_000;
+    public bool KeepAlive { get; set; } = false;
+
+    /// <summary>Optional proxy, e.g. "http://host:port". Empty = no proxy.</summary>
+    public string ProxyAddress { get; set; }
+
+    public static DownloadSettings New() => new()
+    {
+        DefaultSavePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { } home
+            ? System.IO.Path.Combine(home, "Downloads")
+            : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+    };
+
+    /// <summary>Builds an engine <see cref="DownloadConfiguration"/> from these settings.</summary>
+    public DownloadConfiguration ToConfiguration()
+    {
+        var cfg = new DownloadConfiguration
+        {
+            ChunkCount = Math.Max(1, ChunkCount),
+            ParallelDownload = ParallelDownload,
+            ParallelCount = Math.Max(0, ParallelCount),
+            MaximumBytesPerSecond = MaximumBytesPerSecond <= 0 ? 0 : MaximumBytesPerSecond,
+            BufferBlockSize = Math.Clamp(BufferBlockSize, 1, 1024 * 1024),
+            MaxTryAgainOnFailure = Math.Max(0, MaxTryAgainOnFailure),
+            BlockTimeout = Math.Max(100, BlockTimeout),
+            HttpClientTimeout = Math.Max(1000, HttpClientTimeout),
+            MinimumSizeOfChunking = Math.Max(0, MinimumSizeOfChunking),
+            MinimumChunkSize = Math.Max(0, MinimumChunkSize),
+            MaximumMemoryBufferBytes = Math.Max(0, MaximumMemoryBufferBytes),
+            CheckDiskSizeBeforeDownload = CheckDiskSizeBeforeDownload,
+            EnableAutoResumeDownload = EnableAutoResumeDownload,
+            ClearPackageOnCompletionWithFailure = ClearPackageOnCompletionWithFailure,
+            FileExistPolicy = FileExistPolicy
+        };
+
+        if (!string.IsNullOrWhiteSpace(DownloadFileExtension))
+            cfg.DownloadFileExtension = DownloadFileExtension;
+
+        var req = cfg.RequestConfiguration;
+        if (!string.IsNullOrWhiteSpace(UserAgent)) req.UserAgent = UserAgent;
+        if (!string.IsNullOrWhiteSpace(Referer)) req.Referer = Referer;
+        if (!string.IsNullOrWhiteSpace(Accept)) req.Accept = Accept;
+        req.AllowAutoRedirect = AllowAutoRedirect;
+        req.MaximumAutomaticRedirections = Math.Max(1, MaximumAutomaticRedirections);
+        req.ConnectTimeout = Math.Max(1000, ConnectTimeout);
+        req.KeepAlive = KeepAlive;
+        if (!string.IsNullOrWhiteSpace(ProxyAddress))
+        {
+            try { req.Proxy = new WebProxy(ProxyAddress); }
+            catch { /* ignore malformed proxy address */ }
+        }
+
+        return cfg;
+    }
+}

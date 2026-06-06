@@ -3,86 +3,60 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:Downloader.Desktop.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="300"
-        Width="600" Height="300"
+        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="320"
+        Width="560" Height="320"
         CanResize="False"
         FontSize="{StaticResource DefaultFontSize}"
         Background="{DynamicResource ThemeBackgroundColor}"
         x:Class="Downloader.Desktop.Views.AddDownloadItemView"
         x:DataType="viewModels:AddDownloadItemViewModel"
         WindowStartupLocation="CenterOwner"
-        Title="Add new download">
-    
-    <Grid Margin="50" Background="{DynamicResource SliderContainerBackground}">
+        Title="Add download">
+
+    <Grid Margin="28" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="120" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="30" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="30" />
-            <RowDefinition Height="10" /> 
-            <RowDefinition Height="30" />
-            <RowDefinition Height="10" /> 
-            <RowDefinition Height="30" />
-            <RowDefinition Height="100" /> 
-            <RowDefinition Height="30" />
-        </Grid.RowDefinitions>
 
-        <!-- ROW 0 -->
-        <!-- File name: -->
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="File name:" 
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Right" Margin="10 0" />
-        
-        <!-- Filename TextBox -->
-        <TextBox Grid.Row="0"
-                 Grid.Column="1" Grid.ColumnSpan="2"
-                 VerticalContentAlignment="Center"
-                 CornerRadius="5"
-                 Text="{Binding Path=Filename}"
-                 PlaceholderText="File name" />
-        
-        <!-- ROW 2 -->
-        
-        <!-- File name: -->
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Download folder:" 
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Right" Margin="10 0" />
-        
-        <!-- Download Folder TextBox -->
-        <TextBox Grid.Row="2" Classes="TextBar"
-                 Grid.Column="1"
-                 IsReadOnly="True"
-                 Text="{Binding Path=StorageFolderPath, Mode=TwoWay}"
-                 PlaceholderText="Where you want to save the file" />
+        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                   Text="Add download" FontSize="20" FontWeight="SemiBold" Margin="0 0 0 18" />
 
-        <!-- Pick a folder button -->
-        <Button Grid.Row="2" Grid.Column="2" Classes="TextBar" 
-                HorizontalAlignment="Right"
-                Command="{Binding Path= SelectFileStoragePathCommand}">
-            <PathIcon Data="{StaticResource FolderRegular}" />
-        </Button>
-        
-        <!-- ROW 4 -->
-        
-        <!-- File name: -->
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Download chunks:" 
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Right" Margin="10 0" />
-        
-        <!-- Download chunks number -->
-        <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding DownloadChunks}"
-                       VerticalAlignment="Center" HorizontalAlignment="Left"
-                       IsReadOnly="False" Increment="1" FormatString="N0"
-                       Minimum="1" Maximum="10" Width="100" />
-        
-        <!-- ROW 6 -->
-        
-        <!-- Start download button -->
-        <Button Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Content="Start download" Width="130" Height="30"
-                VerticalAlignment="Center" HorizontalContentAlignment="Center" HorizontalAlignment="Right"
-                Cursor="Hand"
-                Command="{Binding StartDownloadCommand}" />
+        <!-- Link -->
+        <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="Link" Margin="0 0 0 4" />
+        <TextBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                 Text="{Binding Url}" IsReadOnly="True"
+                 CornerRadius="6" Margin="0 0 0 14"
+                 TextWrapping="NoWrap" />
+
+        <!-- Save folder -->
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Save to" Margin="0 0 0 4" />
+        <Grid Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="0 0 0 14">
+            <TextBox Grid.Column="0" Text="{Binding StorageFolderPath, Mode=TwoWay}"
+                     CornerRadius="6" VerticalContentAlignment="Center"
+                     PlaceholderText="Choose a folder" />
+            <Button Grid.Column="1" Margin="8 0 0 0" Padding="10"
+                    Command="{Binding SelectFileStoragePathCommand}"
+                    ToolTip.Tip="Browse">
+                <PathIcon Data="{StaticResource FolderRegular}" Height="16" />
+            </Button>
+        </Grid>
+
+        <!-- Optional file name -->
+        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Spacing="4" VerticalAlignment="Top">
+            <TextBlock Text="File name (optional)" />
+            <TextBox Text="{Binding Filename, Mode=TwoWay}"
+                     CornerRadius="6" VerticalContentAlignment="Center"
+                     PlaceholderText="Leave empty to detect automatically from the link" />
+        </StackPanel>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+                    Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0 16 0 0">
+            <Button Content="Download" Padding="20 8" Cursor="Hand"
+                    HorizontalContentAlignment="Center"
+                    Classes="accent"
+                    Command="{Binding StartDownloadCommand}" />
+        </StackPanel>
     </Grid>
 </Window>

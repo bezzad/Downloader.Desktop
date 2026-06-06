@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
@@ -8,81 +7,67 @@ using ReactiveUI;
 
 namespace Downloader.Desktop.ViewModels;
 
+/// <summary>
+/// Collects a URL + destination folder (and an optional file name) for a new download, then returns a
+/// <see cref="DownloadItem"/> descriptor. When the name is left blank the engine resolves the real name
+/// from the URL / Content-Disposition headers.
+/// </summary>
 public class AddDownloadItemViewModel : ViewModelBase
 {
-    private string _filename;
     private readonly Config _config;
     private readonly string _url;
-
-    public ICommand SelectFileStoragePathCommand { get; }
-    public ICommand StartDownloadCommand { get; }
-
-    public string StorageFolderPath
-    {
-        get => _config.DefaultSavePath;
-        set
-        {
-            this.RaisePropertyChanged();
-            _config.DefaultSavePath = value;
-        }
-    }
-
-    public int DownloadChunks
-    {
-        get => _config.DefaultDownloadChunks;
-        set
-        {
-            this.RaisePropertyChanged();
-            _config.DefaultDownloadChunks = value;
-        }
-    }
-
-    public string Filename
-    {
-        get => _filename;
-        set => this.RaiseAndSetIfChanged(ref _filename, value);
-    }
+    private string _fileName;
+    private string _storageFolderPath;
 
     public AddDownloadItemViewModel(Config config, string url)
     {
         _config = config;
         _url = url;
-        _filename = DeriveFileName(url);
+        _storageFolderPath = config?.Settings?.DefaultSavePath;
+        _fileName = string.Empty;
+
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
     }
 
+    public ICommand SelectFileStoragePathCommand { get; }
+    public ICommand StartDownloadCommand { get; }
+
+    public string Url => _url;
+
+    public string StorageFolderPath
+    {
+        get => _storageFolderPath;
+        set => this.RaiseAndSetIfChanged(ref _storageFolderPath, value);
+    }
+
+    /// <summary>Optional. Blank means "auto-detect from the link".</summary>
+    public string Filename
+    {
+        get => _fileName;
+        set => this.RaiseAndSetIfChanged(ref _fileName, value);
+    }
+
     private async Task SelectFileStoragePathAsync()
     {
-        var path = await DialogHelper.OpenFolderPicker("Select a folder to save the files in");
-        StorageFolderPath = path.LocalPath;
+        var path = await DialogHelper.OpenFolderPicker("Select a folder to save the file in");
+        if (path != null)
+            StorageFolderPath = path.LocalPath;
     }
 
     private void StartDownload()
     {
-        // Hand a descriptor back to the caller; the DownloadManager builds and starts the engine.
         var item = new DownloadItem
         {
             Url = _url,
-            FilePath = Path.Combine(StorageFolderPath ?? string.Empty, Filename ?? string.Empty),
-            FileName = Filename,
+            SaveFolder = string.IsNullOrWhiteSpace(StorageFolderPath)
+                ? _config?.Settings?.DefaultSavePath
+                : StorageFolderPath,
+            FileName = string.IsNullOrWhiteSpace(Filename) ? null : Filename.Trim(),
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
 
         View.Close(item);
-    }
-
-    /// <summary>Best-effort file name from the URL path, falling back to a timestamped name.</summary>
-    private static string DeriveFileName(string url)
-    {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            var name = Path.GetFileName(uri.LocalPath);
-            if (!string.IsNullOrWhiteSpace(name))
-                return name;
-        }
-
-        return $"download_{DateTime.Now:yyyyMMdd_HHmmss}";
     }
 }

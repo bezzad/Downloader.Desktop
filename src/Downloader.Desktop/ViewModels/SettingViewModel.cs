@@ -39,21 +39,21 @@ public class SettingViewModel : ViewModelBase
     
     public string DefaultSavePath
     {
-        get => _config.DefaultSavePath;
+        get => _config.Settings.DefaultSavePath;
         set
         {
             this.RaisePropertyChanged();
-            _config.DefaultSavePath = value;
+            _config.Settings.DefaultSavePath = value;
         }
     }
 
     public int DefaultDownloadSegments
     {
-        get => _config.DefaultDownloadChunks;
+        get => _config.Settings.ChunkCount;
         set
         {
             this.RaisePropertyChanged();
-            _config.DefaultDownloadChunks = value;
+            _config.Settings.ChunkCount = value;
         }
     }
     

@@ -34,6 +34,9 @@ public class DownloadManager : IDownloadManager
 
     public DownloadItemViewModel Add(DownloadItem item, bool autoStart)
     {
+        if (string.IsNullOrWhiteSpace(item.QueueId) && _config != null)
+            item.QueueId = _config.DefaultQueue.Id;
+
         var vm = new DownloadItemViewModel(item, this);
         Items.Add(vm);
         if (autoStart)
@@ -50,16 +53,22 @@ public class DownloadManager : IDownloadManager
 
         try
         {
-            var download = DownloadBuilder.New()
+            var folder = string.IsNullOrWhiteSpace(item.SaveFolder)
+                ? _config?.Settings?.DefaultSavePath
+                : item.SaveFolder;
+            item.SaveFolder = folder;
+
+            var builder = DownloadBuilder.New()
                 .WithUrl(item.Url)
-                .WithDirectory(item.FolderPath)
-                .WithFileName(item.FileName)
-                .Configure(c =>
-                {
-                    c.ParallelDownload = true;
-                    c.ChunkCount = Math.Max(1, _config?.DefaultDownloadChunks ?? 1);
-                    c.EnableAutoResumeDownload = true;
-                })
+                .WithDirectory(folder ?? string.Empty);
+
+            // Only force a name when the user supplied one; otherwise let the engine
+            // resolve the real file name from the URL / Content-Disposition headers.
+            if (!string.IsNullOrWhiteSpace(item.FileName))
+                builder = builder.WithFileName(item.FileName);
+
+            var download = builder
+                .WithConfiguration(_config?.Settings?.ToConfiguration() ?? new DownloadConfiguration())
                 .Build();
 
             Attach(vm, download);
@@ -142,6 +151,11 @@ public class DownloadManager : IDownloadManager
 
         download.DownloadStarted += (_, e) => OnUi(() =>
         {
+            // The engine has now resolved the real file name (from URL / Content-Disposition).
+            if (string.IsNullOrWhiteSpace(vm.FileName) && !string.IsNullOrWhiteSpace(download.Filename))
+                vm.FileName = download.Filename;
+            if (!string.IsNullOrWhiteSpace(download.Folder))
+                vm.GetItem().SaveFolder = download.Folder;
             if (e.TotalBytesToReceive > 0)
                 vm.Size = e.TotalBytesToReceive;
             vm.Status = DownloadStatus.Running;
