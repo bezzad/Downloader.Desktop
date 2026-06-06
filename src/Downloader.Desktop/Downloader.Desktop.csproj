@@ -74,7 +74,7 @@
         <PackageReference Include="Avalonia.ReactiveUI" Version="11.3.8" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.17" />
-        <PackageReference Include="Downloader" Version="5.5.0" />
+        <PackageReference Include="Downloader" Version="5.8.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
         <PackageReference Include="Dotnet.Bundle" Version="0.9.13" />
