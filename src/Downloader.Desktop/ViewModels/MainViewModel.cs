@@ -193,7 +193,15 @@ public class MainViewModel : ViewModelBase
         if (_config == null)
             return;
 
-        _config.Downloads = _downloadManager.Items.Select(i => i.GetItem()).ToList();
+        var items = _downloadManager.Items.Select(i => i.GetItem()).ToList();
+
+        // Persist in-progress downloads as Paused so they show up resumable next launch
+        // (the engine resumes from on-disk metadata when EnableAutoResumeDownload is on).
+        foreach (var it in items)
+            if (it.Status == DownloadStatus.Running)
+                it.Status = DownloadStatus.Paused;
+
+        _config.Downloads = items;
         await _fileService.SaveToFileAsync(_config);
     }
 
