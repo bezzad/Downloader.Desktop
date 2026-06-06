@@ -46,4 +46,20 @@ public interface IDownloadManager
 
     /// <summary>Removes every completed item from the list.</summary>
     void ClearCompleted();
+
+    // ---- Queues ----
+
+    /// <summary>Starts (up to the cap) the queued items in a queue and marks it running.</summary>
+    void StartQueue(DownloadQueue queue);
+
+    /// <summary>Pauses every running item in a queue and marks it paused.</summary>
+    void PauseQueue(DownloadQueue queue);
+
+    /// <summary>Starts the next queued item(s) while a concurrency slot is free.</summary>
+    void PumpQueue(string queueId);
+
+    DownloadQueue AddQueue(string name);
+
+    /// <summary>Removes a queue, reassigning its items to another queue (keeps at least one).</summary>
+    void RemoveQueue(DownloadQueue queue);
 }

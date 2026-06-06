@@ -50,6 +50,92 @@ public class DownloadManager : IDownloadManager
         {
             Items.Add(new DownloadItemViewModel(item, this));
         }
+
+        StartScheduler();
+    }
+
+    // ---------------- Scheduler ----------------
+
+    private DispatcherTimer _schedulerTimer;
+    private readonly HashSet<string> _firedKeys = new();
+    private DateTime _firedDay = DateTime.MinValue;
+
+    private void StartScheduler()
+    {
+        _schedulerTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _schedulerTimer.Tick -= OnSchedulerTick;
+        _schedulerTimer.Tick += OnSchedulerTick;
+        _schedulerTimer.Start();
+    }
+
+    private void OnSchedulerTick(object sender, EventArgs e) => EvaluateSchedules();
+
+    private void EvaluateSchedules()
+    {
+        if (_config?.Schedules == null)
+            return;
+
+        var now = DateTime.Now;
+        if (now.Date != _firedDay)
+        {
+            _firedDay = now.Date;
+            _firedKeys.Clear();
+        }
+
+        var tod = now.TimeOfDay;
+        foreach (var sch in _config.Schedules.ToList())
+        {
+            if (!sch.Enabled)
+                continue;
+            if (sch.Days is { Length: > 0 } && !sch.Days.Contains(now.DayOfWeek))
+                continue;
+
+            var startKey = sch.Id + ":start";
+            var stopKey = sch.Id + ":stop";
+
+            var inWindow = tod >= sch.StartTime && (sch.StopTime == null || tod < sch.StopTime.Value);
+            if (inWindow && _firedKeys.Add(startKey))
+            {
+                TriggerStart(sch);
+                if (sch.Once)
+                    sch.Enabled = false;
+            }
+
+            if (sch.StopTime is { } stop && tod >= stop && _firedKeys.Add(stopKey))
+                TriggerStop(sch);
+        }
+    }
+
+    private void TriggerStart(DownloadSchedule sch)
+    {
+        if (!string.IsNullOrEmpty(sch.TargetQueueId))
+        {
+            var queue = FindQueue(sch.TargetQueueId);
+            if (queue != null)
+                StartQueue(queue);
+        }
+        else if (sch.TargetItemId is { } id)
+        {
+            var vm = Items.FirstOrDefault(i => i.GetItem().Id == id);
+            if (vm != null && vm.CanResume)
+                Resume(vm);
+        }
+    }
+
+    private void TriggerStop(DownloadSchedule sch)
+    {
+        if (!string.IsNullOrEmpty(sch.TargetQueueId))
+        {
+            var queue = FindQueue(sch.TargetQueueId);
+            if (queue != null)
+                PauseQueue(queue);
+        }
+        else if (sch.TargetItemId is { } id)
+        {
+            var vm = Items.FirstOrDefault(i => i.GetItem().Id == id);
+            if (vm != null && vm.Status == DownloadStatus.Running)
+                Pause(vm);
+        }
     }
 
     public DownloadItemViewModel Add(DownloadItem item, bool autoStart)
@@ -60,7 +146,7 @@ public class DownloadManager : IDownloadManager
         var vm = new DownloadItemViewModel(item, this);
         Items.Add(vm);
         if (autoStart)
-            Start(vm);
+            PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
 
         Notify();
         return vm;
@@ -173,13 +259,83 @@ public class DownloadManager : IDownloadManager
         Notify();
     }
 
-    /// <summary>
-    /// Starts the next waiting item in the given queue if a concurrency slot is free.
-    /// Full queue logic is added with the Queues feature; placeholder for now.
-    /// </summary>
-    private void TryStartNextInQueue(string queueId)
+    private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
+
+    private DownloadQueue FindQueue(string id) =>
+        _config?.Queues?.FirstOrDefault(q => q.Id == id);
+
+    public void PumpQueue(string queueId)
     {
-        // Implemented in the Queues stage.
+        var queue = FindQueue(queueId);
+        if (queue == null || !queue.IsRunning)
+            return;
+
+        int running = Items.Count(i => i.GetItem().QueueId == queueId && i.Status == DownloadStatus.Running);
+        var cap = Math.Max(1, queue.MaxConcurrent);
+
+        foreach (var vm in Items.Where(i =>
+                     i.GetItem().QueueId == queueId &&
+                     i.Status is DownloadStatus.Created or DownloadStatus.None).ToList())
+        {
+            if (running >= cap)
+                break;
+            Start(vm);
+            running++;
+        }
+    }
+
+    public void StartQueue(DownloadQueue queue)
+    {
+        if (queue == null)
+            return;
+        queue.IsRunning = true;
+
+        // Wake up paused items too, then fill remaining slots from the queued ones.
+        foreach (var vm in Items.Where(i =>
+                     i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Paused).ToList())
+        {
+            if (Items.Count(i => i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Running) >= Math.Max(1, queue.MaxConcurrent))
+                break;
+            Resume(vm);
+        }
+
+        PumpQueue(queue.Id);
+        Notify();
+    }
+
+    public void PauseQueue(DownloadQueue queue)
+    {
+        if (queue == null)
+            return;
+        queue.IsRunning = false;
+        foreach (var vm in Items.Where(i =>
+                     i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Running).ToList())
+            Pause(vm);
+        Notify();
+    }
+
+    public DownloadQueue AddQueue(string name)
+    {
+        var queue = new DownloadQueue
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? "New queue" : name,
+            MaxConcurrent = _config?.Settings?.MaxConcurrentDownloads ?? 3
+        };
+        _config?.Queues?.Add(queue);
+        return queue;
+    }
+
+    public void RemoveQueue(DownloadQueue queue)
+    {
+        if (queue == null || _config?.Queues == null || _config.Queues.Count <= 1)
+            return;
+
+        var fallback = _config.Queues.FirstOrDefault(q => q.Id != queue.Id);
+        foreach (var vm in Items.Where(i => i.GetItem().QueueId == queue.Id).ToList())
+            vm.GetItem().QueueId = fallback?.Id;
+
+        _config.Queues.Remove(queue);
+        Notify();
     }
 
     private void Attach(DownloadItemViewModel vm, IDownload download)

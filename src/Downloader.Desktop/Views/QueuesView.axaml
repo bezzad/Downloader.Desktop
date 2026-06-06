@@ -3,12 +3,70 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="480"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="520"
              x:Class="Downloader.Desktop.Views.QueuesView"
              x:DataType="vm:QueuesViewModel">
-    <StackPanel Margin="28 22" Spacing="8">
-        <TextBlock Text="Queues" FontSize="22" FontWeight="SemiBold" />
-        <TextBlock Text="Group downloads and control how many run at once."
-                   Foreground="{DynamicResource SystemBaseMediumColor}" />
-    </StackPanel>
+
+    <ScrollViewer Padding="28 22">
+        <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Queues" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="Group downloads and control how many run at once."
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="accent" Content="New queue" Padding="14 8"
+                        VerticalAlignment="Center" Command="{Binding NewQueueCommand}" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Queues}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="12" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:QueueRowViewModel">
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto" VerticalAlignment="Center">
+                                    <TextBox Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"
+                                             CornerRadius="6" VerticalContentAlignment="Center" MaxWidth="280"
+                                             HorizontalAlignment="Left" />
+
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                                VerticalAlignment="Center" Margin="12 0">
+                                        <TextBlock Text="Max" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <NumericUpDown Value="{Binding MaxConcurrent}" Minimum="1" Maximum="20"
+                                                       Increment="1" FormatString="N0" Width="110" />
+                                    </StackPanel>
+
+                                    <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsRunning}"
+                                                  OffContent="Paused" OnContent="Running" VerticalAlignment="Center" />
+
+                                    <Button Grid.Column="3" Classes="icon" Command="{Binding RemoveCommand}"
+                                            ToolTip.Tip="Delete queue" Margin="6 0 0 0">
+                                        <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
+                                    </Button>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding Items}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="2 3">
+                                                <TextBlock Grid.Column="0" Text="{Binding FileName}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
