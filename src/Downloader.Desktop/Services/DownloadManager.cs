@@ -191,9 +191,9 @@ public class DownloadManager : IDownloadManager
             if (!string.IsNullOrWhiteSpace(item.FileName))
                 builder = builder.WithFileName(item.FileName);
 
-            var download = builder
-                .WithConfiguration(_config?.Settings?.ToConfiguration() ?? new DownloadConfiguration())
-                .Build();
+            var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+            vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
+            var download = builder.WithConfiguration(configuration).Build();
 
             Attach(vm, download);
             item.LastTry = DateTime.Now;

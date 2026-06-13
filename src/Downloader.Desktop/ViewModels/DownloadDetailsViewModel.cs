@@ -7,8 +7,9 @@ using ReactiveUI;
 namespace Downloader.Desktop.ViewModels;
 
 /// <summary>
-/// Details dialog for a single download: top-level info (via <see cref="Item"/>) plus live
-/// per-part (chunk) progress sourced from the engine's ChunkDownloadProgressChanged event.
+/// Details dialog for a single download: top-level info (via <see cref="Item"/>), live per-part
+/// (chunk) progress from the engine's ChunkDownloadProgressChanged event, and a few live-editable
+/// settings (speed limit) applied to the running download's configuration.
 /// </summary>
 public class DownloadDetailsViewModel : ViewModelBase
 {
@@ -20,6 +21,8 @@ public class DownloadDetailsViewModel : ViewModelBase
     public ObservableCollection<ChunkProgressViewModel> Parts { get; } = new();
 
     public bool HasParts => Parts.Count > 0;
+    public bool HasConfig => Item?.Configuration != null;
+    public int Connections => Item?.Configuration?.ChunkCount ?? 0;
 
     public DownloadDetailsViewModel()
     {
@@ -41,6 +44,22 @@ public class DownloadDetailsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Live speed cap in KB/s (0 = unlimited). Applies to the running download.</summary>
+    public long SpeedLimitKb
+    {
+        get
+        {
+            var v = Item?.Configuration?.MaximumBytesPerSecond ?? 0;
+            return v <= 0 || v == long.MaxValue ? 0 : v / 1024;
+        }
+        set
+        {
+            if (Item?.Configuration != null)
+                Item.Configuration.MaximumBytesPerSecond = value <= 0 ? 0 : value * 1024;
+            this.RaisePropertyChanged();
+        }
+    }
+
     private void OnChunkProgress(object sender, DownloadProgressChangedEventArgs e)
     {
         var now = DateTime.UtcNow;
@@ -53,6 +72,8 @@ public class DownloadDetailsViewModel : ViewModelBase
             var part = GetOrAddPart(e.ProgressId);
             part.Progress = e.ProgressPercentage;
             part.Speed = e.BytesPerSecondSpeed;
+            part.Received = e.ReceivedBytesSize;
+            part.Total = e.TotalBytesToReceive;
         });
     }
 
@@ -83,6 +104,8 @@ public class ChunkProgressViewModel : ViewModelBase
 {
     private double _progress;
     private double _speed;
+    private long _received;
+    private long _total;
 
     public ChunkProgressViewModel(int index)
     {
@@ -107,6 +130,28 @@ public class ChunkProgressViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(SpeedText));
         }
     }
+
+    public long Received
+    {
+        get => _received;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _received, value);
+            this.RaisePropertyChanged(nameof(RangeText));
+        }
+    }
+
+    public long Total
+    {
+        get => _total;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _total, value);
+            this.RaisePropertyChanged(nameof(RangeText));
+        }
+    }
+
+    public string RangeText => _total > 0 ? $"{FormatBytes(_received)} / {FormatBytes(_total)}" : FormatBytes(_received);
 
     public string SpeedText => _speed > 0 ? FormatBytes((long)_speed) + "/s" : string.Empty;
 

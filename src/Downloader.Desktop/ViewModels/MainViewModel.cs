@@ -2,6 +2,7 @@ using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.Views;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
 using System.Threading;
@@ -182,13 +183,15 @@ public class MainViewModel : ViewModelBase
 
     private async Task AddDownloadItem()
     {
-        // Always open the dialog; the URL can be typed there if the top box was empty.
-        var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, DownloadItem>(
+        // Always open the dialog; URLs can be typed there if the top box was empty.
+        var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
             new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
 
-        if (result != null)
+        if (result is { Count: > 0 })
         {
-            _downloadManager.Add(result, autoStart: true);
+            foreach (var item in result)
+                _downloadManager.Add(item, autoStart: true);
+
             DownloadUrl = string.Empty;
             SelectFilter(StatusFilter.All);
         }
@@ -208,7 +211,7 @@ public class MainViewModel : ViewModelBase
                 it.Status = DownloadStatus.Paused;
 
         _config.Downloads = items;
-        await _fileService.SaveToFileAsync(_config);
+        await _fileService.SaveToFileAsync(_config).ConfigureAwait(false);
     }
 
     private static string FormatSpeed(double bytesPerSecond)

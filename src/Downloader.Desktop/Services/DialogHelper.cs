@@ -50,11 +50,14 @@ public static class DialogHelper
         await view.ShowDialog(MainWindow);
     }
 
-    public static async Task<Uri> OpenFolderPicker(string title)
+    public static async Task<Uri> OpenFolderPicker(string title, Window owner = null)
     {
-        if (MainWindow != null)
+        // Parent the picker to the active window (e.g. the Add dialog) so it stays on top,
+        // falling back to the main window.
+        var parent = owner ?? MainWindow;
+        if (parent != null)
         {
-            var result = await MainWindow.StorageProvider.OpenFolderPickerAsync(
+            var result = await parent.StorageProvider.OpenFolderPickerAsync(
                 new FolderPickerOpenOptions()
                 {
                     Title = title,

@@ -27,6 +27,9 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Timestamp of the last UI progress update (used to throttle high-frequency events).</summary>
     public DateTime LastUiUpdateUtc { get; set; }
 
+    /// <summary>The live engine configuration for this download (lets the details dialog tweak it).</summary>
+    public DownloadConfiguration Configuration { get; set; }
+
     /// <summary>Design-time / blank constructor.</summary>
     public DownloadItemViewModel()
     {
@@ -116,7 +119,13 @@ public class DownloadItemViewModel : ViewModelBase
     public double Progress
     {
         get => _progress;
-        set => this.RaiseAndSetIfChanged(ref _progress, value);
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _progress, value);
+            // The status text shows the live "%" while running, so refresh it with progress.
+            if (_status == DownloadStatus.Running)
+                this.RaisePropertyChanged(nameof(StatusText));
+        }
     }
 
     /// <summary>Current transfer speed in bytes/second.</summary>

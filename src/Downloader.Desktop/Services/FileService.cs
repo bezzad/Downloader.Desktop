@@ -25,9 +25,11 @@ public class FileService : IFileService
         // Ensure all directories exists
         Directory.CreateDirectory(Path.GetDirectoryName(ConfigFileName)!);
 
-        // We use a FileStream to write all items to disc
+        // We use a FileStream to write all items to disc.
+        // ConfigureAwait(false) keeps continuations off the UI thread so a blocking .Wait()
+        // during shutdown can't deadlock.
         await using var fs = File.Create(ConfigFileName);
-        await JsonSerializer.SerializeAsync(fs, itemToSave);
+        await JsonSerializer.SerializeAsync(fs, itemToSave).ConfigureAwait(false);
     }
 
     /// <summary>

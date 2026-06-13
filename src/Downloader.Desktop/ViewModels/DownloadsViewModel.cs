@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Downloader.Desktop.Services;
@@ -36,12 +37,37 @@ public class DownloadsViewModel : ViewModelBase
         _manager = manager;
         ItemsView = new DataGridCollectionView(manager.Items) { Filter = Matches };
         RemoveItemCommand = ReactiveCommand.CreateFromTask<DownloadItemViewModel>(RemoveDownloadItem);
+        StartSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Resume(i)));
+        PauseSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)));
+        StopSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Cancel(i)));
+        RemoveSelectedCommand = ReactiveCommand.Create(RemoveSelected);
     }
 
     /// <summary>Filterable view bound to the DataGrid.</summary>
     public DataGridCollectionView ItemsView { get; }
 
     public ICommand RemoveItemCommand { get; }
+    public ICommand StartSelectedCommand { get; }
+    public ICommand PauseSelectedCommand { get; }
+    public ICommand StopSelectedCommand { get; }
+    public ICommand RemoveSelectedCommand { get; }
+
+    private bool _selectAll;
+
+    /// <summary>Header checkbox: toggles selection of every (filtered) row.</summary>
+    public bool SelectAll
+    {
+        get => _selectAll;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _selectAll, value);
+            if (_manager == null)
+                return;
+            foreach (var item in _manager.Items)
+                if (PassesView(item))
+                    item.IsChecked = value;
+        }
+    }
 
     public bool IsEmpty => ItemsView is null || ItemsView.Count == 0;
 
@@ -99,6 +125,26 @@ public class DownloadsViewModel : ViewModelBase
     {
         if (_manager != null)
             await _manager.Remove(item);
+        Refresh();
+    }
+
+    private bool PassesView(DownloadItemViewModel item) => Matches(item);
+
+    private void ForEachSelected(Action<DownloadItemViewModel> action)
+    {
+        if (_manager == null)
+            return;
+        foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
+            action(item);
+        Refresh();
+    }
+
+    private void RemoveSelected()
+    {
+        if (_manager == null)
+            return;
+        foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
+            _ = _manager.Remove(item);
         Refresh();
     }
 }

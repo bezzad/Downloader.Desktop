@@ -7,7 +7,40 @@
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
 
-    <Panel Margin="16">
+    <DockPanel Margin="16">
+        <!-- Selection toolbar -->
+        <Border DockPanel.Dock="Top" Margin="0 0 0 8">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <CheckBox Content="Select all" IsChecked="{Binding SelectAll, Mode=TwoWay}"
+                          VerticalAlignment="Center" Margin="2 0 8 0" />
+                <Button Classes="icon" Command="{Binding StartSelectedCommand}" ToolTip.Tip="Start selected">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource PlayRegular}" />
+                        <TextBlock Text="Start" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="icon" Command="{Binding PauseSelectedCommand}" ToolTip.Tip="Pause selected">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource PauseRegular}" />
+                        <TextBlock Text="Pause" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="icon" Command="{Binding StopSelectedCommand}" ToolTip.Tip="Stop selected">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource StopRegular}" />
+                        <TextBlock Text="Stop" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="icon" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Remove selected">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
+                        <TextBlock Text="Remove" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Panel>
         <DataGrid x:Name="Root"
                   ItemsSource="{Binding ItemsView}"
                   DoubleTapped="OnRowDoubleTapped"
@@ -30,6 +63,14 @@
                 </Style>
             </DataGrid.Styles>
             <DataGrid.Columns>
+                <DataGridTemplateColumn Width="38">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Name" Binding="{ReflectionBinding FileName}" Width="2*" />
                 <DataGridTextColumn Header="Size" Binding="{ReflectionBinding SizeText}" Width="90" />
 
@@ -88,5 +129,6 @@
             <TextBlock Text="Paste a link in the box above and click Add to begin."
                        Foreground="{DynamicResource SystemBaseMediumColor}" HorizontalAlignment="Center" />
         </StackPanel>
-    </Panel>
+        </Panel>
+    </DockPanel>
 </UserControl>
