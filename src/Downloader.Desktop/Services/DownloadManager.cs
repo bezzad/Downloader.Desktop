@@ -23,6 +23,8 @@ public class DownloadManager : IDownloadManager
     public ObservableCollection<DownloadItemViewModel> Items { get; } = new();
 
     public event Action StatsChanged;
+    public event Action ListChanged;
+    private DateTime _lastStatsUtc;
 
     public double TotalSpeed
     {
@@ -40,7 +42,22 @@ public class DownloadManager : IDownloadManager
     public int QueuedCount => Items.Count(i => i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedCount => Items.Count(i => i.Status == DownloadStatus.Completed);
 
-    private void Notify() => StatsChanged?.Invoke();
+    /// <summary>Throttled status-bar number updates for high-frequency progress events.</summary>
+    private void NotifyStats()
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _lastStatsUtc).TotalMilliseconds < 400)
+            return;
+        _lastStatsUtc = now;
+        StatsChanged?.Invoke();
+    }
+
+    /// <summary>Items added/removed or changed status — refresh the filtered list and numbers.</summary>
+    private void NotifyList()
+    {
+        StatsChanged?.Invoke();
+        ListChanged?.Invoke();
+    }
 
     public void Initialize(Config config)
     {
@@ -148,7 +165,7 @@ public class DownloadManager : IDownloadManager
         if (autoStart)
             PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
 
-        Notify();
+        NotifyList();
         return vm;
     }
 
@@ -181,7 +198,9 @@ public class DownloadManager : IDownloadManager
             Attach(vm, download);
             item.LastTry = DateTime.Now;
             vm.Status = DownloadStatus.Running;
-            await download.StartAsync().ConfigureAwait(false);
+            // Run on a background thread: StartAsync does synchronous setup before its first await,
+            // which would otherwise briefly block (and with many events, freeze) the UI thread.
+            await Task.Run(() => download.StartAsync()).ConfigureAwait(false);
         }
         catch (Exception)
         {
@@ -194,7 +213,7 @@ public class DownloadManager : IDownloadManager
         vm.Download?.Pause();
         vm.Status = DownloadStatus.Paused;
         vm.Speed = 0;
-        Notify();
+        NotifyList();
     }
 
     public void Resume(DownloadItemViewModel vm)
@@ -209,7 +228,7 @@ public class DownloadManager : IDownloadManager
             // No live handle (stopped or freshly loaded) — (re)build and start.
             Start(vm);
         }
-        Notify();
+        NotifyList();
     }
 
     public void Cancel(DownloadItemViewModel vm)
@@ -217,7 +236,7 @@ public class DownloadManager : IDownloadManager
         vm.Download?.Stop();
         vm.Status = DownloadStatus.Stopped;
         vm.Speed = 0;
-        Notify();
+        NotifyList();
     }
 
     public void Retry(DownloadItemViewModel vm) => Start(vm);
@@ -234,7 +253,7 @@ public class DownloadManager : IDownloadManager
         }
 
         Items.Remove(vm);
-        Notify();
+        NotifyList();
         return Task.CompletedTask;
     }
 
@@ -242,21 +261,21 @@ public class DownloadManager : IDownloadManager
     {
         foreach (var vm in Items.Where(v => v.CanResume).ToList())
             Resume(vm);
-        Notify();
+        NotifyList();
     }
 
     public void StopAll()
     {
         foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Running).ToList())
             Pause(vm);
-        Notify();
+        NotifyList();
     }
 
     public void ClearCompleted()
     {
         foreach (var vm in Items.Where(v => v.IsCompleted).ToList())
             Items.Remove(vm);
-        Notify();
+        NotifyList();
     }
 
     private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
@@ -300,7 +319,7 @@ public class DownloadManager : IDownloadManager
         }
 
         PumpQueue(queue.Id);
-        Notify();
+        NotifyList();
     }
 
     public void PauseQueue(DownloadQueue queue)
@@ -311,7 +330,7 @@ public class DownloadManager : IDownloadManager
         foreach (var vm in Items.Where(i =>
                      i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Running).ToList())
             Pause(vm);
-        Notify();
+        NotifyList();
     }
 
     public DownloadQueue AddQueue(string name)
@@ -335,7 +354,7 @@ public class DownloadManager : IDownloadManager
             vm.GetItem().QueueId = fallback?.Id;
 
         _config.Queues.Remove(queue);
-        Notify();
+        NotifyList();
     }
 
     private void Attach(DownloadItemViewModel vm, IDownload download)
@@ -361,18 +380,28 @@ public class DownloadManager : IDownloadManager
             if (e.TotalBytesToReceive > 0)
                 vm.Size = e.TotalBytesToReceive;
             vm.Status = DownloadStatus.Running;
-            Notify();
+            NotifyList();
         });
 
-        download.DownloadProgressChanged += (_, e) => OnUi(() =>
+        download.DownloadProgressChanged += (_, e) =>
         {
-            vm.Progress = e.ProgressPercentage;
-            vm.Speed = e.BytesPerSecondSpeed;
-            vm.Downloaded = e.ReceivedBytesSize;
-            if (vm.Size is null or 0 && e.TotalBytesToReceive > 0)
-                vm.Size = e.TotalBytesToReceive;
-            Notify();
-        });
+            // Throttle UI updates to ~5 fps per item; the engine raises this event very frequently
+            // and posting every one to the UI thread is what froze the window.
+            var now = DateTime.UtcNow;
+            if ((now - vm.LastUiUpdateUtc).TotalMilliseconds < 200)
+                return;
+            vm.LastUiUpdateUtc = now;
+
+            OnUi(() =>
+            {
+                vm.Progress = e.ProgressPercentage;
+                vm.Speed = e.BytesPerSecondSpeed;
+                vm.Downloaded = e.ReceivedBytesSize;
+                if (vm.Size is null or 0 && e.TotalBytesToReceive > 0)
+                    vm.Size = e.TotalBytesToReceive;
+                NotifyStats();
+            });
+        };
 
         download.DownloadFileCompleted += (_, e) => OnUi(() =>
         {
@@ -395,7 +424,7 @@ public class DownloadManager : IDownloadManager
 
             // A finished/stopped item frees a slot — let the queue start the next one.
             TryStartNextInQueue(vm.GetItem().QueueId);
-            Notify();
+            NotifyList();
         });
     }
 

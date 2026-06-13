@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Downloader.Desktop.ViewModels;
+using Downloader.Desktop.Views;
 
 namespace Downloader.Desktop.Services;
 
@@ -33,6 +34,20 @@ public static class DialogHelper
         }
 
         return default;
+    }
+
+    /// <summary>Opens the read-only details dialog for a download (info + live per-part progress).</summary>
+    public static async Task ShowDetails(DownloadItemViewModel item)
+    {
+        if (MainWindow == null || item == null)
+            return;
+
+        var view = new DownloadDetailsView();
+        var viewModel = new DownloadDetailsViewModel(item);
+        view.DataContext = viewModel;
+        view.Closed += (_, _) => viewModel.Cleanup();
+
+        await view.ShowDialog(MainWindow);
     }
 
     public static async Task<Uri> OpenFolderPicker(string title)

@@ -24,6 +24,9 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>The live engine handle while this item is downloading/paused; null otherwise.</summary>
     public IDownload Download { get; set; }
 
+    /// <summary>Timestamp of the last UI progress update (used to throttle high-frequency events).</summary>
+    public DateTime LastUiUpdateUtc { get; set; }
+
     /// <summary>Design-time / blank constructor.</summary>
     public DownloadItemViewModel()
     {

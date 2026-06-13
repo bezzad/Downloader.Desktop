@@ -18,6 +18,9 @@ public interface IDownloadManager
     /// <summary>Raised (on the UI thread) when aggregate stats change, for the status bar.</summary>
     event Action StatsChanged;
 
+    /// <summary>Raised when items are added/removed or change status (refresh the filtered list).</summary>
+    event Action ListChanged;
+
     /// <summary>Combined speed of all running downloads, bytes/second.</summary>
     double TotalSpeed { get; }
 

@@ -43,6 +43,7 @@ public class MainViewModel : ViewModelBase
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
 
         _downloadManager.StatsChanged += OnStatsChanged;
+        _downloadManager.ListChanged += OnListChanged;
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
     }
 
@@ -137,6 +138,13 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(ActiveFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
+    }
+
+    // Only refresh the (expensive) filtered grid when items actually move buckets,
+    // never on every progress tick.
+    private void OnListChanged()
+    {
+        OnStatsChanged();
         Downloads?.Refresh();
     }
 
@@ -207,18 +215,7 @@ public class MainViewModel : ViewModelBase
 
     private static string FormatSpeed(double bytesPerSecond)
     {
-        if (bytesPerSecond <= 0)
-            return "0 B/s";
-
-        string[] units = { "B", "KB", "MB", "GB" };
-        double size = bytesPerSecond;
-        int unit = 0;
-        while (size >= 1024 && unit < units.Length - 1)
-        {
-            size /= 1024;
-            unit++;
-        }
-
-        return $"{size:0.#} {units[unit]}/s";
+        var mbps = bytesPerSecond / (1024.0 * 1024.0);
+        return $"{mbps:0.00} MB/s";
     }
 }

@@ -11,6 +11,7 @@
         Icon="/Assets/downloader.ico"
         WindowStartupLocation="CenterScreen"
         Width="1000" Height="620" MinWidth="840" MinHeight="500"
+        ShowInTaskbar="True"
         FontSize="{StaticResource DefaultFontSize}"
         Title="Downloader">
 
@@ -32,25 +33,30 @@
                 Padding="14 10">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-                    <PathIcon Data="{StaticResource StoreMicrosoftRegular}" Height="18"
+                    <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="18"
                               Foreground="{DynamicResource SystemAccentColor}" />
                     <TextBlock Text="Downloader" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="22 0" MaxWidth="640">
                     <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
-                             CornerRadius="8 0 0 8" VerticalContentAlignment="Center"
+                             CornerRadius="8" Height="34" VerticalContentAlignment="Center"
                              PlaceholderText="Paste a download link…">
                         <TextBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding AddDownloadItemCommand}" />
                         </TextBox.KeyBindings>
                     </TextBox>
-                    <Button Grid.Column="1" Classes="accent" Content="Add" CornerRadius="0 8 8 0"
-                            Padding="16 0" Cursor="Hand"
-                            Command="{Binding AddDownloadItemCommand}" />
+                    <Button Grid.Column="1" Classes="accent" CornerRadius="8" Height="34"
+                            Padding="14 0" Margin="8 0 0 0" Cursor="Hand"
+                            Command="{Binding AddDownloadItemCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource AddRegular}" Height="12" />
+                            <TextBlock Text="Add" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
 
-                <TextBox Grid.Column="2" Width="200" Text="{Binding SearchText}"
+                <TextBox Grid.Column="2" Width="200" Height="34" Text="{Binding SearchText}"
                          CornerRadius="8" VerticalContentAlignment="Center"
                          PlaceholderText="Search" />
             </Grid>
@@ -59,28 +65,21 @@
         <!-- ===== Status bar ===== -->
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource SystemChromeLowColor}"
                 BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 1 0 0"
-                Padding="14 7">
+                Padding="14 8">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding TotalSpeedText, StringFormat='↓ {0}'}" FontWeight="SemiBold" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14"
+                              Foreground="{DynamicResource SystemAccentColor}" />
+                    <TextBlock Text="{Binding TotalSpeedText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                     <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
-                               Text="{Binding ActiveCount, StringFormat='{}{0} active'}" />
+                               Text="{Binding ActiveCount, StringFormat='{}{0} downloading'}" />
                     <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
                                Text="{Binding QueuedCount, StringFormat='{}{0} queued'}" />
                     <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
                                Text="{Binding CompletedCount, StringFormat='{}{0} done'}" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                    <Button Classes="icon" ToolTip.Tip="Start all" Command="{Binding StartAllCommand}">
-                        <PathIcon Data="{StaticResource PlayRegular}" />
-                    </Button>
-                    <Button Classes="icon" ToolTip.Tip="Stop all" Command="{Binding StopAllCommand}">
-                        <PathIcon Data="{StaticResource StopRegular}" />
-                    </Button>
-                    <Button Classes="icon" ToolTip.Tip="Clear completed" Command="{Binding ClearAllCommand}">
-                        <PathIcon Data="{StaticResource DeleteRegular}" />
-                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -136,7 +135,7 @@
                 </Button>
                 <Button Classes="nav" Classes.selected="{Binding IsSchedulerSelected}" Command="{Binding ShowSchedulerCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <PathIcon Data="{StaticResource OptionsRegular}" />
+                        <PathIcon Data="{StaticResource ClockRegular}" />
                         <TextBlock Text="Scheduler" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
