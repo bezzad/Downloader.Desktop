@@ -3,8 +3,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:Downloader.Desktop.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="320"
-        Width="560" Height="320"
+        xmlns:m="clr-namespace:Downloader.Desktop.Models"
+        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="380"
+        Width="560" Height="380"
         CanResize="False"
         FontSize="{StaticResource DefaultFontSize}"
         Background="{DynamicResource ThemeBackgroundColor}"
@@ -42,12 +43,26 @@
             </Button>
         </Grid>
 
-        <!-- Optional file name -->
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Spacing="4" VerticalAlignment="Top">
-            <TextBlock Text="File name (optional)" />
-            <TextBox Text="{Binding Filename, Mode=TwoWay}"
-                     CornerRadius="6" VerticalContentAlignment="Center"
-                     PlaceholderText="Leave empty to detect automatically from the link" />
+        <!-- Optional file name + queue -->
+        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Spacing="10" VerticalAlignment="Top">
+            <StackPanel Spacing="4">
+                <TextBlock Text="File name (optional)" />
+                <TextBox Text="{Binding Filename, Mode=TwoWay}"
+                         CornerRadius="6" VerticalContentAlignment="Center"
+                         PlaceholderText="Leave empty to detect automatically from the link" />
+            </StackPanel>
+
+            <StackPanel Spacing="4" IsVisible="{Binding ShowQueuePicker}">
+                <TextBlock Text="Queue" />
+                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Queues}"
+                          SelectedItem="{Binding SelectedQueue}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="m:DownloadQueue">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
         </StackPanel>
 
         <!-- Actions -->

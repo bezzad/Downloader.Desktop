@@ -151,7 +151,7 @@ public class DownloadItemViewModel : ViewModelBase
 
     public string StatusText => Status switch
     {
-        DownloadStatus.None or DownloadStatus.Created => "Ready",
+        DownloadStatus.None or DownloadStatus.Created => "Queued",
         DownloadStatus.Running => $"{Progress:0}%",
         DownloadStatus.Paused => "Paused",
         DownloadStatus.Stopped => "Stopped",

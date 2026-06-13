@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
@@ -18,6 +19,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     private readonly string _url;
     private string _fileName;
     private string _storageFolderPath;
+    private DownloadQueue _selectedQueue;
 
     public AddDownloadItemViewModel(Config config, string url)
     {
@@ -25,10 +27,22 @@ public class AddDownloadItemViewModel : ViewModelBase
         _url = url;
         _storageFolderPath = config?.Settings?.DefaultSavePath;
         _fileName = string.Empty;
+        _selectedQueue = config?.DefaultQueue;
 
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
     }
+
+    public List<DownloadQueue> Queues => _config?.Queues;
+
+    public DownloadQueue SelectedQueue
+    {
+        get => _selectedQueue;
+        set => this.RaiseAndSetIfChanged(ref _selectedQueue, value);
+    }
+
+    /// <summary>Hide the queue picker when there is only the default queue.</summary>
+    public bool ShowQueuePicker => (_config?.Queues?.Count ?? 0) > 1;
 
     public ICommand SelectFileStoragePathCommand { get; }
     public ICommand StartDownloadCommand { get; }
@@ -64,6 +78,7 @@ public class AddDownloadItemViewModel : ViewModelBase
                 ? _config?.Settings?.DefaultSavePath
                 : StorageFolderPath,
             FileName = string.IsNullOrWhiteSpace(Filename) ? null : Filename.Trim(),
+            QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };

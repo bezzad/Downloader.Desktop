@@ -344,11 +344,20 @@ public class DownloadManager : IDownloadManager
 
         download.DownloadStarted += (_, e) => OnUi(() =>
         {
-            // The engine has now resolved the real file name (from URL / Content-Disposition).
-            if (string.IsNullOrWhiteSpace(vm.FileName) && !string.IsNullOrWhiteSpace(download.Filename))
-                vm.FileName = download.Filename;
-            if (!string.IsNullOrWhiteSpace(download.Folder))
-                vm.GetItem().SaveFolder = download.Folder;
+            // The engine resolved the real file path (from URL / Content-Disposition) and reports
+            // it as the full path in e.FileName. IDownload.Filename stays empty when no name was
+            // supplied, so derive the name/folder from e.FileName instead.
+            if (!string.IsNullOrWhiteSpace(e.FileName))
+            {
+                var name = Path.GetFileName(e.FileName);
+                if (string.IsNullOrWhiteSpace(vm.FileName) && !string.IsNullOrWhiteSpace(name))
+                    vm.FileName = name;
+
+                var dir = Path.GetDirectoryName(e.FileName);
+                if (!string.IsNullOrWhiteSpace(dir))
+                    vm.GetItem().SaveFolder = dir;
+            }
+
             if (e.TotalBytesToReceive > 0)
                 vm.Size = e.TotalBytesToReceive;
             vm.Status = DownloadStatus.Running;

@@ -1,6 +1,6 @@
 # CLAUDE.md — Downloader.Desktop
 
-Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **early dev — no production release yet**; many commands are stubs.
+Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **early dev — no production release yet**. A full **V1 redesign** is implemented on branch `feat/v1-redesign` (awaiting the author's interactive testing + merge).
 
 ## Product vision
 - **Goal**: a GUI download manager exposing the `Downloader` engine's features (multipart, pause/resume, speed control, etc.) to **end users, not developers**.
@@ -75,7 +75,16 @@ Rough order to turn the current skeleton into the MVP above:
 1. ✅ **Wire the engine into the list** (DONE, Stage 1): `Services/DownloadManager` (DI singleton, `IDownloadManager`) owns the master `ObservableCollection<DownloadItemViewModel>`, builds `IDownload` via `DownloadBuilder`, and relays engine events (`DownloadProgressChanged`/`DownloadFileCompleted`/`DownloadStarted`) to the row VM on the UI thread (`Dispatcher.UIThread`). `DownloadItemViewModel` rewritten with live `Progress`/`SpeedText`/`SizeText`/`StatusText` + per-item commands; integer-division `Status` bug fixed. `AddDownloadItemViewModel` now returns a `DownloadItem` descriptor and the manager builds/starts it.
 2. ✅ **Per-item actions** (DONE, Stage 1): pause / resume / cancel / retry / remove / open-folder, contextual in the `DownloadsView` grid via `CanPause`/`CanResume`/`CanRetry`/`IsActive`/`IsCompleted`.
 3. ✅ **Bulk actions** (DONE, Stage 1): `StartAll`/`StopAll`/`ClearCompleted` implemented on the manager and wired to `MainViewModel`.
-   - *Remaining for V1 (Stage 2+):* the full sidebar-nav + compact-table redesign, status bar, status filters, then persistence/resume, Queues, Scheduler, polish.
+4. ✅ **Full V1 redesign** (DONE, Stages 2–7 on `feat/v1-redesign`):
+   - **Settings model** (`Models/DownloadSettings.cs`) mirrors the whole engine `DownloadConfiguration` (+ common request opts) as a JSON-persistable POCO with `ToConfiguration()`. `Config` now holds `Settings`/`Queues`/`Schedules`/`Downloads`.
+   - **Filename auto-resolution**: Add dialog takes URL + folder (name optional); manager passes only URL+folder to the engine and reads the resolved name from `DownloadStartedEventArgs.FileName` (note: `IDownload.Filename` stays empty when no name is supplied — must use the event arg).
+   - **Main window redesign**: top bar (paste link + Add + search), left nav rail (STATUS filters w/ count pills + MANAGE: Queues/Scheduler/Settings), central `ContentControl` swapping pages via `DataTemplates`, bottom status bar (speed + counts + bulk). Modernized `App.axaml` styles (theme-aware nav/icon/card, blue accent) — replaced the old white-forced button styles. Standard window chrome (dropped the acrylic custom titlebar for cross-platform reliability).
+   - **Settings page**: scrollable, Basic card + collapsible Advanced + Network/Request, every option bound to `DownloadSettings`.
+   - **Persistence/resume**: config saved on shutdown via the resolved `MainViewModel`; resume relies on engine `EnableAutoResumeDownload` (restart a download to the same path → continues). `FileService` load is exception-tolerant.
+   - **Queues**: concurrency engine in `DownloadManager` (enqueue, pump next on completion, start/pause queue, cap, add/remove). `QueuesViewModel`/`QueuesView`.
+   - **Scheduler**: `DispatcherTimer` (30s) evaluating schedules → start/stop target queue in a daily window (+run-once). `SchedulerViewModel`/`SchedulerView`.
+   - *DataGrid note*: `DataGridTextColumn.Binding` must use `{ReflectionBinding ...}` (compiled bindings resolve against the page VM, not the row item); template columns set `x:DataType` instead.
+   - *Remaining (post-V1):* browser/clipboard capture, categories, per-download (not just per-queue) scheduling UI, request certificates/cookies/credentials in Settings, packaging/installers.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
 5. **Queue**: cap concurrent active downloads (configurable), auto-start next when a slot frees.
 6. **Scheduler**: start/stop downloads at configured times.
