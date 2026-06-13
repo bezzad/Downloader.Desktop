@@ -16,7 +16,7 @@ namespace Downloader.Desktop.ViewModels;
 public class AddDownloadItemViewModel : ViewModelBase
 {
     private readonly Config _config;
-    private readonly string _url;
+    private string _url;
     private string _fileName;
     private string _storageFolderPath;
     private DownloadQueue _selectedQueue;
@@ -24,7 +24,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     public AddDownloadItemViewModel(Config config, string url)
     {
         _config = config;
-        _url = url;
+        _url = url ?? string.Empty;
         _storageFolderPath = config?.Settings?.DefaultSavePath;
         _fileName = string.Empty;
         _selectedQueue = config?.DefaultQueue;
@@ -32,6 +32,19 @@ public class AddDownloadItemViewModel : ViewModelBase
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
     }
+
+    /// <summary>Editable so the user can type/paste a link directly in the dialog.</summary>
+    public string Url
+    {
+        get => _url;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _url, value);
+            this.RaisePropertyChanged(nameof(CanDownload));
+        }
+    }
+
+    public bool CanDownload => !string.IsNullOrWhiteSpace(_url);
 
     public List<DownloadQueue> Queues => _config?.Queues;
 
@@ -46,8 +59,6 @@ public class AddDownloadItemViewModel : ViewModelBase
 
     public ICommand SelectFileStoragePathCommand { get; }
     public ICommand StartDownloadCommand { get; }
-
-    public string Url => _url;
 
     public string StorageFolderPath
     {
@@ -71,12 +82,21 @@ public class AddDownloadItemViewModel : ViewModelBase
 
     private void StartDownload()
     {
+        if (string.IsNullOrWhiteSpace(Url))
+            return; // keep the dialog open until a link is provided
+
+        var folder = string.IsNullOrWhiteSpace(StorageFolderPath)
+            ? _config?.Settings?.DefaultSavePath
+            : StorageFolderPath;
+
+        // Remember the chosen folder as the default for the next downloads.
+        if (_config?.Settings != null && !string.IsNullOrWhiteSpace(folder))
+            _config.Settings.DefaultSavePath = folder;
+
         var item = new DownloadItem
         {
-            Url = _url,
-            SaveFolder = string.IsNullOrWhiteSpace(StorageFolderPath)
-                ? _config?.Settings?.DefaultSavePath
-                : StorageFolderPath,
+            Url = Url.Trim(),
+            SaveFolder = folder,
             FileName = string.IsNullOrWhiteSpace(Filename) ? null : Filename.Trim(),
             QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
             Status = DownloadStatus.Created,

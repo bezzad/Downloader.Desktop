@@ -182,9 +182,7 @@ public class MainViewModel : ViewModelBase
 
     private async Task AddDownloadItem()
     {
-        if (string.IsNullOrWhiteSpace(_downloadUrl))
-            return;
-
+        // Always open the dialog; the URL can be typed there if the top box was empty.
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, DownloadItem>(
             new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
 

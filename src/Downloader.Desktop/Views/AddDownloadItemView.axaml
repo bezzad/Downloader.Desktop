@@ -26,9 +26,10 @@
         <!-- Link -->
         <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="Link" Margin="0 0 0 4" />
         <TextBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
-                 Text="{Binding Url}" IsReadOnly="True"
+                 Text="{Binding Url, Mode=TwoWay}"
                  CornerRadius="6" Margin="0 0 0 14"
-                 TextWrapping="NoWrap" />
+                 VerticalContentAlignment="Center"
+                 PlaceholderText="https://…" />
 
         <!-- Save folder -->
         <TextBlock Grid.Row="3" Grid.Column="0" Text="Save to" Margin="0 0 0 4" />
@@ -71,6 +72,7 @@
             <Button Content="Download" Padding="20 8" Cursor="Hand"
                     HorizontalContentAlignment="Center"
                     Classes="accent"
+                    IsEnabled="{Binding CanDownload}"
                     Command="{Binding StartDownloadCommand}" />
         </StackPanel>
     </Grid>

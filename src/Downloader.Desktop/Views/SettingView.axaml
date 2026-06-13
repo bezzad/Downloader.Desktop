@@ -3,189 +3,221 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="600"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="640"
              x:Class="Downloader.Desktop.Views.SettingView"
              x:DataType="vm:SettingViewModel">
 
     <UserControl.Styles>
-        <Style Selector="TextBlock.row">
+        <Style Selector="Grid.field">
+            <Setter Property="Margin" Value="0 7" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="Grid.field > TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Grid.field StackPanel">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="TextBlock.hint">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+            <Setter Property="Margin" Value="0 1 0 0" />
         </Style>
-        <Style Selector="NumericUpDown">
-            <Setter Property="Width" Value="150" />
+        <Style Selector="NumericUpDown.ctrl, ComboBox.ctrl, TextBox.ctrl">
+            <Setter Property="Width" Value="180" />
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
-        <Style Selector="Grid.row">
-            <Setter Property="Margin" Value="0 5" />
+        <Style Selector="ToggleSwitch">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Expander">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Padding" Value="4 8" />
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer Padding="28 22">
-        <StackPanel Spacing="14" MaxWidth="680" HorizontalAlignment="Stretch">
+    <ScrollViewer>
+        <StackPanel Spacing="16" MaxWidth="680" Margin="28 22" HorizontalAlignment="Stretch">
             <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
 
-            <!-- ===== Basic ===== -->
+            <!-- ===== General ===== -->
             <Border Classes="card">
-                <StackPanel Spacing="6">
-                    <TextBlock Classes="section" Text="GENERAL" />
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="section" Text="GENERAL" Margin="0 0 0 6" />
 
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Default save folder" Classes="row" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBox Grid.Column="0" Text="{Binding DefaultSavePath, Mode=TwoWay}"
-                                     CornerRadius="6" VerticalContentAlignment="Center"
-                                     PlaceholderText="Where files are saved" />
-                            <Button Grid.Column="1" Margin="8 0 0 0" Padding="10"
-                                    Command="{Binding SelectSavePathCommand}" ToolTip.Tip="Browse">
-                                <PathIcon Data="{StaticResource FolderRegular}" Height="16" />
-                            </Button>
-                        </Grid>
-                    </StackPanel>
-
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Connections per download" Classes="row" />
-                            <TextBlock Text="How many parts a file is split into." Classes="hint" />
+                    <!-- Save folder (full width) -->
+                    <Grid Classes="field" ColumnDefinitions="*">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Default save folder" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0" Text="{Binding DefaultSavePath, Mode=TwoWay}"
+                                         CornerRadius="6" VerticalContentAlignment="Center"
+                                         PlaceholderText="Where files are saved" />
+                                <Button Grid.Column="1" Margin="8 0 0 0" Padding="10"
+                                        Command="{Binding SelectSavePathCommand}" ToolTip.Tip="Browse">
+                                    <PathIcon Data="{StaticResource FolderRegular}" Height="16" />
+                                </Button>
+                            </Grid>
                         </StackPanel>
-                        <NumericUpDown Grid.Column="1" Value="{Binding ChunkCount}" Minimum="1" Maximum="64" Increment="1" FormatString="N0" />
                     </Grid>
 
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Parallel download" Classes="row" />
-                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding ParallelDownload}" OffContent="Off" OnContent="On" />
-                    </Grid>
-
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Parallel parts at once" Classes="row" />
-                            <TextBlock Text="0 means same as connections." Classes="hint" />
+                            <TextBlock Text="Connections per download" />
+                            <TextBlock Classes="hint" Text="How many parts a file is split into." />
                         </StackPanel>
-                        <NumericUpDown Grid.Column="1" Value="{Binding ParallelCount}" Minimum="0" Maximum="64" Increment="1" FormatString="N0" />
+                        <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding ChunkCount}"
+                                       Minimum="1" Maximum="64" Increment="1" FormatString="N0" />
                     </Grid>
 
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Parallel download" />
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding ParallelDownload}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Max speed (KB/s)" Classes="row" />
-                            <TextBlock Text="0 means unlimited." Classes="hint" />
+                            <TextBlock Text="Parallel parts at once" />
+                            <TextBlock Classes="hint" Text="0 = same as connections." />
                         </StackPanel>
-                        <NumericUpDown Grid.Column="1" Value="{Binding MaxSpeedKbPerSecond}" Minimum="0" Increment="128" FormatString="N0" />
+                        <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding ParallelCount}"
+                                       Minimum="0" Maximum="64" Increment="1" FormatString="N0" />
                     </Grid>
 
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Max concurrent downloads" Classes="row" />
-                            <TextBlock Text="Per queue." Classes="hint" />
+                            <TextBlock Text="Max speed (KB/s)" />
+                            <TextBlock Classes="hint" Text="0 = unlimited." />
                         </StackPanel>
-                        <NumericUpDown Grid.Column="1" Value="{Binding MaxConcurrentDownloads}" Minimum="1" Maximum="20" Increment="1" FormatString="N0" />
+                        <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaxSpeedKbPerSecond}"
+                                       Minimum="0" Increment="128" FormatString="N0" />
                     </Grid>
 
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Dark theme" Classes="row" />
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Max concurrent downloads" />
+                            <TextBlock Classes="hint" Text="Per queue." />
+                        </StackPanel>
+                        <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaxConcurrentDownloads}"
+                                       Minimum="1" Maximum="20" Increment="1" FormatString="N0" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Dark theme" />
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
-                                      Command="{Binding SwitchThemeCommand}" OffContent="Light" OnContent="Dark" />
+                                      Command="{Binding SwitchThemeCommand}" />
                     </Grid>
                 </StackPanel>
             </Border>
 
             <!-- ===== Advanced ===== -->
-            <Expander Header="Advanced">
-                <StackPanel Spacing="6" Margin="0 8 0 0">
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Buffer block size (bytes)" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding BufferBlockSize}" Minimum="1" Maximum="1048576" Increment="1024" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Max retries on failure" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding MaxTryAgainOnFailure}" Minimum="0" Maximum="1000" Increment="1" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Block timeout (ms)" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding BlockTimeout}" Minimum="100" Increment="100" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="HTTP client timeout (ms)" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding HttpClientTimeout}" Minimum="1000" Increment="1000" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Minimum size for chunking (bytes)" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding MinimumSizeOfChunking}" Minimum="0" Increment="256" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Minimum chunk size (bytes)" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding MinimumChunkSize}" Minimum="0" Increment="256" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Max memory buffer (MB)" Classes="row" />
-                            <TextBlock Text="0 means unlimited." Classes="hint" />
-                        </StackPanel>
-                        <NumericUpDown Grid.Column="1" Value="{Binding MaxMemoryBufferMb}" Minimum="0" Increment="64" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Check disk space before download" Classes="row" />
-                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckDiskSizeBeforeDownload}" OffContent="Off" OnContent="On" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Auto-resume incomplete downloads" Classes="row" />
-                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableAutoResumeDownload}" OffContent="Off" OnContent="On" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Clear package when a download fails" Classes="row" />
-                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding ClearPackageOnCompletionWithFailure}" OffContent="Off" OnContent="On" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="When file already exists" Classes="row" />
-                        <ComboBox Grid.Column="1" Width="180" ItemsSource="{Binding FileExistPolicies}"
-                                  SelectedItem="{Binding SelectedFileExistPolicy}" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="In-progress file extension" Classes="row" />
-                        <TextBox Grid.Column="1" Width="150" Text="{Binding DownloadFileExtension}" CornerRadius="6" />
-                    </Grid>
-                </StackPanel>
-            </Expander>
+            <Border Classes="card" Padding="6 2">
+                <Expander Header="Advanced" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="2" Margin="2 6">
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Buffer block size (bytes)" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding BufferBlockSize}"
+                                           Minimum="1" Maximum="1048576" Increment="1024" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Max retries on failure" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaxTryAgainOnFailure}"
+                                           Minimum="0" Maximum="1000" Increment="1" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Block timeout (ms)" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding BlockTimeout}"
+                                           Minimum="100" Increment="100" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="HTTP client timeout (ms)" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding HttpClientTimeout}"
+                                           Minimum="1000" Increment="1000" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Minimum size for chunking (bytes)" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MinimumSizeOfChunking}"
+                                           Minimum="0" Increment="256" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Minimum chunk size (bytes)" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MinimumChunkSize}"
+                                           Minimum="0" Increment="256" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Max memory buffer (MB)" />
+                                <TextBlock Classes="hint" Text="0 = unlimited." />
+                            </StackPanel>
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaxMemoryBufferMb}"
+                                           Minimum="0" Increment="64" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Check disk space before download" />
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckDiskSizeBeforeDownload}" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Auto-resume incomplete downloads" />
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableAutoResumeDownload}" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Clear package when a download fails" />
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding ClearPackageOnCompletionWithFailure}" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="When file already exists" />
+                            <ComboBox Grid.Column="1" Classes="ctrl" ItemsSource="{Binding FileExistPolicies}"
+                                      SelectedItem="{Binding SelectedFileExistPolicy}" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="In-progress file extension" />
+                            <TextBox Grid.Column="1" Classes="ctrl" Text="{Binding DownloadFileExtension}" CornerRadius="6" />
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+            </Border>
 
-            <!-- ===== Network / Request ===== -->
-            <Expander Header="Network &amp; request headers">
-                <StackPanel Spacing="6" Margin="0 8 0 0">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="User agent" Classes="row" />
-                        <TextBox Text="{Binding UserAgent}" CornerRadius="6" PlaceholderText="Default (Downloader/x.y)" />
+            <!-- ===== Network ===== -->
+            <Border Classes="card" Padding="6 2">
+                <Expander Header="Network &amp; request headers" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="10" Margin="2 6">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="User agent" />
+                            <TextBox Text="{Binding UserAgent}" CornerRadius="6" PlaceholderText="Default (Downloader/x.y)" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Referer" />
+                            <TextBox Text="{Binding Referer}" CornerRadius="6" PlaceholderText="Optional" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Accept" />
+                            <TextBox Text="{Binding Accept}" CornerRadius="6" PlaceholderText="Optional" />
+                        </StackPanel>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Follow redirects" />
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowAutoRedirect}" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Max redirects" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaximumAutomaticRedirections}"
+                                           Minimum="1" Maximum="100" Increment="1" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Connect timeout (ms)" />
+                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding ConnectTimeout}"
+                                           Minimum="1000" Increment="1000" FormatString="N0" />
+                        </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Keep-alive" />
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepAlive}" />
+                        </Grid>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Proxy" />
+                            <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="http://host:port (leave empty for none)" />
+                        </StackPanel>
                     </StackPanel>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Referer" Classes="row" />
-                        <TextBox Text="{Binding Referer}" CornerRadius="6" PlaceholderText="Optional" />
-                    </StackPanel>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Accept" Classes="row" />
-                        <TextBox Text="{Binding Accept}" CornerRadius="6" PlaceholderText="Optional" />
-                    </StackPanel>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Follow redirects" Classes="row" />
-                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowAutoRedirect}" OffContent="Off" OnContent="On" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Max redirects" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding MaximumAutomaticRedirections}" Minimum="1" Maximum="100" Increment="1" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Connect timeout (ms)" Classes="row" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding ConnectTimeout}" Minimum="1000" Increment="1000" FormatString="N0" />
-                    </Grid>
-                    <Grid Classes="row" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Keep-alive" Classes="row" />
-                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepAlive}" OffContent="Off" OnContent="On" />
-                    </Grid>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Proxy" Classes="row" />
-                        <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="http://host:port (leave empty for none)" />
-                    </StackPanel>
-                </StackPanel>
-            </Expander>
+                </Expander>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
