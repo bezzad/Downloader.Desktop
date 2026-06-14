@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
@@ -27,12 +28,22 @@ public class SettingViewModel : ViewModelBase
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
         OpenLogsFolderCommand = ReactiveCommand.Create(OpenLogsFolder);
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
+        EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
     }
 
     public ICommand SelectSavePathCommand { get; }
     public ICommand SwitchThemeCommand { get; }
     public ICommand OpenLogsFolderCommand { get; }
     public ICommand ExportLogsCommand { get; }
+    public ICommand EmailLogsCommand { get; }
+
+    /// <summary>App version (auto-generated at build time, #16), shown in the About card.</summary>
+    public string AppVersion =>
+        System.Reflection.Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?.Split('+')[0]
+        ?? typeof(SettingViewModel).Assembly.GetName().Version?.ToString()
+        ?? "1.0";
 
     public bool EnableLogging
     {
@@ -41,6 +52,17 @@ public class SettingViewModel : ViewModelBase
         {
             S.EnableLogging = value;
             AppLog.SetEnabled(value);
+            this.RaisePropertyChanged();
+        }
+    }
+
+    public bool EnableNotifications
+    {
+        get => S.EnableNotifications;
+        set
+        {
+            S.EnableNotifications = value;
+            NotificationService.Enabled = value;
             this.RaisePropertyChanged();
         }
     }
@@ -240,6 +262,41 @@ public class SettingViewModel : ViewModelBase
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = AppLog.LogFolder,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            // best-effort
+        }
+    }
+
+    /// <summary>
+    /// Opens the user's mail client pre-addressed to the developer with the log path in the body, and
+    /// opens the logs folder so they can attach the file (mailto can't carry attachments). (#25)
+    /// </summary>
+    private static void EmailLogs()
+    {
+        const string to = "behzad.khosravifar@gmail.com";
+        var subject = Uri.EscapeDataString("Downloader.Desktop logs");
+        var body = Uri.EscapeDataString(
+            "Hi,\n\nI'm sending my Downloader logs. The log file is attached from:\n" +
+            AppLog.CurrentLogFile + "\n\nIssue description:\n");
+
+        try
+        {
+            System.IO.Directory.CreateDirectory(AppLog.LogFolder);
+            // Reveal the folder first so the file is ready to drag into the email.
+            if (System.IO.File.Exists(AppLog.CurrentLogFile))
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = AppLog.LogFolder,
+                    UseShellExecute = true
+                });
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = $"mailto:{to}?subject={subject}&body={body}",
                 UseShellExecute = true
             });
         }

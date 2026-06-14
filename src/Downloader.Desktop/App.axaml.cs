@@ -50,6 +50,9 @@ public partial class App : Application
             };
             vm!.View = desktop.MainWindow;
 
+            // Host for in-app fallback toast notifications (#17).
+            Services.NotificationService.Attach(desktop.MainWindow);
+
             // Listen to the ShutdownRequested-event
             desktop.ShutdownRequested += DesktopOnShutdownRequested;
         }

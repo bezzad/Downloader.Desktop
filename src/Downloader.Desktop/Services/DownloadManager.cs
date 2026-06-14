@@ -52,11 +52,37 @@ public class DownloadManager : IDownloadManager
         StatsChanged?.Invoke();
     }
 
+    private int _suppressNotify;
+    private bool _pendingNotify;
+
     /// <summary>Items added/removed or changed status — refresh the filtered list and numbers.</summary>
     private void NotifyList()
     {
+        if (_suppressNotify > 0)
+        {
+            _pendingNotify = true;
+            return;
+        }
         StatsChanged?.Invoke();
         ListChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Coalesces the many per-item <see cref="NotifyList"/> calls a bulk operation makes into a single
+    /// refresh at the end — without this, "select all + Start" re-filters the grid once per row and freezes.
+    /// </summary>
+    public void Batch(Action action) => RunBatch(action ?? (() => { }));
+
+    private void RunBatch(Action work)
+    {
+        _suppressNotify++;
+        try { work(); }
+        finally { _suppressNotify--; }
+        if (_pendingNotify)
+        {
+            _pendingNotify = false;
+            NotifyList();
+        }
     }
 
     public void Initialize(Config config)
@@ -175,47 +201,56 @@ public class DownloadManager : IDownloadManager
     public async void Start(DownloadItemViewModel vm)
     {
         var item = vm.GetItem();
-        if (string.IsNullOrWhiteSpace(item.Url))
+        var urls = item.Urls?.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToArray()
+                   ?? Array.Empty<string>();
+        if (urls.Length == 0)
             return;
 
+        var folder = string.IsNullOrWhiteSpace(item.SaveFolder)
+            ? _config?.Settings?.DefaultSavePath
+            : item.SaveFolder;
+        item.SaveFolder = folder;
+        item.LastTry = DateTime.Now;
+        vm.ErrorMessage = null;
+        vm.Status = DownloadStatus.Running;
+        AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
+
+        var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+        vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
+        var fileName = item.FileName;
+
+        // Build + start entirely off the UI thread. Resolving redirects and the engine's synchronous
+        // setup must not run on the dispatcher, or selecting many items and pressing Start freezes it.
         try
         {
-            var folder = string.IsNullOrWhiteSpace(item.SaveFolder)
-                ? _config?.Settings?.DefaultSavePath
-                : item.SaveFolder;
-            item.SaveFolder = folder;
+            await Task.Run(async () =>
+            {
+                // Follow redirects up-front for the primary URL (handles 307/308, signed links, etc.).
+                // The engine also follows redirects, so this is a best-effort optimization only.
+                var resolved = await UrlResolver.ResolveAsync(urls[0]).ConfigureAwait(false);
+                if (!string.Equals(resolved, urls[0], StringComparison.Ordinal))
+                {
+                    AppLog.Info($"Resolved redirect: {urls[0]} -> {resolved}");
+                    urls[0] = resolved;
+                }
 
-            item.LastTry = DateTime.Now;
-            vm.ErrorMessage = null;
-            vm.Status = DownloadStatus.Running;
-            AppLog.Info($"Starting: {item.Url}");
+                // DownloadService (not the single-URL DownloadBuilder) so mirrors are real fallbacks
+                // and the engine's internal logs flow into our log file via the shared logger factory.
+                var download = new DownloadService(configuration, AppLog.Factory);
+                // Subscribe before starting so no early event is missed (handlers marshal to UI themselves).
+                Attach(vm, download);
 
-            // Follow redirects up-front (handles 307/308 etc.) and hand the engine a direct link.
-            var resolvedUrl = await UrlResolver.ResolveAsync(item.Url).ConfigureAwait(true);
-            if (!string.Equals(resolvedUrl, item.Url, StringComparison.Ordinal))
-                AppLog.Info($"Resolved redirect: {item.Url} -> {resolvedUrl}");
-
-            var builder = DownloadBuilder.New()
-                .WithUrl(resolvedUrl)
-                .WithDirectory(folder ?? string.Empty);
-
-            // Only force a name when the user supplied one; otherwise let the engine
-            // resolve the real file name from the URL / Content-Disposition headers.
-            if (!string.IsNullOrWhiteSpace(item.FileName))
-                builder = builder.WithFileName(item.FileName);
-
-            var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
-            vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
-            var download = builder.WithConfiguration(configuration).Build();
-
-            Attach(vm, download);
-            // Run on a background thread: StartAsync does synchronous setup before its first await,
-            // which would otherwise briefly block (and with many events, freeze) the UI thread.
-            await Task.Run(() => download.StartAsync()).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                    await download.DownloadFileTaskAsync(urls, Path.Combine(folder ?? string.Empty, fileName))
+                        .ConfigureAwait(false);
+                else
+                    await download.DownloadFileTaskAsync(urls, new DirectoryInfo(folder ?? "."))
+                        .ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            AppLog.Error($"Failed to start: {item.Url}", ex);
+            AppLog.Error($"Failed to start: {urls[0]}", ex);
             OnUi(() =>
             {
                 vm.ErrorMessage = Describe(ex);
@@ -268,7 +303,7 @@ public class DownloadManager : IDownloadManager
 
     public void Cancel(DownloadItemViewModel vm)
     {
-        vm.Download?.Stop();
+        vm.Download?.CancelAsync();
         vm.Status = DownloadStatus.Stopped;
         vm.Speed = 0;
         NotifyList();
@@ -280,7 +315,7 @@ public class DownloadManager : IDownloadManager
     {
         try
         {
-            vm.Download?.Stop();
+            vm.Download?.CancelAsync();
         }
         catch
         {
@@ -292,19 +327,19 @@ public class DownloadManager : IDownloadManager
         return Task.CompletedTask;
     }
 
-    public void StartAll()
-    {
-        foreach (var vm in Items.Where(v => v.CanResume).ToList())
-            Resume(vm);
-        NotifyList();
-    }
+    public void StartAll() =>
+        RunBatch(() =>
+        {
+            foreach (var vm in Items.Where(v => v.CanResume).ToList())
+                Resume(vm);
+        });
 
-    public void StopAll()
-    {
-        foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Running).ToList())
-            Pause(vm);
-        NotifyList();
-    }
+    public void StopAll() =>
+        RunBatch(() =>
+        {
+            foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Running).ToList())
+                Pause(vm);
+        });
 
     public void ClearCompleted()
     {
@@ -392,7 +427,7 @@ public class DownloadManager : IDownloadManager
         NotifyList();
     }
 
-    private void Attach(DownloadItemViewModel vm, IDownload download)
+    private void Attach(DownloadItemViewModel vm, DownloadService download)
     {
         vm.Download = download;
 
@@ -452,12 +487,14 @@ public class DownloadManager : IDownloadManager
                 vm.ErrorMessage = Describe(e.Error);
                 vm.Status = DownloadStatus.Failed;
                 AppLog.Error($"Failed: {vm.FileName ?? vm.Url}", e.Error);
+                NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
             else
             {
                 vm.Progress = 100;
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
+                NotificationService.NotifyCompleted(vm.FileName);
             }
 
             // A finished/stopped item frees a slot — let the queue start the next one.

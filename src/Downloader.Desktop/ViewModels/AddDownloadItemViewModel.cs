@@ -51,9 +51,13 @@ public class AddDownloadItemViewModel : ViewModelBase
         }
     }
 
+    // Accept multiple links separated by new lines, spaces, tabs, commas or semicolons so pasting a
+    // batch into the single-line top box (which can collapse new lines to spaces) still splits (#19).
+    private static readonly char[] UrlSeparators = { '\n', '\r', '\t', ' ', ',', ';' };
+
     private IReadOnlyList<string> ParsedUrls =>
         (_urls ?? string.Empty)
-        .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Split(UrlSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Where(u => u.Length > 0)
         .ToList();
 
@@ -107,12 +111,15 @@ public class AddDownloadItemViewModel : ViewModelBase
             _config.Settings.DefaultSavePath = folder;
 
         var single = urls.Count == 1;
+        // Tag a multi-URL add as one group so the list can show them together (#13).
+        var group = single ? null : $"Batch · {DateTime.Now:dd MMM HH:mm}";
         var items = urls.Select(u => new DownloadItem
         {
-            Url = u.Trim(),
+            Urls = new List<string> { u.Trim() },
             SaveFolder = folder,
             // Custom name only applies to a single download; batches always auto-resolve.
             FileName = single && !string.IsNullOrWhiteSpace(Filename) ? Filename.Trim() : null,
+            Group = group,
             QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now

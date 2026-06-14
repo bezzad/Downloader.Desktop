@@ -30,16 +30,24 @@ public class DownloadSettings
     /// <summary>Write a diagnostic log file (off by default).</summary>
     public bool EnableLogging { get; set; } = false;
 
+    /// <summary>Show a desktop notification when a download completes or fails (on by default).</summary>
+    public bool EnableNotifications { get; set; } = true;
+
     // ---- Advanced ----
     public int BufferBlockSize { get; set; } = 8192;
     public int MaxTryAgainOnFailure { get; set; } = 5;
     public int BlockTimeout { get; set; } = 1000;
-    public int HttpClientTimeout { get; set; } = 100_000;
+
+    /// <summary>HTTP client timeout in milliseconds. Default 10 seconds.</summary>
+    public int HttpClientTimeout { get; set; } = 10_000;
     public long MinimumSizeOfChunking { get; set; } = 512;
     public long MinimumChunkSize { get; set; } = 0;
 
-    /// <summary>Max RAM used for buffering before flushing to disk. 0 = unlimited.</summary>
-    public long MaximumMemoryBufferBytes { get; set; } = 0;
+    /// <summary>
+    /// Max RAM used for buffering before flushing to disk. 0 = unlimited. Default 2 GB — an
+    /// unbounded buffer can stall throughput once memory fills, so we cap it by default.
+    /// </summary>
+    public long MaximumMemoryBufferBytes { get; set; } = 2L * 1024 * 1024 * 1024;
 
     public bool CheckDiskSizeBeforeDownload { get; set; } = true;
     public bool EnableAutoResumeDownload { get; set; } = true;

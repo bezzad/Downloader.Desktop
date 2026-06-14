@@ -34,6 +34,9 @@ public interface IDownloadManager
     /// <summary>Adds a new download descriptor and (optionally) starts it immediately.</summary>
     DownloadItemViewModel Add(DownloadItem item, bool autoStart);
 
+    /// <summary>Runs a bulk action, coalescing its many list-change notifications into one refresh.</summary>
+    void Batch(Action action);
+
     void Start(DownloadItemViewModel vm);
     void Pause(DownloadItemViewModel vm);
     void Resume(DownloadItemViewModel vm);

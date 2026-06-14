@@ -36,6 +36,8 @@ public class DownloadsViewModel : ViewModelBase
     {
         _manager = manager;
         ItemsView = new DataGridCollectionView(manager.Items) { Filter = Matches };
+        // Group rows by their batch label so multi-URL adds appear together (#13).
+        ItemsView.GroupDescriptions.Add(new DataGridPathGroupDescription(nameof(DownloadItemViewModel.Group)));
         RemoveItemCommand = ReactiveCommand.CreateFromTask<DownloadItemViewModel>(RemoveDownloadItem);
         StartSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Resume(i)));
         PauseSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)));
@@ -134,8 +136,12 @@ public class DownloadsViewModel : ViewModelBase
     {
         if (_manager == null)
             return;
-        foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
-            action(item);
+        // Batch so a large selection re-filters the grid once, not once per row (avoids UI freeze).
+        _manager.Batch(() =>
+        {
+            foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
+                action(item);
+        });
         Refresh();
     }
 
@@ -143,8 +149,11 @@ public class DownloadsViewModel : ViewModelBase
     {
         if (_manager == null)
             return;
-        foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
-            _ = _manager.Remove(item);
+        _manager.Batch(() =>
+        {
+            foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
+                _ = _manager.Remove(item);
+        });
         Refresh();
     }
 }

@@ -19,8 +19,6 @@
         <RepositoryType>git</RepositoryType>
         <PackageTags>downloader</PackageTags>
         <Company>Behzad Khosravifar</Company>
-        <AssemblyVersion>1.0.0</AssemblyVersion>
-        <FileVersion>1.0.0</FileVersion>
         <PackageId>Downloader.Desktop</PackageId>
         <Authors>Behzad Khosravifar</Authors>
         <Product>Downloader.Desktop</Product>
@@ -36,11 +34,27 @@
         <!--<PublishReadyToRun>true</PublishReadyToRun>-->
     </PropertyGroup>
 
+    <!-- ===== Automatic versioning (#16) =====
+         Bump VersionPrefix (major.minor) by hand only when you want; the build & revision numbers
+         are derived from the UTC build time so every release gets a unique, increasing version
+         without editing anything. Build = days since 2024-01-01, Revision = half-seconds since midnight.
+         AssemblyVersion stays major.minor.0.0 so assembly references remain stable across builds. -->
+    <PropertyGroup Label="Versioning">
+        <VersionPrefix>1.0</VersionPrefix>
+        <_BuildNumber>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse('2024-01-01T00:00:00Z'))).Days)</_BuildNumber>
+        <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
+        <Version>$(VersionPrefix).$(_BuildNumber).$(_RevisionNumber)</Version>
+        <AssemblyVersion>$(VersionPrefix).0.0</AssemblyVersion>
+        <FileVersion>$(Version)</FileVersion>
+        <InformationalVersion>$(Version)</InformationalVersion>
+    </PropertyGroup>
+
     <PropertyGroup>
         <CFBundleName>Downloader</CFBundleName> <!-- Also defines .app file name -->
         <CFBundleDisplayName>Downloader</CFBundleDisplayName>
         <CFBundleIdentifier>com.bezzad.downloader</CFBundleIdentifier>
-        <CFBundleVersion>1.0.0</CFBundleVersion>
+        <CFBundleVersion>$(Version)</CFBundleVersion>
+        <CFBundleShortVersionString>$(VersionPrefix)</CFBundleShortVersionString>
         <CFBundlePackageType>APPL</CFBundlePackageType>
         <CFBundleExecutable>Downloader</CFBundleExecutable>
         <CFBundleIconFile>downloader.icns</CFBundleIconFile> <!-- Will be copied from output directory -->

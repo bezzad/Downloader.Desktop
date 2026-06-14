@@ -18,9 +18,20 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **File-type icons** at a glance — video, audio, image, document, archive, app, disc.
 - **Clear status** — live progress and speed, a friendly reason when something fails, and a details view with per-connection progress.
 - **Light & dark themes** with a modern ocean-blue look.
-- **Your settings, your way** — sensible defaults out of the box, with every engine option available under Settings → Advanced.
+- **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
+- **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
+- **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
 
 ![Settings](docs/screenshots/settings-dark.png)
+
+## Install
+The app is **fully self-contained** — every release ships with everything it needs bundled in, so there are **no prerequisites to install** (no .NET runtime, no FFmpeg, no extra libraries).
+
+1. Download the build for your operating system (Windows / macOS / Linux).
+2. Unzip it anywhere.
+3. Run the `Downloader` executable. That's it.
+
+> The version number is shown under **Settings → About** and increases automatically with every release.
 
 ## Using the app
 1. **Add a download** — paste a link into the top bar and click **Add** (or press `Ctrl+N`). In the dialog you can choose the save folder, optionally set a name, and pick a queue. To add several at once, paste multiple links (one per line).

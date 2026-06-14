@@ -9,6 +9,15 @@ Cross-platform (Windows/Linux/macOS) Avalonia + .NET 10 GUI for the `Downloader`
 
 All commands run from the **`src/`** folder (where `Downloader.Desktop.sln` lives).
 
+## Maintaining this skill (read first, every session)
+Treat this file as a living cache. **Whenever you discover something non-obvious that a future session would otherwise have to re-derive** (an engine API shape, a gotcha, a settled design choice), append a concise boilerplate note here in the same edit/commit. The goal is *steadily fewer tokens per session*: each future run should read the answer here instead of re-grepping the codebase or the sibling `../Downloader` engine. Keep additions short and factual — a few lines, not essays. Prune notes that become wrong. This is an explicit standing instruction from the author.
+
+## Engine (`Downloader` 5.8.0) quick reference — sibling repo `../Downloader` is exactly this version
+- `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
+- `DownloadService(DownloadConfiguration cfg, ILoggerFactory factory = null)` — implements `IDownloadService`: same events (`DownloadStarted/DownloadProgressChanged/ChunkDownloadProgressChanged/DownloadFileCompleted`), plus `Package`, `Pause()`, `Resume()`, `CancelAsync()`/`CancelTaskAsync()`, `Clear()`, and `AddLogger(ILogger)`.
+- **Multi-URL / mirrors** are first-class: `DownloadFileTaskAsync(string[] urls, DirectoryInfo folder, ct)` (auto-resolves name), `(string[] urls, string fileName, ct)`, and package overloads. `DownloadPackage.Urls` is `string[]`. So the data model should carry `List<string> Urls` (first = primary, rest = mirrors), not a separate `Url` + `Mirrors`.
+- Filename still auto-resolves from URL/Content-Disposition; read it from `DownloadStartedEventArgs.FileName` (full path).
+
 ## Build / run / test
 ```bash
 dotnet build Downloader.Desktop.sln                                   # 0 warnings / 0 errors expected

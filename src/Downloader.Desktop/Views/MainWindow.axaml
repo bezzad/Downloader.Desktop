@@ -101,7 +101,7 @@
                     <Button Classes="nav" Classes.selected="{Binding IsAllSelected}" Command="{Binding ShowAllCommand}"
                             ToolTip.Tip="All downloads">
                         <Grid ColumnDefinitions="Auto,*,Auto">
-                            <PathIcon Grid.Column="0" Data="{StaticResource ListRegular}" />
+                            <PathIcon Grid.Column="0" Data="{StaticResource AppsListRegular}" />
                             <TextBlock Grid.Column="1" Text="All downloads" VerticalAlignment="Center" Margin="10 0 0 0"
                                        IsVisible="{Binding IsSidebarExpanded}" />
                             <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">

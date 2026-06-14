@@ -17,7 +17,7 @@ namespace Downloader.Desktop.ViewModels;
 /// </summary>
 public class DownloadDetailsViewModel : ViewModelBase
 {
-    private readonly IDownload _download;
+    private readonly DownloadService _download;
     private readonly Dictionary<string, ChunkProgressViewModel> _parts = new();
     private DateTime _lastTickUtc;
 
@@ -39,6 +39,12 @@ public class DownloadDetailsViewModel : ViewModelBase
         _download = item?.Download;
 
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
+        AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
+
+        // Seed the mirror editor from the stored mirrors (everything after the primary URL).
+        if (Item?.GetItem().Mirrors is { } existing)
+            foreach (var m in existing)
+                AddMirror(m, sync: false);
 
         if (item != null)
             ((INotifyPropertyChanged)item).PropertyChanged += OnItemPropertyChanged;
@@ -55,6 +61,33 @@ public class DownloadDetailsViewModel : ViewModelBase
     }
 
     public ICommand CopyUrlCommand { get; }
+    public ICommand AddMirrorCommand { get; }
+
+    /// <summary>Editable mirror URLs (each a row with its own remove button in the UI). (#7)</summary>
+    public ObservableCollection<MirrorEntryViewModel> Mirrors { get; } = new();
+
+    public string MirrorsHeader => $"Mirror URLs ({Mirrors.Count})";
+
+    private void AddMirror(string url, bool sync = true)
+    {
+        var entry = new MirrorEntryViewModel(url);
+        entry.UrlChanged += SyncMirrors;
+        entry.RemoveRequested += e =>
+        {
+            e.UrlChanged -= SyncMirrors;
+            Mirrors.Remove(e);
+            this.RaisePropertyChanged(nameof(MirrorsHeader));
+            SyncMirrors();
+        };
+        Mirrors.Add(entry);
+        this.RaisePropertyChanged(nameof(MirrorsHeader));
+        if (sync)
+            SyncMirrors();
+    }
+
+    /// <summary>Pushes the editor's mirror URLs back into the download item (keeps the primary URL).</summary>
+    private void SyncMirrors() =>
+        Item?.GetItem().SetMirrors(Mirrors.Select(m => m.Url).Where(u => !string.IsNullOrWhiteSpace(u)));
 
     private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
     {
@@ -75,20 +108,6 @@ public class DownloadDetailsViewModel : ViewModelBase
     {
         get => Item?.Url;
         set { if (Item != null) Item.Url = value; this.RaisePropertyChanged(); }
-    }
-
-    /// <summary>Mirror URLs, one per line. Editable while stopped.</summary>
-    public string MirrorsText
-    {
-        get => Item?.GetItem().Mirrors is { Count: > 0 } m ? string.Join(Environment.NewLine, m) : string.Empty;
-        set
-        {
-            if (Item != null)
-                Item.GetItem().Mirrors = (value ?? string.Empty)
-                    .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .ToList();
-            this.RaisePropertyChanged();
-        }
     }
 
     public bool HasError => Item?.HasError == true;
@@ -147,6 +166,36 @@ public class DownloadDetailsViewModel : ViewModelBase
         if (Item != null)
             ((INotifyPropertyChanged)Item).PropertyChanged -= OnItemPropertyChanged;
     }
+}
+
+/// <summary>One editable mirror URL row in the details dialog.</summary>
+public class MirrorEntryViewModel : ViewModelBase
+{
+    private string _url;
+
+    public MirrorEntryViewModel(string url)
+    {
+        _url = url;
+        RemoveCommand = ReactiveCommand.Create(() => RemoveRequested?.Invoke(this));
+    }
+
+    public string Url
+    {
+        get => _url;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _url, value);
+            UrlChanged?.Invoke();
+        }
+    }
+
+    public ICommand RemoveCommand { get; }
+
+    /// <summary>Raised when the URL text changes (parent re-syncs the item's mirror list).</summary>
+    public event Action UrlChanged;
+
+    /// <summary>Raised when the user clicks remove on this row.</summary>
+    public event Action<MirrorEntryViewModel> RemoveRequested;
 }
 
 /// <summary>Live progress for a single download part (chunk).</summary>

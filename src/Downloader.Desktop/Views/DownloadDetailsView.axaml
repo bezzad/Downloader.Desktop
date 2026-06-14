@@ -32,13 +32,29 @@
                 </Grid>
                 <TextBox Text="{Binding EditableUrl, Mode=TwoWay}" IsReadOnly="{Binding !CanEdit}"
                          CornerRadius="6" VerticalContentAlignment="Center" />
-                <Expander Header="Mirror URLs (optional)">
-                    <StackPanel Spacing="4" Margin="0 6 0 0">
-                        <TextBlock Text="One per line. Editable while the download is stopped."
-                                   Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="11" />
-                        <TextBox Text="{Binding MirrorsText, Mode=TwoWay}" IsEnabled="{Binding CanEdit}"
-                                 AcceptsReturn="True" Height="60" CornerRadius="6"
-                                 PlaceholderText="https://mirror1/...&#x0a;https://mirror2/..." />
+                <Expander Header="{Binding MirrorsHeader}" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch">
+                    <StackPanel Spacing="6" Margin="0 6 0 0" HorizontalAlignment="Stretch">
+                        <TextBlock Text="Extra sources for the same file, used as fallbacks. Editable while the download is stopped."
+                                   Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="11" TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding Mirrors}" HorizontalAlignment="Stretch">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MirrorEntryViewModel">
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0 0 0 6">
+                                        <TextBox Grid.Column="0" Text="{Binding Url, Mode=TwoWay}"
+                                                 IsEnabled="{Binding $parent[ItemsControl].((vm:DownloadDetailsViewModel)DataContext).CanEdit}"
+                                                 CornerRadius="6" VerticalContentAlignment="Center"
+                                                 PlaceholderText="https://mirror/..." />
+                                        <Button Grid.Column="1" Classes="icon" Margin="6 0 0 0"
+                                                Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this mirror">
+                                            <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="+ Add mirror" Command="{Binding AddMirrorCommand}"
+                                IsEnabled="{Binding CanEdit}" HorizontalAlignment="Left" Padding="12 6" />
                     </StackPanel>
                 </Expander>
             </StackPanel>
@@ -64,7 +80,34 @@
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
                     <TextBlock Grid.Column="3" Text="{Binding Item.SpeedText}" />
                 </Grid>
-                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Item.Progress}" Height="8" />
+
+                <!-- Single, merged progress: a fragmented per-connection bar with the overall % below it.
+                     Before any connection exists we show a plain bar so there's always an indicator. (#5) -->
+                <Border Height="22" CornerRadius="5" ClipToBounds="True"
+                        Background="{DynamicResource SystemListLowColor}"
+                        BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+                        IsVisible="{Binding HasParts}">
+                    <ItemsControl ItemsSource="{Binding Parts}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ChunkProgressViewModel">
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                                             CornerRadius="0" Margin="0 0 1 0"
+                                             ToolTip.Tip="{Binding StatusText}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Item.Progress}" Height="8"
+                             IsVisible="{Binding !HasParts}" />
+                <TextBlock Text="{Binding Item.Progress, StringFormat='{}{0:0}%'}" FontSize="12"
+                           HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                                 IsVisible="{Binding HasConfig}">
@@ -91,7 +134,7 @@
             </StackPanel>
         </Border>
 
-        <!-- Parts: one fragmented bar + a per-connection grid -->
+        <!-- Connections: just the per-connection grid (the progress bar lives in the summary above, #5) -->
         <Border Grid.Row="4" Classes="card" Margin="0 12 0 0">
             <DockPanel>
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0 0 0 8">
@@ -99,26 +142,6 @@
                     <TextBlock Grid.Column="1" Text="{Binding PartsSummary}"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
                 </Grid>
-
-                <Border DockPanel.Dock="Top" Height="22" CornerRadius="5" ClipToBounds="True" Margin="0 0 0 10"
-                        Background="{DynamicResource SystemListLowColor}"
-                        BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
-                        IsVisible="{Binding HasParts}">
-                    <ItemsControl ItemsSource="{Binding Parts}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Rows="1" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ChunkProgressViewModel">
-                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
-                                             CornerRadius="0" Margin="0 0 1 0"
-                                             ToolTip.Tip="{Binding StatusText}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Border>
 
                 <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
                            Text="Connections appear here while the file is downloading."
@@ -129,10 +152,28 @@
                           HeadersVisibility="Column" Background="Transparent"
                           BorderThickness="0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="#" Binding="{ReflectionBinding Index}" Width="50" />
+                        <DataGridTemplateColumn Header="#" Width="50">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ChunkProgressViewModel">
+                                    <TextBlock Text="{Binding Index}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Status" Binding="{ReflectionBinding StatusText}" Width="*" />
-                        <DataGridTextColumn Header="Downloaded" Binding="{ReflectionBinding DownloadedText}" Width="120" />
-                        <DataGridTextColumn Header="Total" Binding="{ReflectionBinding TotalText}" Width="120" />
+                        <DataGridTemplateColumn Header="Downloaded" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ChunkProgressViewModel">
+                                    <TextBlock Text="{Binding DownloadedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Total" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ChunkProgressViewModel">
+                                    <TextBlock Text="{Binding TotalText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>

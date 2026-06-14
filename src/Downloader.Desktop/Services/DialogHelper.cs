@@ -90,14 +90,12 @@ public static class DialogHelper
                     AllowMultiple = false
                 });
 
-            // Check if a file was selected
             if (result.Count > 0)
-            {
-                // Set the selected file path in the TextBox
                 return result[0].Path;
-            }
         }
 
-        return new Uri("~");
+        // Cancelled / nothing chosen — return null so callers skip it. (Returning a bogus relative
+        // Uri here previously threw UriFormatException when callers read .LocalPath. #21)
+        return null;
     }
 }

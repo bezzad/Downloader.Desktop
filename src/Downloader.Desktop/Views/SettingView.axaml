@@ -114,6 +114,14 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
                                       Command="{Binding SwitchThemeCommand}" />
                     </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Desktop notifications" />
+                            <TextBlock Classes="hint" Text="Alert me when a download completes or fails." />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableNotifications}" />
+                    </Grid>
                 </StackPanel>
             </Border>
 
@@ -124,13 +132,14 @@
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Write a log file" />
-                            <TextBlock Classes="hint" Text="For diagnosing problems. Off by default." />
+                            <TextBlock Classes="hint" Text="Records app and download-engine activity for diagnosing problems. Off by default." />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableLogging}" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="Open logs folder" Padding="12 6" Command="{Binding OpenLogsFolderCommand}" />
                         <Button Content="Export log…" Padding="12 6" Command="{Binding ExportLogsCommand}" />
+                        <Button Content="Email logs to developer" Padding="12 6" Command="{Binding EmailLogsCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -198,9 +207,19 @@
                             <TextBox Grid.Column="1" Classes="ctrl" Text="{Binding DownloadFileExtension}" CornerRadius="6" />
                         </Grid>
 
-                        <!-- Network & request headers (nested) -->
-                        <TextBlock Classes="section" Text="NETWORK &amp; REQUEST HEADERS" Margin="0 14 0 4" />
+                        <!-- Network & request headers — a clearly delineated sub-section (#2) -->
+                        <Border Margin="0 16 0 2" CornerRadius="8" Padding="14"
+                                Background="{DynamicResource SystemRegionColor}"
+                                BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="1">
                         <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="{StaticResource OptionsRegular}" Height="15"
+                                          Foreground="{DynamicResource SystemAccentColor}" VerticalAlignment="Center" />
+                                <TextBlock Text="Network &amp; request headers" FontWeight="SemiBold" FontSize="13"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Classes="hint" Text="Advanced HTTP options for tricky servers. Usually safe to leave as-is."
+                                       Margin="0 0 0 4" />
                             <StackPanel Spacing="4">
                                 <TextBlock Text="User agent" />
                                 <TextBox Text="{Binding UserAgent}" CornerRadius="6" PlaceholderText="Default (Downloader/x.y)" />
@@ -236,8 +255,22 @@
                                 <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="http://host:port (leave empty for none)" />
                             </StackPanel>
                         </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Expander>
+
+            <!-- ===== About ===== -->
+            <Border Classes="card">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="Downloader" FontWeight="SemiBold" />
+                        <TextBlock Classes="hint" Text="Cross-platform download manager. No installation or dependencies required." />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                               Text="{Binding AppVersion, StringFormat='v{0}'}"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </Grid>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

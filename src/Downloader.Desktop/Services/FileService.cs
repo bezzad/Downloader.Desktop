@@ -2,19 +2,28 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Downloader.Desktop.Services;
 
 /// <summary>
-/// This class provides the needed functions to save and restore a ToDoList. This step is fully optional for this tutorial
+/// Persists the app <see cref="Config"/> (settings, download list, queues, schedules) as JSON.
+/// Writes are serialized through a lock so frequent setting changes can't corrupt the file.
 /// </summary>
 public class FileService : IFileService
 {
-    // This is a hard coded path to the file. It may not be available on every platform. In your real world App you may 
-    // want to make this configurable
     private static readonly string ConfigFileName =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Downloader", "config.json");
+
+    private static readonly SemaphoreSlim WriteGate = new(1, 1);
+
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     /// <summary>
     /// Stores the given items into a file on disc
@@ -22,14 +31,24 @@ public class FileService : IFileService
     /// <param name="itemToSave">The item to save</param>
     public async Task SaveToFileAsync(Config itemToSave)
     {
-        // Ensure all directories exists
         Directory.CreateDirectory(Path.GetDirectoryName(ConfigFileName)!);
 
-        // We use a FileStream to write all items to disc.
+        // Serialize concurrent writes (autosave, settings changes, shutdown) and write atomically
+        // via a temp file so a mid-write crash can't leave a truncated config.
         // ConfigureAwait(false) keeps continuations off the UI thread so a blocking .Wait()
         // during shutdown can't deadlock.
-        await using var fs = File.Create(ConfigFileName);
-        await JsonSerializer.SerializeAsync(fs, itemToSave).ConfigureAwait(false);
+        await WriteGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var tmp = ConfigFileName + ".tmp";
+            await using (var fs = File.Create(tmp))
+                await JsonSerializer.SerializeAsync(fs, itemToSave, Options).ConfigureAwait(false);
+            File.Move(tmp, ConfigFileName, overwrite: true);
+        }
+        finally
+        {
+            WriteGate.Release();
+        }
     }
 
     /// <summary>
@@ -42,7 +61,7 @@ public class FileService : IFileService
         {
             // We try to read the saved file and return the stored config if successful
             await using var fs = File.OpenRead(ConfigFileName);
-            var config = await JsonSerializer.DeserializeAsync<Config>(fs);
+            var config = await JsonSerializer.DeserializeAsync<Config>(fs, Options);
             return config ?? Config.New();
         }
         catch (Exception)

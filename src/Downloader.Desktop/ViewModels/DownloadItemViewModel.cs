@@ -23,7 +23,7 @@ public class DownloadItemViewModel : ViewModelBase
     private bool _isChecked;
 
     /// <summary>The live engine handle while this item is downloading/paused; null otherwise.</summary>
-    public IDownload Download { get; set; }
+    public DownloadService Download { get; set; }
 
     /// <summary>Timestamp of the last UI progress update (used to throttle high-frequency events).</summary>
     public DateTime LastUiUpdateUtc { get; set; }
@@ -82,6 +82,9 @@ public class DownloadItemViewModel : ViewModelBase
             }
         }
     }
+
+    /// <summary>Grouping label for the list. Batched (multi-URL) adds share one; others group under "Downloads".</summary>
+    public string Group => string.IsNullOrWhiteSpace(_item.Group) ? "Downloads" : _item.Group;
 
     /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
     public string FileKind => GetFileKind(_item.FileName);

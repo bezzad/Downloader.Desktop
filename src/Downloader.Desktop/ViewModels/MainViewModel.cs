@@ -136,6 +136,7 @@ public class MainViewModel : ViewModelBase
     {
         _config = (await _fileService.LoadFromFileAsync()).EnsureValid();
         AppLog.SetEnabled(_config.Settings.EnableLogging);
+        NotificationService.Enabled = _config.Settings.EnableNotifications;
         Application.Current!.RequestedThemeVariant = _config.ThemeMode;
 
         _downloadManager.Initialize(_config);
@@ -143,6 +144,10 @@ public class MainViewModel : ViewModelBase
         Queues = new QueuesViewModel(_config, _downloadManager);
         Scheduler = new SchedulerViewModel(_config, _downloadManager);
         Settings = new SettingViewModel(_config);
+
+        // Persist settings to disk as soon as the user changes one (#24), debounced so spinning a
+        // NumericUpDown doesn't hammer the file.
+        ((System.ComponentModel.INotifyPropertyChanged)Settings).PropertyChanged += (_, _) => SaveSoon();
 
         this.RaisePropertyChanged(nameof(Downloads));
         Navigate(NavSection.Downloads);
@@ -160,6 +165,33 @@ public class MainViewModel : ViewModelBase
             return;
         _lastSaveUtc = DateTime.UtcNow;
         _ = SaveConfigFile();
+    }
+
+    private DispatcherTimer _saveSoonTimer;
+
+    /// <summary>Debounced near-immediate save, used when the user changes a setting (#24).</summary>
+    private void SaveSoon()
+    {
+        if (_saveSoonTimer == null)
+        {
+            _saveSoonTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _saveSoonTimer.Tick += (_, _) =>
+            {
+                _saveSoonTimer.Stop();
+                _lastSaveUtc = DateTime.UtcNow;
+                _ = SaveConfigFile();
+            };
+        }
+
+        // Pick up live setting changes that affect runtime services right away.
+        if (_config?.Settings != null)
+        {
+            AppLog.SetEnabled(_config.Settings.EnableLogging);
+            NotificationService.Enabled = _config.Settings.EnableNotifications;
+        }
+
+        _saveSoonTimer.Stop();
+        _saveSoonTimer.Start(); // restart the debounce window
     }
 
     private void OnStatsChanged()

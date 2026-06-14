@@ -116,5 +116,44 @@
         <Style Selector="ToggleSwitch"><Setter Property="Cursor" Value="Hand" /></Style>
         <Style Selector="ComboBox"><Setter Property="Cursor" Value="Hand" /></Style>
         <Style Selector="DataGridColumnHeader"><Setter Property="Cursor" Value="Hand" /></Style>
+
+        <!-- ===== Numeric stepper redesign (#1): bigger, touch-friendly, hand cursor on the arrows ===== -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="NumericUpDown /template/ ButtonSpinner#PART_Spinner">
+            <Setter Property="MinHeight" Value="34" />
+        </Style>
+        <!-- The increase/decrease arrows are RepeatButtons inside the ButtonSpinner template -->
+        <Style Selector="ButtonSpinner /template/ RepeatButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="MinWidth" Value="30" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ButtonSpinner /template/ RepeatButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />
+        </Style>
+
+        <!-- ===== Whole-row selection in every DataGrid; no per-cell focus border (#3, #8) ===== -->
+        <Style Selector="DataGridCell">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+        </Style>
+        <Style Selector="DataGridCell:focus /template/ Rectangle#FocusVisual">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="DataGridCell:current /template/ Rectangle#CurrencyVisual">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="DataGridCell:selected /template/ Rectangle#CurrencyVisual">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <!-- Clear, full-row selection highlight -->
+        <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+            <Setter Property="Fill" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Opacity" Value="0.16" />
+        </Style>
     </Application.Styles>
 </Application>

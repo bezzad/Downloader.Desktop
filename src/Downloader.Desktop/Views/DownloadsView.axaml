@@ -116,7 +116,13 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Size" Binding="{ReflectionBinding SizeText}" Width="90" SortMemberPath="Size" />
+                <DataGridTemplateColumn Header="Size" Width="90" SortMemberPath="Size">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
 
                 <DataGridTemplateColumn Header="Progress" Width="170" SortMemberPath="Progress">
                     <DataGridTemplateColumn.CellTemplate>
@@ -125,8 +131,10 @@
                                 <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="6" />
                                 <!-- Running shows %, other states show a colored badge -->
                                 <TextBlock Text="{Binding StatusText}" FontSize="11" IsVisible="{Binding !ShowStatusBadge}"
+                                           HorizontalAlignment="Center"
                                            Foreground="{DynamicResource SystemBaseMediumColor}" />
                                 <Border Classes="badge" IsVisible="{Binding ShowStatusBadge}"
+                                        HorizontalAlignment="Center"
                                         Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
                                     <TextBlock Text="{Binding StatusText}" />
                                 </Border>
@@ -135,7 +143,13 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Header="Speed" Binding="{ReflectionBinding SpeedText}" Width="90" SortMemberPath="Speed" />
+                <DataGridTemplateColumn Header="Speed" Width="90" SortMemberPath="Speed">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <TextBlock Text="{Binding SpeedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
 
                 <DataGridTemplateColumn Header="" Width="168">
                     <DataGridTemplateColumn.CellTemplate>
