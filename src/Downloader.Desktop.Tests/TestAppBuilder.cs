@@ -1,18 +1,18 @@
 using Avalonia;
 using Avalonia.Headless;
+using Downloader.Desktop;
 using Downloader.Desktop.Tests;
 
 [assembly: Avalonia.Headless.AvaloniaTestApplication(typeof(TestAppBuilder))]
 
 namespace Downloader.Desktop.Tests;
 
-/// <summary>Minimal headless Avalonia application used to host the UI/logic tests.</summary>
-public class TestApp : Application
-{
-}
-
 public static class TestAppBuilder
 {
+    // Use the real App (so all styles/themes load) with Skia drawing enabled, which lets
+    // the screenshot capture render actual pixels.
     public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<TestApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
+        AppBuilder.Configure<App>()
+            .UseSkia()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 }

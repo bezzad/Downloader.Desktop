@@ -80,7 +80,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Name" Width="2*">
+                <DataGridTemplateColumn Header="Name" Width="*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
@@ -98,7 +98,7 @@
                 </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Size" Binding="{ReflectionBinding SizeText}" Width="90" />
 
-                <DataGridTemplateColumn Header="Progress" Width="220">
+                <DataGridTemplateColumn Header="Progress" Width="190">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0">
@@ -110,10 +110,9 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Header="Speed" Binding="{ReflectionBinding SpeedText}" Width="100" />
-                <DataGridTextColumn Header="Url" Binding="{ReflectionBinding Url}" Width="*" />
+                <DataGridTextColumn Header="Speed" Binding="{ReflectionBinding SpeedText}" Width="95" />
 
-                <DataGridTemplateColumn Header="" Width="180">
+                <DataGridTemplateColumn Header="" Width="160">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
