@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+             xmlns:m="clr-namespace:Downloader.Desktop.Models"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="520"
+             x:Class="Downloader.Desktop.Views.SchedulerView"
+             x:DataType="vm:SchedulerViewModel">
+
+    <ScrollViewer Padding="28 22">
+        <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Scheduler" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="Start and stop a queue automatically at set times."
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="accent" Content="New schedule" Padding="14 8"
+                        VerticalAlignment="Center" Command="{Binding NewScheduleCommand}" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Schedules}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="12" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ScheduleRowViewModel">
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <TextBox Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"
+                                             CornerRadius="6" VerticalContentAlignment="Center" MaxWidth="280"
+                                             HorizontalAlignment="Left" />
+                                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Enabled}"
+                                                  OffContent="Off" OnContent="On" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Classes="icon" Command="{Binding RemoveCommand}"
+                                            ToolTip.Tip="Delete schedule" Margin="6 0 0 0">
+                                        <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
+                                    </Button>
+                                </Grid>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Spacing="3" Margin="0 0 18 8">
+                                        <TextBlock Text="Start" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <TimePicker SelectedTime="{Binding StartTime}" ClockIdentifier="24HourClock" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="3" Margin="0 0 18 8">
+                                        <TextBlock Text="Stop (optional)" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <TimePicker SelectedTime="{Binding StopTime}" ClockIdentifier="24HourClock" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="3" Margin="0 0 18 8">
+                                        <TextBlock Text="Queue" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <ComboBox ItemsSource="{Binding QueueOptions}"
+                                                  SelectedItem="{Binding SelectedQueue}" Width="200">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="m:DownloadQueue">
+                                                    <TextBlock Text="{Binding Name}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="3" Margin="0 0 0 8" VerticalAlignment="Bottom">
+                                        <TextBlock Text="Run once" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <ToggleSwitch IsChecked="{Binding Once}" OffContent="Repeat" OnContent="Once" />
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

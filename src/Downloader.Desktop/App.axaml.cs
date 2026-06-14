@@ -14,6 +14,7 @@ public partial class App : Application
 {
     private bool _canClose = false; // This flag is used to check if window is allowed to close
     private IServiceProvider _services;
+    private MainViewModel _mainViewModel;
 
     public override void Initialize()
     {
@@ -42,6 +43,7 @@ public partial class App : Application
         {
             // Resolve the MainWindow and set its DataContext via DI
             var vm = _services?.GetRequiredService<MainViewModel>();
+            _mainViewModel = vm;
             desktop.MainWindow = new MainWindow
             {
                 DataContext = vm
@@ -74,7 +76,15 @@ public partial class App : Application
 
         if (!_canClose)
         {
-            //_services?.GetRequiredService<MainViewModel>()?.SaveConfigFile()?.Wait(TimeSpan.FromSeconds(5));
+            // Persist the download list + settings before actually shutting down.
+            try
+            {
+                _mainViewModel?.SaveConfigFile()?.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch
+            {
+                // Saving is best-effort; never block shutdown on it.
+            }
 
             // Set _canClose to true and Close this Window again
             _canClose = true;

@@ -1,5 +1,6 @@
 using System;
-using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
@@ -8,81 +9,115 @@ using ReactiveUI;
 
 namespace Downloader.Desktop.ViewModels;
 
+/// <summary>
+/// Collects one or more URLs (one per line) + a destination folder (and optional name for a single
+/// URL) and returns the <see cref="DownloadItem"/> descriptors. Blank names are auto-resolved by the
+/// engine from the URL / Content-Disposition headers.
+/// </summary>
 public class AddDownloadItemViewModel : ViewModelBase
 {
-    private string _filename;
     private readonly Config _config;
-    private readonly string _url;
-
-    public ICommand SelectFileStoragePathCommand { get; }
-    public ICommand StartDownloadCommand { get; }
-
-    public string StorageFolderPath
-    {
-        get => _config.DefaultSavePath;
-        set
-        {
-            this.RaisePropertyChanged();
-            _config.DefaultSavePath = value;
-        }
-    }
-
-    public int DownloadChunks
-    {
-        get => _config.DefaultDownloadChunks;
-        set
-        {
-            this.RaisePropertyChanged();
-            _config.DefaultDownloadChunks = value;
-        }
-    }
-
-    public string Filename
-    {
-        get => _filename;
-        set => this.RaiseAndSetIfChanged(ref _filename, value);
-    }
+    private string _urls;
+    private string _fileName;
+    private string _storageFolderPath;
+    private DownloadQueue _selectedQueue;
 
     public AddDownloadItemViewModel(Config config, string url)
     {
         _config = config;
-        _url = url;
-        _filename = DeriveFileName(url);
+        _urls = url ?? string.Empty;
+        _storageFolderPath = !string.IsNullOrWhiteSpace(config?.Settings?.DefaultSavePath)
+            ? config.Settings.DefaultSavePath
+            : DownloadSettings.New().DefaultSavePath;
+        _fileName = string.Empty;
+        _selectedQueue = config?.DefaultQueue;
+
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
     }
 
+    public ICommand SelectFileStoragePathCommand { get; }
+    public ICommand StartDownloadCommand { get; }
+
+    /// <summary>One or more links, one per line.</summary>
+    public string Urls
+    {
+        get => _urls;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _urls, value);
+            this.RaisePropertyChanged(nameof(CanDownload));
+            this.RaisePropertyChanged(nameof(IsMultiple));
+        }
+    }
+
+    private IReadOnlyList<string> ParsedUrls =>
+        (_urls ?? string.Empty)
+        .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(u => u.Length > 0)
+        .ToList();
+
+    public bool CanDownload => ParsedUrls.Count > 0;
+
+    /// <summary>True when more than one URL is entered (file name field is then ignored).</summary>
+    public bool IsMultiple => ParsedUrls.Count > 1;
+
+    public string StorageFolderPath
+    {
+        get => _storageFolderPath;
+        set => this.RaiseAndSetIfChanged(ref _storageFolderPath, value);
+    }
+
+    /// <summary>Optional, single-URL only. Blank means "auto-detect from the link".</summary>
+    public string Filename
+    {
+        get => _fileName;
+        set => this.RaiseAndSetIfChanged(ref _fileName, value);
+    }
+
+    public List<DownloadQueue> Queues => _config?.Queues;
+
+    public DownloadQueue SelectedQueue
+    {
+        get => _selectedQueue;
+        set => this.RaiseAndSetIfChanged(ref _selectedQueue, value);
+    }
+
+    public bool ShowQueuePicker => (_config?.Queues?.Count ?? 0) > 1;
+
     private async Task SelectFileStoragePathAsync()
     {
-        var path = await DialogHelper.OpenFolderPicker("Select a folder to save the files in");
-        StorageFolderPath = path.LocalPath;
+        var path = await DialogHelper.OpenFolderPicker("Select a folder to save the file(s) in", View);
+        if (path != null)
+            StorageFolderPath = path.LocalPath;
     }
 
     private void StartDownload()
     {
-        // Hand a descriptor back to the caller; the DownloadManager builds and starts the engine.
-        var item = new DownloadItem
+        var urls = ParsedUrls;
+        if (urls.Count == 0)
+            return;
+
+        var folder = string.IsNullOrWhiteSpace(StorageFolderPath)
+            ? _config?.Settings?.DefaultSavePath
+            : StorageFolderPath;
+
+        // Remember the chosen folder as the default for next time.
+        if (_config?.Settings != null && !string.IsNullOrWhiteSpace(folder))
+            _config.Settings.DefaultSavePath = folder;
+
+        var single = urls.Count == 1;
+        var items = urls.Select(u => new DownloadItem
         {
-            Url = _url,
-            FilePath = Path.Combine(StorageFolderPath ?? string.Empty, Filename ?? string.Empty),
-            FileName = Filename,
+            Url = u.Trim(),
+            SaveFolder = folder,
+            // Custom name only applies to a single download; batches always auto-resolve.
+            FileName = single && !string.IsNullOrWhiteSpace(Filename) ? Filename.Trim() : null,
+            QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
-        };
+        }).ToList();
 
-        View.Close(item);
-    }
-
-    /// <summary>Best-effort file name from the URL path, falling back to a timestamped name.</summary>
-    private static string DeriveFileName(string url)
-    {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            var name = Path.GetFileName(uri.LocalPath);
-            if (!string.IsNullOrWhiteSpace(name))
-                return name;
-        }
-
-        return $"download_{DateTime.Now:yyyyMMdd_HHmmss}";
+        View.Close(items);
     }
 }

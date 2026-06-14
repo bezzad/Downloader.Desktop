@@ -1,0 +1,109 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="560"
+        Width="600" Height="560"
+        CanResize="True" MinWidth="500" MinHeight="420"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="{DynamicResource ThemeBackgroundColor}"
+        x:Class="Downloader.Desktop.Views.DownloadDetailsView"
+        x:DataType="vm:DownloadDetailsViewModel"
+        WindowStartupLocation="CenterOwner"
+        Title="Download details">
+
+    <Grid Margin="22" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="3">
+            <TextBlock Text="{Binding Item.FileName}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Item.Url}" Foreground="{DynamicResource SystemBaseMediumColor}"
+                       TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <!-- Summary + actions -->
+        <Border Grid.Row="1" Classes="card" Margin="0 12">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="Auto,*,Auto,*">
+                    <TextBlock Grid.Column="0" Text="Status" Margin="0 0 12 0"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Item.StatusText}" />
+                    <TextBlock Grid.Column="2" Text="Size" Margin="0 0 12 0"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <TextBlock Grid.Column="3" Text="{Binding Item.SizeText}" />
+                </Grid>
+
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Item.Progress}" Height="8" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding Item.SpeedText}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                        <Button Classes="icon" Command="{Binding Item.PauseCommand}" IsVisible="{Binding Item.CanPause}" ToolTip.Tip="Pause">
+                            <PathIcon Data="{DynamicResource PauseRegular}" />
+                        </Button>
+                        <Button Classes="icon" Command="{Binding Item.ResumeCommand}" IsVisible="{Binding Item.CanResume}" ToolTip.Tip="Resume">
+                            <PathIcon Data="{DynamicResource PlayRegular}" />
+                        </Button>
+                        <Button Classes="icon" Command="{Binding Item.CancelCommand}" IsVisible="{Binding Item.IsActive}" ToolTip.Tip="Stop">
+                            <PathIcon Data="{DynamicResource StopRegular}" />
+                        </Button>
+                        <Button Classes="icon" Command="{Binding Item.OpenFolderCommand}" IsVisible="{Binding Item.IsCompleted}" ToolTip.Tip="Open folder">
+                            <PathIcon Data="{DynamicResource FolderRegular}" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Live settings -->
+        <Border Grid.Row="2" Classes="card" Margin="0 0 0 12" IsVisible="{Binding HasConfig}">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Speed limit (KB/s) — 0 = unlimited" VerticalAlignment="Center" />
+                <NumericUpDown Grid.Row="0" Grid.Column="1" Width="160" Value="{Binding SpeedLimitKb}"
+                               Minimum="0" Increment="128" FormatString="N0" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Connections" VerticalAlignment="Center" Margin="0 8 0 0" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Connections}" HorizontalAlignment="Right"
+                           VerticalAlignment="Center" Margin="0 8 0 0" />
+            </Grid>
+        </Border>
+
+        <!-- Parts (segmented, one column per connection) -->
+        <Border Grid.Row="3" Classes="card">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0 0 0 10">
+                    <TextBlock Grid.Column="0" Classes="section" Text="PARTS" />
+                    <TextBlock Grid.Column="1" Text="{Binding PartsSummary}"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </Grid>
+                <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
+                           Text="Parts appear here while the file is downloading."
+                           Foreground="{DynamicResource SystemBaseMediumColor}" TextWrapping="Wrap" />
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Parts}" VerticalAlignment="Bottom">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Bottom" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ChunkProgressViewModel">
+                                <Border Background="{DynamicResource SystemListLowColor}" CornerRadius="4"
+                                        ToolTip.Tip="{Binding RangeText}" Width="16" Height="96"
+                                        VerticalAlignment="Bottom">
+                                    <ProgressBar Orientation="Vertical" Minimum="0" Maximum="100"
+                                                 Value="{Binding Progress}" Width="16" Background="Transparent" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 14 0 0">
+            <Button Content="Close" Padding="18 7" Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>

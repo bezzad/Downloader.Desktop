@@ -1,14 +1,12 @@
 # CLAUDE.md — Downloader.Desktop
 
-Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **early dev — no production release yet**; many commands are stubs.
+Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **early dev — no production release yet**. A full **V1 redesign** is implemented on branch `feat/v1-redesign` (awaiting the author's interactive testing + merge).
 
 ## Product vision
 - **Goal**: a GUI download manager exposing the `Downloader` engine's features (multipart, pause/resume, speed control, etc.) to **end users, not developers**.
 - **Audience**: non-technical people on Windows / Linux / macOS. Must be **stable, simple, self-explanatory** — no exposed/complex config, sensible defaults.
 - **Author owns the engine**: `bezzad` developed the `Downloader` library (https://github.com/bezzad/downloader); this app is the UI layer on top of it.
-- **Reference apps** (study for UX/feature inspiration):
-  - ab-download-manager — https://github.com/amir1376/ab-download-manager / https://abdownloadmanager.com/ (primary visual + UX reference; built in Kotlin/Compose Multiplatform).
-  - Internet Download Manager (IDM) — the global gold standard, but far larger/more feature-heavy than we need.
+- **Design stance**: this is an **original design**, not a clone of any existing app. Internet Download Manager (IDM) is a useful mental benchmark for the *feature set* of a download manager, but the look, layout and UX here are our own.
 - **Platform roadmap**: **Desktop first** (this repo), **mobile later** (Android/iOS — specific first platform TBD). Framework must keep a mobile path open.
 
 ## Decisions (settled with the author)
@@ -21,7 +19,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
   - **Keeps Linux desktop** AND offers a mobile path (iOS/Android/Browser) for the next phase. (.NET MAUI drops Linux; Kotlin/Compose drops the engine; Blazor Hybrid fragments mobile + weakens native OS integration.)
   - **Maps to the author's WPF skills** almost 1:1 (XAML, bindings, MVVM, styles, DataTemplates). Author also knows Blazor.
   - Native OS integration (tray, notifications, file pickers, "open folder", drag-drop) matters for a download manager and Avalonia does it natively.
-- **Visual style** = **inspired by ab-download-manager, NOT a copy**. Modern minimal: clean rounded cards, accent color, light/dark, friendly empty states; aimed at non-developers (not the dense IDM table look). **I have creative freedom to design a distinctive, special look** — propose mockups, don't clone. Keep it simple/understandable above all.
+- **Visual style** = **original modern-minimal design** (ours, not a clone of any app). Ocean-blue/teal accent on softly tinted neutrals, lively in both light & dark; clean rounded cards, file-type row icons, friendly empty states; aimed at non-developers. Keep it simple/understandable above all.
 - **Mobile**: Avalonia must keep supporting it; first mobile platform decided later. Avoid desktop-only architectural lock-in.
 
 ## Working conventions (how I operate on this repo)
@@ -75,7 +73,22 @@ Rough order to turn the current skeleton into the MVP above:
 1. ✅ **Wire the engine into the list** (DONE, Stage 1): `Services/DownloadManager` (DI singleton, `IDownloadManager`) owns the master `ObservableCollection<DownloadItemViewModel>`, builds `IDownload` via `DownloadBuilder`, and relays engine events (`DownloadProgressChanged`/`DownloadFileCompleted`/`DownloadStarted`) to the row VM on the UI thread (`Dispatcher.UIThread`). `DownloadItemViewModel` rewritten with live `Progress`/`SpeedText`/`SizeText`/`StatusText` + per-item commands; integer-division `Status` bug fixed. `AddDownloadItemViewModel` now returns a `DownloadItem` descriptor and the manager builds/starts it.
 2. ✅ **Per-item actions** (DONE, Stage 1): pause / resume / cancel / retry / remove / open-folder, contextual in the `DownloadsView` grid via `CanPause`/`CanResume`/`CanRetry`/`IsActive`/`IsCompleted`.
 3. ✅ **Bulk actions** (DONE, Stage 1): `StartAll`/`StopAll`/`ClearCompleted` implemented on the manager and wired to `MainViewModel`.
-   - *Remaining for V1 (Stage 2+):* the full sidebar-nav + compact-table redesign, status bar, status filters, then persistence/resume, Queues, Scheduler, polish.
+4. ✅ **Full V1 redesign** (DONE, Stages 2–7 on `feat/v1-redesign`):
+   - **Settings model** (`Models/DownloadSettings.cs`) mirrors the whole engine `DownloadConfiguration` (+ common request opts) as a JSON-persistable POCO with `ToConfiguration()`. `Config` now holds `Settings`/`Queues`/`Schedules`/`Downloads`.
+   - **Filename auto-resolution**: Add dialog takes URL + folder (name optional); manager passes only URL+folder to the engine and reads the resolved name from `DownloadStartedEventArgs.FileName` (note: `IDownload.Filename` stays empty when no name is supplied — must use the event arg).
+   - **Main window redesign**: top bar (paste link + Add + search), left nav rail (STATUS filters w/ count pills + MANAGE: Queues/Scheduler/Settings), central `ContentControl` swapping pages via `DataTemplates`, bottom status bar (speed + counts + bulk). Modernized `App.axaml` styles (theme-aware nav/icon/card, blue accent) — replaced the old white-forced button styles. Standard window chrome (dropped the acrylic custom titlebar for cross-platform reliability).
+   - **Settings page**: scrollable, Basic card + collapsible Advanced + Network/Request, every option bound to `DownloadSettings`.
+   - **Persistence/resume**: config saved on shutdown via the resolved `MainViewModel`; resume relies on engine `EnableAutoResumeDownload` (restart a download to the same path → continues). `FileService` load is exception-tolerant.
+   - **Queues**: concurrency engine in `DownloadManager` (enqueue, pump next on completion, start/pause queue, cap, add/remove). `QueuesViewModel`/`QueuesView`.
+   - **Scheduler**: `DispatcherTimer` (30s) evaluating schedules → start/stop target queue in a daily window (+run-once). `SchedulerViewModel`/`SchedulerView`.
+   - *DataGrid note*: `DataGridTextColumn.Binding` must use `{ReflectionBinding ...}` (compiled bindings resolve against the page VM, not the row item); template columns set `x:DataType` instead.
+5. ✅ **Polish rounds + tests** (DONE): friendly error root-cause on failure; periodic autosave (+ save on list change) and Running→Paused normalized at load; **ocean-blue/teal** light+dark palette (`App.axaml`); file-type row icons (`Converters/FileKindToIconConverter` + `DownloadItemViewModel.FileKind`); details window shows a **segmented per-connection** strip + live speed-limit; collapsible sidebar (`MainViewModel.IsSidebarExpanded/SidebarWidth`); Network settings nested under Advanced; default `FileExistPolicy=IgnoreDownload`; multi-URL Add dialog; "Fetching name…" placeholder + failed-row warning color; close-deadlock fixed (`ConfigureAwait(false)` on save); PNG window icon.
+   - **Tests** (`src/Downloader.Desktop.Tests`, xUnit **v3** + `Avalonia.Headless.XUnit`): 30 unit/headless tests, all green via `dotnet test`. Screenshots are generated by a **gated** `[AvaloniaFact]` (`CaptureScreenshots`, env `DLDESKTOP_CAPTURE=1`) that renders real frames to `docs/screenshots/`.
+   - **Test-project gotchas**: app sets `SelfContained=true`, so the test project must also set `SelfContained=true` + `RuntimeIdentifier=$(NETCoreSdkPortableRuntimeIdentifier)`. `Avalonia.Headless.XUnit 12` pulls **xunit.v3** (don't mix with v2). `[assembly: AvaloniaTestApplication]` lives in namespace `Avalonia.Headless` (not `.XUnit`). For real screenshot pixels, host the real `App` with `.UseSkia().UseHeadless(new(){ UseHeadlessDrawing = false })`.
+   - *Remaining (post-V1):* browser/clipboard capture, categories, per-download scheduling UI, request certificates/cookies/credentials in Settings, packaging/installers, and **m3u8/HLS + YouTube** downloads (needs FFmpeg + YoutubeExplode — deferred by author; large scope).
+
+## Design / privacy note
+This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
 5. **Queue**: cap concurrent active downloads (configurable), auto-start next when a slot frees.
 6. **Scheduler**: start/stop downloads at configured times.

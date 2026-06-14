@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace Downloader.Desktop.Views;
 
-public partial class SettingView : UserControl
+public partial class QueuesView : UserControl
 {
-    public SettingView()
+    public QueuesView()
     {
         InitializeComponent();
     }

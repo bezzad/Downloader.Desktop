@@ -1,15 +1,19 @@
 using Avalonia.Styling;
-using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Downloader.Desktop.Models;
 
+/// <summary>
+/// Persisted application state: engine settings, the download list, queues, schedules and theme.
+/// Saved as JSON by <see cref="Services.FileService"/>.
+/// </summary>
 public class Config
 {
-    public int DefaultDownloadChunks { get; set; }
-    public string DefaultSavePath { get; set; }
+    public DownloadSettings Settings { get; set; }
     public List<DownloadItem> Downloads { get; set; }
+    public List<DownloadQueue> Queues { get; set; }
+    public List<DownloadSchedule> Schedules { get; set; }
     public bool IsThemeDarkMode { get; set; }
 
     [JsonIgnore]
@@ -19,14 +23,46 @@ public class Config
         set => IsThemeDarkMode = value == ThemeVariant.Dark;
     }
 
+    /// <summary>The default/primary queue items land in when none is specified.</summary>
+    [JsonIgnore]
+    public DownloadQueue DefaultQueue
+    {
+        get
+        {
+            Queues ??= new List<DownloadQueue>();
+            if (Queues.Count == 0)
+                Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName });
+            return Queues[0];
+        }
+    }
+
     public static Config New()
     {
-        return new Config()
+        var settings = DownloadSettings.New();
+        return new Config
         {
-            Downloads = [],
-            DefaultSavePath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-            DefaultDownloadChunks = 4,
+            Settings = settings,
+            Downloads = new List<DownloadItem>(),
+            Queues = new List<DownloadQueue>
+            {
+                new() { Name = DownloadQueue.DefaultName, MaxConcurrent = settings.MaxConcurrentDownloads }
+            },
+            Schedules = new List<DownloadSchedule>(),
             IsThemeDarkMode = false
         };
+    }
+
+    /// <summary>Fills in any missing pieces on a config loaded from disk (forward/backward compat).</summary>
+    public Config EnsureValid()
+    {
+        Settings ??= DownloadSettings.New();
+        if (string.IsNullOrWhiteSpace(Settings.DefaultSavePath))
+            Settings.DefaultSavePath = DownloadSettings.New().DefaultSavePath;
+        Downloads ??= new List<DownloadItem>();
+        Queues ??= new List<DownloadQueue>();
+        if (Queues.Count == 0)
+            Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName, MaxConcurrent = Settings.MaxConcurrentDownloads });
+        Schedules ??= new List<DownloadSchedule>();
+        return this;
     }
 }
