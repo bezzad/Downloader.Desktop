@@ -65,6 +65,9 @@ public class DownloadManager : IDownloadManager
         Items.Clear();
         foreach (var item in _config.Downloads ?? new List<DownloadItem>())
         {
+            // Nothing is actually running on a fresh launch — show in-progress items as resumable.
+            if (item.Status == DownloadStatus.Running)
+                item.Status = DownloadStatus.Paused;
             Items.Add(new DownloadItemViewModel(item, this));
         }
 
@@ -197,15 +200,39 @@ public class DownloadManager : IDownloadManager
 
             Attach(vm, download);
             item.LastTry = DateTime.Now;
+            vm.ErrorMessage = null; // clear any previous failure on (re)start
             vm.Status = DownloadStatus.Running;
             // Run on a background thread: StartAsync does synchronous setup before its first await,
             // which would otherwise briefly block (and with many events, freeze) the UI thread.
             await Task.Run(() => download.StartAsync()).ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            OnUi(() => vm.Status = DownloadStatus.Failed);
+            OnUi(() =>
+            {
+                vm.ErrorMessage = Describe(ex);
+                vm.Status = DownloadStatus.Failed;
+                NotifyList();
+            });
         }
+    }
+
+    /// <summary>Turns an exception into a short, user-friendly root cause.</summary>
+    private static string Describe(Exception ex)
+    {
+        var e = ex;
+        while (e.InnerException != null)
+            e = e.InnerException;
+
+        return e switch
+        {
+            System.Net.Http.HttpRequestException => $"Network error: {e.Message}",
+            System.Net.WebException we => $"Network error: {we.Message}",
+            UnauthorizedAccessException => "Permission denied writing the file. Try another folder.",
+            IOException io => $"Disk error: {io.Message}",
+            TaskCanceledException or OperationCanceledException => "The download timed out or was cancelled.",
+            _ => e.Message
+        };
     }
 
     public void Pause(DownloadItemViewModel vm)
@@ -414,6 +441,7 @@ public class DownloadManager : IDownloadManager
             }
             else if (e.Error != null)
             {
+                vm.ErrorMessage = Describe(e.Error);
                 vm.Status = DownloadStatus.Failed;
             }
             else

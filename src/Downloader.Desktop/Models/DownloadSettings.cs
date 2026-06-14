@@ -43,7 +43,7 @@ public class DownloadSettings
     public bool ClearPackageOnCompletionWithFailure { get; set; } = false;
 
     /// <summary>What to do when the target file already exists.</summary>
-    public FileExistPolicy FileExistPolicy { get; set; } = FileExistPolicy.Rename;
+    public FileExistPolicy FileExistPolicy { get; set; } = FileExistPolicy.IgnoreDownload;
 
     public string DownloadFileExtension { get; set; } = ".download";
 

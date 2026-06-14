@@ -21,6 +21,7 @@ public class DownloadDetailsViewModel : ViewModelBase
     public ObservableCollection<ChunkProgressViewModel> Parts { get; } = new();
 
     public bool HasParts => Parts.Count > 0;
+    public string PartsSummary => Parts.Count > 0 ? $"{Parts.Count} connections" : string.Empty;
     public bool HasConfig => Item?.Configuration != null;
     public int Connections => Item?.Configuration?.ChunkCount ?? 0;
 
@@ -86,6 +87,7 @@ public class DownloadDetailsViewModel : ViewModelBase
             _parts[id] = part;
             Parts.Add(part);
             this.RaisePropertyChanged(nameof(HasParts));
+            this.RaisePropertyChanged(nameof(PartsSummary));
         }
 
         return part;

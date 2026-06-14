@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -71,9 +72,56 @@ public class DownloadItemViewModel : ViewModelBase
             {
                 _item.FileName = value;
                 this.RaisePropertyChanged();
+                this.RaisePropertyChanged(nameof(DisplayName));
+                this.RaisePropertyChanged(nameof(IsNamePending));
+                this.RaisePropertyChanged(nameof(FileKind));
             }
         }
     }
+
+    /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
+    public string FileKind => GetFileKind(_item.FileName);
+
+    public static string GetFileKind(string name)
+    {
+        var ext = Path.GetExtension(name ?? string.Empty).TrimStart('.').ToLowerInvariant();
+        return ext switch
+        {
+            "mp4" or "mkv" or "avi" or "mov" or "webm" or "flv" or "wmv" or "m4v" or "mpeg" or "mpg" or "m3u8" or "ts" => "video",
+            "mp3" or "wav" or "flac" or "aac" or "ogg" or "m4a" or "wma" or "opus" => "audio",
+            "jpg" or "jpeg" or "png" or "gif" or "bmp" or "webp" or "svg" or "ico" or "tif" or "tiff" or "heic" => "image",
+            "zip" or "rar" or "7z" or "tar" or "gz" or "bz2" or "xz" or "zst" => "archive",
+            "pdf" or "doc" or "docx" or "txt" or "rtf" or "xls" or "xlsx" or "ppt" or "pptx" or "csv" or "md" or "epub" => "document",
+            "exe" or "msi" or "apk" or "deb" or "rpm" or "dmg" or "appimage" or "pkg" => "app",
+            "iso" or "img" or "bin" or "vhd" => "disc",
+            _ => "file"
+        };
+    }
+
+    /// <summary>Name shown in the list — a placeholder while the engine resolves the real name.</summary>
+    public string DisplayName =>
+        !string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName
+        : IsNamePending ? "Fetching name…"
+        : "(unnamed)";
+
+    /// <summary>True while we are still waiting for the engine to report the file name.</summary>
+    public bool IsNamePending =>
+        string.IsNullOrWhiteSpace(_item.FileName) &&
+        _status is DownloadStatus.Running or DownloadStatus.Created or DownloadStatus.None;
+
+    /// <summary>Reason for the last failure (root cause), surfaced to the user.</summary>
+    public string ErrorMessage
+    {
+        get => _item.LastError;
+        set
+        {
+            _item.LastError = value;
+            this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(HasError));
+        }
+    }
+
+    public bool HasError => _status == DownloadStatus.Failed;
 
     public string Url
     {
@@ -152,6 +200,9 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(CanRetry));
             this.RaisePropertyChanged(nameof(IsActive));
             this.RaisePropertyChanged(nameof(IsCompleted));
+            this.RaisePropertyChanged(nameof(HasError));
+            this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(IsNamePending));
         }
     }
 

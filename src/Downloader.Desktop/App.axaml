@@ -7,15 +7,19 @@
         <ResourceDictionary>
             <x:Double x:Key="DefaultFontSize">13</x:Double>
             <x:Double x:Key="H1FontSize">15</x:Double>
+            <!-- Status colors (shared across themes) -->
+            <SolidColorBrush x:Key="DangerColor" Color="#E5594F" />
+            <SolidColorBrush x:Key="SuccessColor" Color="#1FA971" />
+            <SolidColorBrush x:Key="WarningColor" Color="#E0922F" />
         </ResourceDictionary>
     </Application.Resources>
 
     <Application.Styles>
         <FluentTheme DensityStyle="Compact">
             <FluentTheme.Palettes>
-                <!-- Modern minimal palette with a blue accent -->
-                <ColorPaletteResources x:Key="Light" Accent="#2D7DF6" AltHigh="White" AltLow="White" AltMedium="White" AltMediumHigh="White" AltMediumLow="White" BaseHigh="#ff1b1b1f" BaseLow="#ffd6d6da" BaseMedium="#ff8a8a90" BaseMediumHigh="#ff5d5d63" BaseMediumLow="#ff737379" ChromeAltLow="#ff5d5d63" ChromeBlackHigh="Black" ChromeBlackLow="#ffcccccc" ChromeBlackMedium="#ff5d5d5d" ChromeBlackMediumLow="#ff898989" ChromeDisabledHigh="#ffcccccc" ChromeDisabledLow="#ff898989" ChromeGray="#ff737373" ChromeHigh="#ffcccccc" ChromeLow="#fff4f4f6" ChromeMedium="#ffeaeaee" ChromeMediumLow="#fff4f4f6" ChromeWhite="White" ListLow="#ffeaeaee" ListMedium="#ffd6d6da" RegionColor="#fff7f7fa" />
-                <ColorPaletteResources x:Key="Dark" Accent="#4C8DFF" AltHigh="#ff121214" AltLow="#ff121214" AltMedium="#ff121214" AltMediumHigh="#ff121214" AltMediumLow="#ff121214" BaseHigh="White" BaseLow="#ff3a3a40" BaseMedium="#ff9a9aa2" BaseMediumHigh="#ffb4b4bc" BaseMediumLow="#ff67676d" ChromeAltLow="#ffb4b4bc" ChromeBlackHigh="Black" ChromeBlackLow="#ffb4b4b4" ChromeBlackMedium="Black" ChromeBlackMediumLow="Black" ChromeDisabledHigh="#ff333333" ChromeDisabledLow="#ff9a9a9a" ChromeGray="Gray" ChromeHigh="Gray" ChromeLow="#ff1c1c20" ChromeMedium="#ff242429" ChromeMediumLow="#ff2c2c32" ChromeWhite="White" ListLow="#ff242429" ListMedium="#ff3a3a40" RegionColor="#ff161619" />
+                <!-- Ocean-blue / teal palette on softly tinted neutrals -->
+                <ColorPaletteResources x:Key="Light" Accent="#0E8FB3" AltHigh="#FFFFFF" AltLow="#FFFFFF" AltMedium="#FFFFFF" AltMediumHigh="#FFFFFF" AltMediumLow="#FFFFFF" BaseHigh="#16242B" BaseLow="#D7E0E5" BaseMedium="#5C6B73" BaseMediumHigh="#3D4C53" BaseMediumLow="#74848B" ChromeAltLow="#3D4C53" ChromeBlackHigh="#000000" ChromeBlackLow="#D7E0E5" ChromeBlackMedium="#3D4C53" ChromeBlackMediumLow="#5C6B73" ChromeDisabledHigh="#E1E8EC" ChromeDisabledLow="#9AA8AF" ChromeGray="#74848B" ChromeHigh="#D7E0E5" ChromeLow="#FFFFFF" ChromeMedium="#E8EEF1" ChromeMediumLow="#EFF4F6" ChromeWhite="#FFFFFF" ListLow="#EAF1F4" ListMedium="#DDE7EC" RegionColor="#F3F6F8" />
+                <ColorPaletteResources x:Key="Dark" Accent="#2DBED6" AltHigh="#15202A" AltLow="#15202A" AltMedium="#15202A" AltMediumHigh="#15202A" AltMediumLow="#15202A" BaseHigh="#EAF1F4" BaseLow="#283642" BaseMedium="#93A4AD" BaseMediumHigh="#B4C2C9" BaseMediumLow="#6B7A83" ChromeAltLow="#B4C2C9" ChromeBlackHigh="#000000" ChromeBlackLow="#B4C2C9" ChromeBlackMedium="#000000" ChromeBlackMediumLow="#000000" ChromeDisabledHigh="#283642" ChromeDisabledLow="#93A4AD" ChromeGray="#808E97" ChromeHigh="#808E97" ChromeLow="#0F1822" ChromeMedium="#1B2833" ChromeMediumLow="#243240" ChromeWhite="#FFFFFF" ListLow="#1B2833" ListMedium="#243240" RegionColor="#0B121A" />
             </FluentTheme.Palettes>
         </FluentTheme>
 

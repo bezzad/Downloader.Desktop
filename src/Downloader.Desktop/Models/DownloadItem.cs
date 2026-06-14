@@ -25,6 +25,9 @@ public class DownloadItem
     public DateTime? LastTry { get; set; }
     public DownloadStatus Status { get; set; }
 
+    /// <summary>Human-readable reason for the last failure (shown in the UI).</summary>
+    public string LastError { get; set; }
+
     [JsonIgnore]
     public string FolderPath => SaveFolder;
 

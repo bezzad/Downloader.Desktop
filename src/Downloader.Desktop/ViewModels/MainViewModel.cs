@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Threading;
 using ReactiveUI;
 
 namespace Downloader.Desktop.ViewModels;
@@ -24,6 +25,9 @@ public class MainViewModel : ViewModelBase
     private object _currentPage;
     private NavSection _section = NavSection.Downloads;
     private StatusFilter _filter = StatusFilter.All;
+    private DispatcherTimer _autoSaveTimer;
+    private DateTime _lastSaveUtc;
+    private bool _isSidebarExpanded = true;
 
     public MainViewModel(IFileService fileService, IDownloadManager downloadManager)
     {
@@ -42,6 +46,7 @@ public class MainViewModel : ViewModelBase
         ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
         ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
+        ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
 
         _downloadManager.StatsChanged += OnStatsChanged;
         _downloadManager.ListChanged += OnListChanged;
@@ -72,6 +77,20 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
+    public ICommand ToggleSidebarCommand { get; }
+
+    /// <summary>When false the left rail collapses to an icons-only strip.</summary>
+    public bool IsSidebarExpanded
+    {
+        get => _isSidebarExpanded;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _isSidebarExpanded, value);
+            this.RaisePropertyChanged(nameof(SidebarWidth));
+        }
+    }
+
+    public double SidebarWidth => _isSidebarExpanded ? 208 : 56;
 
     public string DownloadUrl
     {
@@ -127,6 +146,19 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(Downloads));
         Navigate(NavSection.Downloads);
         OnStatsChanged();
+
+        // Periodic autosave so an unclean exit doesn't lose the list/settings.
+        _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+        _autoSaveTimer.Tick += (_, _) => RequestSave();
+        _autoSaveTimer.Start();
+    }
+
+    private void RequestSave()
+    {
+        if ((DateTime.UtcNow - _lastSaveUtc).TotalSeconds < 3)
+            return;
+        _lastSaveUtc = DateTime.UtcNow;
+        _ = SaveConfigFile();
     }
 
     private void OnStatsChanged()
@@ -147,6 +179,7 @@ public class MainViewModel : ViewModelBase
     {
         OnStatsChanged();
         Downloads?.Refresh();
+        RequestSave();
     }
 
     private void Navigate(NavSection section)
@@ -202,15 +235,7 @@ public class MainViewModel : ViewModelBase
         if (_config == null)
             return;
 
-        var items = _downloadManager.Items.Select(i => i.GetItem()).ToList();
-
-        // Persist in-progress downloads as Paused so they show up resumable next launch
-        // (the engine resumes from on-disk metadata when EnableAutoResumeDownload is on).
-        foreach (var it in items)
-            if (it.Status == DownloadStatus.Running)
-                it.Status = DownloadStatus.Paused;
-
-        _config.Downloads = items;
+        _config.Downloads = _downloadManager.Items.Select(i => i.GetItem()).ToList();
         await _fileService.SaveToFileAsync(_config).ConfigureAwait(false);
     }
 

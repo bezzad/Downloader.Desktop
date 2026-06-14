@@ -68,28 +68,32 @@
             </Grid>
         </Border>
 
-        <!-- Parts -->
+        <!-- Parts (segmented, one column per connection) -->
         <Border Grid.Row="3" Classes="card">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Classes="section" Text="PARTS" Margin="0 0 0 8" />
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0 0 0 10">
+                    <TextBlock Grid.Column="0" Classes="section" Text="PARTS" />
+                    <TextBlock Grid.Column="1" Text="{Binding PartsSummary}"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </Grid>
                 <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
-                           Text="No part information available (parts appear while downloading)."
+                           Text="Parts appear here while the file is downloading."
                            Foreground="{DynamicResource SystemBaseMediumColor}" TextWrapping="Wrap" />
-                <ScrollViewer>
-                    <ItemsControl ItemsSource="{Binding Parts}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Parts}" VerticalAlignment="Bottom">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Bottom" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ChunkProgressViewModel">
-                                <Grid ColumnDefinitions="58,*,130,80" Margin="0 5">
-                                    <TextBlock Grid.Column="0" Text="{Binding Title}" VerticalAlignment="Center" />
-                                    <ProgressBar Grid.Column="1" Minimum="0" Maximum="100"
-                                                 Value="{Binding Progress}" Height="6"
-                                                 VerticalAlignment="Center" Margin="0 0 10 0" />
-                                    <TextBlock Grid.Column="2" Text="{Binding RangeText}" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                    <TextBlock Grid.Column="3" Text="{Binding SpeedText}" VerticalAlignment="Center"
-                                               HorizontalAlignment="Right"
-                                               Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                </Grid>
+                                <Border Background="{DynamicResource SystemListLowColor}" CornerRadius="4"
+                                        ToolTip.Tip="{Binding RangeText}" Width="16" Height="96"
+                                        VerticalAlignment="Bottom">
+                                    <ProgressBar Orientation="Vertical" Minimum="0" Maximum="100"
+                                                 Value="{Binding Progress}" Width="16" Background="Transparent" />
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

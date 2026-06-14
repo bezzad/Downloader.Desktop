@@ -30,10 +30,6 @@
         <Style Selector="ToggleSwitch">
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
-        <Style Selector="Expander">
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="Padding" Value="4 8" />
-        </Style>
     </UserControl.Styles>
 
     <ScrollViewer>
@@ -45,7 +41,6 @@
                 <StackPanel Spacing="2">
                     <TextBlock Classes="section" Text="GENERAL" Margin="0 0 0 6" />
 
-                    <!-- Save folder (full width) -->
                     <Grid Classes="field" ColumnDefinitions="*">
                         <StackPanel Spacing="6">
                             <TextBlock Text="Default save folder" />
@@ -110,7 +105,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- ===== Advanced ===== -->
+            <!-- ===== Advanced (incl. network) ===== -->
             <Border Classes="card" Padding="6 2">
                 <Expander Header="Advanced" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="2" Margin="2 6">
@@ -173,47 +168,44 @@
                             <TextBlock Grid.Column="0" Text="In-progress file extension" />
                             <TextBox Grid.Column="1" Classes="ctrl" Text="{Binding DownloadFileExtension}" CornerRadius="6" />
                         </Grid>
-                    </StackPanel>
-                </Expander>
-            </Border>
 
-            <!-- ===== Network ===== -->
-            <Border Classes="card" Padding="6 2">
-                <Expander Header="Network &amp; request headers" HorizontalAlignment="Stretch">
-                    <StackPanel Spacing="10" Margin="2 6">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="User agent" />
-                            <TextBox Text="{Binding UserAgent}" CornerRadius="6" PlaceholderText="Default (Downloader/x.y)" />
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Referer" />
-                            <TextBox Text="{Binding Referer}" CornerRadius="6" PlaceholderText="Optional" />
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Accept" />
-                            <TextBox Text="{Binding Accept}" CornerRadius="6" PlaceholderText="Optional" />
-                        </StackPanel>
-                        <Grid Classes="field" ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="Follow redirects" />
-                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowAutoRedirect}" />
-                        </Grid>
-                        <Grid Classes="field" ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="Max redirects" />
-                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaximumAutomaticRedirections}"
-                                           Minimum="1" Maximum="100" Increment="1" FormatString="N0" />
-                        </Grid>
-                        <Grid Classes="field" ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="Connect timeout (ms)" />
-                            <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding ConnectTimeout}"
-                                           Minimum="1000" Increment="1000" FormatString="N0" />
-                        </Grid>
-                        <Grid Classes="field" ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="Keep-alive" />
-                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepAlive}" />
-                        </Grid>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Proxy" />
-                            <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="http://host:port (leave empty for none)" />
+                        <!-- Network & request headers (nested) -->
+                        <TextBlock Classes="section" Text="NETWORK &amp; REQUEST HEADERS" Margin="0 14 0 4" />
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="User agent" />
+                                <TextBox Text="{Binding UserAgent}" CornerRadius="6" PlaceholderText="Default (Downloader/x.y)" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Referer" />
+                                <TextBox Text="{Binding Referer}" CornerRadius="6" PlaceholderText="Optional" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Accept" />
+                                <TextBox Text="{Binding Accept}" CornerRadius="6" PlaceholderText="Optional" />
+                            </StackPanel>
+                            <Grid Classes="field" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Follow redirects" />
+                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowAutoRedirect}" />
+                            </Grid>
+                            <Grid Classes="field" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Max redirects" />
+                                <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding MaximumAutomaticRedirections}"
+                                               Minimum="1" Maximum="100" Increment="1" FormatString="N0" />
+                            </Grid>
+                            <Grid Classes="field" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Connect timeout (ms)" />
+                                <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding ConnectTimeout}"
+                                               Minimum="1000" Increment="1000" FormatString="N0" />
+                            </Grid>
+                            <Grid Classes="field" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Keep-alive" />
+                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepAlive}" />
+                            </Grid>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Proxy" />
+                                <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="http://host:port (leave empty for none)" />
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </Expander>
