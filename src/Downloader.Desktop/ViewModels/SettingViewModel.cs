@@ -61,9 +61,18 @@ public class SettingViewModel : ViewModelBase
         get => S.EnableNotifications;
         set
         {
+            var wasEnabled = S.EnableNotifications;
             S.EnableNotifications = value;
             NotificationService.Enabled = value;
             this.RaisePropertyChanged();
+
+            // When the user turns it on, send a sample so they can see how it looks and confirm
+            // the feature is now active.
+            if (value && !wasEnabled)
+                NotificationService.Notify(
+                    "Notifications enabled",
+                    "You'll get a desktop alert here when a download completes or fails.",
+                    isError: false);
         }
     }
 
