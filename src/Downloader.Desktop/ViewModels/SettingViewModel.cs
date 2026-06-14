@@ -300,37 +300,91 @@ public class SettingViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Opens the user's mail client pre-addressed to the developer with the log path in the body, and
-    /// opens the logs folder so they can attach the file (mailto can't carry attachments). (#25)
+    /// Opens a Gmail compose page (in the default web browser) pre-addressed to the developer, and
+    /// reveals the logs folder so the user can attach the file. A web compose URL is used instead of a
+    /// <c>mailto:</c> link because many systems have no mail client registered for mailto. (#25)
     /// </summary>
-    private static void EmailLogs()
+    private void EmailLogs()
     {
         const string to = "behzad.khosravifar@gmail.com";
-        var subject = Uri.EscapeDataString("Downloader.Desktop logs");
+        var subject = Uri.EscapeDataString($"Downloader.Desktop logs (v{AppVersion})");
         var body = Uri.EscapeDataString(
-            "Hi,\n\nI'm sending my Downloader logs. The log file is attached from:\n" +
-            AppLog.CurrentLogFile + "\n\nIssue description:\n");
+            "Hi,\n\nI'm sending my Downloader logs. Please attach the log file from:\n" +
+            AppLog.CurrentLogFile +
+            "\n\nIssue description:\n\n\n" +
+            "--- Please keep the details below to help diagnose the problem ---\n" +
+            BuildDiagnostics());
+
+        // Gmail "compose" deep link — opens in whatever the user's default browser is.
+        var gmail = $"https://mail.google.com/mail/?view=cm&fs=1&to={to}&su={subject}&body={body}";
+        // mailto as a fallback for users who do have a desktop mail client.
+        var mailto = $"mailto:{to}?subject={subject}&body={body}";
 
         try
         {
             System.IO.Directory.CreateDirectory(AppLog.LogFolder);
-            // Reveal the folder first so the file is ready to drag into the email.
-            if (System.IO.File.Exists(AppLog.CurrentLogFile))
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = AppLog.LogFolder,
-                    UseShellExecute = true
-                });
+            var hasLog = System.IO.File.Exists(AppLog.CurrentLogFile);
 
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            // Reveal the folder and copy the log path to the clipboard so the user can paste it
+            // straight into the browser's "attach file" dialog — attachments can't be pre-filled
+            // from a compose URL, so this is the smoothest manual path.
+            if (hasLog)
             {
-                FileName = $"mailto:{to}?subject={subject}&body={body}",
-                UseShellExecute = true
-            });
+                OpenInShell(AppLog.LogFolder);
+                _ = DialogHelper.CopyTextAsync(AppLog.CurrentLogFile);
+            }
+
+            // Prefer the browser-based compose; fall back to mailto if that fails.
+            if (!OpenInShell(gmail))
+                OpenInShell(mailto);
+
+            NotificationService.Notify(
+                "Attach your log file",
+                hasLog
+                    ? $"Logs folder opened. Attach \"{System.IO.Path.GetFileName(AppLog.CurrentLogFile)}\" to the email — its path is copied to your clipboard."
+                    : "Turn on \"Write a log file\" first, reproduce the issue, then email the logs.",
+                isError: false);
         }
         catch
         {
             // best-effort
+        }
+    }
+
+    /// <summary>Builds a short, non-sensitive environment + settings report for the support email.</summary>
+    private string BuildDiagnostics()
+    {
+        var s = _config.Settings;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"App version : {AppVersion}");
+        sb.AppendLine($"OS          : {System.Runtime.InteropServices.RuntimeInformation.OSDescription} {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}");
+        sb.AppendLine($"Process arch: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+        sb.AppendLine($"Runtime     : {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"Local time  : {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
+        sb.AppendLine($"Downloads   : {_config.Downloads?.Count ?? 0}  |  Queues: {_config.Queues?.Count ?? 0}");
+        sb.AppendLine("--- Settings ---");
+        sb.AppendLine($"Connections={s.ChunkCount}, parallel={s.ParallelDownload}, parallelCount={s.ParallelCount}, maxConcurrent={s.MaxConcurrentDownloads}");
+        sb.AppendLine($"maxSpeed={(s.MaximumBytesPerSecond <= 0 ? "unlimited" : s.MaximumBytesPerSecond / 1024 + " KB/s")}, memBuffer={(s.MaximumMemoryBufferBytes <= 0 ? "unlimited" : s.MaximumMemoryBufferBytes / (1024 * 1024) + " MB")}");
+        sb.AppendLine($"httpTimeout={s.HttpClientTimeout}ms, connectTimeout={s.ConnectTimeout}ms, blockTimeout={s.BlockTimeout}ms, maxRetries={s.MaxTryAgainOnFailure}");
+        sb.AppendLine($"autoResume={s.EnableAutoResumeDownload}, checkDisk={s.CheckDiskSizeBeforeDownload}, fileExists={s.FileExistPolicy}, redirects={s.AllowAutoRedirect}/{s.MaximumAutomaticRedirections}");
+        return sb.ToString();
+    }
+
+    /// <summary>Opens a URL/path with the OS default handler. Returns false if it couldn't start.</summary>
+    private static bool OpenInShell(string target)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = target,
+                UseShellExecute = true
+            });
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
