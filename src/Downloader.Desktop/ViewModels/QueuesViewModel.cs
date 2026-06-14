@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Input;
 using Avalonia.Collections;
 using Downloader.Desktop.Models;
@@ -75,6 +76,46 @@ public class QueueRowViewModel : ViewModelBase
             Filter = o => o is DownloadItemViewModel vm && vm.GetItem().QueueId == queue.Id
         };
         RemoveCommand = ReactiveCommand.Create(() => _parent.Remove(this));
+
+        if (_manager != null)
+            _manager.ListChanged += RefreshCounts;
+    }
+
+    private void RefreshCounts()
+    {
+        Items.Refresh();
+        this.RaisePropertyChanged(nameof(TotalCount));
+        this.RaisePropertyChanged(nameof(IsEmpty));
+        this.RaisePropertyChanged(nameof(Summary));
+        this.RaisePropertyChanged(nameof(IsRunning));
+    }
+
+    private int CountWhere(Func<DownloadItemViewModel, bool> predicate) =>
+        _manager?.Items.Count(i => i.GetItem().QueueId == Queue.Id && predicate(i)) ?? 0;
+
+    public int TotalCount => CountWhere(_ => true);
+    public bool IsEmpty => TotalCount == 0;
+
+    /// <summary>Plain-language summary of what's in the queue.</summary>
+    public string Summary
+    {
+        get
+        {
+            var running = CountWhere(i => i.Status == DownloadStatus.Running);
+            var waiting = CountWhere(i => i.Status is DownloadStatus.Created or DownloadStatus.None or DownloadStatus.Paused or DownloadStatus.Stopped);
+            var done = CountWhere(i => i.Status == DownloadStatus.Completed);
+            var failed = CountWhere(i => i.Status == DownloadStatus.Failed);
+
+            var parts = new System.Collections.Generic.List<string>
+            {
+                $"{running} downloading",
+                $"{waiting} waiting",
+                $"{done} done"
+            };
+            if (failed > 0)
+                parts.Add($"{failed} failed");
+            return string.Join("  ·  ", parts) + $"  ·  up to {Math.Max(1, Queue.MaxConcurrent)} at once";
+        }
     }
 
     public string Name
@@ -90,6 +131,7 @@ public class QueueRowViewModel : ViewModelBase
         {
             Queue.MaxConcurrent = Math.Max(1, value);
             this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(Summary));
             _manager.PumpQueue(Queue.Id);
         }
     }

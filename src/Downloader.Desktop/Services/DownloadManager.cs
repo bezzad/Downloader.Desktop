@@ -185,8 +185,18 @@ public class DownloadManager : IDownloadManager
                 : item.SaveFolder;
             item.SaveFolder = folder;
 
+            item.LastTry = DateTime.Now;
+            vm.ErrorMessage = null;
+            vm.Status = DownloadStatus.Running;
+            AppLog.Info($"Starting: {item.Url}");
+
+            // Follow redirects up-front (handles 307/308 etc.) and hand the engine a direct link.
+            var resolvedUrl = await UrlResolver.ResolveAsync(item.Url).ConfigureAwait(true);
+            if (!string.Equals(resolvedUrl, item.Url, StringComparison.Ordinal))
+                AppLog.Info($"Resolved redirect: {item.Url} -> {resolvedUrl}");
+
             var builder = DownloadBuilder.New()
-                .WithUrl(item.Url)
+                .WithUrl(resolvedUrl)
                 .WithDirectory(folder ?? string.Empty);
 
             // Only force a name when the user supplied one; otherwise let the engine
@@ -199,15 +209,13 @@ public class DownloadManager : IDownloadManager
             var download = builder.WithConfiguration(configuration).Build();
 
             Attach(vm, download);
-            item.LastTry = DateTime.Now;
-            vm.ErrorMessage = null; // clear any previous failure on (re)start
-            vm.Status = DownloadStatus.Running;
             // Run on a background thread: StartAsync does synchronous setup before its first await,
             // which would otherwise briefly block (and with many events, freeze) the UI thread.
             await Task.Run(() => download.StartAsync()).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
+            AppLog.Error($"Failed to start: {item.Url}", ex);
             OnUi(() =>
             {
                 vm.ErrorMessage = Describe(ex);
@@ -443,11 +451,13 @@ public class DownloadManager : IDownloadManager
             {
                 vm.ErrorMessage = Describe(e.Error);
                 vm.Status = DownloadStatus.Failed;
+                AppLog.Error($"Failed: {vm.FileName ?? vm.Url}", e.Error);
             }
             else
             {
                 vm.Progress = 100;
                 vm.Status = DownloadStatus.Completed;
+                AppLog.Info($"Completed: {vm.FileName}");
             }
 
             // A finished/stopped item frees a slot — let the queue start the next one.

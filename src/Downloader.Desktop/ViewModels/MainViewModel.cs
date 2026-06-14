@@ -135,6 +135,7 @@ public class MainViewModel : ViewModelBase
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
     {
         _config = (await _fileService.LoadFromFileAsync()).EnsureValid();
+        AppLog.SetEnabled(_config.Settings.EnableLogging);
         Application.Current!.RequestedThemeVariant = _config.ThemeMode;
 
         _downloadManager.Initialize(_config);

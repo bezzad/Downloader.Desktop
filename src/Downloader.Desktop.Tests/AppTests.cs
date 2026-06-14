@@ -98,4 +98,33 @@ public class AppTests
         Assert.True(vm.IsNamePending);
         Assert.Equal("Fetching name…", vm.DisplayName);
     }
+
+    [AvaloniaTheory]
+    [InlineData(DownloadStatus.Running)]
+    [InlineData(DownloadStatus.Completed)]
+    [InlineData(DownloadStatus.Failed)]
+    [InlineData(DownloadStatus.Paused)]
+    [InlineData(DownloadStatus.Stopped)]
+    [InlineData(DownloadStatus.Created)]
+    public void Status_brush_is_provided(DownloadStatus status)
+    {
+        var brush = Converters.StatusToBrushConverter.Instance
+            .Convert(status, typeof(Avalonia.Media.IBrush), null, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.IsAssignableFrom<Avalonia.Media.IBrush>(brush);
+    }
+
+    [AvaloniaFact]
+    public void Queue_summary_reflects_items()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        var queues = new QueuesViewModel(config, manager);
+        var row = queues.Queues[0];
+
+        Assert.Equal(1, row.TotalCount);
+        Assert.Contains("waiting", row.Summary);
+    }
 }

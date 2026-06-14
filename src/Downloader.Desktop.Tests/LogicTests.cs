@@ -88,6 +88,18 @@ public class LogicTests
     }
 
     [Fact]
+    public void Chunk_status_text_tracks_progress()
+    {
+        var chunk = new ChunkProgressViewModel(1);
+        chunk.Update(0, 0, 0, 100);
+        Assert.Equal("Pending", chunk.StatusText);
+        chunk.Update(50, 0, 50, 100);
+        Assert.Equal("Downloading", chunk.StatusText);
+        chunk.Update(100, 0, 100, 100);
+        Assert.Equal("Completed", chunk.StatusText);
+    }
+
+    [Fact]
     public void DownloadItem_FilePath_combines_folder_and_name()
     {
         var item = new DownloadItem { SaveFolder = "/tmp/dl", FileName = "a.bin" };

@@ -49,7 +49,8 @@
                   GridLinesVisibility="Horizontal"
                   CanUserReorderColumns="True"
                   CanUserResizeColumns="True"
-                  CanUserSortColumns="False"
+                  CanUserSortColumns="True"
+                  SelectionMode="Extended"
                   RowHeight="46"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Hidden"
@@ -70,6 +71,16 @@
                     <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
                     <Setter Property="FontStyle" Value="Italic" />
                 </Style>
+                <!-- Select the whole row, no per-cell focus border (#13) -->
+                <Style Selector="DataGridCell:focus /template/ Rectangle#FocusVisual">
+                    <Setter Property="IsVisible" Value="False" />
+                </Style>
+                <Style Selector="DataGridCell:current /template/ Rectangle#CurrencyVisual">
+                    <Setter Property="IsVisible" Value="False" />
+                </Style>
+                <Style Selector="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0" />
+                </Style>
             </DataGrid.Styles>
             <DataGrid.Columns>
                 <DataGridTemplateColumn Width="38">
@@ -80,10 +91,19 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Name" Width="*">
+                <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="FileName">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                                <StackPanel.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Copy URL" Command="{Binding CopyUrlCommand}" />
+                                        <MenuItem Header="Open file" Command="{Binding OpenFileCommand}" />
+                                        <MenuItem Header="Open folder" Command="{Binding OpenFolderCommand}" />
+                                        <Separator />
+                                        <MenuItem Header="Remove" Command="{Binding RemoveCommand}" />
+                                    </ContextMenu>
+                                </StackPanel.ContextMenu>
                                 <PathIcon Data="{Binding FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
                                           Height="16" Width="16"
                                           Foreground="{DynamicResource SystemAccentColor}" />
@@ -96,23 +116,28 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Size" Binding="{ReflectionBinding SizeText}" Width="90" />
+                <DataGridTextColumn Header="Size" Binding="{ReflectionBinding SizeText}" Width="90" SortMemberPath="Size" />
 
-                <DataGridTemplateColumn Header="Progress" Width="190">
+                <DataGridTemplateColumn Header="Progress" Width="170" SortMemberPath="Progress">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                            <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0">
+                            <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0" Spacing="3">
                                 <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="6" />
-                                <TextBlock Text="{Binding StatusText}" FontSize="11" Margin="0 3 0 0"
+                                <!-- Running shows %, other states show a colored badge -->
+                                <TextBlock Text="{Binding StatusText}" FontSize="11" IsVisible="{Binding !ShowStatusBadge}"
                                            Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                <Border Classes="badge" IsVisible="{Binding ShowStatusBadge}"
+                                        Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
+                                    <TextBlock Text="{Binding StatusText}" />
+                                </Border>
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Header="Speed" Binding="{ReflectionBinding SpeedText}" Width="95" />
+                <DataGridTextColumn Header="Speed" Binding="{ReflectionBinding SpeedText}" Width="90" SortMemberPath="Speed" />
 
-                <DataGridTemplateColumn Header="" Width="160">
+                <DataGridTemplateColumn Header="" Width="168">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
@@ -129,7 +154,10 @@
                                 <Button Classes="icon" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" ToolTip.Tip="Stop">
                                     <PathIcon Data="{DynamicResource StopRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding OpenFolderCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="Open folder">
+                                <Button Classes="icon" Command="{Binding OpenFileCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="Open file">
+                                    <PathIcon Data="{DynamicResource DocumentRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Open folder">
                                     <PathIcon Data="{DynamicResource FolderRegular}" />
                                 </Button>
                                 <Button Classes="icon" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove">

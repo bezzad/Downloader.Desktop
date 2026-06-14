@@ -30,6 +30,18 @@
         <Style Selector="ToggleSwitch">
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
+        <!-- Vertically centered, compact inputs (#16, #17) -->
+        <Style Selector="TextBox">
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
     </UserControl.Styles>
 
     <ScrollViewer>
@@ -105,10 +117,27 @@
                 </StackPanel>
             </Border>
 
+            <!-- ===== Logging ===== -->
+            <Border Classes="card">
+                <StackPanel Spacing="6">
+                    <TextBlock Classes="section" Text="LOGGING" Margin="0 0 0 2" />
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Write a log file" />
+                            <TextBlock Classes="hint" Text="For diagnosing problems. Off by default." />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableLogging}" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Open logs folder" Padding="12 6" Command="{Binding OpenLogsFolderCommand}" />
+                        <Button Content="Export log…" Padding="12 6" Command="{Binding ExportLogsCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- ===== Advanced (incl. network) ===== -->
-            <Border Classes="card" Padding="6 2">
-                <Expander Header="Advanced" HorizontalAlignment="Stretch">
-                    <StackPanel Spacing="2" Margin="2 6">
+            <Expander Header="Advanced" HorizontalAlignment="Stretch">
+                <StackPanel Spacing="2" Margin="2 6">
                         <Grid Classes="field" ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="Buffer block size (bytes)" />
                             <NumericUpDown Grid.Column="1" Classes="ctrl" Value="{Binding BufferBlockSize}"
@@ -209,7 +238,6 @@
                         </StackPanel>
                     </StackPanel>
                 </Expander>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

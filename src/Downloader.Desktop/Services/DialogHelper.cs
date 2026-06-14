@@ -18,6 +18,17 @@ public static class DialogHelper
         Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
     
     public static Window MainWindow => AppLifetime?.MainWindow;
+
+    /// <summary>Copies text to the system clipboard (best-effort).</summary>
+    public static async Task CopyTextAsync(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        var clipboard = (MainWindow as TopLevel)?.Clipboard;
+        if (clipboard != null)
+            await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(clipboard, text);
+    }
     
     public static async Task<TResult> ShowDialog<TV, TVm, TResult>(TV view, TVm viewModel)
         where TV : Window
@@ -48,6 +59,21 @@ public static class DialogHelper
         view.Closed += (_, _) => viewModel.Cleanup();
 
         await view.ShowDialog(MainWindow);
+    }
+
+    /// <summary>Asks the user where to save a file; returns the chosen path or null.</summary>
+    public static async Task<Uri> SaveFilePicker(string title, string suggestedName)
+    {
+        if (MainWindow == null)
+            return null;
+
+        var file = await MainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedName
+        });
+
+        return file?.Path;
     }
 
     public static async Task<Uri> OpenFolderPicker(string title, Window owner = null)

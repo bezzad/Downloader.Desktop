@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Serialization;
 
@@ -13,6 +14,9 @@ public class DownloadItem
     public Guid Id { get; set; } = Guid.NewGuid();
     public string QueueId { get; set; }
     public string Url { get; set; }
+
+    /// <summary>Optional mirror URLs for the same file (used as fallbacks/sources). Editable while stopped.</summary>
+    public List<string> Mirrors { get; set; } = new();
 
     /// <summary>Directory the file is saved into.</summary>
     public string SaveFolder { get; set; }

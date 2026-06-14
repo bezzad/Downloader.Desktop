@@ -27,6 +27,9 @@ public class DownloadSettings
     /// <summary>App-level cap on how many downloads run at once within a queue.</summary>
     public int MaxConcurrentDownloads { get; set; } = 3;
 
+    /// <summary>Write a diagnostic log file (off by default).</summary>
+    public bool EnableLogging { get; set; } = false;
+
     // ---- Advanced ----
     public int BufferBlockSize { get; set; } = 8192;
     public int MaxTryAgainOnFailure { get; set; } = 5;

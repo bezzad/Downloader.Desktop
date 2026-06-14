@@ -18,7 +18,7 @@
         <FluentTheme DensityStyle="Compact">
             <FluentTheme.Palettes>
                 <!-- Ocean-blue / teal palette on softly tinted neutrals -->
-                <ColorPaletteResources x:Key="Light" Accent="#0E8FB3" AltHigh="#FFFFFF" AltLow="#FFFFFF" AltMedium="#FFFFFF" AltMediumHigh="#FFFFFF" AltMediumLow="#FFFFFF" BaseHigh="#16242B" BaseLow="#D7E0E5" BaseMedium="#5C6B73" BaseMediumHigh="#3D4C53" BaseMediumLow="#74848B" ChromeAltLow="#3D4C53" ChromeBlackHigh="#000000" ChromeBlackLow="#D7E0E5" ChromeBlackMedium="#3D4C53" ChromeBlackMediumLow="#5C6B73" ChromeDisabledHigh="#E1E8EC" ChromeDisabledLow="#9AA8AF" ChromeGray="#74848B" ChromeHigh="#D7E0E5" ChromeLow="#FFFFFF" ChromeMedium="#E8EEF1" ChromeMediumLow="#EFF4F6" ChromeWhite="#FFFFFF" ListLow="#EAF1F4" ListMedium="#DDE7EC" RegionColor="#F3F6F8" />
+                <ColorPaletteResources x:Key="Light" Accent="#0E8FB3" AltHigh="#FFFFFF" AltLow="#FFFFFF" AltMedium="#FFFFFF" AltMediumHigh="#FFFFFF" AltMediumLow="#FFFFFF" BaseHigh="#16242B" BaseLow="#C6D2DA" BaseMedium="#5C6B73" BaseMediumHigh="#3D4C53" BaseMediumLow="#74848B" ChromeAltLow="#3D4C53" ChromeBlackHigh="#000000" ChromeBlackLow="#C6D2DA" ChromeBlackMedium="#3D4C53" ChromeBlackMediumLow="#5C6B73" ChromeDisabledHigh="#E1E8EC" ChromeDisabledLow="#9AA8AF" ChromeGray="#74848B" ChromeHigh="#C6D2DA" ChromeLow="#FFFFFF" ChromeMedium="#E8EEF1" ChromeMediumLow="#EFF4F6" ChromeWhite="#FFFFFF" ListLow="#E7EEF2" ListMedium="#D8E2E8" RegionColor="#E9EFF3" />
                 <ColorPaletteResources x:Key="Dark" Accent="#2DBED6" AltHigh="#15202A" AltLow="#15202A" AltMedium="#15202A" AltMediumHigh="#15202A" AltMediumLow="#15202A" BaseHigh="#EAF1F4" BaseLow="#283642" BaseMedium="#93A4AD" BaseMediumHigh="#B4C2C9" BaseMediumLow="#6B7A83" ChromeAltLow="#B4C2C9" ChromeBlackHigh="#000000" ChromeBlackLow="#B4C2C9" ChromeBlackMedium="#000000" ChromeBlackMediumLow="#000000" ChromeDisabledHigh="#283642" ChromeDisabledLow="#93A4AD" ChromeGray="#808E97" ChromeHigh="#808E97" ChromeLow="#0F1822" ChromeMedium="#1B2833" ChromeMediumLow="#243240" ChromeWhite="#FFFFFF" ListLow="#1B2833" ListMedium="#243240" RegionColor="#0B121A" />
             </FluentTheme.Palettes>
         </FluentTheme>
@@ -95,5 +95,26 @@
             <Setter Property="Padding" Value="7 1" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+
+        <!-- Colored status badge -->
+        <Style Selector="Border.badge">
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="7 2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.badge > TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+
+        <!-- Hand cursor on clickable controls (#12) -->
+        <Style Selector="Button"><Setter Property="Cursor" Value="Hand" /></Style>
+        <Style Selector="ToggleButton"><Setter Property="Cursor" Value="Hand" /></Style>
+        <Style Selector="CheckBox"><Setter Property="Cursor" Value="Hand" /></Style>
+        <Style Selector="ToggleSwitch"><Setter Property="Cursor" Value="Hand" /></Style>
+        <Style Selector="ComboBox"><Setter Property="Cursor" Value="Hand" /></Style>
+        <Style Selector="DataGridColumnHeader"><Setter Property="Cursor" Value="Hand" /></Style>
     </Application.Styles>
 </Application>

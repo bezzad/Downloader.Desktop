@@ -25,10 +25,25 @@ public class SettingViewModel : ViewModelBase
         _config = config ?? throw new ArgumentNullException(nameof(config));
         SelectSavePathCommand = ReactiveCommand.CreateFromTask(SelectSavePath);
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
+        OpenLogsFolderCommand = ReactiveCommand.Create(OpenLogsFolder);
+        ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
     }
 
     public ICommand SelectSavePathCommand { get; }
     public ICommand SwitchThemeCommand { get; }
+    public ICommand OpenLogsFolderCommand { get; }
+    public ICommand ExportLogsCommand { get; }
+
+    public bool EnableLogging
+    {
+        get => S.EnableLogging;
+        set
+        {
+            S.EnableLogging = value;
+            AppLog.SetEnabled(value);
+            this.RaisePropertyChanged();
+        }
+    }
 
     // ---- Theme ----
     public bool IsDarkTheme
@@ -215,5 +230,42 @@ public class SettingViewModel : ViewModelBase
     {
         if (Application.Current?.Styles[0] is FluentTheme)
             Application.Current.RequestedThemeVariant = _config.ThemeMode;
+    }
+
+    private static void OpenLogsFolder()
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(AppLog.LogFolder);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = AppLog.LogFolder,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            // best-effort
+        }
+    }
+
+    private static async Task ExportLogs()
+    {
+        var source = AppLog.CurrentLogFile;
+        if (!System.IO.File.Exists(source))
+            return;
+
+        var target = await DialogHelper.SaveFilePicker("Export log file", System.IO.Path.GetFileName(source));
+        if (target == null)
+            return;
+
+        try
+        {
+            System.IO.File.Copy(source, target.LocalPath, overwrite: true);
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 }

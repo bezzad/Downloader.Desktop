@@ -54,6 +54,8 @@ public class DownloadItemViewModel : ViewModelBase
             if (_manager != null) await _manager.Remove(this);
         });
         OpenFolderCommand = ReactiveCommand.Create(OpenContainingFolder);
+        OpenFileCommand = ReactiveCommand.Create(OpenFile);
+        CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Url));
     }
 
     public ICommand PauseCommand { get; }
@@ -62,6 +64,8 @@ public class DownloadItemViewModel : ViewModelBase
     public ICommand RetryCommand { get; }
     public ICommand RemoveCommand { get; }
     public ICommand OpenFolderCommand { get; }
+    public ICommand OpenFileCommand { get; }
+    public ICommand CopyUrlCommand { get; }
 
     public string FileName
     {
@@ -203,6 +207,7 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(HasError));
             this.RaisePropertyChanged(nameof(DisplayName));
             this.RaisePropertyChanged(nameof(IsNamePending));
+            this.RaisePropertyChanged(nameof(ShowStatusBadge));
         }
     }
 
@@ -229,6 +234,9 @@ public class DownloadItemViewModel : ViewModelBase
 
     public string LastTry => _item.LastTry?.ToString("dd MMM yyyy");
 
+    /// <summary>Show a colored status badge for every state except active downloading (which shows %).</summary>
+    public bool ShowStatusBadge => _status != DownloadStatus.Running;
+
     public bool CanPause => Status == DownloadStatus.Running;
     public bool CanResume => Status is DownloadStatus.Paused or DownloadStatus.Stopped
         or DownloadStatus.Created or DownloadStatus.None;
@@ -238,23 +246,30 @@ public class DownloadItemViewModel : ViewModelBase
 
     public DownloadItem GetItem() => _item;
 
-    private void OpenContainingFolder()
+    private void OpenContainingFolder() => ShellOpen(_item.FolderPath);
+
+    private void OpenFile()
     {
-        var folder = _item.FolderPath;
-        if (string.IsNullOrWhiteSpace(folder))
+        var path = _item.FilePath;
+        ShellOpen(File.Exists(path) ? path : _item.FolderPath);
+    }
+
+    private static void ShellOpen(string target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
             return;
 
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = folder,
+                FileName = target,
                 UseShellExecute = true
             });
         }
         catch
         {
-            // Opening the folder is best-effort; ignore platform/shell failures.
+            // Opening is best-effort; ignore platform/shell failures.
         }
     }
 

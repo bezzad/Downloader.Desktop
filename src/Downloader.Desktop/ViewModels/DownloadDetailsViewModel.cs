@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Windows.Input;
 using Avalonia.Threading;
+using Downloader.Desktop.Services;
 using ReactiveUI;
 
 namespace Downloader.Desktop.ViewModels;
@@ -34,6 +38,11 @@ public class DownloadDetailsViewModel : ViewModelBase
         Item = item;
         _download = item?.Download;
 
+        CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
+
+        if (item != null)
+            ((INotifyPropertyChanged)item).PropertyChanged += OnItemPropertyChanged;
+
         if (_download != null)
         {
             var chunks = _download.Package?.Chunks;
@@ -44,6 +53,46 @@ public class DownloadDetailsViewModel : ViewModelBase
             _download.ChunkDownloadProgressChanged += OnChunkProgress;
         }
     }
+
+    public ICommand CopyUrlCommand { get; }
+
+    private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DownloadItemViewModel.Status) or nameof(DownloadItemViewModel.HasError))
+            Dispatcher.UIThread.Post(() =>
+            {
+                this.RaisePropertyChanged(nameof(CanEdit));
+                this.RaisePropertyChanged(nameof(HasError));
+                this.RaisePropertyChanged(nameof(ErrorMessage));
+            });
+    }
+
+    /// <summary>The source URL can be edited only while the download is not active.</summary>
+    public bool CanEdit => Item != null && Item.Status is DownloadStatus.Stopped or DownloadStatus.Failed
+        or DownloadStatus.Paused or DownloadStatus.Created or DownloadStatus.None;
+
+    public string EditableUrl
+    {
+        get => Item?.Url;
+        set { if (Item != null) Item.Url = value; this.RaisePropertyChanged(); }
+    }
+
+    /// <summary>Mirror URLs, one per line. Editable while stopped.</summary>
+    public string MirrorsText
+    {
+        get => Item?.GetItem().Mirrors is { Count: > 0 } m ? string.Join(Environment.NewLine, m) : string.Empty;
+        set
+        {
+            if (Item != null)
+                Item.GetItem().Mirrors = (value ?? string.Empty)
+                    .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+            this.RaisePropertyChanged();
+        }
+    }
+
+    public bool HasError => Item?.HasError == true;
+    public string ErrorMessage => Item?.ErrorMessage;
 
     /// <summary>Live speed cap in KB/s (0 = unlimited). Applies to the running download.</summary>
     public long SpeedLimitKb
@@ -71,10 +120,7 @@ public class DownloadDetailsViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             var part = GetOrAddPart(e.ProgressId);
-            part.Progress = e.ProgressPercentage;
-            part.Speed = e.BytesPerSecondSpeed;
-            part.Received = e.ReceivedBytesSize;
-            part.Total = e.TotalBytesToReceive;
+            part.Update(e.ProgressPercentage, e.BytesPerSecondSpeed, e.ReceivedBytesSize, e.TotalBytesToReceive);
         });
     }
 
@@ -98,6 +144,8 @@ public class DownloadDetailsViewModel : ViewModelBase
     {
         if (_download != null)
             _download.ChunkDownloadProgressChanged -= OnChunkProgress;
+        if (Item != null)
+            ((INotifyPropertyChanged)Item).PropertyChanged -= OnItemPropertyChanged;
     }
 }
 
@@ -117,44 +165,24 @@ public class ChunkProgressViewModel : ViewModelBase
     public int Index { get; }
     public string Title => $"Part {Index}";
 
-    public double Progress
+    public void Update(double progress, double speed, long received, long total)
     {
-        get => _progress;
-        set => this.RaiseAndSetIfChanged(ref _progress, value);
+        _progress = progress;
+        _speed = speed;
+        _received = received;
+        _total = total;
+        this.RaisePropertyChanged(nameof(Progress));
+        this.RaisePropertyChanged(nameof(SpeedText));
+        this.RaisePropertyChanged(nameof(DownloadedText));
+        this.RaisePropertyChanged(nameof(TotalText));
+        this.RaisePropertyChanged(nameof(StatusText));
     }
 
-    public double Speed
-    {
-        get => _speed;
-        set
-        {
-            this.RaiseAndSetIfChanged(ref _speed, value);
-            this.RaisePropertyChanged(nameof(SpeedText));
-        }
-    }
+    public double Progress => _progress;
 
-    public long Received
-    {
-        get => _received;
-        set
-        {
-            this.RaiseAndSetIfChanged(ref _received, value);
-            this.RaisePropertyChanged(nameof(RangeText));
-        }
-    }
-
-    public long Total
-    {
-        get => _total;
-        set
-        {
-            this.RaiseAndSetIfChanged(ref _total, value);
-            this.RaisePropertyChanged(nameof(RangeText));
-        }
-    }
-
-    public string RangeText => _total > 0 ? $"{FormatBytes(_received)} / {FormatBytes(_total)}" : FormatBytes(_received);
-
+    public string StatusText => _progress >= 99.99 ? "Completed" : _progress > 0 ? "Downloading" : "Pending";
+    public string DownloadedText => FormatBytes(_received);
+    public string TotalText => _total > 0 ? FormatBytes(_total) : "—";
     public string SpeedText => _speed > 0 ? FormatBytes((long)_speed) + "/s" : string.Empty;
 
     private static string FormatBytes(long bytes)
