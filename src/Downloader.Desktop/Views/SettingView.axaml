@@ -23,21 +23,22 @@
             <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
             <Setter Property="Margin" Value="0 1 0 0" />
         </Style>
-        <Style Selector="NumericUpDown.ctrl, ComboBox.ctrl, TextBox.ctrl">
+        <Style Selector="ComboBox.ctrl, TextBox.ctrl">
             <Setter Property="Width" Value="180" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <!-- Compact numeric stepper matching the download-details window (value + arrows, no wide gap) -->
+        <Style Selector="NumericUpDown.ctrl">
+            <Setter Property="Width" Value="148" />
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
         <Style Selector="ToggleSwitch">
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
-        <!-- Vertically centered, compact inputs (#16, #17) -->
+        <!-- Vertically centered inputs. NumericUpDown is intentionally NOT restyled here so it inherits
+             the global, touch-friendly stepper look used by the download-details window. -->
         <Style Selector="TextBox">
             <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="NumericUpDown">
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="MinHeight" Value="32" />
         </Style>
         <Style Selector="ComboBox">
             <Setter Property="VerticalContentAlignment" Value="Center" />

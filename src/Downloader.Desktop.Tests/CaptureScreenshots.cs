@@ -100,5 +100,12 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         vm.ShowSettingViewCommand.Execute(null);
         Save(window, "settings-dark.png");
+
+        // Details window (dark) — needs a live Configuration so the speed-limit numeric shows.
+        var detItem = manager.Items.First();
+        detItem.Configuration = new DownloadConfiguration { MaximumBytesPerSecond = 512 * 1024 };
+        var det = new DownloadDetailsView { DataContext = new DownloadDetailsViewModel(detItem) };
+        det.Show();
+        Save(det, "details-dark.png");
     }
 }

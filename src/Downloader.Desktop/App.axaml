@@ -117,22 +117,46 @@
         <Style Selector="ComboBox"><Setter Property="Cursor" Value="Hand" /></Style>
         <Style Selector="DataGridColumnHeader"><Setter Property="Cursor" Value="Hand" /></Style>
 
-        <!-- ===== Numeric stepper redesign (#1): bigger, touch-friendly, hand cursor on the arrows ===== -->
+        <!-- ===== Numeric stepper (#1): clean, compact, touch-friendly, hand cursor on the arrows =====
+             Fixed height + centered alignment keeps the stepper identical everywhere (Settings, Queues,
+             Details) instead of getting squashed in taller rows. Arrows are borderless (no clunky
+             divider boxes) with only a subtle hover highlight and slightly smaller chevrons. -->
         <Style Selector="NumericUpDown">
             <Setter Property="MinHeight" Value="34" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumLowColor}" />
         </Style>
-        <Style Selector="NumericUpDown /template/ ButtonSpinner#PART_Spinner">
-            <Setter Property="MinHeight" Value="34" />
+        <!-- Give the control one clean, visible rounded outer border (the inner ButtonSpinner draws it) -->
+        <Style Selector="NumericUpDown /template/ ButtonSpinner">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumLowColor}" />
+        </Style>
+        <Style Selector="ButtonSpinner /template/ Border#PART_BorderElement">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumLowColor}" />
         </Style>
         <!-- The increase/decrease arrows are RepeatButtons inside the ButtonSpinner template -->
         <Style Selector="ButtonSpinner /template/ RepeatButton">
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Width" Value="30" />
-            <Setter Property="MinWidth" Value="30" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="MinWidth" Value="26" />
             <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
         </Style>
-        <Style Selector="ButtonSpinner /template/ RepeatButton:pointerover">
+        <Style Selector="ButtonSpinner /template/ RepeatButton PathIcon">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+        </Style>
+        <Style Selector="ButtonSpinner /template/ RepeatButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />
         </Style>
 
