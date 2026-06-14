@@ -96,6 +96,8 @@ Rough order to turn the current skeleton into the MVP above:
    - **Versioning**: auto in csproj — `VersionPrefix` (major.minor) by hand, build/revision derived from UTC build time; shown in Settings → About.
    - **UI**: global numeric-stepper restyle (#1, hand cursor on arrows), DataGrid full-row select (no cell border), centered value columns, batch grouping (`DataGridCollectionView.GroupDescriptions` on `Group`), header-double-click no longer opens details, distinct "All downloads" icon (`AppsListRegular`), Network sub-section card, details window merged progress + add/remove **mirror editor**, folder-picker cancel returns `null` (fixes `UriFormatException`).
    - **Engine API quick-ref** is now cached in the project skill (`.claude/skills/downloader-desktop/SKILL.md`) to cut re-derivation each session.
+   - **Custom window chrome** (reverses the earlier "standard chrome" call, at the author's request): reusable `Views/TitleBar` (app icon + title + window buttons) drawn inside the client area; MainWindow + both dialogs set `ExtendClientAreaToDecorationsHint="True"` + `ExtendClientAreaTitleBarHeightHint="-1"` (note: `ExtendClientAreaChromeHints` was **removed in Avalonia 12** — don't use it). `TitleBar` drags via `BeginMoveDrag`, toggles maximize on double-tap, and finds its host with `TopLevel.GetTopLevel(this)`. Dialogs pass `ShowMinMax="False"`.
+   - **Notifications UX**: turning the Settings toggle on fires a sample notification immediately so the user can confirm it works.
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

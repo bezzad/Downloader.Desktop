@@ -13,6 +13,7 @@
         Width="1000" Height="620" MinWidth="840" MinHeight="500"
         ShowInTaskbar="True"
         FontSize="{StaticResource DefaultFontSize}"
+        WindowDecorations="None"
         Title="Downloader">
 
     <Window.KeyBindings>
@@ -26,19 +27,19 @@
         <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
     </Window.DataTemplates>
 
+    <Panel>
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
     <DockPanel>
+        <!-- ===== Custom window title bar ===== -->
+        <v:TitleBar DockPanel.Dock="Top" Title="Downloader" ShowMinMax="True" />
+
         <!-- ===== Top bar ===== -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource SystemChromeLowColor}"
                 BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 0 1"
                 Padding="14 10">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-                    <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="18"
-                              Foreground="{DynamicResource SystemAccentColor}" />
-                    <TextBlock Text="Downloader" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
-                </StackPanel>
-
-                <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="22 0" MaxWidth="640">
+            <Grid ColumnDefinitions="*,Auto">
+                <Grid Grid.Column="0" ColumnDefinitions="*,Auto" Margin="0 0 22 0" MaxWidth="640"
+                      HorizontalAlignment="Left" MinWidth="420">
                     <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
                              PlaceholderText="Paste a download link…">
@@ -56,7 +57,8 @@
                     </Button>
                 </Grid>
 
-                <TextBox Grid.Column="2" Width="200" Height="34" Text="{Binding SearchText}"
+                <TextBox Grid.Column="1" Width="200" Height="34" Text="{Binding SearchText}"
+                         HorizontalAlignment="Right"
                          CornerRadius="8" VerticalContentAlignment="Center"
                          PlaceholderText="Search" />
             </Grid>
@@ -174,4 +176,7 @@
         <!-- ===== Central content ===== -->
         <ContentControl Content="{Binding CurrentPage}" />
     </DockPanel>
+    </Border>
+    <v:ResizeGrips />
+    </Panel>
 </Window>

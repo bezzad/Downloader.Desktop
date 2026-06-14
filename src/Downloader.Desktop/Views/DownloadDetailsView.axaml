@@ -3,17 +3,24 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="680"
-        Width="640" Height="680"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="700"
+        Width="640" Height="700"
         CanResize="True" MinWidth="520" MinHeight="520"
         FontSize="{StaticResource DefaultFontSize}"
         Background="{DynamicResource ThemeBackgroundColor}"
+        Icon="/Assets/downloader.png"
         x:Class="Downloader.Desktop.Views.DownloadDetailsView"
         x:DataType="vm:DownloadDetailsViewModel"
+        WindowDecorations="None"
         WindowStartupLocation="CenterOwner"
         Title="Download details">
 
-    <Grid Margin="22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <Panel>
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
+    <DockPanel>
+    <v:TitleBar DockPanel.Dock="Top" Title="Download details" ShowMinMax="False" />
+    <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Spacing="3">
@@ -184,4 +191,8 @@
             <Button Content="Close" Padding="18 7" Click="OnCloseClick" />
         </StackPanel>
     </Grid>
+    </DockPanel>
+    </Border>
+    <v:ResizeGrips />
+    </Panel>
 </Window>

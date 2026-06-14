@@ -4,28 +4,31 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:Downloader.Desktop.ViewModels"
         xmlns:m="clr-namespace:Downloader.Desktop.Models"
-        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="440"
-        Width="560" Height="440"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="460"
+        Width="560" Height="460"
         CanResize="False"
         FontSize="{StaticResource DefaultFontSize}"
         Background="{DynamicResource ThemeBackgroundColor}"
+        Icon="/Assets/downloader.png"
         x:Class="Downloader.Desktop.Views.AddDownloadItemView"
         x:DataType="viewModels:AddDownloadItemViewModel"
+        WindowDecorations="None"
         WindowStartupLocation="CenterOwner"
         Title="Add download">
 
-    <Grid Margin="28" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
+    <DockPanel>
+    <v:TitleBar DockPanel.Dock="Top" Title="Add download" ShowMinMax="False" />
+    <Grid Margin="28 18 28 28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                   Text="Add download" FontSize="20" FontWeight="SemiBold" Margin="0 0 0 18" />
-
         <!-- Link(s) -->
-        <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="Link(s) — one per line" Margin="0 0 0 4" />
-        <TextBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="Link(s) — one per line" Margin="0 0 0 4" />
+        <TextBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                  Text="{Binding Urls, Mode=TwoWay}"
                  AcceptsReturn="True" TextWrapping="NoWrap" Height="64"
                  CornerRadius="6" Margin="0 0 0 14"
@@ -33,8 +36,8 @@
                  PlaceholderText="https://…  (paste multiple links, one per line, to download all into the folder below)" />
 
         <!-- Save folder -->
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="Save to" Margin="0 0 0 4" />
-        <Grid Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="0 0 0 14">
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Save to" Margin="0 0 0 4" />
+        <Grid Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="0 0 0 14">
             <TextBox Grid.Column="0" Text="{Binding StorageFolderPath, Mode=TwoWay}"
                      CornerRadius="6" VerticalContentAlignment="Center"
                      PlaceholderText="Choose a folder" />
@@ -46,7 +49,7 @@
         </Grid>
 
         <!-- Optional file name + queue -->
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Spacing="10" VerticalAlignment="Top">
+        <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Spacing="10" VerticalAlignment="Top">
             <StackPanel Spacing="4" IsVisible="{Binding !IsMultiple}">
                 <TextBlock Text="File name (optional)" />
                 <TextBox Text="{Binding Filename, Mode=TwoWay}"
@@ -68,7 +71,7 @@
         </StackPanel>
 
         <!-- Actions -->
-        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0 16 0 0">
             <Button Content="Download" Padding="20 8" Cursor="Hand"
                     HorizontalContentAlignment="Center"
@@ -77,4 +80,6 @@
                     Command="{Binding StartDownloadCommand}" />
         </StackPanel>
     </Grid>
+    </DockPanel>
+    </Border>
 </Window>
