@@ -29,6 +29,7 @@ public class SettingViewModel : ViewModelBase
         OpenLogsFolderCommand = ReactiveCommand.Create(OpenLogsFolder);
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
+        ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
     }
 
     public ICommand SelectSavePathCommand { get; }
@@ -36,6 +37,24 @@ public class SettingViewModel : ViewModelBase
     public ICommand OpenLogsFolderCommand { get; }
     public ICommand ExportLogsCommand { get; }
     public ICommand EmailLogsCommand { get; }
+    public ICommand ResetDefaultsCommand { get; }
+
+    /// <summary>Restores every setting (and the theme) to its default value.</summary>
+    private void ResetDefaults()
+    {
+        _config.Settings = DownloadSettings.New();
+        _config.ThemeMode = ThemeVariant.Light;
+
+        // Re-apply settings that affect runtime services immediately.
+        AppLog.SetEnabled(S.EnableLogging);
+        NotificationService.Enabled = S.EnableNotifications;
+        if (Application.Current?.Styles[0] is FluentTheme)
+            Application.Current.RequestedThemeVariant = _config.ThemeMode;
+
+        // Empty name tells the bindings every property changed, refreshing the whole page
+        // (and triggering the debounced save wired to SettingViewModel.PropertyChanged).
+        this.RaisePropertyChanged(string.Empty);
+    }
 
     /// <summary>App version (auto-generated at build time, #16), shown in the About card.</summary>
     public string AppVersion =>

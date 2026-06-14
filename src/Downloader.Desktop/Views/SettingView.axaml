@@ -47,7 +47,17 @@
 
     <ScrollViewer>
         <StackPanel Spacing="16" MaxWidth="680" Margin="28 22" HorizontalAlignment="Stretch">
-            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Settings" FontSize="22" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1" Command="{Binding ResetDefaultsCommand}" Padding="12 7"
+                        ToolTip.Tip="Restore every setting to its default value">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <PathIcon Data="{StaticResource OptionsRegular}" Height="14" />
+                        <TextBlock Text="Reset to defaults" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </Grid>
 
             <!-- ===== General ===== -->
             <Border Classes="card">
