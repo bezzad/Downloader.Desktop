@@ -88,6 +88,8 @@ public class DownloadManager : IDownloadManager
     public void Initialize(Config config)
     {
         _config = config ?? Config.New();
+        foreach (var existing in Items)
+            existing.Detach();
         Items.Clear();
         foreach (var item in _config.Downloads ?? new List<DownloadItem>())
         {
@@ -322,6 +324,7 @@ public class DownloadManager : IDownloadManager
             // best-effort stop before removal
         }
 
+        vm.Detach();
         Items.Remove(vm);
         NotifyList();
         return Task.CompletedTask;
@@ -344,7 +347,10 @@ public class DownloadManager : IDownloadManager
     public void ClearCompleted()
     {
         foreach (var vm in Items.Where(v => v.IsCompleted).ToList())
+        {
+            vm.Detach();
             Items.Remove(vm);
+        }
         NotifyList();
     }
 
@@ -464,6 +470,11 @@ public class DownloadManager : IDownloadManager
 
             OnUi(() =>
             {
+                // Ignore late progress events once the user paused/stopped the item, otherwise the
+                // engine's final 0-ish event would wipe the bar — a paused row must keep its last fill.
+                if (vm.Status != DownloadStatus.Running)
+                    return;
+
                 vm.Progress = e.ProgressPercentage;
                 vm.Speed = e.BytesPerSecondSpeed;
                 vm.Downloaded = e.ReceivedBytesSize;

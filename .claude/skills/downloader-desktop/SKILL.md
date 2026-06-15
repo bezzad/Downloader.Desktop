@@ -18,6 +18,14 @@ Treat this file as a living cache. **Whenever you discover something non-obvious
 - **Multi-URL / mirrors** are first-class: `DownloadFileTaskAsync(string[] urls, DirectoryInfo folder, ct)` (auto-resolves name), `(string[] urls, string fileName, ct)`, and package overloads. `DownloadPackage.Urls` is `string[]`. So the data model should carry `List<string> Urls` (first = primary, rest = mirrors), not a separate `Url` + `Mirrors`.
 - Filename still auto-resolves from URL/Content-Disposition; read it from `DownloadStartedEventArgs.FileName` (full path).
 
+## Localization (i18n) — how it works here
+- `Services/Localizer` (singleton) loads `Assets/i18n/{lang}.json` (en, fa, es, fr, ar, eo) via `AssetLoader`; English is the fallback. Active language persists in `DownloadSettings.Language`; load it at startup in `MainViewModel` and switch it from Settings (`SelectedLanguage`).
+- **XAML usage:** `Text="{i18n:Tr Some_Key}"` (xmlns `i18n="clr-namespace:Downloader.Desktop.Markup"`). VM strings: `Localizer.Instance["Key"]`. Format strings use `{0}` + `string.Format`.
+- **Live-switch gotcha (important):** Avalonia indexer-change notifications (`"Item[]"`/empty `PropertyChanged`) do NOT reliably refresh already-rendered `[key]` bindings. Instead `{i18n:Tr}` binds to `Localizer.Tick` (a normal int bumped each `Load`) through `TrConverter`, which DOES refresh. Don't revert to a raw indexer binding.
+- **RTL:** `Localizer.FlowDirection` is RightToLeft for fa/ar; each Window binds `FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"` (UserControls inherit it). 
+- VM-computed localized strings (row StatusText/DisplayName/Group, details headers) subscribe to `Localizer.PropertyChanged` and re-raise; `DownloadItemViewModel.Detach()` unsubscribes on removal (called by the manager) to avoid leaks.
+- Adding a key: add to `en.json` first (it's the fallback), then translate into the other 5. Missing keys fall back to English gracefully.
+
 ## Avalonia 12 gotchas worth caching
 - **Custom window chrome**: `ExtendClientAreaChromeHints` was **removed in Avalonia 12** (compile error AVLN2000). Use only `ExtendClientAreaToDecorationsHint="True"` + `ExtendClientAreaTitleBarHeightHint="-1"`, then draw your own bar (see `Views/TitleBar`). OS resize/snap still works. Drag = `host.BeginMoveDrag(e)` on left-button `PointerPressed`; get the window via `TopLevel.GetTopLevel(this) as Window`.
 - All three windows (MainWindow, AddDownloadItemView, DownloadDetailsView) use `TitleBar`; dialogs set `ShowMinMax="False"`.

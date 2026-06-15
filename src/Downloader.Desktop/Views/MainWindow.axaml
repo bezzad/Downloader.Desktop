@@ -2,6 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Downloader.Desktop.ViewModels"
         xmlns:v="using:Downloader.Desktop.Views"
+        xmlns:i18n="using:Downloader.Desktop.Markup"
+        xmlns:services="using:Downloader.Desktop.Services"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="620"
@@ -14,6 +16,7 @@
         ShowInTaskbar="True"
         FontSize="{StaticResource DefaultFontSize}"
         WindowDecorations="None"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Downloader">
 
     <Window.KeyBindings>
@@ -42,7 +45,7 @@
                       HorizontalAlignment="Left" MinWidth="420">
                     <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
-                             PlaceholderText="Paste a download link…">
+                             PlaceholderText="{i18n:Tr Top_PasteLink}">
                         <TextBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding AddDownloadItemCommand}" />
                         </TextBox.KeyBindings>
@@ -52,7 +55,7 @@
                             Command="{Binding AddDownloadItemCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <PathIcon Data="{StaticResource AddRegular}" Height="12" />
-                            <TextBlock Text="Add" VerticalAlignment="Center" />
+                            <TextBlock Text="{i18n:Tr Top_Add}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -60,7 +63,7 @@
                 <TextBox Grid.Column="1" Width="200" Height="34" Text="{Binding SearchText}"
                          HorizontalAlignment="Right"
                          CornerRadius="8" VerticalContentAlignment="Center"
-                         PlaceholderText="Search" />
+                         PlaceholderText="{i18n:Tr Top_Search}" />
             </Grid>
         </Border>
 
@@ -76,12 +79,18 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                    <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
-                               Text="{Binding ActiveCount, StringFormat='{}{0} downloading'}" />
-                    <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
-                               Text="{Binding QueuedCount, StringFormat='{}{0} queued'}" />
-                    <TextBlock Foreground="{DynamicResource SystemBaseMediumColor}"
-                               Text="{Binding CompletedCount, StringFormat='{}{0} done'}" />
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="{Binding ActiveCount}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                        <TextBlock Text="{i18n:Tr Status_Downloading}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="{Binding QueuedCount}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                        <TextBlock Text="{i18n:Tr Status_Queued}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="{Binding CompletedCount}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                        <TextBlock Text="{i18n:Tr Status_Done}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
@@ -93,18 +102,18 @@
                 Padding="8 12">
             <DockPanel>
                 <Button DockPanel.Dock="Top" Classes="icon" Command="{Binding ToggleSidebarCommand}"
-                        HorizontalAlignment="Left" Margin="4 0 0 8" ToolTip.Tip="Collapse / expand menu">
+                        HorizontalAlignment="Left" Margin="4 0 0 8" ToolTip.Tip="{i18n:Tr Nav_ToggleMenu}">
                     <PathIcon Data="{StaticResource MenuRegular}" />
                 </Button>
 
                 <StackPanel Spacing="1">
-                    <TextBlock Classes="section" Text="STATUS" IsVisible="{Binding IsSidebarExpanded}" />
+                    <TextBlock Classes="section" Text="{i18n:Tr Nav_Status}" IsVisible="{Binding IsSidebarExpanded}" />
 
                     <Button Classes="nav" Classes.selected="{Binding IsAllSelected}" Command="{Binding ShowAllCommand}"
-                            ToolTip.Tip="All downloads">
+                            ToolTip.Tip="{i18n:Tr Nav_AllDownloads}">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <PathIcon Grid.Column="0" Data="{StaticResource AppsListRegular}" />
-                            <TextBlock Grid.Column="1" Text="All downloads" VerticalAlignment="Center" Margin="10 0 0 0"
+                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_AllDownloads}" VerticalAlignment="Center" Margin="10 0 0 0"
                                        IsVisible="{Binding IsSidebarExpanded}" />
                             <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
                                 <TextBlock Text="{Binding AllCount}" FontSize="11" />
@@ -112,10 +121,10 @@
                         </Grid>
                     </Button>
                     <Button Classes="nav" Classes.selected="{Binding IsActiveSelected}" Command="{Binding ShowActiveCommand}"
-                            ToolTip.Tip="Active">
+                            ToolTip.Tip="{i18n:Tr Nav_Active}">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <PathIcon Grid.Column="0" Data="{StaticResource ArrowDownloadRegular}" />
-                            <TextBlock Grid.Column="1" Text="Active" VerticalAlignment="Center" Margin="10 0 0 0"
+                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_Active}" VerticalAlignment="Center" Margin="10 0 0 0"
                                        IsVisible="{Binding IsSidebarExpanded}" />
                             <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
                                 <TextBlock Text="{Binding ActiveFilterCount}" FontSize="11" />
@@ -123,10 +132,10 @@
                         </Grid>
                     </Button>
                     <Button Classes="nav" Classes.selected="{Binding IsCompletedSelected}" Command="{Binding ShowCompletedCommand}"
-                            ToolTip.Tip="Completed">
+                            ToolTip.Tip="{i18n:Tr Nav_Completed}">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <PathIcon Grid.Column="0" Data="{StaticResource CheckmarkRegular}" />
-                            <TextBlock Grid.Column="1" Text="Completed" VerticalAlignment="Center" Margin="10 0 0 0"
+                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_Completed}" VerticalAlignment="Center" Margin="10 0 0 0"
                                        IsVisible="{Binding IsSidebarExpanded}" />
                             <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
                                 <TextBlock Text="{Binding CompletedFilterCount}" FontSize="11" />
@@ -134,10 +143,10 @@
                         </Grid>
                     </Button>
                     <Button Classes="nav" Classes.selected="{Binding IsFailedSelected}" Command="{Binding ShowFailedCommand}"
-                            ToolTip.Tip="Failed / stopped">
+                            ToolTip.Tip="{i18n:Tr Nav_Failed}">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <PathIcon Grid.Column="0" Data="{StaticResource WarningRegular}" />
-                            <TextBlock Grid.Column="1" Text="Failed / stopped" VerticalAlignment="Center" Margin="10 0 0 0"
+                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_Failed}" VerticalAlignment="Center" Margin="10 0 0 0"
                                        IsVisible="{Binding IsSidebarExpanded}" />
                             <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
                                 <TextBlock Text="{Binding FailedFilterCount}" FontSize="11" />
@@ -145,28 +154,28 @@
                         </Grid>
                     </Button>
 
-                    <TextBlock Classes="section" Text="MANAGE" Margin="4 16 0 2" IsVisible="{Binding IsSidebarExpanded}" />
+                    <TextBlock Classes="section" Text="{i18n:Tr Nav_Manage}" Margin="4 16 0 2" IsVisible="{Binding IsSidebarExpanded}" />
                     <Separator Margin="6 10" IsVisible="{Binding !IsSidebarExpanded}" />
 
                     <Button Classes="nav" Classes.selected="{Binding IsQueuesSelected}" Command="{Binding ShowQueuesCommand}"
-                            ToolTip.Tip="Queues">
+                            ToolTip.Tip="{i18n:Tr Nav_Queues}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <PathIcon Data="{StaticResource TabsRegular}" />
-                            <TextBlock Text="Queues" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
+                            <TextBlock Text="{i18n:Tr Nav_Queues}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav" Classes.selected="{Binding IsSchedulerSelected}" Command="{Binding ShowSchedulerCommand}"
-                            ToolTip.Tip="Scheduler">
+                            ToolTip.Tip="{i18n:Tr Nav_Scheduler}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <PathIcon Data="{StaticResource ClockRegular}" />
-                            <TextBlock Text="Scheduler" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
+                            <TextBlock Text="{i18n:Tr Nav_Scheduler}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav" Classes.selected="{Binding IsSettingsSelected}" Command="{Binding ShowSettingViewCommand}"
-                            ToolTip.Tip="Settings">
+                            ToolTip.Tip="{i18n:Tr Nav_Settings}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <PathIcon Data="{StaticResource SettingsRegular}" />
-                            <TextBlock Text="Settings" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
+                            <TextBlock Text="{i18n:Tr Nav_Settings}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>

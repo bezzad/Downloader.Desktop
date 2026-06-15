@@ -4,6 +4,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
         xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
         mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="700"
         Width="640" Height="700"
         CanResize="True" MinWidth="520" MinHeight="520"
@@ -14,12 +16,13 @@
         x:DataType="vm:DownloadDetailsViewModel"
         WindowDecorations="None"
         WindowStartupLocation="CenterOwner"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Download details">
 
     <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
     <DockPanel>
-    <v:TitleBar DockPanel.Dock="Top" Title="Download details" ShowMinMax="False" />
+    <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Det_Title}" ShowMinMax="False" />
     <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
         <!-- Header -->
@@ -31,9 +34,9 @@
         <Border Grid.Row="1" Classes="card" Margin="0 12 0 0">
             <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Source URL" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="0" Text="{i18n:Tr Det_SourceUrl}" VerticalAlignment="Center"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    <Button Grid.Column="1" Classes="icon" Command="{Binding CopyUrlCommand}" ToolTip.Tip="Copy URL">
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding CopyUrlCommand}" ToolTip.Tip="{i18n:Tr Action_CopyUrl}">
                         <PathIcon Data="{StaticResource ListRegular}" Height="14" />
                     </Button>
                 </Grid>
@@ -42,7 +45,7 @@
                 <Expander Header="{Binding MirrorsHeader}" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Stretch">
                     <StackPanel Spacing="6" Margin="0 6 0 0" HorizontalAlignment="Stretch">
-                        <TextBlock Text="Extra sources for the same file, used as fallbacks. Editable while the download is stopped."
+                        <TextBlock Text="{i18n:Tr Det_Mirrors_Hint}"
                                    Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="11" TextWrapping="Wrap" />
                         <ItemsControl ItemsSource="{Binding Mirrors}" HorizontalAlignment="Stretch">
                             <ItemsControl.ItemTemplate>
@@ -51,16 +54,16 @@
                                         <TextBox Grid.Column="0" Text="{Binding Url, Mode=TwoWay}"
                                                  IsEnabled="{Binding $parent[ItemsControl].((vm:DownloadDetailsViewModel)DataContext).CanEdit}"
                                                  CornerRadius="6" VerticalContentAlignment="Center"
-                                                 PlaceholderText="https://mirror/..." />
+                                                 PlaceholderText="{i18n:Tr Det_MirrorPlaceholder}" />
                                         <Button Grid.Column="1" Classes="icon" Margin="6 0 0 0"
-                                                Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this mirror">
+                                                Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Det_RemoveMirror}">
                                             <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
                                         </Button>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Content="+ Add mirror" Command="{Binding AddMirrorCommand}"
+                        <Button Content="{i18n:Tr Det_AddMirror}" Command="{Binding AddMirrorCommand}"
                                 IsEnabled="{Binding CanEdit}" HorizontalAlignment="Left" Padding="12 6" />
                     </StackPanel>
                 </Expander>
@@ -80,7 +83,7 @@
         <Border Grid.Row="3" Classes="card" Margin="0 12 0 0">
             <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                    <TextBlock Grid.Column="0" Text="Status" Margin="0 0 10 0"
+                    <TextBlock Grid.Column="0" Text="{i18n:Tr Det_Status}" Margin="0 0 10 0"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
                     <TextBlock Grid.Column="1" Text="{Binding Item.StatusText}" />
                     <TextBlock Grid.Column="2" Text="{Binding Item.SizeText}" Margin="0 0 10 0"
@@ -118,22 +121,22 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                                 IsVisible="{Binding HasConfig}">
-                        <TextBlock Text="Speed limit (KB/s)" VerticalAlignment="Center"
+                        <TextBlock Text="{i18n:Tr Det_SpeedLimit}" VerticalAlignment="Center"
                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                         <NumericUpDown Value="{Binding SpeedLimitKb}" Minimum="0" Increment="128"
                                        FormatString="N0" Width="140" VerticalContentAlignment="Center" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-                        <Button Classes="icon" Command="{Binding Item.PauseCommand}" IsVisible="{Binding Item.CanPause}" ToolTip.Tip="Pause">
+                        <Button Classes="icon" Command="{Binding Item.PauseCommand}" IsVisible="{Binding Item.CanPause}" ToolTip.Tip="{i18n:Tr Action_Pause}">
                             <PathIcon Data="{DynamicResource PauseRegular}" />
                         </Button>
-                        <Button Classes="icon" Command="{Binding Item.ResumeCommand}" IsVisible="{Binding Item.CanResume}" ToolTip.Tip="Resume">
+                        <Button Classes="icon" Command="{Binding Item.ResumeCommand}" IsVisible="{Binding Item.CanResume}" ToolTip.Tip="{i18n:Tr Action_Resume}">
                             <PathIcon Data="{DynamicResource PlayRegular}" />
                         </Button>
-                        <Button Classes="icon" Command="{Binding Item.CancelCommand}" IsVisible="{Binding Item.IsActive}" ToolTip.Tip="Stop">
+                        <Button Classes="icon" Command="{Binding Item.CancelCommand}" IsVisible="{Binding Item.IsActive}" ToolTip.Tip="{i18n:Tr Action_Stop}">
                             <PathIcon Data="{DynamicResource StopRegular}" />
                         </Button>
-                        <Button Classes="icon" Command="{Binding Item.OpenFolderCommand}" ToolTip.Tip="Open folder">
+                        <Button Classes="icon" Command="{Binding Item.OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
                             <PathIcon Data="{DynamicResource FolderRegular}" />
                         </Button>
                     </StackPanel>
@@ -145,13 +148,13 @@
         <Border Grid.Row="4" Classes="card" Margin="0 12 0 0">
             <DockPanel>
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0 0 0 8">
-                    <TextBlock Grid.Column="0" Classes="section" Text="CONNECTIONS" />
+                    <TextBlock Grid.Column="0" Classes="section" Text="{i18n:Tr Det_Connections}" />
                     <TextBlock Grid.Column="1" Text="{Binding PartsSummary}"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
                 </Grid>
 
                 <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
-                           Text="Connections appear here while the file is downloading."
+                           Text="{i18n:Tr Det_ConnAppear}"
                            Foreground="{DynamicResource SystemBaseMediumColor}" TextWrapping="Wrap" />
 
                 <DataGrid ItemsSource="{Binding Parts}" AutoGenerateColumns="False" IsReadOnly="True"
@@ -159,22 +162,22 @@
                           HeadersVisibility="Column" Background="Transparent"
                           BorderThickness="0">
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="#" Width="50">
+                        <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Index}" Width="50">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="vm:ChunkProgressViewModel">
                                     <TextBlock Text="{Binding Index}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Status" Binding="{ReflectionBinding StatusText}" Width="*" />
-                        <DataGridTemplateColumn Header="Downloaded" Width="120">
+                        <DataGridTextColumn Header="{i18n:Tr Det_Col_Status}" Binding="{ReflectionBinding StatusText}" Width="*" />
+                        <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Downloaded}" Width="120">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="vm:ChunkProgressViewModel">
                                     <TextBlock Text="{Binding DownloadedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="Total" Width="120">
+                        <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Total}" Width="120">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="vm:ChunkProgressViewModel">
                                     <TextBlock Text="{Binding TotalText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -188,7 +191,7 @@
 
         <!-- Footer -->
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 14 0 0">
-            <Button Content="Close" Padding="18 7" Click="OnCloseClick" />
+            <Button Content="{i18n:Tr Btn_Close}" Padding="18 7" Click="OnCloseClick" />
         </StackPanel>
     </Grid>
     </DockPanel>

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -92,6 +93,22 @@ public class SettingViewModel : ViewModelBase
                     "Notifications enabled",
                     "You'll get a desktop alert here when a download completes or fails.",
                     isError: false);
+        }
+    }
+
+    // ---- Language ----
+    public System.Collections.Generic.IReadOnlyList<LanguageOption> Languages => Localizer.Languages;
+
+    public LanguageOption SelectedLanguage
+    {
+        get => Languages.FirstOrDefault(l => string.Equals(l.Code, S.Language, StringComparison.OrdinalIgnoreCase))
+               ?? Languages[0];
+        set
+        {
+            if (value == null) return;
+            S.Language = value.Code;
+            Localizer.Instance.Load(value.Code); // switches every bound string + RTL live
+            this.RaisePropertyChanged();
         }
     }
 

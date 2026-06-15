@@ -137,6 +137,7 @@ public class MainViewModel : ViewModelBase
         _config = (await _fileService.LoadFromFileAsync()).EnsureValid();
         AppLog.SetEnabled(_config.Settings.EnableLogging);
         NotificationService.Enabled = _config.Settings.EnableNotifications;
+        Localizer.Instance.Load(_config.Settings.Language);
         Application.Current!.RequestedThemeVariant = _config.ThemeMode;
 
         _downloadManager.Initialize(_config);

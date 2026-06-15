@@ -101,6 +101,12 @@ public class CaptureScreenshots
         vm.ShowSettingViewCommand.Execute(null);
         Save(window, "settings-dark.png");
 
+        // Persian (RTL) home to verify translation + right-to-left mirroring.
+        Localizer.Instance.Load("fa");
+        vm.ShowAllCommand.Execute(null);
+        Save(window, "home-fa-dark.png");
+        Localizer.Instance.Load("en");
+
         // Details window (dark) — needs a live Configuration so the speed-limit numeric shows.
         var detItem = manager.Items.First();
         detItem.Configuration = new DownloadConfiguration { MaximumBytesPerSecond = 512 * 1024 };

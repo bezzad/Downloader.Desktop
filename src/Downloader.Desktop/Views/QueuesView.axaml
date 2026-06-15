@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
              xmlns:conv="clr-namespace:Downloader.Desktop.Converters"
+             xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
              mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="560"
              x:Class="Downloader.Desktop.Views.QueuesView"
              x:DataType="vm:QueuesViewModel">
@@ -12,11 +13,11 @@
         <StackPanel Spacing="14">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Queues" FontSize="22" FontWeight="SemiBold" />
-                    <TextBlock Text="A queue groups downloads and limits how many run at the same time. Pause a whole queue, or set its limit."
+                    <TextBlock Text="{i18n:Tr Queues_Title}" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="{i18n:Tr Queues_Desc}"
                                Foreground="{DynamicResource SystemBaseMediumColor}" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
                 </StackPanel>
-                <Button Grid.Column="1" Classes="accent" Content="New queue" Padding="14 8"
+                <Button Grid.Column="1" Classes="accent" Content="{i18n:Tr Queues_Add}" Padding="14 8"
                         VerticalAlignment="Top" Command="{Binding NewQueueCommand}" />
             </Grid>
 
@@ -34,12 +35,12 @@
                                 <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
                                     <TextBox Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15"
                                              CornerRadius="6" VerticalContentAlignment="Center" MaxWidth="320"
-                                             HorizontalAlignment="Left" ToolTip.Tip="Queue name" />
+                                             HorizontalAlignment="Left" ToolTip.Tip="{i18n:Tr Queues_Name}" />
                                     <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsRunning}"
-                                                  OffContent="Paused" OnContent="Running" VerticalAlignment="Center"
-                                                  ToolTip.Tip="Pause or run this whole queue" />
+                                                  OffContent="{i18n:Tr Queues_Paused}" OnContent="{i18n:Tr Queues_Running}" VerticalAlignment="Center"
+                                                  ToolTip.Tip="{i18n:Tr Queues_ToggleTip}" />
                                     <Button Grid.Column="2" Classes="icon" Command="{Binding RemoveCommand}"
-                                            ToolTip.Tip="Delete queue (its downloads move to another queue)" Margin="8 0 0 0">
+                                            ToolTip.Tip="{i18n:Tr Queues_DeleteTip}" Margin="8 0 0 0">
                                         <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
                                     </Button>
                                 </Grid>
@@ -49,7 +50,7 @@
 
                                 <!-- Concurrency limit -->
                                 <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <TextBlock Text="Run at the same time:" VerticalAlignment="Center" />
+                                    <TextBlock Text="{i18n:Tr Queues_RunSameTime}" VerticalAlignment="Center" />
                                     <NumericUpDown Value="{Binding MaxConcurrent}" Minimum="1" Maximum="20" Increment="1"
                                                    FormatString="N0" Width="120" VerticalContentAlignment="Center" />
                                 </StackPanel>
@@ -57,7 +58,7 @@
                                 <!-- Items in this queue -->
                                 <Border Background="{DynamicResource SystemListLowColor}" CornerRadius="8" Padding="12 8">
                                     <StackPanel Spacing="2">
-                                        <TextBlock Text="No downloads in this queue yet." IsVisible="{Binding IsEmpty}"
+                                        <TextBlock Text="{i18n:Tr Queues_Empty}" IsVisible="{Binding IsEmpty}"
                                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                                         <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>

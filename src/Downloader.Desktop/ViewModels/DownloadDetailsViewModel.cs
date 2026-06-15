@@ -24,8 +24,10 @@ public class DownloadDetailsViewModel : ViewModelBase
     public DownloadItemViewModel Item { get; }
     public ObservableCollection<ChunkProgressViewModel> Parts { get; } = new();
 
+    private static string L(string key) => Localizer.Instance[key];
+
     public bool HasParts => Parts.Count > 0;
-    public string PartsSummary => Parts.Count > 0 ? $"{Parts.Count} connections" : string.Empty;
+    public string PartsSummary => Parts.Count > 0 ? string.Format(L("Det_ConnCount"), Parts.Count) : string.Empty;
     public bool HasConfig => Item?.Configuration != null;
     public int Connections => Item?.Configuration?.ChunkCount ?? 0;
 
@@ -66,7 +68,7 @@ public class DownloadDetailsViewModel : ViewModelBase
     /// <summary>Editable mirror URLs (each a row with its own remove button in the UI). (#7)</summary>
     public ObservableCollection<MirrorEntryViewModel> Mirrors { get; } = new();
 
-    public string MirrorsHeader => $"Mirror URLs ({Mirrors.Count})";
+    public string MirrorsHeader => string.Format(L("Det_Mirrors"), Mirrors.Count);
 
     private void AddMirror(string url, bool sync = true)
     {
@@ -229,7 +231,9 @@ public class ChunkProgressViewModel : ViewModelBase
 
     public double Progress => _progress;
 
-    public string StatusText => _progress >= 99.99 ? "Completed" : _progress > 0 ? "Downloading" : "Pending";
+    public string StatusText => _progress >= 99.99
+        ? Localizer.Instance["State_Completed"]
+        : _progress > 0 ? Localizer.Instance["State_Downloading"] : Localizer.Instance["State_Pending"];
     public string DownloadedText => FormatBytes(_received);
     public string TotalText => _total > 0 ? FormatBytes(_total) : "—";
     public string SpeedText => _speed > 0 ? FormatBytes((long)_speed) + "/s" : string.Empty;
