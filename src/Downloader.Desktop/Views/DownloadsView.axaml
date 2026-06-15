@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
              xmlns:conv="clr-namespace:Downloader.Desktop.Converters"
+             xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="460"
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
@@ -12,30 +13,30 @@
         <!-- Selection toolbar -->
         <Border DockPanel.Dock="Top" Margin="0 0 0 8">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <CheckBox Content="Select all" IsChecked="{Binding SelectAll, Mode=TwoWay}"
+                <CheckBox Content="{i18n:Tr Grid_SelectAll}" IsChecked="{Binding SelectAll, Mode=TwoWay}"
                           VerticalAlignment="Center" Margin="2 0 8 0" />
-                <Button Classes="icon" Command="{Binding StartSelectedCommand}" ToolTip.Tip="Start selected">
+                <Button Classes="icon" Command="{Binding StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <PathIcon Data="{DynamicResource PlayRegular}" />
-                        <TextBlock Text="Start" VerticalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Start}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Button Classes="icon" Command="{Binding PauseSelectedCommand}" ToolTip.Tip="Pause selected">
+                <Button Classes="icon" Command="{Binding PauseSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Pause}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <PathIcon Data="{DynamicResource PauseRegular}" />
-                        <TextBlock Text="Pause" VerticalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Pause}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Button Classes="icon" Command="{Binding StopSelectedCommand}" ToolTip.Tip="Stop selected">
+                <Button Classes="icon" Command="{Binding StopSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Stop}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <PathIcon Data="{DynamicResource StopRegular}" />
-                        <TextBlock Text="Stop" VerticalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Stop}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Button Classes="icon" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Remove selected">
+                <Button Classes="icon" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
-                        <TextBlock Text="Remove" VerticalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Remove}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -91,17 +92,17 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="FileName">
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Name}" Width="*" SortMemberPath="FileName">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
                                 <StackPanel.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Copy URL" Command="{Binding CopyUrlCommand}" />
-                                        <MenuItem Header="Open file" Command="{Binding OpenFileCommand}" />
-                                        <MenuItem Header="Open folder" Command="{Binding OpenFolderCommand}" />
+                                        <MenuItem Header="{i18n:Tr Action_CopyUrl}" Command="{Binding CopyUrlCommand}" />
+                                        <MenuItem Header="{i18n:Tr Action_OpenFile}" Command="{Binding OpenFileCommand}" />
+                                        <MenuItem Header="{i18n:Tr Action_OpenFolder}" Command="{Binding OpenFolderCommand}" />
                                         <Separator />
-                                        <MenuItem Header="Remove" Command="{Binding RemoveCommand}" />
+                                        <MenuItem Header="{i18n:Tr Action_Remove}" Command="{Binding RemoveCommand}" />
                                     </ContextMenu>
                                 </StackPanel.ContextMenu>
                                 <PathIcon Data="{Binding FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
@@ -116,7 +117,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Size" Width="90" SortMemberPath="Size">
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Size}" Width="90" SortMemberPath="Size">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -124,7 +125,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Progress" Width="170" SortMemberPath="Progress">
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Progress}" Width="170" SortMemberPath="Progress">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0" Spacing="3">
@@ -143,7 +144,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Speed" Width="90" SortMemberPath="Speed">
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Speed}" Width="90" SortMemberPath="Speed">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <TextBlock Text="{Binding SpeedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -156,25 +157,25 @@
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                         Spacing="1" VerticalAlignment="Center">
-                                <Button Classes="icon" Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}" ToolTip.Tip="Pause">
+                                <Button Classes="icon" Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}" ToolTip.Tip="{i18n:Tr Action_Pause}">
                                     <PathIcon Data="{DynamicResource PauseRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" ToolTip.Tip="Resume">
+                                <Button Classes="icon" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" ToolTip.Tip="{i18n:Tr Action_Resume}">
                                     <PathIcon Data="{DynamicResource PlayRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" ToolTip.Tip="Retry">
+                                <Button Classes="icon" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" ToolTip.Tip="{i18n:Tr Action_Retry}">
                                     <PathIcon Data="{DynamicResource PlayRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" ToolTip.Tip="Stop">
+                                <Button Classes="icon" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" ToolTip.Tip="{i18n:Tr Action_Stop}">
                                     <PathIcon Data="{DynamicResource StopRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding OpenFileCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="Open file">
+                                <Button Classes="icon" Command="{Binding OpenFileCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="{i18n:Tr Action_OpenFile}">
                                     <PathIcon Data="{DynamicResource DocumentRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Open folder">
+                                <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
                                     <PathIcon Data="{DynamicResource FolderRegular}" />
                                 </Button>
-                                <Button Classes="icon" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove">
+                                <Button Classes="icon" Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
                                     <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
                                 </Button>
                             </StackPanel>
@@ -189,9 +190,9 @@
                     Spacing="8" IsHitTestVisible="False">
             <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="40"
                       Foreground="{DynamicResource SystemBaseMediumLowColor}" />
-            <TextBlock Text="No downloads yet" FontSize="16" FontWeight="SemiBold"
+            <TextBlock Text="{i18n:Tr Empty_Title}" FontSize="16" FontWeight="SemiBold"
                        HorizontalAlignment="Center" />
-            <TextBlock Text="Paste a link in the box above and click Add to begin."
+            <TextBlock Text="{i18n:Tr Empty_Hint}"
                        Foreground="{DynamicResource SystemBaseMediumColor}" HorizontalAlignment="Center" />
         </StackPanel>
         </Panel>

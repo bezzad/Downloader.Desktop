@@ -5,6 +5,8 @@
         xmlns:viewModels="clr-namespace:Downloader.Desktop.ViewModels"
         xmlns:m="clr-namespace:Downloader.Desktop.Models"
         xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
         mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="460"
         Width="560" Height="460"
         CanResize="False"
@@ -15,11 +17,12 @@
         x:DataType="viewModels:AddDownloadItemViewModel"
         WindowDecorations="None"
         WindowStartupLocation="CenterOwner"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Add download">
 
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
     <DockPanel>
-    <v:TitleBar DockPanel.Dock="Top" Title="Add download" ShowMinMax="False" />
+    <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Add_Title}" ShowMinMax="False" />
     <Grid Margin="28 18 28 28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -27,23 +30,23 @@
         </Grid.ColumnDefinitions>
 
         <!-- Link(s) -->
-        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="Link(s) — one per line" Margin="0 0 0 4" />
+        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="{i18n:Tr Add_Links}" Margin="0 0 0 4" />
         <TextBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                  Text="{Binding Urls, Mode=TwoWay}"
                  AcceptsReturn="True" TextWrapping="NoWrap" Height="64"
                  CornerRadius="6" Margin="0 0 0 14"
                  VerticalContentAlignment="Top"
-                 PlaceholderText="https://…  (paste multiple links, one per line, to download all into the folder below)" />
+                 PlaceholderText="{i18n:Tr Add_LinksPlaceholder}" />
 
         <!-- Save folder -->
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Save to" Margin="0 0 0 4" />
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="{i18n:Tr Add_SaveTo}" Margin="0 0 0 4" />
         <Grid Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="0 0 0 14">
             <TextBox Grid.Column="0" Text="{Binding StorageFolderPath, Mode=TwoWay}"
                      CornerRadius="6" VerticalContentAlignment="Center"
-                     PlaceholderText="Choose a folder" />
+                     PlaceholderText="{i18n:Tr Add_ChooseFolder}" />
             <Button Grid.Column="1" Margin="8 0 0 0" Padding="10"
                     Command="{Binding SelectFileStoragePathCommand}"
-                    ToolTip.Tip="Browse">
+                    ToolTip.Tip="{i18n:Tr Tooltip_Browse}">
                 <PathIcon Data="{StaticResource FolderRegular}" Height="16" />
             </Button>
         </Grid>
@@ -51,14 +54,14 @@
         <!-- Optional file name + queue -->
         <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Spacing="10" VerticalAlignment="Top">
             <StackPanel Spacing="4" IsVisible="{Binding !IsMultiple}">
-                <TextBlock Text="File name (optional)" />
+                <TextBlock Text="{i18n:Tr Add_FileName}" />
                 <TextBox Text="{Binding Filename, Mode=TwoWay}"
                          CornerRadius="6" VerticalContentAlignment="Center"
-                         PlaceholderText="Leave empty to detect automatically from the link" />
+                         PlaceholderText="{i18n:Tr Add_FileNamePlaceholder}" />
             </StackPanel>
 
             <StackPanel Spacing="4" IsVisible="{Binding ShowQueuePicker}">
-                <TextBlock Text="Queue" />
+                <TextBlock Text="{i18n:Tr Add_Queue}" />
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Queues}"
                           SelectedItem="{Binding SelectedQueue}">
                     <ComboBox.ItemTemplate>
@@ -73,7 +76,7 @@
         <!-- Actions -->
         <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0 16 0 0">
-            <Button Content="Download" Padding="20 8" Cursor="Hand"
+            <Button Content="{i18n:Tr Add_Download}" Padding="20 8" Cursor="Hand"
                     HorizontalContentAlignment="Center"
                     Classes="accent"
                     IsEnabled="{Binding CanDownload}"

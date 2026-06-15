@@ -98,6 +98,11 @@ Rough order to turn the current skeleton into the MVP above:
    - **Engine API quick-ref** is now cached in the project skill (`.claude/skills/downloader-desktop/SKILL.md`) to cut re-derivation each session.
    - **Custom window chrome** (reverses the earlier "standard chrome" call, at the author's request): reusable `Views/TitleBar` (app icon + title + window buttons) drawn inside the client area; MainWindow + both dialogs set `ExtendClientAreaToDecorationsHint="True"` + `ExtendClientAreaTitleBarHeightHint="-1"` (note: `ExtendClientAreaChromeHints` was **removed in Avalonia 12** — don't use it). `TitleBar` drags via `BeginMoveDrag`, toggles maximize on double-tap, and finds its host with `TopLevel.GetTopLevel(this)`. Dialogs pass `ShowMinMax="False"`.
    - **Notifications UX**: turning the Settings toggle on fires a sample notification immediately so the user can confirm it works.
+7. ✅ **Round 7 — i18n + more UX** (DONE):
+   - **Localization**: `Services/Localizer` + `Markup/TrExtension` (`{i18n:Tr Key}`) + `TrConverter`; JSON packs in `Assets/i18n/` for **en, fa, es, fr, ar, eo**. Language picker in Settings (`DownloadSettings.Language`), **RTL** mirroring for fa/ar via `Localizer.FlowDirection` bound on each Window. Live switch works via a `Localizer.Tick` property (indexer-change notifications were unreliable — see SKILL.md). VM strings localized + auto-refresh on language change (`DownloadItemViewModel.Detach()` prevents leaks). 8 new headless i18n tests (47 total).
+   - **Pause fix**: progress events are ignored once a row is paused/stopped so the bar keeps its last fill; StatusText shows `"62% · Paused"`.
+   - **Email logs**: opens a Gmail compose URL in the default browser (not `mailto:`), copies the log path to the clipboard, and includes an auto **diagnostics block** (app version, OS/arch, runtime, theme, key settings).
+   - **Settings**: "Reset to defaults" button; compact numeric steppers with a clean single outer border.
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

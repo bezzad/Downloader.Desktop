@@ -33,6 +33,9 @@ public class DownloadSettings
     /// <summary>Show a desktop notification when a download completes or fails (on by default).</summary>
     public bool EnableNotifications { get; set; } = true;
 
+    /// <summary>UI language code (en, fa, es, fr, ar, eo). Default English.</summary>
+    public string Language { get; set; } = "en";
+
     // ---- Advanced ----
     public int BufferBlockSize { get; set; } = 8192;
     public int MaxTryAgainOnFailure { get; set; } = 5;

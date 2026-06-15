@@ -56,7 +56,20 @@ public class DownloadItemViewModel : ViewModelBase
         OpenFolderCommand = ReactiveCommand.Create(OpenContainingFolder);
         OpenFileCommand = ReactiveCommand.Create(OpenFile);
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Url));
+
+        // Refresh localized row text when the UI language changes.
+        Localizer.Instance.PropertyChanged += OnLanguageChanged;
     }
+
+    private void OnLanguageChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        this.RaisePropertyChanged(nameof(StatusText));
+        this.RaisePropertyChanged(nameof(DisplayName));
+        this.RaisePropertyChanged(nameof(Group));
+    }
+
+    /// <summary>Detaches global event handlers; called when the row is removed from the list.</summary>
+    public void Detach() => Localizer.Instance.PropertyChanged -= OnLanguageChanged;
 
     public ICommand PauseCommand { get; }
     public ICommand ResumeCommand { get; }
@@ -84,7 +97,7 @@ public class DownloadItemViewModel : ViewModelBase
     }
 
     /// <summary>Grouping label for the list. Batched (multi-URL) adds share one; others group under "Downloads".</summary>
-    public string Group => string.IsNullOrWhiteSpace(_item.Group) ? "Downloads" : _item.Group;
+    public string Group => string.IsNullOrWhiteSpace(_item.Group) ? L("Group_Downloads") : _item.Group;
 
     /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
     public string FileKind => GetFileKind(_item.FileName);
@@ -108,8 +121,8 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Name shown in the list — a placeholder while the engine resolves the real name.</summary>
     public string DisplayName =>
         !string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName
-        : IsNamePending ? "Fetching name…"
-        : "(unnamed)";
+        : IsNamePending ? L("Name_Fetching")
+        : L("Name_Unnamed");
 
     /// <summary>True while we are still waiting for the engine to report the file name.</summary>
     public bool IsNamePending =>
@@ -220,14 +233,17 @@ public class DownloadItemViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _isChecked, value);
     }
 
+    private static string L(string key) => Localizer.Instance[key];
+
     public string StatusText => Status switch
     {
-        DownloadStatus.None or DownloadStatus.Created => "Queued",
+        DownloadStatus.None or DownloadStatus.Created => L("State_Queued"),
         DownloadStatus.Running => $"{Progress:0}%",
-        DownloadStatus.Paused => "Paused",
-        DownloadStatus.Stopped => "Stopped",
-        DownloadStatus.Completed => "Completed",
-        DownloadStatus.Failed => "Failed",
+        // Keep the percentage visible (and the bar filled) when paused/stopped, not just a state word.
+        DownloadStatus.Paused => $"{Progress:0}% · {L("State_Paused")}",
+        DownloadStatus.Stopped => $"{Progress:0}% · {L("State_Stopped")}",
+        DownloadStatus.Completed => L("State_Completed"),
+        DownloadStatus.Failed => L("State_Failed"),
         _ => Status.ToString()
     };
 
