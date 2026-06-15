@@ -93,6 +93,11 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         Save(window, "home-dark.png");
 
+        // VERIFY: click a cell and confirm no per-cell focus/current border appears (#3/#8).
+        Avalonia.Headless.HeadlessWindowExtensions.MouseDown(window, new Avalonia.Point(360, 240), Avalonia.Input.MouseButton.Left);
+        Avalonia.Headless.HeadlessWindowExtensions.MouseUp(window, new Avalonia.Point(360, 240), Avalonia.Input.MouseButton.Left);
+        Save(window, "verify-cellclick.png");
+
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "home-light.png");
 

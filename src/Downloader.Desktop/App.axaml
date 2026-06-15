@@ -160,24 +160,46 @@
             <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />
         </Style>
 
-        <!-- ===== Whole-row selection in every DataGrid; no per-cell focus border (#3, #8) ===== -->
+        <!-- ===== Whole-row selection in every DataGrid; never a per-cell focus/current border (#3, #8) =====
+             Avalonia 12's DataGridCell draws the current/focus outline via pseudo-classes on the cell
+             itself (there is no named FocusVisual element). Cells are read-only here, so we make them
+             non-focusable (kills the current-cell outline entirely) and force the border transparent in
+             every state. Row selection still works (it's driven by cell pointer-press, not focus). -->
         <Style Selector="DataGridCell">
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="FocusAdorner" Value="{x:Null}" />
         </Style>
-        <Style Selector="DataGridCell:focus /template/ Rectangle#FocusVisual">
-            <Setter Property="IsVisible" Value="False" />
+        <Style Selector="DataGridCell:current">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="DataGridCell:current /template/ Rectangle#CurrencyVisual">
-            <Setter Property="IsVisible" Value="False" />
+        <Style Selector="DataGridCell:focus">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="DataGridCell:selected /template/ Rectangle#CurrencyVisual">
-            <Setter Property="IsVisible" Value="False" />
+        <!-- Selected row: tint every cell so the whole row reads as selected (not a single cell). -->
+        <Style Selector="DataGridCell:selected">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <!-- Clear, full-row selection highlight -->
-        <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
-            <Setter Property="Fill" Value="{DynamicResource SystemAccentColor}" />
-            <Setter Property="Opacity" Value="0.16" />
+        <!-- The current/focus outline is drawn on unnamed template elements; neutralize any Border
+             outline and any Rectangle stroke (grid lines use Fill, so they're unaffected). -->
+        <Style Selector="DataGridCell:current /template/ Border">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="DataGridCell:focus /template/ Border">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="DataGridCell:current /template/ Rectangle">
+            <Setter Property="Stroke" Value="Transparent" />
+            <Setter Property="StrokeThickness" Value="0" />
+        </Style>
+        <Style Selector="DataGridCell:focus /template/ Rectangle">
+            <Setter Property="Stroke" Value="Transparent" />
+            <Setter Property="StrokeThickness" Value="0" />
         </Style>
     </Application.Styles>
 </Application>

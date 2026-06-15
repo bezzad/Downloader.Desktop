@@ -17,12 +17,17 @@ public partial class DownloadsView : UserControl
 
     private async void OnRowDoubleTapped(object sender, TappedEventArgs e)
     {
-        // Only open details for a double-click on an actual row. Double-clicking a column header
-        // (to auto-size/sort) must not open the dialog. (#12)
-        if (e.Source is Visual v && v.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true) != null)
+        if (e.Source is not Visual v)
             return;
 
-        if (sender is DataGrid { SelectedItem: DownloadItemViewModel item })
+        // Double-clicking a column header (to auto-size/sort) must not open the dialog. (#12)
+        if (v.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true) != null)
+            return;
+
+        // Resolve the row directly from the clicked element instead of relying on DataGrid.SelectedItem
+        // (cells are non-focusable for clean row selection, so we don't depend on cell focus/selection).
+        var row = v.FindAncestorOfType<DataGridRow>(includeSelf: true);
+        if (row?.DataContext is DownloadItemViewModel item)
             await DialogHelper.ShowDetails(item);
     }
 }
