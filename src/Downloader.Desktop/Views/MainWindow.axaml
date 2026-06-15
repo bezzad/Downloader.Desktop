@@ -43,13 +43,14 @@
             <Grid ColumnDefinitions="*,Auto">
                 <Grid Grid.Column="0" ColumnDefinitions="*,Auto" Margin="0 0 22 0" MaxWidth="640"
                       HorizontalAlignment="Left" MinWidth="420">
+                    <!-- AcceptsReturn so pasting multiple URLs (one per line) keeps the line breaks;
+                         a single-line box would strip them and merge the URLs (#2). Enter still triggers
+                         Add (handled in code-behind); Shift+Enter inserts a new line. -->
                     <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
-                             PlaceholderText="{i18n:Tr Top_PasteLink}">
-                        <TextBox.KeyBindings>
-                            <KeyBinding Gesture="Enter" Command="{Binding AddDownloadItemCommand}" />
-                        </TextBox.KeyBindings>
-                    </TextBox>
+                             AcceptsReturn="True" TextWrapping="NoWrap"
+                             KeyDown="OnUrlBoxKeyDown"
+                             PlaceholderText="{i18n:Tr Top_PasteLink}" />
                     <Button Grid.Column="1" Classes="accent" CornerRadius="8" Height="34"
                             Padding="14 0" Margin="8 0 0 0" Cursor="Hand"
                             Command="{Binding AddDownloadItemCommand}">

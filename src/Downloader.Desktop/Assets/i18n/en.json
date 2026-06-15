@@ -123,6 +123,7 @@
   "Det_AddMirror": "+ Add mirror",
   "Det_RemoveMirror": "Remove this mirror",
   "Det_Status": "Status",
+  "Det_SavedTo": "Saved to",
   "Det_SpeedLimit": "Speed limit (KB/s)",
   "Det_Connections": "CONNECTIONS",
   "Det_ConnCount": "{0} connections",

@@ -2,7 +2,6 @@
   "Top_PasteLink": "Algluu elŝutligilon…",
   "Top_Add": "Aldoni",
   "Top_Search": "Serĉi",
-
   "Nav_Status": "STATO",
   "Nav_Manage": "ADMINISTRI",
   "Nav_AllDownloads": "Ĉiuj elŝutoj",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "Planilo",
   "Nav_Settings": "Agordoj",
   "Nav_ToggleMenu": "Faldi / malfaldi menuon",
-
   "Status_Downloading": "elŝutante",
   "Status_Queued": "envicigitaj",
   "Status_Done": "pretaj",
-
   "Grid_SelectAll": "Elekti ĉion",
   "Action_Start": "Komenci",
   "Action_Pause": "Paŭzi",
@@ -28,16 +25,13 @@
   "Action_OpenFile": "Malfermi dosieron",
   "Action_OpenFolder": "Malfermi dosierujon",
   "Action_CopyUrl": "Kopii URL",
-
   "Col_Name": "Nomo",
   "Col_Size": "Grando",
   "Col_Progress": "Progreso",
   "Col_Speed": "Rapido",
-
   "Empty_Title": "Ankoraŭ neniuj elŝutoj",
   "Empty_Hint": "Algluu ligilon en la supran kampon kaj klaku Aldoni por komenci.",
   "Group_Downloads": "Elŝutoj",
-
   "State_Queued": "Envicigita",
   "State_Paused": "Paŭzigita",
   "State_Stopped": "Haltigita",
@@ -47,7 +41,6 @@
   "State_Pending": "Atendanta",
   "Name_Fetching": "Akirante nomon…",
   "Name_Unnamed": "(sennoma)",
-
   "Add_Title": "Aldoni elŝuton",
   "Add_Links": "Ligilo(j) — unu po linio",
   "Add_LinksPlaceholder": "https://…  (algluu plurajn ligilojn, unu po linio, por elŝuti ĉiujn en la suban dosierujon)",
@@ -58,7 +51,6 @@
   "Add_Queue": "Atendovico",
   "Add_Download": "Elŝuti",
   "Tooltip_Browse": "Foliumi",
-
   "Settings_Title": "Agordoj",
   "Settings_Reset": "Reagordi defaŭltojn",
   "Settings_ResetTip": "Restarigi ĉiujn agordojn al iliaj defaŭltaj valoroj",
@@ -79,14 +71,12 @@
   "Set_Notifications_Hint": "Avizu min kiam elŝuto finiĝas aŭ malsukcesas.",
   "Set_Language": "Lingvo de la aplikaĵo",
   "Set_Language_Hint": "Elektu la lingvon de la interfaco.",
-
   "Sec_Logging": "PROTOKOLADO",
   "Set_WriteLog": "Skribi protokolan dosieron",
   "Set_WriteLog_Hint": "Registras agadon de la aplikaĵo kaj elŝutmotoro por diagnozi problemojn. Defaŭlte malŝaltita.",
   "Btn_OpenLogs": "Malfermi protokolan dosierujon",
   "Btn_ExportLog": "Eksporti protokolon…",
   "Btn_EmailLogs": "Sendi protokolojn al la programisto",
-
   "Adv_Header": "Altnivela",
   "Set_BufferBlock": "Bufra bloka grando (bajtoj)",
   "Set_MaxRetries": "Maks. reprovoj ĉe malsukceso",
@@ -100,7 +90,6 @@
   "Set_ClearOnFail": "Forviŝi pakaĵon kiam elŝuto malsukcesas",
   "Set_FileExists": "Kiam dosiero jam ekzistas",
   "Set_FileExt": "Dosiersufikso dum elŝuto",
-
   "Net_Header": "Reto kaj petaj kaplinioj",
   "Net_Hint": "Altnivelaj HTTP-opcioj por malfacilaj serviloj — kutime sekure lasi senŝanĝe.",
   "Set_UserAgent": "Uzanto-agento",
@@ -112,9 +101,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Prokurilo",
   "Set_ProxyPlaceholder": "http://gastiganto:pordo (malplena = neniu)",
-
   "About_Desc": "Plurplatforma elŝutadministrilo. Neniu instalado aŭ dependeco bezonata.",
-
   "Det_Title": "Detaloj de elŝuto",
   "Det_SourceUrl": "Fonta URL",
   "Det_Mirrors": "Spegulaj URL-oj ({0})",
@@ -123,6 +110,7 @@
   "Det_AddMirror": "+ Aldoni spegulon",
   "Det_RemoveMirror": "Forigi ĉi tiun spegulon",
   "Det_Status": "Stato",
+  "Det_SavedTo": "Konservita al",
   "Det_SpeedLimit": "Rapidlimo (KB/s)",
   "Det_Connections": "KONEKTOJ",
   "Det_ConnCount": "{0} konektoj",
@@ -132,14 +120,12 @@
   "Det_Col_Total": "Totalo",
   "Det_ConnAppear": "Konektoj aperas ĉi tie dum la dosiero estas elŝutata.",
   "Btn_Close": "Fermi",
-
   "Queues_Title": "Atendovicoj",
   "Queues_Add": "Nova atendovico",
   "Queues_MaxConcurrent": "Maks. samtempaj",
   "Queues_Start": "Komenci atendovicon",
   "Queues_Pause": "Paŭzigi atendovicon",
   "Queues_Remove": "Forigi atendovicon",
-
   "Sched_Title": "Planilo",
   "Sched_Add": "Aldoni planon",
   "Sched_Enabled": "Ŝaltita",

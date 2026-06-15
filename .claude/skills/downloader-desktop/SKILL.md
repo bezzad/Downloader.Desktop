@@ -26,7 +26,22 @@ Treat this file as a living cache. **Whenever you discover something non-obvious
 - VM-computed localized strings (row StatusText/DisplayName/Group, details headers) subscribe to `Localizer.PropertyChanged` and re-raise; `DownloadItemViewModel.Detach()` unsubscribes on removal (called by the manager) to avoid leaks.
 - Adding a key: add to `en.json` first (it's the fallback), then translate into the other 5. Missing keys fall back to English gracefully.
 
+## Engine/behavior gotchas worth caching
+- **`HttpClientTimeout` is the WHOLE-request timeout** (`HttpClient.Timeout`), incl. reading a chunk's body — keep it large (default 100 s). Setting it small (e.g. 10 s) makes longer chunks fail with "Operation Cancelled" after retries (~1 min). Per-block stalls are handled by `BlockTimeout`, not this.
+- **Cancellation vs failure status**: the engine raises `DownloadFileCompleted` with `Cancelled=true` for BOTH a user pause/stop and an internal abort (e.g. timeout). Disambiguate by the status we set *before* calling the engine: if it's already Paused/Stopped it was the user; a cancel while still Running = real failure → mark Failed.
+- **Queued-item file names**: the engine only resolves the name once a download starts, so queue-capped items show no name. `UrlResolver.ResolveFileNameAsync` (Content-Disposition → URL path) fills a VM-only `PreviewName` in the background; don't write it to `DownloadItem.FileName` or it gets forced on the engine.
+- **Integration test pattern**: spin up a loopback `HttpListener` with Range/206 support and download through a real `DownloadService` — no external network, CI-safe (see `IntegrationTests`).
+
+## Packaging / publish
+- Self-contained, dependency-free single file: `dotnet publish -r <rid> --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true` (the last flag is required so Skia/native libs are bundled). Validated ~49 MB ELF.
+- The output binary is `Downloader.Desktop[.exe]` (= project name). Renaming the *file* to `Downloader` is safe — `avares://Downloader.Desktop/...` uses the embedded assembly name, not the file name, so don't change `AssemblyName` (that WOULD break every avares URI).
+- CI/release live in `.github/workflows/` (`ci.yml` = build+test, `release.yml` = matrix publish on `v*` tag → attaches zip/tar.gz to the GitHub Release). Local: `scripts/publish.sh [rid ...]`.
+
 ## Avalonia 12 gotchas worth caching
+- **DataGrid cell focus/current border**: there is NO named `FocusVisual`/`CurrencyVisual` element in v12. The current/focus outline is on an unnamed template `Border`; kill it with `DataGridCell:current /template/ Border` + `DataGridCell:focus /template/ Border` → `BorderThickness=0`/`BorderBrush=Transparent` (and `Rectangle` Stroke for safety). `Focusable=False` does NOT remove it. Full-row selection highlight comes from the Fluent theme's `:selected` default.
+- **DataGrid grouping kills row virtualization** → janky scroll/UI past ~10 rows. Keep the `DataGridCollectionView` flat (no `GroupDescriptions`) for performance.
+- **Single-line `TextBox` strips newlines on paste** (`AcceptsReturn=false`), merging pasted multi-line input. For multi-URL paste, set `AcceptsReturn="True"` + a `KeyDown` handler that fires the action on Enter (Shift+Enter = newline).
+- **Reveal-a-file-in-folder** cross-platform: Windows `explorer /select,"path"`, macOS `open -R path`, Linux `dbus-send … org.freedesktop.FileManager1.ShowItems array:string:file://path string:` (fallback: open the directory).
 - **Custom window chrome**: `ExtendClientAreaChromeHints` was **removed in Avalonia 12** (compile error AVLN2000). Use only `ExtendClientAreaToDecorationsHint="True"` + `ExtendClientAreaTitleBarHeightHint="-1"`, then draw your own bar (see `Views/TitleBar`). OS resize/snap still works. Drag = `host.BeginMoveDrag(e)` on left-button `PointerPressed`; get the window via `TopLevel.GetTopLevel(this) as Window`.
 - All three windows (MainWindow, AddDownloadItemView, DownloadDetailsView) use `TitleBar`; dialogs set `ShowMinMax="False"`.
 

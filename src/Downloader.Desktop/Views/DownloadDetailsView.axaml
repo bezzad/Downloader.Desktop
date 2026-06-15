@@ -118,6 +118,19 @@
                            HorizontalAlignment="Center"
                            Foreground="{DynamicResource SystemBaseMediumColor}" />
 
+                <!-- Saved-to path next to the open-folder action (#7) -->
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 2 0 0">
+                    <TextBlock Grid.Column="0" Text="{i18n:Tr Det_SavedTo}" Margin="0 0 8 0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <TextBox Grid.Column="1" Text="{Binding FilePath}" IsReadOnly="True"
+                             CornerRadius="6" VerticalContentAlignment="Center"
+                             FontSize="12" />
+                    <Button Grid.Column="2" Classes="icon" Margin="6 0 0 0"
+                            Command="{Binding OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
+                        <PathIcon Data="{DynamicResource FolderRegular}" />
+                    </Button>
+                </Grid>
+
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                                 IsVisible="{Binding HasConfig}">

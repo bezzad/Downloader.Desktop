@@ -2,7 +2,6 @@
   "Top_PasteLink": "Collez un lien de téléchargement…",
   "Top_Add": "Ajouter",
   "Top_Search": "Rechercher",
-
   "Nav_Status": "ÉTAT",
   "Nav_Manage": "GESTION",
   "Nav_AllDownloads": "Tous les téléchargements",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "Planificateur",
   "Nav_Settings": "Paramètres",
   "Nav_ToggleMenu": "Réduire / agrandir le menu",
-
   "Status_Downloading": "en cours",
   "Status_Queued": "en file",
   "Status_Done": "terminés",
-
   "Grid_SelectAll": "Tout sélectionner",
   "Action_Start": "Démarrer",
   "Action_Pause": "Pause",
@@ -28,16 +25,13 @@
   "Action_OpenFile": "Ouvrir le fichier",
   "Action_OpenFolder": "Ouvrir le dossier",
   "Action_CopyUrl": "Copier l’URL",
-
   "Col_Name": "Nom",
   "Col_Size": "Taille",
   "Col_Progress": "Progression",
   "Col_Speed": "Vitesse",
-
   "Empty_Title": "Aucun téléchargement",
   "Empty_Hint": "Collez un lien dans le champ ci-dessus et cliquez sur Ajouter pour commencer.",
   "Group_Downloads": "Téléchargements",
-
   "State_Queued": "En file",
   "State_Paused": "En pause",
   "State_Stopped": "Arrêté",
@@ -47,7 +41,6 @@
   "State_Pending": "En attente",
   "Name_Fetching": "Récupération du nom…",
   "Name_Unnamed": "(sans nom)",
-
   "Add_Title": "Ajouter un téléchargement",
   "Add_Links": "Lien(s) — un par ligne",
   "Add_LinksPlaceholder": "https://…  (collez plusieurs liens, un par ligne, pour tout télécharger dans le dossier ci-dessous)",
@@ -58,7 +51,6 @@
   "Add_Queue": "File d’attente",
   "Add_Download": "Télécharger",
   "Tooltip_Browse": "Parcourir",
-
   "Settings_Title": "Paramètres",
   "Settings_Reset": "Réinitialiser",
   "Settings_ResetTip": "Restaurer tous les paramètres à leurs valeurs par défaut",
@@ -79,14 +71,12 @@
   "Set_Notifications_Hint": "M’avertir quand un téléchargement se termine ou échoue.",
   "Set_Language": "Langue de l’application",
   "Set_Language_Hint": "Choisissez la langue de l’interface.",
-
   "Sec_Logging": "JOURNALISATION",
   "Set_WriteLog": "Écrire un fichier journal",
   "Set_WriteLog_Hint": "Enregistre l’activité de l’app et du moteur de téléchargement pour diagnostiquer les problèmes. Désactivé par défaut.",
   "Btn_OpenLogs": "Ouvrir le dossier des journaux",
   "Btn_ExportLog": "Exporter le journal…",
   "Btn_EmailLogs": "Envoyer les journaux au développeur",
-
   "Adv_Header": "Avancé",
   "Set_BufferBlock": "Taille de bloc tampon (octets)",
   "Set_MaxRetries": "Tentatives max. en cas d’échec",
@@ -100,7 +90,6 @@
   "Set_ClearOnFail": "Supprimer le paquet en cas d’échec",
   "Set_FileExists": "Quand le fichier existe déjà",
   "Set_FileExt": "Extension de fichier en cours",
-
   "Net_Header": "Réseau et en-têtes de requête",
   "Net_Hint": "Options HTTP avancées pour les serveurs difficiles — généralement à laisser telles quelles.",
   "Set_UserAgent": "Agent utilisateur",
@@ -112,9 +101,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
   "Set_ProxyPlaceholder": "http://hôte:port (vide = aucun)",
-
   "About_Desc": "Gestionnaire de téléchargement multiplateforme. Aucune installation ni dépendance requise.",
-
   "Det_Title": "Détails du téléchargement",
   "Det_SourceUrl": "URL source",
   "Det_Mirrors": "URLs miroirs ({0})",
@@ -123,6 +110,7 @@
   "Det_AddMirror": "+ Ajouter un miroir",
   "Det_RemoveMirror": "Supprimer ce miroir",
   "Det_Status": "État",
+  "Det_SavedTo": "Enregistré dans",
   "Det_SpeedLimit": "Limite de vitesse (Ko/s)",
   "Det_Connections": "CONNEXIONS",
   "Det_ConnCount": "{0} connexions",
@@ -132,14 +120,12 @@
   "Det_Col_Total": "Total",
   "Det_ConnAppear": "Les connexions apparaissent ici pendant le téléchargement.",
   "Btn_Close": "Fermer",
-
   "Queues_Title": "Files d’attente",
   "Queues_Add": "Nouvelle file",
   "Queues_MaxConcurrent": "Simultanés max.",
   "Queues_Start": "Démarrer la file",
   "Queues_Pause": "Mettre en pause la file",
   "Queues_Remove": "Supprimer la file",
-
   "Sched_Title": "Planificateur",
   "Sched_Add": "Ajouter une planification",
   "Sched_Enabled": "Activé",

@@ -196,8 +196,28 @@ public class DownloadManager : IDownloadManager
         if (autoStart)
             PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
 
+        // Resolve a display name in the background so items still waiting on a queue slot show their
+        // file name instead of "Fetching name…" until they actually start (#4).
+        if (string.IsNullOrWhiteSpace(item.FileName))
+            _ = ResolvePreviewNameAsync(vm);
+
         NotifyList();
         return vm;
+    }
+
+    private static async Task ResolvePreviewNameAsync(DownloadItemViewModel vm)
+    {
+        var url = vm.GetItem().Url;
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        var name = await UrlResolver.ResolveFileNameAsync(url).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(name))
+            OnUi(() =>
+            {
+                if (string.IsNullOrWhiteSpace(vm.FileName))
+                    vm.PreviewName = name;
+            });
     }
 
     public async void Start(DownloadItemViewModel vm)
@@ -489,9 +509,20 @@ public class DownloadManager : IDownloadManager
             vm.Speed = 0;
             if (e.Cancelled)
             {
-                // Distinguish a user pause (live handle kept) from a hard stop.
-                if (vm.Status != DownloadStatus.Paused)
-                    vm.Status = DownloadStatus.Stopped;
+                // A cancel is only a "Stopped/Paused" if the USER asked for it — we set those
+                // statuses before calling the engine. A cancel that arrives while still Running was
+                // NOT user-initiated (e.g. a timeout) → treat it as a Failure, consistently (#6).
+                if (vm.Status is DownloadStatus.Paused or DownloadStatus.Stopped)
+                {
+                    // user action — keep the status as-is
+                }
+                else
+                {
+                    vm.ErrorMessage = e.Error != null ? Describe(e.Error) : "The download was interrupted.";
+                    vm.Status = DownloadStatus.Failed;
+                    AppLog.Error($"Failed (interrupted): {vm.FileName ?? vm.Url}", e.Error);
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                }
             }
             else if (e.Error != null)
             {

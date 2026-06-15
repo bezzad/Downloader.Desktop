@@ -103,6 +103,17 @@ Rough order to turn the current skeleton into the MVP above:
    - **Pause fix**: progress events are ignored once a row is paused/stopped so the bar keeps its last fill; StatusText shows `"62% · Paused"`.
    - **Email logs**: opens a Gmail compose URL in the default browser (not `mailto:`), copies the log path to the clipboard, and includes an auto **diagnostics block** (app version, OS/arch, runtime, theme, key settings).
    - **Settings**: "Reset to defaults" button; compact numeric steppers with a clean single outer border.
+8. ✅ **Round 8 — reliability, perf, packaging** (DONE):
+   - **Critical**: `HttpClientTimeout` default fixed 10 s → **100 s** (10 s was cancelling chunk reads → "Operation Cancelled" failures after ~1 min).
+   - **Status**: a cancel that arrives while still Running is now mapped to **Failed** (only user pause/stop stays Stopped/Paused) — consistent statuses.
+   - **Pause**: progress events ignored when not Running, so a paused row keeps its fill + "% · Paused".
+   - **Perf**: removed DataGrid grouping (it disabled row virtualization → jank past ~10 rows).
+   - **Queued names**: `UrlResolver.ResolveFileNameAsync` + VM-only `PreviewName` show a file name before a queue-capped item starts (without forcing it on the engine).
+   - **Multi-URL top box**: `AcceptsReturn` + Enter handler (single-line boxes strip pasted newlines).
+   - **DataGrid**: per-cell focus/current border removed via `:current/:focus /template/ Border`; full-row selection.
+   - **Details**: shows the saved-to **path** with an open-folder button; **open-folder selects the file** (`RevealInFolder`, cross-platform).
+   - **Tests**: end-to-end `IntegrationTests` downloads a 256 KB file from a loopback server through the real engine and asserts bytes (48 tests total).
+   - **Publish**: `.github/workflows/{ci,release}.yml` + `scripts/publish.sh` — self-contained single-file builds for win/linux/macOS attached to each GitHub Release (no end-user dependencies).
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

@@ -41,8 +41,12 @@ public class DownloadSettings
     public int MaxTryAgainOnFailure { get; set; } = 5;
     public int BlockTimeout { get; set; } = 1000;
 
-    /// <summary>HTTP client timeout in milliseconds. Default 10 seconds.</summary>
-    public int HttpClientTimeout { get; set; } = 10_000;
+    /// <summary>
+    /// Overall HttpClient timeout in ms — this is the timeout for the WHOLE chunk request incl.
+    /// reading its body, so it must be generous or long chunks fail with "Operation Cancelled".
+    /// Per-block stalls are handled separately by <see cref="BlockTimeout"/>. Default 100 s (engine default).
+    /// </summary>
+    public int HttpClientTimeout { get; set; } = 100_000;
     public long MinimumSizeOfChunking { get; set; } = 512;
     public long MinimumChunkSize { get; set; } = 0;
 

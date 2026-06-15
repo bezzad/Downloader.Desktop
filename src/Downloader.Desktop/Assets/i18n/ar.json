@@ -2,7 +2,6 @@
   "Top_PasteLink": "الصق رابط تنزيل…",
   "Top_Add": "إضافة",
   "Top_Search": "بحث",
-
   "Nav_Status": "الحالة",
   "Nav_Manage": "الإدارة",
   "Nav_AllDownloads": "كل التنزيلات",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "المجدول",
   "Nav_Settings": "الإعدادات",
   "Nav_ToggleMenu": "طي / توسيع القائمة",
-
   "Status_Downloading": "قيد التنزيل",
   "Status_Queued": "في الانتظار",
   "Status_Done": "منتهية",
-
   "Grid_SelectAll": "تحديد الكل",
   "Action_Start": "بدء",
   "Action_Pause": "إيقاف مؤقت",
@@ -28,16 +25,13 @@
   "Action_OpenFile": "فتح الملف",
   "Action_OpenFolder": "فتح المجلد",
   "Action_CopyUrl": "نسخ الرابط",
-
   "Col_Name": "الاسم",
   "Col_Size": "الحجم",
   "Col_Progress": "التقدم",
   "Col_Speed": "السرعة",
-
   "Empty_Title": "لا توجد تنزيلات بعد",
   "Empty_Hint": "الصق رابطًا في المربع أعلاه واضغط إضافة للبدء.",
   "Group_Downloads": "التنزيلات",
-
   "State_Queued": "في الانتظار",
   "State_Paused": "متوقفة مؤقتًا",
   "State_Stopped": "متوقفة",
@@ -47,7 +41,6 @@
   "State_Pending": "قيد الانتظار",
   "Name_Fetching": "جارٍ جلب الاسم…",
   "Name_Unnamed": "(بدون اسم)",
-
   "Add_Title": "إضافة تنزيل",
   "Add_Links": "الرابط (الروابط) — رابط في كل سطر",
   "Add_LinksPlaceholder": "https://…  (الصق عدة روابط، كل رابط في سطر، لتنزيلها جميعًا في المجلد أدناه)",
@@ -58,7 +51,6 @@
   "Add_Queue": "قائمة الانتظار",
   "Add_Download": "تنزيل",
   "Tooltip_Browse": "استعراض",
-
   "Settings_Title": "الإعدادات",
   "Settings_Reset": "إعادة التعيين",
   "Settings_ResetTip": "استعادة كل الإعدادات إلى قيمها الافتراضية",
@@ -79,14 +71,12 @@
   "Set_Notifications_Hint": "أعلِمني عند اكتمال التنزيل أو فشله.",
   "Set_Language": "لغة التطبيق",
   "Set_Language_Hint": "اختر لغة الواجهة.",
-
   "Sec_Logging": "السجلات",
   "Set_WriteLog": "كتابة ملف سجل",
   "Set_WriteLog_Hint": "يسجّل نشاط التطبيق ومحرك التنزيل لتشخيص المشكلات. مُعطّل افتراضيًا.",
   "Btn_OpenLogs": "فتح مجلد السجلات",
   "Btn_ExportLog": "تصدير السجل…",
   "Btn_EmailLogs": "إرسال السجلات إلى المطوّر",
-
   "Adv_Header": "متقدم",
   "Set_BufferBlock": "حجم كتلة التخزين المؤقت (بايت)",
   "Set_MaxRetries": "أقصى محاولات عند الفشل",
@@ -100,7 +90,6 @@
   "Set_ClearOnFail": "مسح الحزمة عند فشل التنزيل",
   "Set_FileExists": "عندما يكون الملف موجودًا",
   "Set_FileExt": "امتداد الملف أثناء التنزيل",
-
   "Net_Header": "الشبكة وترويسات الطلب",
   "Net_Hint": "خيارات HTTP متقدمة للخوادم الصعبة — عادةً من الآمن تركها كما هي.",
   "Set_UserAgent": "وكيل المستخدم",
@@ -112,9 +101,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "الوكيل (Proxy)",
   "Set_ProxyPlaceholder": "http://host:port (فارغ = بلا وكيل)",
-
   "About_Desc": "مدير تنزيلات متعدد المنصات. لا يتطلب تثبيتًا أو أي اعتماديات.",
-
   "Det_Title": "تفاصيل التنزيل",
   "Det_SourceUrl": "رابط المصدر",
   "Det_Mirrors": "روابط بديلة ({0})",
@@ -123,6 +110,7 @@
   "Det_AddMirror": "+ إضافة رابط بديل",
   "Det_RemoveMirror": "إزالة هذا الرابط البديل",
   "Det_Status": "الحالة",
+  "Det_SavedTo": "حُفظ في",
   "Det_SpeedLimit": "حد السرعة (ك.بايت/ث)",
   "Det_Connections": "الاتصالات",
   "Det_ConnCount": "{0} اتصالات",
@@ -132,14 +120,12 @@
   "Det_Col_Total": "الإجمالي",
   "Det_ConnAppear": "تظهر الاتصالات هنا أثناء تنزيل الملف.",
   "Btn_Close": "إغلاق",
-
   "Queues_Title": "قوائم الانتظار",
   "Queues_Add": "قائمة جديدة",
   "Queues_MaxConcurrent": "أقصى تزامن",
   "Queues_Start": "بدء القائمة",
   "Queues_Pause": "إيقاف القائمة مؤقتًا",
   "Queues_Remove": "إزالة القائمة",
-
   "Sched_Title": "المجدول",
   "Sched_Add": "إضافة جدولة",
   "Sched_Enabled": "مُفعّل",

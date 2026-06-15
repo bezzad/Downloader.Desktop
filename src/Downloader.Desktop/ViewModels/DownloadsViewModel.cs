@@ -35,9 +35,10 @@ public class DownloadsViewModel : ViewModelBase
     public DownloadsViewModel(IDownloadManager manager)
     {
         _manager = manager;
+        // NOTE: no GroupDescriptions here on purpose. Avalonia's DataGrid does not row-virtualize
+        // grouped data, which made scrolling/UI janky once there were more than ~10 rows (#3). Keeping
+        // the view flat restores virtualization; the batch "Group" field is retained on the model.
         ItemsView = new DataGridCollectionView(manager.Items) { Filter = Matches };
-        // Group rows by their batch label so multi-URL adds appear together (#13).
-        ItemsView.GroupDescriptions.Add(new DataGridPathGroupDescription(nameof(DownloadItemViewModel.Group)));
         RemoveItemCommand = ReactiveCommand.CreateFromTask<DownloadItemViewModel>(RemoveDownloadItem);
         StartSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Resume(i)));
         PauseSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)));

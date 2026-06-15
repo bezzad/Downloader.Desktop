@@ -93,14 +93,22 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(DownloadItemViewModel.Status) or nameof(DownloadItemViewModel.HasError))
+        if (e.PropertyName is nameof(DownloadItemViewModel.Status) or nameof(DownloadItemViewModel.HasError)
+            or nameof(DownloadItemViewModel.FileName))
             Dispatcher.UIThread.Post(() =>
             {
                 this.RaisePropertyChanged(nameof(CanEdit));
                 this.RaisePropertyChanged(nameof(HasError));
                 this.RaisePropertyChanged(nameof(ErrorMessage));
+                this.RaisePropertyChanged(nameof(FilePath));
             });
     }
+
+    /// <summary>Full path the file is saved to (folder + name), shown in the details window (#7).</summary>
+    public string FilePath => Item?.GetItem().FilePath;
+
+    /// <summary>Reveals/opens the containing folder (and selects the file).</summary>
+    public ICommand OpenFolderCommand => Item?.OpenFolderCommand;
 
     /// <summary>The source URL can be edited only while the download is not active.</summary>
     public bool CanEdit => Item != null && Item.Status is DownloadStatus.Stopped or DownloadStatus.Failed

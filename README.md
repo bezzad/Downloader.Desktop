@@ -19,6 +19,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Clear status** — live progress and speed, a friendly reason when something fails, and a details view with per-connection progress.
 - **Light & dark themes** with a modern ocean-blue look.
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
+- **Multi-language UI** — English, فارسی (Persian), Español, Français, العربية (Arabic), Esperanto — with full right-to-left layout for Persian/Arabic. Switch under **Settings → App language**.
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
 - **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
 
@@ -89,6 +90,13 @@ dotnet publish Downloader.Desktop/Downloader.Desktop.csproj -c Release -r osx-ar
 dotnet publish Downloader.Desktop/Downloader.Desktop.csproj -c Release -r osx-x64   --self-contained true -o publish/osx-x64
 ```
 Common RIDs: `linux-x64`, `linux-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`. Add `-p:PublishSingleFile=true` for a single executable.
+
+**One-command local build** (self-contained single file, no dependencies for the end user):
+```shell
+./scripts/publish.sh linux-x64 win-x64 osx-arm64 osx-x64   # outputs to dist/
+```
+
+**Automated releases:** pushing a `v*` tag runs `.github/workflows/release.yml`, which builds self-contained single-file executables for Windows, Linux and macOS (x64 + arm64) and attaches them to the GitHub Release — so end users just download the archive for their OS, unzip and run. `.github/workflows/dotnet-desktop.yml` builds and runs the test suite on every push/PR.
 
 ### Deploy on macOS (.app bundle)
 A typical `.app` bundle:

@@ -2,7 +2,6 @@
   "Top_PasteLink": "یک پیوند دانلود را اینجا بچسبانید…",
   "Top_Add": "افزودن",
   "Top_Search": "جستجو",
-
   "Nav_Status": "وضعیت",
   "Nav_Manage": "مدیریت",
   "Nav_AllDownloads": "همهٔ دانلودها",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "زمان‌بند",
   "Nav_Settings": "تنظیمات",
   "Nav_ToggleMenu": "جمع/باز کردن منو",
-
   "Status_Downloading": "در حال دانلود",
   "Status_Queued": "در صف",
   "Status_Done": "انجام‌شده",
-
   "Grid_SelectAll": "انتخاب همه",
   "Action_Start": "شروع",
   "Action_Pause": "مکث",
@@ -28,16 +25,13 @@
   "Action_OpenFile": "باز کردن فایل",
   "Action_OpenFolder": "باز کردن پوشه",
   "Action_CopyUrl": "کپی نشانی",
-
   "Col_Name": "نام",
   "Col_Size": "اندازه",
   "Col_Progress": "پیشرفت",
   "Col_Speed": "سرعت",
-
   "Empty_Title": "هنوز دانلودی نیست",
   "Empty_Hint": "یک پیوند را در کادر بالا بچسبانید و روی افزودن کلیک کنید تا شروع شود.",
   "Group_Downloads": "دانلودها",
-
   "State_Queued": "در صف",
   "State_Paused": "متوقف‌شده",
   "State_Stopped": "متوقف",
@@ -47,7 +41,6 @@
   "State_Pending": "در انتظار",
   "Name_Fetching": "در حال دریافت نام…",
   "Name_Unnamed": "(بدون نام)",
-
   "Add_Title": "افزودن دانلود",
   "Add_Links": "پیوند(ها) — هر کدام در یک خط",
   "Add_LinksPlaceholder": "https://…  (چند پیوند را، هر کدام در یک خط، بچسبانید تا همه در پوشهٔ زیر دانلود شوند)",
@@ -58,7 +51,6 @@
   "Add_Queue": "صف",
   "Add_Download": "دانلود",
   "Tooltip_Browse": "انتخاب",
-
   "Settings_Title": "تنظیمات",
   "Settings_Reset": "بازنشانی به پیش‌فرض",
   "Settings_ResetTip": "بازگرداندن همهٔ تنظیمات به مقادیر پیش‌فرض",
@@ -79,14 +71,12 @@
   "Set_Notifications_Hint": "هنگام تکمیل یا شکست دانلود به من اطلاع بده.",
   "Set_Language": "زبان برنامه",
   "Set_Language_Hint": "زبان رابط کاربری را انتخاب کنید.",
-
   "Sec_Logging": "گزارش‌گیری",
   "Set_WriteLog": "نوشتن فایل گزارش",
   "Set_WriteLog_Hint": "فعالیت برنامه و موتور دانلود را برای عیب‌یابی ثبت می‌کند. به‌صورت پیش‌فرض خاموش است.",
   "Btn_OpenLogs": "باز کردن پوشهٔ گزارش‌ها",
   "Btn_ExportLog": "برون‌بری گزارش…",
   "Btn_EmailLogs": "ارسال گزارش‌ها به توسعه‌دهنده",
-
   "Adv_Header": "پیشرفته",
   "Set_BufferBlock": "اندازهٔ بلوک بافر (بایت)",
   "Set_MaxRetries": "حداکثر تلاش مجدد هنگام خطا",
@@ -100,7 +90,6 @@
   "Set_ClearOnFail": "پاک کردن بسته هنگام شکست دانلود",
   "Set_FileExists": "وقتی فایل از قبل وجود دارد",
   "Set_FileExt": "پسوند فایل در حال دانلود",
-
   "Net_Header": "شبکه و سرایندهای درخواست",
   "Net_Hint": "گزینه‌های پیشرفتهٔ HTTP برای سرورهای دشوار — معمولاً بهتر است بدون تغییر بمانند.",
   "Set_UserAgent": "عامل کاربر (User agent)",
@@ -112,9 +101,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "پروکسی",
   "Set_ProxyPlaceholder": "http://host:port (خالی = بدون پروکسی)",
-
   "About_Desc": "مدیریت دانلود چندسکویی. بدون نیاز به نصب یا هیچ وابستگی.",
-
   "Det_Title": "جزئیات دانلود",
   "Det_SourceUrl": "نشانی منبع",
   "Det_Mirrors": "نشانی‌های آینه ({0})",
@@ -123,6 +110,7 @@
   "Det_AddMirror": "+ افزودن آینه",
   "Det_RemoveMirror": "حذف این آینه",
   "Det_Status": "وضعیت",
+  "Det_SavedTo": "ذخیره در",
   "Det_SpeedLimit": "محدودیت سرعت (کیلوبایت/ثانیه)",
   "Det_Connections": "اتصال‌ها",
   "Det_ConnCount": "{0} اتصال",
@@ -132,14 +120,12 @@
   "Det_Col_Total": "کل",
   "Det_ConnAppear": "اتصال‌ها هنگام دانلود فایل اینجا نمایش داده می‌شوند.",
   "Btn_Close": "بستن",
-
   "Queues_Title": "صف‌ها",
   "Queues_Add": "صف جدید",
   "Queues_MaxConcurrent": "حداکثر هم‌زمان",
   "Queues_Start": "شروع صف",
   "Queues_Pause": "مکث صف",
   "Queues_Remove": "حذف صف",
-
   "Sched_Title": "زمان‌بند",
   "Sched_Add": "افزودن زمان‌بندی",
   "Sched_Enabled": "فعال",

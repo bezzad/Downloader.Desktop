@@ -100,7 +100,7 @@ public class DownloadItemViewModel : ViewModelBase
     public string Group => string.IsNullOrWhiteSpace(_item.Group) ? L("Group_Downloads") : _item.Group;
 
     /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
-    public string FileKind => GetFileKind(_item.FileName);
+    public string FileKind => GetFileKind(!string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName : _previewName);
 
     public static string GetFileKind(string name)
     {
@@ -118,15 +118,39 @@ public class DownloadItemViewModel : ViewModelBase
         };
     }
 
+    private string _previewName;
+
+    /// <summary>
+    /// Display-only name resolved (from URL/Content-Disposition) for a queued download before it
+    /// actually starts, so rows waiting on a queue slot still show a name (#4). Not persisted and not
+    /// forced on the engine — the engine still resolves the authoritative name when it starts.
+    /// </summary>
+    public string PreviewName
+    {
+        get => _previewName;
+        set
+        {
+            if (_previewName != value)
+            {
+                _previewName = value;
+                this.RaisePropertyChanged();
+                this.RaisePropertyChanged(nameof(DisplayName));
+                this.RaisePropertyChanged(nameof(IsNamePending));
+                this.RaisePropertyChanged(nameof(FileKind));
+            }
+        }
+    }
+
     /// <summary>Name shown in the list — a placeholder while the engine resolves the real name.</summary>
     public string DisplayName =>
         !string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName
+        : !string.IsNullOrWhiteSpace(_previewName) ? _previewName
         : IsNamePending ? L("Name_Fetching")
         : L("Name_Unnamed");
 
-    /// <summary>True while we are still waiting for the engine to report the file name.</summary>
+    /// <summary>True while we are still waiting for any name (engine or preview).</summary>
     public bool IsNamePending =>
-        string.IsNullOrWhiteSpace(_item.FileName) &&
+        string.IsNullOrWhiteSpace(_item.FileName) && string.IsNullOrWhiteSpace(_previewName) &&
         _status is DownloadStatus.Running or DownloadStatus.Created or DownloadStatus.None;
 
     /// <summary>Reason for the last failure (root cause), surfaced to the user.</summary>
@@ -265,12 +289,57 @@ public class DownloadItemViewModel : ViewModelBase
 
     public DownloadItem GetItem() => _item;
 
-    private void OpenContainingFolder() => ShellOpen(_item.FolderPath);
+    private void OpenContainingFolder()
+    {
+        // Open the folder AND highlight the downloaded file in the OS file manager (#8).
+        var path = _item.FilePath;
+        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            RevealInFolder(path);
+        else
+            ShellOpen(_item.FolderPath);
+    }
 
     private void OpenFile()
     {
         var path = _item.FilePath;
         ShellOpen(File.Exists(path) ? path : _item.FolderPath);
+    }
+
+    /// <summary>Opens the containing folder with the file selected/highlighted, cross-platform.</summary>
+    private static void RevealInFolder(string path)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("open") { UseShellExecute = false };
+                psi.ArgumentList.Add("-R");
+                psi.ArgumentList.Add(path);
+                System.Diagnostics.Process.Start(psi);
+            }
+            else
+            {
+                // Linux: the FileManager1 D-Bus interface selects the item in Nautilus/Dolphin/etc.
+                var psi = new System.Diagnostics.ProcessStartInfo("dbus-send") { UseShellExecute = false };
+                psi.ArgumentList.Add("--session");
+                psi.ArgumentList.Add("--dest=org.freedesktop.FileManager1");
+                psi.ArgumentList.Add("--type=method_call");
+                psi.ArgumentList.Add("/org/freedesktop/FileManager1");
+                psi.ArgumentList.Add("org.freedesktop.FileManager1.ShowItems");
+                psi.ArgumentList.Add("array:string:file://" + path);
+                psi.ArgumentList.Add("string:");
+                System.Diagnostics.Process.Start(psi);
+            }
+        }
+        catch
+        {
+            // Fall back to just opening the folder if the reveal mechanism isn't available.
+            ShellOpen(Path.GetDirectoryName(path));
+        }
     }
 
     private static void ShellOpen(string target)

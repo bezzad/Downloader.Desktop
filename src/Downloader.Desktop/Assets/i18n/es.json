@@ -2,7 +2,6 @@
   "Top_PasteLink": "Pega un enlace de descarga…",
   "Top_Add": "Añadir",
   "Top_Search": "Buscar",
-
   "Nav_Status": "ESTADO",
   "Nav_Manage": "GESTIÓN",
   "Nav_AllDownloads": "Todas las descargas",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "Programador",
   "Nav_Settings": "Ajustes",
   "Nav_ToggleMenu": "Contraer / expandir menú",
-
   "Status_Downloading": "descargando",
   "Status_Queued": "en cola",
   "Status_Done": "completadas",
-
   "Grid_SelectAll": "Seleccionar todo",
   "Action_Start": "Iniciar",
   "Action_Pause": "Pausar",
@@ -28,16 +25,13 @@
   "Action_OpenFile": "Abrir archivo",
   "Action_OpenFolder": "Abrir carpeta",
   "Action_CopyUrl": "Copiar URL",
-
   "Col_Name": "Nombre",
   "Col_Size": "Tamaño",
   "Col_Progress": "Progreso",
   "Col_Speed": "Velocidad",
-
   "Empty_Title": "Aún no hay descargas",
   "Empty_Hint": "Pega un enlace en el cuadro de arriba y pulsa Añadir para empezar.",
   "Group_Downloads": "Descargas",
-
   "State_Queued": "En cola",
   "State_Paused": "Pausada",
   "State_Stopped": "Detenida",
@@ -47,7 +41,6 @@
   "State_Pending": "Pendiente",
   "Name_Fetching": "Obteniendo nombre…",
   "Name_Unnamed": "(sin nombre)",
-
   "Add_Title": "Añadir descarga",
   "Add_Links": "Enlace(s) — uno por línea",
   "Add_LinksPlaceholder": "https://…  (pega varios enlaces, uno por línea, para descargarlos todos en la carpeta de abajo)",
@@ -58,7 +51,6 @@
   "Add_Queue": "Cola",
   "Add_Download": "Descargar",
   "Tooltip_Browse": "Examinar",
-
   "Settings_Title": "Ajustes",
   "Settings_Reset": "Restablecer valores",
   "Settings_ResetTip": "Restaurar todos los ajustes a sus valores predeterminados",
@@ -79,14 +71,12 @@
   "Set_Notifications_Hint": "Avisarme cuando una descarga termine o falle.",
   "Set_Language": "Idioma de la aplicación",
   "Set_Language_Hint": "Elige el idioma de la interfaz.",
-
   "Sec_Logging": "REGISTRO",
   "Set_WriteLog": "Escribir un archivo de registro",
   "Set_WriteLog_Hint": "Registra la actividad de la app y del motor de descarga para diagnosticar problemas. Desactivado por defecto.",
   "Btn_OpenLogs": "Abrir carpeta de registros",
   "Btn_ExportLog": "Exportar registro…",
   "Btn_EmailLogs": "Enviar registros al desarrollador",
-
   "Adv_Header": "Avanzado",
   "Set_BufferBlock": "Tamaño de bloque de búfer (bytes)",
   "Set_MaxRetries": "Reintentos máx. al fallar",
@@ -100,7 +90,6 @@
   "Set_ClearOnFail": "Borrar paquete cuando una descarga falla",
   "Set_FileExists": "Cuando el archivo ya existe",
   "Set_FileExt": "Extensión de archivo en progreso",
-
   "Net_Header": "Red y encabezados de solicitud",
   "Net_Hint": "Opciones HTTP avanzadas para servidores problemáticos: normalmente es seguro dejarlas como están.",
   "Set_UserAgent": "Agente de usuario",
@@ -112,9 +101,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
   "Set_ProxyPlaceholder": "http://host:puerto (vacío = ninguno)",
-
   "About_Desc": "Gestor de descargas multiplataforma. No requiere instalación ni dependencias.",
-
   "Det_Title": "Detalles de la descarga",
   "Det_SourceUrl": "URL de origen",
   "Det_Mirrors": "URLs espejo ({0})",
@@ -123,6 +110,7 @@
   "Det_AddMirror": "+ Añadir espejo",
   "Det_RemoveMirror": "Quitar este espejo",
   "Det_Status": "Estado",
+  "Det_SavedTo": "Guardado en",
   "Det_SpeedLimit": "Límite de velocidad (KB/s)",
   "Det_Connections": "CONEXIONES",
   "Det_ConnCount": "{0} conexiones",
@@ -132,14 +120,12 @@
   "Det_Col_Total": "Total",
   "Det_ConnAppear": "Las conexiones aparecen aquí mientras se descarga el archivo.",
   "Btn_Close": "Cerrar",
-
   "Queues_Title": "Colas",
   "Queues_Add": "Nueva cola",
   "Queues_MaxConcurrent": "Máx. simultáneas",
   "Queues_Start": "Iniciar cola",
   "Queues_Pause": "Pausar cola",
   "Queues_Remove": "Eliminar cola",
-
   "Sched_Title": "Programador",
   "Sched_Add": "Añadir programación",
   "Sched_Enabled": "Activado",
