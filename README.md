@@ -96,7 +96,25 @@ Common RIDs: `linux-x64`, `linux-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx
 ./scripts/publish.sh linux-x64 win-x64 osx-arm64 osx-x64   # outputs to dist/
 ```
 
-**Automated releases:** pushing a `v*` tag runs `.github/workflows/release.yml`, which builds self-contained single-file executables for Windows, Linux and macOS (x64 + arm64) and attaches them to the GitHub Release — so end users just download the archive for their OS, unzip and run. `.github/workflows/dotnet-desktop.yml` builds and runs the test suite on every push/PR.
+**Automated releases:** pushing a `v*` tag runs `.github/workflows/release.yml`, which builds self-contained single-file executables for Windows (`win-x64`), Linux (`linux-x64`) and macOS (`osx-x64` + `osx-arm64`), then creates a GitHub Release for the tag and attaches the archives — so end users just download the one for their OS, unzip and run. `.github/workflows/dotnet-desktop.yml` builds and runs the test suite on every push/PR.
+
+### Releasing a new version
+The version number is automatic: bump `VersionPrefix` (major.minor) in `Downloader.Desktop/Downloader.Desktop.csproj` only when you want; the build/revision are derived from the build time, so every release is unique. To cut a release:
+
+```shell
+# 1. Make sure main is green and pushed
+git checkout main && git pull
+dotnet test                       # all tests should pass
+
+# 2. (optional) sanity-check a local self-contained build
+./scripts/publish.sh linux-x64
+
+# 3. Tag and push — this triggers the release workflow
+git tag v1.0.0                    # match major.minor to VersionPrefix
+git push origin v1.0.0
+```
+
+Watch the run under the repo's **Actions** tab. When it finishes, the **Releases** page has a new `v1.0.0` release with the per-OS archives attached. (You can edit the release notes there afterwards.) To re-run a release, delete the tag locally and remotely (`git tag -d v1.0.0 && git push origin :refs/tags/v1.0.0`) and the GitHub Release, then re-tag.
 
 ### Deploy on macOS (.app bundle)
 A typical `.app` bundle:
