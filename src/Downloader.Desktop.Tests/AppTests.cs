@@ -198,6 +198,31 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Stopping_all_stops_running_and_queued_items()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 3;
+        manager.Initialize(config);
+
+        for (int i = 0; i < 10; i++)
+            manager.Add(new DownloadItem { Url = $"https://10.255.255.1/file{i}.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.StartAll();
+        Assert.Equal(3, manager.ActiveCount);
+        Assert.Equal(7, manager.QueuedCount);
+
+        // "Select all + Stop": Cancel every row (what StopSelectedCommand does). Running rows stop and,
+        // crucially, queued rows stop too — so nothing is left for the pump to auto-start.
+        foreach (var vm in manager.Items.ToList())
+            manager.Cancel(vm);
+
+        Assert.Equal(0, manager.ActiveCount);
+        Assert.Equal(0, manager.QueuedCount);
+        Assert.All(manager.Items, vm => Assert.Equal(DownloadStatus.Stopped, vm.Status));
+    }
+
+    [AvaloniaFact]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();

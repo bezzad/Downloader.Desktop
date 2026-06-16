@@ -16,7 +16,9 @@ public class StatusToBrushConverter : IValueConverter
     private static readonly IBrush Failed = new SolidColorBrush(Color.Parse("#E5594F"));
     private static readonly IBrush Paused = new SolidColorBrush(Color.Parse("#E0922F"));
     private static readonly IBrush Stopped = new SolidColorBrush(Color.Parse("#6B7A83"));
-    private static readonly IBrush Queued = new SolidColorBrush(Color.Parse("#7C8A93"));
+    // Queued is a steel-blue so a waiting item is clearly distinct from a neutral-gray Stopped one
+    // (the two were nearly identical grays before).
+    private static readonly IBrush Queued = new SolidColorBrush(Color.Parse("#4F6D9C"));
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value switch
     {

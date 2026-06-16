@@ -368,9 +368,17 @@ public class DownloadManager : IDownloadManager
 
     public void Cancel(DownloadItemViewModel vm)
     {
-        // Only an active (running/paused) download can be stopped. Ignore completed/failed/queued rows
-        // so a bulk "Stop" over a mixed selection can't knock a finished download down to Stopped.
-        if (vm.Status is not (DownloadStatus.Running or DownloadStatus.Paused))
+        // "Stop" applies to anything in flight OR still waiting: running/paused → cancel the engine and
+        // mark Stopped; queued (Created/None) → also mark Stopped so the pump won't auto-start them.
+        // Terminal/idle states (Completed/Failed/already-Stopped) are left alone — so a bulk "Stop"
+        // over a mixed selection can't knock a finished download down to Stopped.
+        //
+        // Stopping the queued rows here is what actually stops the queue: when the running rows'
+        // cancellation later fires DownloadFileCompleted → TryStartNextInQueue, there are no remaining
+        // queued rows for the pump to start (the whole StopSelected loop runs synchronously before any
+        // completion callback is posted to the UI thread). Without this, stopping the running rows just
+        // freed slots and the pump immediately started the next queued rows ("3 stop, 3 start").
+        if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
             return;
         vm.Download?.CancelAsync();
         vm.Status = DownloadStatus.Stopped;
