@@ -20,11 +20,13 @@ namespace Downloader.Desktop.ViewModels;
 public class SettingViewModel : ViewModelBase
 {
     private readonly Config _config;
+    private readonly IDownloadManager _manager;
     private DownloadSettings S => _config.Settings;
 
-    public SettingViewModel(Config config)
+    public SettingViewModel(Config config, IDownloadManager manager = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _manager = manager;
         SelectSavePathCommand = ReactiveCommand.CreateFromTask(SelectSavePath);
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
         OpenLogsFolderCommand = ReactiveCommand.Create(OpenLogsFolder);
@@ -158,7 +160,21 @@ public class SettingViewModel : ViewModelBase
     public int MaxConcurrentDownloads
     {
         get => S.MaxConcurrentDownloads;
-        set { S.MaxConcurrentDownloads = value; this.RaisePropertyChanged(); }
+        set
+        {
+            S.MaxConcurrentDownloads = Math.Max(1, value);
+            // This is the limit users actually reach for, so make it bite: keep the primary queue's
+            // concurrency cap in lockstep and re-pump so the change takes effect immediately (start
+            // more if the cap grew; no new starts beyond it if it shrank). Without this the value only
+            // seeded brand-new queues and never limited running downloads.
+            if (_config.DefaultQueue is { } q)
+            {
+                q.MaxConcurrent = S.MaxConcurrentDownloads;
+                _manager?.PumpQueue(q.Id);
+            }
+
+            this.RaisePropertyChanged();
+        }
     }
 
     // ---- Advanced ----

@@ -32,8 +32,44 @@ public class DownloadItemViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _download, value);
     }
 
-    /// <summary>Timestamp of the last UI progress update (used to throttle high-frequency events).</summary>
-    public DateTime LastUiUpdateUtc { get; set; }
+    // --- UI update coalescing (perf) ---
+    // The engine raises progress events very frequently from background threads. Instead of marshaling
+    // every event to the UI thread, handlers stage the latest values here (no UI touch); a single
+    // shared dispatcher timer in the manager flushes them at a fixed rate. This keeps main-thread work
+    // bounded no matter how many downloads/connections are active.
+    private double _pendingProgress;
+    private double _pendingSpeed;
+    private long _pendingDownloaded;
+    private long _pendingSize;
+    private int _progressDirty;
+
+    /// <summary>Records the latest engine progress without touching the UI (any thread).</summary>
+    public void StageProgress(double progress, double speed, long downloaded, long size)
+    {
+        _pendingProgress = progress;
+        _pendingSpeed = speed;
+        _pendingDownloaded = downloaded;
+        _pendingSize = size;
+        System.Threading.Volatile.Write(ref _progressDirty, 1);
+    }
+
+    /// <summary>Applies the last staged progress to the bound properties. UI thread only.
+    /// Returns true if anything was applied (lets the manager fire stats only when needed).</summary>
+    public bool FlushProgress()
+    {
+        if (System.Threading.Interlocked.Exchange(ref _progressDirty, 0) == 0)
+            return false;
+        // A row paused/stopped after staging must keep its last fill — never apply a stale event.
+        if (_status != DownloadStatus.Running)
+            return false;
+
+        Progress = _pendingProgress;
+        Speed = _pendingSpeed;
+        Downloaded = _pendingDownloaded;
+        if (_pendingSize > 0 && _item.Size is null or 0)
+            Size = _pendingSize;
+        return true;
+    }
 
     /// <summary>The live engine configuration for this download (lets the details dialog tweak it).</summary>
     public DownloadConfiguration Configuration { get; set; }

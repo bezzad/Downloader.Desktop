@@ -38,13 +38,13 @@ public class QueuesViewModel : ViewModelBase
         if (_config?.Queues == null)
             return;
         foreach (var q in _config.Queues)
-            Queues.Add(new QueueRowViewModel(q, _manager, this));
+            Queues.Add(new QueueRowViewModel(q, _manager, this, _config));
     }
 
     private void AddQueue()
     {
         var queue = _manager.AddQueue("New queue");
-        Queues.Add(new QueueRowViewModel(queue, _manager, this));
+        Queues.Add(new QueueRowViewModel(queue, _manager, this, _config));
     }
 
     public void Remove(QueueRowViewModel row)
@@ -61,16 +61,18 @@ public class QueueRowViewModel : ViewModelBase
 {
     private readonly IDownloadManager _manager;
     private readonly QueuesViewModel _parent;
+    private readonly Config _config;
 
     public DownloadQueue Queue { get; }
     public DataGridCollectionView Items { get; }
     public ICommand RemoveCommand { get; }
 
-    public QueueRowViewModel(DownloadQueue queue, IDownloadManager manager, QueuesViewModel parent)
+    public QueueRowViewModel(DownloadQueue queue, IDownloadManager manager, QueuesViewModel parent, Config config = null)
     {
         Queue = queue;
         _manager = manager;
         _parent = parent;
+        _config = config;
         Items = new DataGridCollectionView(manager.Items)
         {
             Filter = o => o is DownloadItemViewModel vm && vm.GetItem().QueueId == queue.Id
@@ -130,6 +132,11 @@ public class QueueRowViewModel : ViewModelBase
         set
         {
             Queue.MaxConcurrent = Math.Max(1, value);
+            // The primary queue mirrors the Settings "Max concurrent downloads" value (single source
+            // of truth), so editing it here keeps the setting in sync — otherwise the setting would
+            // overwrite this cap on the next launch.
+            if (_config != null && ReferenceEquals(Queue, _config.DefaultQueue) && _config.Settings != null)
+                _config.Settings.MaxConcurrentDownloads = Queue.MaxConcurrent;
             this.RaisePropertyChanged();
             this.RaisePropertyChanged(nameof(Summary));
             _manager.PumpQueue(Queue.Id);

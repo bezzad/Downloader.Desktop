@@ -24,7 +24,6 @@ public class DownloadManager : IDownloadManager
 
     public event Action StatsChanged;
     public event Action ListChanged;
-    private DateTime _lastStatsUtc;
 
     public double TotalSpeed
     {
@@ -42,14 +41,37 @@ public class DownloadManager : IDownloadManager
     public int QueuedCount => Items.Count(i => i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedCount => Items.Count(i => i.Status == DownloadStatus.Completed);
 
-    /// <summary>Throttled status-bar number updates for high-frequency progress events.</summary>
-    private void NotifyStats()
+    // ---------------- UI update pump (perf) ----------------
+    // A single dispatcher timer flushes all rows' staged progress to the UI at a fixed rate, so the
+    // main thread does a bounded amount of work per tick regardless of how many downloads/connections
+    // are running. It runs only while something is active and stops itself when the list goes idle.
+    private DispatcherTimer _uiTimer;
+
+    private void EnsureUiPump()
     {
-        var now = DateTime.UtcNow;
-        if ((now - _lastStatsUtc).TotalMilliseconds < 400)
-            return;
-        _lastStatsUtc = now;
-        StatsChanged?.Invoke();
+        _uiTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _uiTimer.Tick -= OnUiPumpTick;
+        _uiTimer.Tick += OnUiPumpTick;
+        if (!_uiTimer.IsEnabled)
+            _uiTimer.Start();
+    }
+
+    private void OnUiPumpTick(object sender, EventArgs e)
+    {
+        var flushed = false;
+        var active = false;
+        foreach (var vm in Items)
+        {
+            if (vm.Status == DownloadStatus.Running)
+                active = true;
+            if (vm.FlushProgress())
+                flushed = true;
+        }
+
+        if (flushed)
+            StatsChanged?.Invoke();
+        if (!active)
+            _uiTimer.Stop();
     }
 
     private int _suppressNotify;
@@ -88,6 +110,13 @@ public class DownloadManager : IDownloadManager
     public void Initialize(Config config)
     {
         _config = config ?? Config.New();
+
+        // The Settings "Max concurrent downloads" is the user-facing limit; keep the primary queue's
+        // cap in lockstep so it actually limits how many run at once (a config saved before this was
+        // wired up could have a stale queue cap). Extra queues keep their own caps from the Queues page.
+        if (_config.Settings != null && _config.DefaultQueue is { } dq)
+            dq.MaxConcurrent = Math.Max(1, _config.Settings.MaxConcurrentDownloads);
+
         foreach (var existing in Items)
             existing.Detach();
         Items.Clear();
@@ -235,6 +264,7 @@ public class DownloadManager : IDownloadManager
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
         vm.Status = DownloadStatus.Running;
+        EnsureUiPump();
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
@@ -310,16 +340,14 @@ public class DownloadManager : IDownloadManager
 
     public void Resume(DownloadItemViewModel vm)
     {
-        if (vm.Download != null && vm.Status == DownloadStatus.Paused)
-        {
-            vm.Download.Resume();
-            vm.Status = DownloadStatus.Running;
-        }
-        else
-        {
-            // No live handle (stopped or freshly loaded) — (re)build and start.
-            Start(vm);
-        }
+        // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
+        // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
+        // (Created) and only actually starts when PumpQueue finds room. Paused items keep their live
+        // handle and are resumed in place by the pump.
+        if (vm.Status is DownloadStatus.Stopped or DownloadStatus.Failed or DownloadStatus.None)
+            vm.Status = DownloadStatus.Created;
+
+        PumpQueue(vm.GetItem().QueueId);
         NotifyList();
     }
 
@@ -331,7 +359,13 @@ public class DownloadManager : IDownloadManager
         NotifyList();
     }
 
-    public void Retry(DownloadItemViewModel vm) => Start(vm);
+    public void Retry(DownloadItemViewModel vm)
+    {
+        // Re-queue the failed item; the pump starts it when the queue has a free slot (cap-aware).
+        vm.Status = DownloadStatus.Created;
+        PumpQueue(vm.GetItem().QueueId);
+        NotifyList();
+    }
 
     public Task Remove(DownloadItemViewModel vm)
     {
@@ -353,8 +387,14 @@ public class DownloadManager : IDownloadManager
     public void StartAll() =>
         RunBatch(() =>
         {
-            foreach (var vm in Items.Where(v => v.CanResume).ToList())
-                Resume(vm);
+            // Re-queue everything resumable (stopped → queued; paused/created stay as-is), then start
+            // each queue up to its cap. This is the fix for "Start all ignored the queue limit": work
+            // funnels through PumpQueue instead of starting every item directly.
+            foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Stopped).ToList())
+                vm.Status = DownloadStatus.Created;
+
+            foreach (var queue in _config?.Queues?.ToList() ?? new List<DownloadQueue>())
+                StartQueue(queue);
         });
 
     public void StopAll() =>
@@ -385,17 +425,37 @@ public class DownloadManager : IDownloadManager
         if (queue == null || !queue.IsRunning)
             return;
 
-        int running = Items.Count(i => i.GetItem().QueueId == queueId && i.Status == DownloadStatus.Running);
         var cap = Math.Max(1, queue.MaxConcurrent);
+        int Running() => Items.Count(i => i.GetItem().QueueId == queueId && i.Status == DownloadStatus.Running);
 
-        foreach (var vm in Items.Where(i =>
-                     i.GetItem().QueueId == queueId &&
-                     i.Status is DownloadStatus.Created or DownloadStatus.None).ToList())
+        // Eligible = paused (resume in place, prioritized as they're partway done) or queued
+        // (Created/None → start fresh). Start them only while a concurrency slot is free.
+        var pending = Items
+            .Where(i => i.GetItem().QueueId == queueId &&
+                        i.Status is DownloadStatus.Paused or DownloadStatus.Created or DownloadStatus.None)
+            .OrderByDescending(i => i.Status == DownloadStatus.Paused)
+            .ToList();
+
+        foreach (var vm in pending)
         {
-            if (running >= cap)
+            if (Running() >= cap)
                 break;
+            StartOrResume(vm);
+        }
+    }
+
+    /// <summary>Resumes a paused item in place (if it still has a live handle) or starts it fresh.</summary>
+    private void StartOrResume(DownloadItemViewModel vm)
+    {
+        if (vm.Status == DownloadStatus.Paused && vm.Download != null)
+        {
+            vm.Download.Resume();
+            vm.Status = DownloadStatus.Running;
+            EnsureUiPump();
+        }
+        else
+        {
             Start(vm);
-            running++;
         }
     }
 
@@ -404,17 +464,7 @@ public class DownloadManager : IDownloadManager
         if (queue == null)
             return;
         queue.IsRunning = true;
-
-        // Wake up paused items too, then fill remaining slots from the queued ones.
-        foreach (var vm in Items.Where(i =>
-                     i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Paused).ToList())
-        {
-            if (Items.Count(i => i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Running) >= Math.Max(1, queue.MaxConcurrent))
-                break;
-            Resume(vm);
-        }
-
-        PumpQueue(queue.Id);
+        PumpQueue(queue.Id); // resumes paused + starts queued, all capped at MaxConcurrent
         NotifyList();
     }
 
@@ -481,27 +531,13 @@ public class DownloadManager : IDownloadManager
 
         download.DownloadProgressChanged += (_, e) =>
         {
-            // Throttle UI updates to ~5 fps per item; the engine raises this event very frequently
-            // and posting every one to the UI thread is what froze the window.
-            var now = DateTime.UtcNow;
-            if ((now - vm.LastUiUpdateUtc).TotalMilliseconds < 200)
+            // Stage only — no UI marshaling here. The shared UI pump flushes the latest values to the
+            // grid at a fixed rate, so the main thread stays free no matter how frequently (or from how
+            // many connections) the engine raises this event. A paused/stopped row drops staged events
+            // in FlushProgress, so its last fill is preserved.
+            if (vm.Status != DownloadStatus.Running)
                 return;
-            vm.LastUiUpdateUtc = now;
-
-            OnUi(() =>
-            {
-                // Ignore late progress events once the user paused/stopped the item, otherwise the
-                // engine's final 0-ish event would wipe the bar — a paused row must keep its last fill.
-                if (vm.Status != DownloadStatus.Running)
-                    return;
-
-                vm.Progress = e.ProgressPercentage;
-                vm.Speed = e.BytesPerSecondSpeed;
-                vm.Downloaded = e.ReceivedBytesSize;
-                if (vm.Size is null or 0 && e.TotalBytesToReceive > 0)
-                    vm.Size = e.TotalBytesToReceive;
-                NotifyStats();
-            });
+            vm.StageProgress(e.ProgressPercentage, e.BytesPerSecondSpeed, e.ReceivedBytesSize, e.TotalBytesToReceive);
         };
 
         download.DownloadFileCompleted += (_, e) => OnUi(() =>

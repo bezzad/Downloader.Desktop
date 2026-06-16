@@ -144,7 +144,7 @@ public class MainViewModel : ViewModelBase
         Downloads = new DownloadsViewModel(_downloadManager);
         Queues = new QueuesViewModel(_config, _downloadManager);
         Scheduler = new SchedulerViewModel(_config, _downloadManager);
-        Settings = new SettingViewModel(_config);
+        Settings = new SettingViewModel(_config, _downloadManager);
 
         // Persist settings to disk as soon as the user changes one (#24), debounced so spinning a
         // NumericUpDown doesn't hammer the file.

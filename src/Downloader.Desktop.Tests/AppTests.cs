@@ -114,6 +114,67 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void StartAll_respects_queue_concurrency_cap()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 2; // authoritative limit (drives the primary queue)
+        manager.Initialize(config);
+        Assert.Equal(2, config.DefaultQueue.MaxConcurrent);
+
+        // Non-routable host so the background download attempts never actually connect.
+        for (int i = 0; i < 6; i++)
+            manager.Add(new DownloadItem { Url = $"https://10.255.255.1/file{i}.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.StartAll();
+
+        // Only the cap may run at once; the rest stay queued (this is the queue-limit fix).
+        Assert.Equal(2, manager.ActiveCount);
+        Assert.Equal(4, manager.QueuedCount);
+    }
+
+    [AvaloniaFact]
+    public void Settings_max_concurrent_caps_running_downloads()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5;
+        manager.Initialize(config);
+
+        // The user lowers the limit on the Settings page — it must drive the real queue cap.
+        _ = new SettingViewModel(config, manager) { MaxConcurrentDownloads = 2 };
+        Assert.Equal(2, config.DefaultQueue.MaxConcurrent);
+
+        for (int i = 0; i < 8; i++)
+            manager.Add(new DownloadItem { Url = $"https://10.255.255.1/file{i}.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.StartAll();
+
+        Assert.Equal(2, manager.ActiveCount);
+        Assert.Equal(6, manager.QueuedCount);
+    }
+
+    [AvaloniaFact]
+    public void Staged_progress_flushes_only_while_running()
+    {
+        var item = new DownloadItem { Status = DownloadStatus.Running };
+        var vm = new DownloadItemViewModel(item, null) { Status = DownloadStatus.Running };
+
+        vm.StageProgress(42, 1000, 500, 2000);
+        Assert.True(vm.FlushProgress());
+        Assert.Equal(42, vm.Progress);
+
+        // No new data → nothing to flush.
+        Assert.False(vm.FlushProgress());
+
+        // Values staged after a pause are dropped so the row keeps its last fill.
+        vm.Status = DownloadStatus.Paused;
+        vm.StageProgress(99, 0, 1900, 2000);
+        Assert.False(vm.FlushProgress());
+        Assert.Equal(42, vm.Progress);
+    }
+
+    [AvaloniaFact]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();
