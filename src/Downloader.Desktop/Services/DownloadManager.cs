@@ -251,6 +251,12 @@ public class DownloadManager : IDownloadManager
 
     public async void Start(DownloadItemViewModel vm)
     {
+        // Never (re)start something that's already running or finished. A completed file must not be
+        // re-downloaded from 0%, and a double-start would spin up a second engine for the same row
+        // (the second reports progress from 0 — the "100% then begins again from 0" bug).
+        if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
+            return;
+
         var item = vm.GetItem();
         var urls = item.Urls?.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToArray()
                    ?? Array.Empty<string>();
@@ -332,6 +338,10 @@ public class DownloadManager : IDownloadManager
 
     public void Pause(DownloadItemViewModel vm)
     {
+        // Only a running download can be paused. Guard so a bulk "Pause" over a mixed selection can't
+        // touch completed/failed/queued rows.
+        if (vm.Status != DownloadStatus.Running)
+            return;
         vm.Download?.Pause();
         vm.Status = DownloadStatus.Paused;
         vm.Speed = 0;
@@ -340,6 +350,11 @@ public class DownloadManager : IDownloadManager
 
     public void Resume(DownloadItemViewModel vm)
     {
+        // Nothing to resume for an already-running or finished download. This also stops a bulk
+        // "Start" over a mixed selection from re-running a completed item from 0%.
+        if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
+            return;
+
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
         // (Created) and only actually starts when PumpQueue finds room. Paused items keep their live
@@ -353,6 +368,10 @@ public class DownloadManager : IDownloadManager
 
     public void Cancel(DownloadItemViewModel vm)
     {
+        // Only an active (running/paused) download can be stopped. Ignore completed/failed/queued rows
+        // so a bulk "Stop" over a mixed selection can't knock a finished download down to Stopped.
+        if (vm.Status is not (DownloadStatus.Running or DownloadStatus.Paused))
+            return;
         vm.Download?.CancelAsync();
         vm.Status = DownloadStatus.Stopped;
         vm.Speed = 0;
@@ -361,7 +380,10 @@ public class DownloadManager : IDownloadManager
 
     public void Retry(DownloadItemViewModel vm)
     {
-        // Re-queue the failed item; the pump starts it when the queue has a free slot (cap-aware).
+        // Retry only applies to a failed/stopped download — never re-run a completed or already-running
+        // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
+        if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
+            return;
         vm.Status = DownloadStatus.Created;
         PumpQueue(vm.GetItem().QueueId);
         NotifyList();

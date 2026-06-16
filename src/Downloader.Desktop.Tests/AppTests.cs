@@ -175,6 +175,29 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Completed_item_ignores_stop_resume_and_retry()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var vm = manager.Add(new DownloadItem { Url = "https://host/done.zip", SaveFolder = "/tmp" }, autoStart: false);
+        vm.Status = DownloadStatus.Completed;
+        vm.Progress = 100;
+
+        // Bulk "Stop" hits a completed row — it must stay Completed (not flip to Stopped).
+        manager.Cancel(vm);
+        Assert.Equal(DownloadStatus.Completed, vm.Status);
+
+        // Bulk "Start"/retry must never re-run a finished download from 0%.
+        manager.Resume(vm);
+        Assert.Equal(DownloadStatus.Completed, vm.Status);
+        manager.Retry(vm);
+        Assert.Equal(DownloadStatus.Completed, vm.Status);
+        Assert.Equal(100, vm.Progress);
+    }
+
+    [AvaloniaFact]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();
