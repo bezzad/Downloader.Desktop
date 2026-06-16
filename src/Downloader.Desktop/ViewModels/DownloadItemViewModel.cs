@@ -22,8 +22,15 @@ public class DownloadItemViewModel : ViewModelBase
     private DownloadStatus _status;
     private bool _isChecked;
 
-    /// <summary>The live engine handle while this item is downloading/paused; null otherwise.</summary>
-    public DownloadService Download { get; set; }
+    private DownloadService _download;
+
+    /// <summary>The live engine handle while this item is downloading/paused; null otherwise.
+    /// Notifies so a details dialog opened before the download started can attach once it's set.</summary>
+    public DownloadService Download
+    {
+        get => _download;
+        set => this.RaiseAndSetIfChanged(ref _download, value);
+    }
 
     /// <summary>Timestamp of the last UI progress update (used to throttle high-frequency events).</summary>
     public DateTime LastUiUpdateUtc { get; set; }

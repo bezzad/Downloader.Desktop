@@ -17,8 +17,9 @@ namespace Downloader.Desktop.ViewModels;
 /// </summary>
 public class DownloadDetailsViewModel : ViewModelBase
 {
-    private readonly DownloadService _download;
+    private DownloadService _download;
     private readonly Dictionary<string, ChunkProgressViewModel> _parts = new();
+    private DateTime _lastReconcileUtc;
 
     public DownloadItemViewModel Item { get; }
     public ObservableCollection<ChunkProgressViewModel> Parts { get; } = new();
@@ -37,7 +38,6 @@ public class DownloadDetailsViewModel : ViewModelBase
     public DownloadDetailsViewModel(DownloadItemViewModel item)
     {
         Item = item;
-        _download = item?.Download;
 
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
         AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
@@ -50,22 +50,41 @@ public class DownloadDetailsViewModel : ViewModelBase
         if (item != null)
             ((INotifyPropertyChanged)item).PropertyChanged += OnItemPropertyChanged;
 
-        if (_download != null)
-        {
-            // Seed every connection up-front (in chunk order, with each chunk's byte size as its
-            // segment weight) so the segmented bar always shows exactly ChunkCount segments — even
-            // before any progress event arrives and regardless of event-throttling races.
-            var chunks = _download.Package?.Chunks;
-            if (chunks != null)
-                foreach (var c in chunks)
-                    GetOrAddPart(c.Id, c.Length);
-
-            _download.ChunkDownloadProgressChanged += OnChunkProgress;
-        }
+        // The engine handle may not exist yet (the manager assigns it only after resolving redirects
+        // off the UI thread). Attach now if it's ready, otherwise AttachDownload runs once it's set.
+        AttachDownload(item?.Download);
 
         // If the download is already finished when the dialog opens, show every segment full.
         if (Item?.Status == DownloadStatus.Completed)
             CompleteAllParts();
+    }
+
+    /// <summary>
+    /// Subscribes to a (possibly late-arriving) engine handle and seeds its existing connections.
+    /// Safe to call repeatedly — it ignores a null handle and re-attaches if the handle changed
+    /// (e.g. the dialog was opened before Start finished spinning up the <see cref="DownloadService"/>).
+    /// </summary>
+    private void AttachDownload(DownloadService download)
+    {
+        if (download == null || ReferenceEquals(download, _download))
+            return;
+
+        if (_download != null)
+        {
+            _download.ChunkDownloadProgressChanged -= OnChunkProgress;
+            _download.DownloadProgressChanged -= OnOverallProgress;
+        }
+
+        _download = download;
+
+        // Seed every connection that already exists (in chunk order, with each chunk's byte size)
+        // so the segmented bar shows them immediately when the dialog opens mid-download.
+        ReconcileParts();
+
+        // Per-chunk events drive live speed/fill; the overall event lets us reconcile the part set
+        // so connections the engine activates AFTER the dialog opened still get added.
+        _download.ChunkDownloadProgressChanged += OnChunkProgress;
+        _download.DownloadProgressChanged += OnOverallProgress;
     }
 
     public ICommand CopyUrlCommand { get; }
@@ -99,6 +118,18 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
     {
+        // The engine handle is created after the dialog may have opened — attach as soon as it's set.
+        if (e.PropertyName == nameof(DownloadItemViewModel.Download))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                AttachDownload(Item?.Download);
+                this.RaisePropertyChanged(nameof(HasConfig));
+                this.RaisePropertyChanged(nameof(Connections));
+            });
+            return;
+        }
+
         if (e.PropertyName is nameof(DownloadItemViewModel.Status) or nameof(DownloadItemViewModel.HasError)
             or nameof(DownloadItemViewModel.FileName))
             Dispatcher.UIThread.Post(() =>
@@ -168,6 +199,35 @@ public class DownloadDetailsViewModel : ViewModelBase
         });
     }
 
+    private void OnOverallProgress(object sender, DownloadProgressChangedEventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _lastReconcileUtc).TotalMilliseconds < 200)
+            return;
+        _lastReconcileUtc = now;
+
+        Dispatcher.UIThread.Post(ReconcileParts);
+    }
+
+    /// <summary>
+    /// Brings the segment/grid set in line with the engine's current chunk set. The engine activates
+    /// connections lazily (parallel cap / serial mode), so chunks can appear after the dialog opened;
+    /// reconciling on each overall-progress tick adds those late segments and keeps every chunk's fill
+    /// current from the package — even if a chunk's own per-chunk event was throttled or missed.
+    /// </summary>
+    private void ReconcileParts()
+    {
+        var chunks = _download?.Package?.Chunks;
+        if (chunks == null)
+            return;
+
+        foreach (var c in chunks)
+        {
+            var part = GetOrAddPart(c.Id, c.Length);
+            part.SyncFromPackage(c.Position, c.Length);
+        }
+    }
+
     private ChunkProgressViewModel GetOrAddPart(string id, long total = 0)
     {
         id ??= "main";
@@ -198,7 +258,10 @@ public class DownloadDetailsViewModel : ViewModelBase
     public void Cleanup()
     {
         if (_download != null)
+        {
             _download.ChunkDownloadProgressChanged -= OnChunkProgress;
+            _download.DownloadProgressChanged -= OnOverallProgress;
+        }
         if (Item != null)
             ((INotifyPropertyChanged)Item).PropertyChanged -= OnItemPropertyChanged;
     }
@@ -272,6 +335,32 @@ public class ChunkProgressViewModel : ViewModelBase
         _total = total;
         this.RaisePropertyChanged(nameof(Progress));
         this.RaisePropertyChanged(nameof(SpeedText));
+        this.RaisePropertyChanged(nameof(DownloadedText));
+        this.RaisePropertyChanged(nameof(TotalText));
+        this.RaisePropertyChanged(nameof(StatusText));
+    }
+
+    /// <summary>
+    /// Updates this segment from the engine package's live chunk position (no speed info). Used to
+    /// keep late-activated connections current without relying on their per-chunk progress events.
+    /// Never regresses a fill an event already advanced further.
+    /// </summary>
+    public void SyncFromPackage(long position, long total)
+    {
+        if (total <= 0)
+            return;
+
+        var pct = (double)position / total * 100;
+        var changed = false;
+
+        if (pct > _progress) { _progress = pct; changed = true; }
+        if (position > _received) { _received = position; changed = true; }
+        if (total != _total) { _total = total; changed = true; }
+
+        if (!changed)
+            return;
+
+        this.RaisePropertyChanged(nameof(Progress));
         this.RaisePropertyChanged(nameof(DownloadedText));
         this.RaisePropertyChanged(nameof(TotalText));
         this.RaisePropertyChanged(nameof(StatusText));
