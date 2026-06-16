@@ -19,7 +19,6 @@ public class DownloadDetailsViewModel : ViewModelBase
 {
     private readonly DownloadService _download;
     private readonly Dictionary<string, ChunkProgressViewModel> _parts = new();
-    private DateTime _lastTickUtc;
 
     public DownloadItemViewModel Item { get; }
     public ObservableCollection<ChunkProgressViewModel> Parts { get; } = new();
@@ -53,13 +52,20 @@ public class DownloadDetailsViewModel : ViewModelBase
 
         if (_download != null)
         {
+            // Seed every connection up-front (in chunk order, with each chunk's byte size as its
+            // segment weight) so the segmented bar always shows exactly ChunkCount segments — even
+            // before any progress event arrives and regardless of event-throttling races.
             var chunks = _download.Package?.Chunks;
             if (chunks != null)
                 foreach (var c in chunks)
-                    GetOrAddPart(c.Id);
+                    GetOrAddPart(c.Id, c.Length);
 
             _download.ChunkDownloadProgressChanged += OnChunkProgress;
         }
+
+        // If the download is already finished when the dialog opens, show every segment full.
+        if (Item?.Status == DownloadStatus.Completed)
+            CompleteAllParts();
     }
 
     public ICommand CopyUrlCommand { get; }
@@ -101,6 +107,11 @@ public class DownloadDetailsViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(HasError));
                 this.RaisePropertyChanged(nameof(ErrorMessage));
                 this.RaisePropertyChanged(nameof(FilePath));
+
+                // A completed download's final per-chunk progress events are often dropped by the
+                // per-part throttle, leaving segments just shy of full. Snap them all to 100%.
+                if (Item?.Status == DownloadStatus.Completed)
+                    CompleteAllParts();
             });
     }
 
@@ -142,30 +153,45 @@ public class DownloadDetailsViewModel : ViewModelBase
     private void OnChunkProgress(object sender, DownloadProgressChangedEventArgs e)
     {
         var now = DateTime.UtcNow;
-        if ((now - _lastTickUtc).TotalMilliseconds < 150)
-            return;
-        _lastTickUtc = now;
+        // Throttle per connection, not globally: a single shared timestamp would let one busy chunk
+        // starve the others, so some segments were never created/updated (e.g. 7 shown for 8 conns).
+        var nearDone = e.ProgressPercentage >= 99.99;
 
         Dispatcher.UIThread.Post(() =>
         {
-            var part = GetOrAddPart(e.ProgressId);
+            var part = GetOrAddPart(e.ProgressId, e.TotalBytesToReceive);
+            // Always let a near-complete event through so the final fill is never dropped.
+            if (!nearDone && (now - part.LastTickUtc).TotalMilliseconds < 150)
+                return;
+            part.LastTickUtc = now;
             part.Update(e.ProgressPercentage, e.BytesPerSecondSpeed, e.ReceivedBytesSize, e.TotalBytesToReceive);
         });
     }
 
-    private ChunkProgressViewModel GetOrAddPart(string id)
+    private ChunkProgressViewModel GetOrAddPart(string id, long total = 0)
     {
         id ??= "main";
         if (!_parts.TryGetValue(id, out var part))
         {
-            part = new ChunkProgressViewModel(Parts.Count + 1);
+            part = new ChunkProgressViewModel(Parts.Count + 1, total);
             _parts[id] = part;
             Parts.Add(part);
             this.RaisePropertyChanged(nameof(HasParts));
             this.RaisePropertyChanged(nameof(PartsSummary));
         }
+        else
+        {
+            part.SetTotal(total);
+        }
 
         return part;
+    }
+
+    /// <summary>Snaps every connection segment to 100% (used when the whole download completes).</summary>
+    private void CompleteAllParts()
+    {
+        foreach (var part in Parts)
+            part.Complete();
     }
 
     /// <summary>Detach engine handlers; call when the dialog closes.</summary>
@@ -216,13 +242,27 @@ public class ChunkProgressViewModel : ViewModelBase
     private long _received;
     private long _total;
 
-    public ChunkProgressViewModel(int index)
+    public ChunkProgressViewModel(int index, long total = 0)
     {
         Index = index;
+        _total = total;
     }
 
     public int Index { get; }
     public string Title => $"Part {Index}";
+
+    /// <summary>Timestamp of this segment's last UI update (per-connection event throttling).</summary>
+    public DateTime LastTickUtc { get; set; }
+
+    /// <summary>Records the chunk's known total size (seeded before any progress event arrives).</summary>
+    public void SetTotal(long total)
+    {
+        if (total > 0 && _total != total)
+        {
+            _total = total;
+            this.RaisePropertyChanged(nameof(TotalText));
+        }
+    }
 
     public void Update(double progress, double speed, long received, long total)
     {
@@ -234,6 +274,19 @@ public class ChunkProgressViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(SpeedText));
         this.RaisePropertyChanged(nameof(DownloadedText));
         this.RaisePropertyChanged(nameof(TotalText));
+        this.RaisePropertyChanged(nameof(StatusText));
+    }
+
+    /// <summary>Forces this segment to full (download finished).</summary>
+    public void Complete()
+    {
+        _progress = 100;
+        _speed = 0;
+        if (_total > 0)
+            _received = _total;
+        this.RaisePropertyChanged(nameof(Progress));
+        this.RaisePropertyChanged(nameof(SpeedText));
+        this.RaisePropertyChanged(nameof(DownloadedText));
         this.RaisePropertyChanged(nameof(StatusText));
     }
 
