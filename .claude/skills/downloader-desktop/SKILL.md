@@ -31,6 +31,8 @@ Treat this file as a living cache. **Whenever you discover something non-obvious
 - **Cancellation vs failure status**: the engine raises `DownloadFileCompleted` with `Cancelled=true` for BOTH a user pause/stop and an internal abort (e.g. timeout). Disambiguate by the status we set *before* calling the engine: if it's already Paused/Stopped it was the user; a cancel while still Running = real failure → mark Failed.
 - **Queued-item file names**: the engine only resolves the name once a download starts, so queue-capped items show no name. `UrlResolver.ResolveFileNameAsync` (Content-Disposition → URL path) fills a VM-only `PreviewName` in the background; don't write it to `DownloadItem.FileName` or it gets forced on the engine.
 - **Integration test pattern**: spin up a loopback `HttpListener` with Range/206 support and download through a real `DownloadService` — no external network, CI-safe (see `IntegrationTests`).
+- **UI progress coalescing (perf — main-thread budget)**: do NOT marshal each engine `DownloadProgressChanged` to the UI (with N downloads × M connections that floods the dispatcher and makes the grid lag). Handlers call `vm.StageProgress(...)` (plain fields, any thread, no UI touch); a single `DispatcherTimer` in `DownloadManager` (`EnsureUiPump`, 250 ms) flushes all rows via `vm.FlushProgress()` and fires `StatsChanged` once per tick. The pump self-stops when no row is `Running`. `FlushProgress` drops staged values unless `Status==Running`, so a paused row keeps its last fill. This bounds main-thread work regardless of download count — keep it; don't re-add per-event `Dispatcher.UIThread.Post`.
+- **Queue concurrency cap — single choke point**: `Start(vm)` is the *uncapped* primitive and must only be reached via `PumpQueue`. Every user-facing start path (`Resume`, `Retry`, `StartAll`, bulk `StartSelected` → `Resume`, `Add(autoStart)`, completion's `TryStartNextInQueue`) must re-queue the item (set `Status=Created`) and call `PumpQueue`, which starts/resumes only while `running < MaxConcurrent`. `PumpQueue` handles both Paused (resume in place) and Created/None (start fresh), paused first. Regression to watch: making `Resume`/`StartAll` call `Start` directly bypasses the cap (e.g. select 10 with cap 2 → all 10 ran). `Start` sets `Status=Running` synchronously before its first `await`, so `PumpQueue`'s running recount is correct mid-loop.
 
 ## Packaging / publish
 - Self-contained, dependency-free single file: `dotnet publish -r <rid> --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true` (the last flag is required so Skia/native libs are bundled). Validated ~49 MB ELF.
@@ -44,12 +46,13 @@ Treat this file as a living cache. **Whenever you discover something non-obvious
 - **Reveal-a-file-in-folder** cross-platform: Windows `explorer /select,"path"`, macOS `open -R path`, Linux `dbus-send … org.freedesktop.FileManager1.ShowItems array:string:file://path string:` (fallback: open the directory).
 - **Custom window chrome**: `ExtendClientAreaChromeHints` was **removed in Avalonia 12** (compile error AVLN2000). Use only `ExtendClientAreaToDecorationsHint="True"` + `ExtendClientAreaTitleBarHeightHint="-1"`, then draw your own bar (see `Views/TitleBar`). OS resize/snap still works. Drag = `host.BeginMoveDrag(e)` on left-button `PointerPressed`; get the window via `TopLevel.GetTopLevel(this) as Window`.
 - All three windows (MainWindow, AddDownloadItemView, DownloadDetailsView) use `TitleBar`; dialogs set `ShowMinMax="False"`.
+- **Esc-to-close dialogs**: with `WindowDecorations="None"` there's no native close-on-Esc. Override `OnKeyDown` on the dialog window and `Close()` on `Key.Escape` (see `DownloadDetailsView`). A focused `TextBox` doesn't swallow Esc, so the window-level override is enough.
 
 ## Build / run / test
 ```bash
 dotnet build Downloader.Desktop.sln                                   # 0 warnings / 0 errors expected
 dotnet run  --project Downloader.Desktop/Downloader.Desktop.csproj    # launch the GUI (needs a desktop session)
-dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj  # 30 unit + headless UI tests
+dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj  # 50 unit + headless UI + integration tests
 ```
 Headless smoke check (no display interaction): `timeout 10 dotnet run --project Downloader.Desktop/Downloader.Desktop.csproj` — a clean 10s run (SIGTERM/143) with no exceptions means it launched OK. Note: empty-list startup does NOT exercise row/file-kind icons.
 
@@ -61,7 +64,7 @@ DLDESKTOP_CAPTURE=1 dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Test
 Then verify the PNGs by viewing them. Capture uses the real `App` with `.UseSkia().UseHeadless(UseHeadlessDrawing=false)`.
 
 ## Architecture (where things live)
-- `Services/DownloadManager` (DI singleton `IDownloadManager`): owns the master `ObservableCollection<DownloadItemViewModel>`, builds `IDownload` via `DownloadBuilder`, marshals engine events to the UI thread (throttled ~5fps), queue concurrency + `DispatcherTimer` scheduler, `StatsChanged`/`ListChanged` events.
+- `Services/DownloadManager` (DI singleton `IDownloadManager`): owns the master `ObservableCollection<DownloadItemViewModel>`, builds engine `DownloadService` instances, coalesces engine progress onto the UI via the shared `EnsureUiPump` `DispatcherTimer` (see perf note above), enforces queue concurrency through `PumpQueue`, runs the `DispatcherTimer` scheduler, raises `StatsChanged`/`ListChanged`.
 - `ViewModels/`: `MainViewModel` (nav rail, filters, status bar, autosave, sidebar collapse), `DownloadsViewModel` (filterable `DataGridCollectionView` + multi-select bulk actions), `DownloadItemViewModel` (live row: progress/speed/status/FileKind/error), `QueuesViewModel`, `SchedulerViewModel`, `SettingViewModel` (full engine options), `AddDownloadItemViewModel` (multi-URL), `DownloadDetailsViewModel` (per-connection parts).
 - `Models/`: `Config` (persisted), `DownloadSettings` (all engine options + `ToConfiguration()`), `DownloadItem`, `DownloadQueue`, `DownloadSchedule`.
 - `Views/` axaml + `Converters/FileKindToIconConverter`. App-wide styles/theme palettes in `App.axaml`; icon geometries in `Assets/Icons.axaml`.
