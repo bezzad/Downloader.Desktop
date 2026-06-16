@@ -27,6 +27,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Describe before building**: state what I'll add (files/structure/behavior) and why, before/as I write it.
 - **Small, reviewable increments** following the roadmap below; get something working early so the author can give feedback.
 - **UI = mockup first**: show a layout/structure proposal and let the author pick before committing detailed work.
+- **Never commit automatically**: make edits in the working tree and leave them for the author to review; only run `git commit`/`git push` when the author explicitly asks.
 - The author steers and gives feedback; fold it in and keep this file current.
 
 ## Stack
@@ -120,6 +121,9 @@ Rough order to turn the current skeleton into the MVP above:
    - **UI-thread perf**: engine `DownloadProgressChanged` no longer posts per event. Handlers `StageProgress(...)` on the row (any thread, no UI); a single shared `DispatcherTimer` (`EnsureUiPump`, 250 ms) flushes all rows and fires stats once per tick, self-stopping when idle. Main-thread cost is now bounded regardless of active download/connection count.
    - **Esc closes the details dialog** (`OnKeyDown` override — no native chrome to do it).
    - **Tests**: +2 (queue-cap enforcement, staged-progress flush semantics) → **50 total**, all green.
+10. ✅ **Round 10 — state-transition guards** (DONE):
+   - **Bug — stopping a completed item flipped it to Stopped**, and **a finished download could restart from 0%** ("99% → 100% → begins again from 0"). Cause: bulk actions (`StopSelected`→`Cancel`, `StartSelected`→`Resume`) apply to *every* selected row regardless of state, while `DownloadManager` changed state unconditionally (per-row buttons gated via `IsVisible`, but bulk bypasses that). A completed→Stopped item then became resumable and re-ran the engine from scratch; a stray double-`Start` likewise spun up a second `DownloadService` reporting from 0%.
+   - **Fix** — guard transitions at the manager choke point (covers buttons, bulk, scheduler, pump): `Pause` (Running only), `Cancel` (Running/Paused only), `Resume`/`Start` (skip Running/Completed), `Retry` (Failed/Stopped only). +1 regression test (`Completed_item_ignores_stop_resume_and_retry`) → **52 total**, all green. (Note: a server lacking HTTP range/resume can still make the *engine* restart a chunk near the end — separate from these UI guards.)
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
