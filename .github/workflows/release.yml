@@ -28,7 +28,11 @@ jobs:
           - os: macos-latest
             rid: osx-arm64
             artifact: Downloader-osx-arm64
-          - os: macos-13
+          # osx-x64 is built on Linux on purpose: .NET cross-publishes the macOS-x64 runtime pack
+          # (no native compilation step), and GitHub's Intel-Mac (macos-13) runners are scarce and
+          # can sit queued for hours. Building it here avoids that wait. osx-arm64 stays on a Mac
+          # runner (Apple-Silicon runners are plentiful and fast).
+          - os: ubuntu-latest
             rid: osx-x64
             artifact: Downloader-osx-x64
     steps:
