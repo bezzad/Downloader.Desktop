@@ -1,12 +1,16 @@
-# Downloader Desktop
+<p align="center">
+  <img src="docs/banner.svg" alt="Downloader — fast multi-connection download manager" width="100%">
+</p>
 
 A fast, reliable, cross-platform **download manager** with a clean desktop UI for **Windows, macOS and Linux**. It splits each file into multiple connections for maximum speed, lets you pause and resume any time, and organizes your downloads with queues and a scheduler — all in a simple interface anyone can use.
 
 Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Downloader](https://github.com/bezzad/downloader) engine.
 
-![Downloads — dark](docs/screenshots/home-dark.png)
-
-![Downloads — light](docs/screenshots/home-light.png)
+<!-- Theme-aware: GitHub shows the dark shot in dark mode, the light shot otherwise. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
+  <img alt="Downloader" src="docs/screenshots/home-light.png">
+</picture>
 
 ## Features
 - **Multi-connection downloads** — each file is split into several parts and downloaded in parallel for higher speed.
@@ -25,7 +29,10 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
 - **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
 
-![Settings](docs/screenshots/settings-dark.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
+  <img alt="Settings" src="docs/screenshots/settings-light.png">
+</picture>
 
 ## Install
 The app is **fully self-contained** — every release ships with everything it needs bundled in, so there are **no prerequisites to install** (no .NET runtime, no FFmpeg, no extra libraries).
@@ -73,91 +80,14 @@ Your downloads list and settings are saved automatically. Config file location:
 
 ---
 
-## Build & run (for developers)
-
-### Prerequisites
-- **.NET 10 SDK** — https://dotnet.microsoft.com/download (verify with `dotnet --version`)
-- Git
-
-### Get the source
+## Build from source
 ```shell
 git clone https://github.com/bezzad/Downloader.Desktop.git
 cd Downloader.Desktop/src
-```
-All commands below run from the `src/` folder (where `Downloader.Desktop.sln` lives).
-
-### Run (Linux, macOS, Windows)
-```shell
-dotnet restore
-dotnet build
 dotnet run --project Downloader.Desktop/Downloader.Desktop.csproj
 ```
+Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download). Full developer docs — publishing,
+packaging, releasing and macOS bundling — are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Test
-```shell
-dotnet test
-```
-
-### Platform notes
-- **Linux:** needs a desktop session (X11/Wayland). Running from an IDE debugger (e.g. Rider) can group the taskbar entry under the IDE host — run the built binary directly for the real taskbar icon.
-- **macOS:** see the `.app` bundle steps below.
-- **Windows:** an unsigned build may trigger SmartScreen — choose *More info → Run anyway* (sign builds for distribution).
-
-### Publish a self-contained build
-```shell
-# Linux x64
-dotnet publish Downloader.Desktop/Downloader.Desktop.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64
-# Windows x64
-dotnet publish Downloader.Desktop/Downloader.Desktop.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
-# macOS (Apple Silicon / Intel)
-dotnet publish Downloader.Desktop/Downloader.Desktop.csproj -c Release -r osx-arm64 --self-contained true -o publish/osx-arm64
-dotnet publish Downloader.Desktop/Downloader.Desktop.csproj -c Release -r osx-x64   --self-contained true -o publish/osx-x64
-```
-Common RIDs: `linux-x64`, `linux-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`. Add `-p:PublishSingleFile=true` for a single executable.
-
-**One-command local build** (self-contained single file, no dependencies for the end user):
-```shell
-./scripts/publish.sh linux-x64 win-x64 osx-arm64 osx-x64   # outputs to dist/
-```
-
-**Automated releases:** pushing a `v*` tag runs `.github/workflows/release.yml`, which builds self-contained single-file executables for Windows (`win-x64`), Linux (`linux-x64`) and macOS (`osx-x64` + `osx-arm64`), then creates a GitHub Release for the tag and attaches the archives — so end users just download the one for their OS, unzip and run. `.github/workflows/dotnet-desktop.yml` builds and runs the test suite on every push/PR.
-
-### Releasing a new version
-The version number is automatic: bump `VersionPrefix` (major.minor) in `Downloader.Desktop/Downloader.Desktop.csproj` only when you want; the build/revision are derived from the build time, so every release is unique. To cut a release:
-
-```shell
-# 1. Make sure main is green and pushed
-git checkout main && git pull
-dotnet test                       # all tests should pass
-
-# 2. (optional) sanity-check a local self-contained build
-./scripts/publish.sh linux-x64
-
-# 3. Tag and push — this triggers the release workflow
-git tag v1.0.0                    # match major.minor to VersionPrefix
-git push origin v1.0.0
-```
-
-Watch the run under the repo's **Actions** tab. When it finishes, the **Releases** page has a new `v1.0.0` release with the per-OS archives attached. (You can edit the release notes there afterwards.) To re-run a release, delete the tag locally and remotely (`git tag -d v1.0.0 && git push origin :refs/tags/v1.0.0`) and the GitHub Release, then re-tag.
-
-### Deploy on macOS (.app bundle)
-A typical `.app` bundle:
-```text
-Downloader.app/
-  Contents/
-    Info.plist
-    MacOS/Downloader (executable)
-    Resources/Assets.car, downloader.icns
-```
-```shell
-mkdir -p "Downloader.Desktop/bin/publish/osx-arm64/Downloader.app/Contents/MacOS" "Downloader.Desktop/bin/publish/osx-arm64/Downloader.app/Contents/Resources"
-dotnet publish -r osx-arm64 -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -p:PublishSingleFile=true -p:PublishTrimmed=true -p:TrimMode=link -o "Downloader.Desktop/bin/publish/osx-arm64/Downloader.app/Contents/MacOS/"
-cp "Downloader.Desktop/Assets/Info.plist" "Downloader.Desktop/bin/publish/osx-arm64/Downloader.app/Contents/"
-cp "Downloader.Desktop/Assets/downloader.icns" "Downloader.Desktop/bin/publish/osx-arm64/Downloader.app/Contents/Resources/"
-```
-
-**Code signing** (to distribute outside the Mac App Store) needs a Developer ID certificate:
-```shell
-codesign --force --options runtime --sign "Developer ID Application: Behzad Khosravifar (XXXX)" "Downloader.Desktop/bin/publish/osx-arm64/Downloader.app"
-```
-[Reference](https://avaloniaui.net/blog/the-definitive-guide-to-building-and-deploying-avalonia-applications-for-macos)
+## License
+[MIT](LICENSE)

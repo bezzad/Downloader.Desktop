@@ -131,6 +131,13 @@ Rough order to turn the current skeleton into the MVP above:
    - **Install** (`scripts/install.sh` curl|bash, `Casks/downloader.rb`, `packaging/winget/*` templates) + README quick-install commands. winget/brew listings still need the author to publish (winget-pkgs PR / brew tap).
    - **Tests**: +10 (update version logic, queue-stop) → **63 total**, all green. App launches clean. See SKILL.md for the per-pattern gotchas (esp. Avalonia tray/transparency and the AssemblyVersion-vs-tag compare).
 
+12. ✅ **Round 12 — dialog/visual polish + docs** (DONE, uncommitted for review):
+   - **Dialog transparency bug**: the rounded root border used `ThemeBackgroundColor` (undefined in Fluent here) → dialogs were see-through. Fixed to `SystemRegionColor` (opaque). Window corners **16px → 10px** everywhere.
+   - **Notifications**: completed download now shows a green success icon (`emblem-default`) not the blue info icon. **Details strip**: each connection's fragment renders in its own stable palette color (`ChunkProgressViewModel.Brush` by index, bound to the segment `ProgressBar.Foreground`).
+   - **Docs**: hand-authored `docs/banner.svg` hero banner (GitHub renders SVG); README is now end-user focused with **theme-aware screenshots** (`<picture>` + `prefers-color-scheme`, added a `settings-light` capture) and a one-block "Build from source"; all developer/publish/release/macOS-bundle detail moved to new **`CONTRIBUTING.md`**.
+   - **Linux exec icon**: a raw ELF can't carry a file-manager icon (OS limitation) — the taskbar icon comes from `Window.Icon` + `X11PlatformOptions.WmClass`, and the file/menu icon from the `.desktop` installed by `scripts/install.sh`.
+   - **Tests**: still **63**, all green; screenshots regenerated. See SKILL.md for the per-pattern gotchas.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

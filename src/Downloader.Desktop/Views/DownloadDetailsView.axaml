@@ -22,7 +22,7 @@
 
     <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
-            CornerRadius="16" ClipToBounds="True" Background="{DynamicResource ThemeBackgroundColor}">
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
     <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Det_Title}" ShowMinMax="False" />
     <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
@@ -112,7 +112,9 @@
                                      right inset separates adjacent connection segments. -->
                                 <Border Background="{DynamicResource SystemListLowColor}" Margin="0 0 1 0"
                                         ToolTip.Tip="{Binding StatusText}">
+                                    <!-- Each connection's fill in its own stable color (#7) -->
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                                                 Foreground="{Binding Brush}"
                                                  CornerRadius="0" Padding="0"
                                                  MinHeight="0" MinWidth="0"
                                                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />

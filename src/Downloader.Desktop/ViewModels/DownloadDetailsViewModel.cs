@@ -314,6 +314,21 @@ public class ChunkProgressViewModel : ViewModelBase
     public int Index { get; }
     public string Title => $"Part {Index}";
 
+    // Distinct, stable color per connection (assigned by index so it never reshuffles as bars update),
+    // so the segmented strip shows each fragment in its own color (#7).
+    private static readonly Avalonia.Media.IBrush[] Palette =
+    {
+        MakeBrush("#0E8FB3"), MakeBrush("#7C5CFC"), MakeBrush("#E0922F"), MakeBrush("#1FA971"),
+        MakeBrush("#E5598F"), MakeBrush("#2DBED6"), MakeBrush("#C0556B"), MakeBrush("#5B8DEF"),
+        MakeBrush("#9B59B6"), MakeBrush("#16A085"), MakeBrush("#E67E22"), MakeBrush("#2ECC71")
+    };
+
+    private static Avalonia.Media.IBrush MakeBrush(string hex) =>
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(hex));
+
+    /// <summary>The fill color for this fragment's bar (stable, distinct per connection).</summary>
+    public Avalonia.Media.IBrush Brush => Palette[(Index - 1 + Palette.Length) % Palette.Length];
+
     /// <summary>Timestamp of this segment's last UI update (per-connection event throttling).</summary>
     public DateTime LastTickUtc { get; set; }
 

@@ -101,10 +101,13 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "home-light.png");
 
-        // Settings page (dark)
+        // Settings page (dark + light, so the README can be theme-aware)
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         vm.ShowSettingViewCommand.Execute(null);
         Save(window, "settings-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "settings-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
         // Persian (RTL) home to verify translation + right-to-left mirroring.
         Localizer.Instance.Load("fa");

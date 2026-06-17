@@ -35,7 +35,7 @@
     <Panel>
     <!-- Rounded window: transparent window + clipped rounded root border (#11) -->
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
-            CornerRadius="16" ClipToBounds="True"
+            CornerRadius="10" ClipToBounds="True"
             Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
         <!-- ===== Custom window title bar ===== -->

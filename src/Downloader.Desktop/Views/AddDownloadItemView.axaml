@@ -22,7 +22,7 @@
         Title="Add download">
 
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
-            CornerRadius="16" ClipToBounds="True" Background="{DynamicResource ThemeBackgroundColor}">
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
     <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Add_Title}" ShowMinMax="False" />
     <Grid Margin="28 18 28 28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
