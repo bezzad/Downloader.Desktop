@@ -65,9 +65,8 @@ public static class NotificationService
         {
             if (OperatingSystem.IsLinux())
             {
-                // Standard freedesktop icon names — themed by the desktop environment (#5).
-                // Success uses the green "checkmark" emblem (not the blue info icon) so a completed
-                // download reads as success; failures use the red error icon.
+                // Standard freedesktop icon names — themed by the desktop environment. Success uses the
+                // green "checkmark" emblem (not the blue info icon); failures use the red error icon.
                 var icon = isError ? "dialog-error" : "emblem-default";
                 Run("notify-send", new[] { "-i", icon, "Downloader", $"{title}: {message}" });
                 return true;

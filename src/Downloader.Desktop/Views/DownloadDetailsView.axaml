@@ -184,7 +184,7 @@
                 <DataGrid ItemsSource="{Binding Parts}" AutoGenerateColumns="False" IsReadOnly="True"
                           GridLinesVisibility="Horizontal" CanUserResizeColumns="True" CanUserSortColumns="False"
                           HeadersVisibility="Column" Background="Transparent"
-                          BorderThickness="0">
+                          FontSize="9" BorderThickness="0">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Index}" Width="50">
                             <DataGridTemplateColumn.CellTemplate>

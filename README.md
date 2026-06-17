@@ -46,7 +46,7 @@ curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scri
 
 **Windows** ([winget](https://learn.microsoft.com/windows/package-manager/)):
 ```powershell
-winget install bezzad.Downloader
+winget install downloader
 ```
 
 **macOS & Linux** ([Homebrew](https://brew.sh)):

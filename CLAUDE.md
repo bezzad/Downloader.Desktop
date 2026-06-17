@@ -138,6 +138,13 @@ Rough order to turn the current skeleton into the MVP above:
    - **Linux exec icon**: a raw ELF can't carry a file-manager icon (OS limitation) — the taskbar icon comes from `Window.Icon` + `X11PlatformOptions.WmClass`, and the file/menu icon from the `.desktop` installed by `scripts/install.sh`.
    - **Tests**: still **63**, all green; screenshots regenerated. See SKILL.md for the per-pattern gotchas.
 
+13. ✅ **Round 13 — small fixes** (DONE, uncommitted for review):
+   - **Open-folder** now reveals/selects the file for **in-progress** rows too (reveals `<name>.download` when the final file isn't there yet; completed rows already worked).
+   - **Details "Connections"** grid font reduced to 11 to match the section above; **fragment palette** changed to a cohesive **blue→teal** range (no reds/oranges).
+   - **winget**: added `Moniker: downloader` so `winget install downloader` works (identifier must stay `bezzad.Downloader`); README updated.
+   - #2 (notification green tick) was already correct on GNOME (`emblem-default`) — no change needed; reverted an unnecessary bundled-icon attempt.
+   - **Tests**: still **63**, all green.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

@@ -334,10 +334,14 @@ public class DownloadItemViewModel : ViewModelBase
 
     private void OpenContainingFolder()
     {
-        // Open the folder AND highlight the downloaded file in the OS file manager (#8).
-        var path = _item.FilePath;
-        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-            RevealInFolder(path);
+        // Open the folder AND highlight the file in the OS file manager (#8). For an in-progress download
+        // the final file doesn't exist yet — the engine writes "<name>.download" — so reveal that temp
+        // file instead, then fall back to just opening the folder.
+        var final = _item.FilePath;
+        if (!string.IsNullOrWhiteSpace(final) && File.Exists(final))
+            RevealInFolder(final);
+        else if (!string.IsNullOrWhiteSpace(final) && File.Exists(final + ".download"))
+            RevealInFolder(final + ".download");
         else
             ShellOpen(_item.FolderPath);
     }

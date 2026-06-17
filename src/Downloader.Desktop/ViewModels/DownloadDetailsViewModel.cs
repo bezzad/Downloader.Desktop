@@ -314,13 +314,14 @@ public class ChunkProgressViewModel : ViewModelBase
     public int Index { get; }
     public string Title => $"Part {Index}";
 
-    // Distinct, stable color per connection (assigned by index so it never reshuffles as bars update),
-    // so the segmented strip shows each fragment in its own color (#7).
+    // Distinct, stable color per connection (assigned by index so it never reshuffles as bars update).
+    // All shades stay within one blue→teal family so the strip reads as a cohesive palette, not a
+    // rainbow (#4): deep blue → blue → sky → cyan → teal → blue-green.
     private static readonly Avalonia.Media.IBrush[] Palette =
     {
-        MakeBrush("#0E8FB3"), MakeBrush("#7C5CFC"), MakeBrush("#E0922F"), MakeBrush("#1FA971"),
-        MakeBrush("#E5598F"), MakeBrush("#2DBED6"), MakeBrush("#C0556B"), MakeBrush("#5B8DEF"),
-        MakeBrush("#9B59B6"), MakeBrush("#16A085"), MakeBrush("#E67E22"), MakeBrush("#2ECC71")
+        MakeBrush("#1B6CA8"), MakeBrush("#2A8BD0"), MakeBrush("#3FA7DE"), MakeBrush("#5FC0E8"),
+        MakeBrush("#26B6CF"), MakeBrush("#159FB6"), MakeBrush("#1FB39A"), MakeBrush("#7CCBE6"),
+        MakeBrush("#3D7FC4"), MakeBrush("#22C3D6"), MakeBrush("#4FB8C8"), MakeBrush("#6FB6E0")
     };
 
     private static Avalonia.Media.IBrush MakeBrush(string hex) =>
