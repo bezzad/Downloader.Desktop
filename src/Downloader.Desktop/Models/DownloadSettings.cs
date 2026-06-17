@@ -36,6 +36,15 @@ public class DownloadSettings
     /// <summary>UI language code (en, fa, es, fr, ar, eo). Default English.</summary>
     public string Language { get; set; } = "en";
 
+    /// <summary>Keep the app running in the system tray when the main window is closed (on by default).</summary>
+    public bool EnableSystemTray { get; set; } = true;
+
+    /// <summary>Launch the app (hidden to tray) when the OS starts. Requires the tray to be enabled.</summary>
+    public bool RunAtStartup { get; set; } = false;
+
+    /// <summary>Check GitHub for a newer release and offer to update (on by default).</summary>
+    public bool AutoUpdate { get; set; } = true;
+
     // ---- Advanced ----
     public int BufferBlockSize { get; set; } = 8192;
     public int MaxTryAgainOnFailure { get; set; } = 5;

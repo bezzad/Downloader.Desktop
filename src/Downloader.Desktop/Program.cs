@@ -21,7 +21,9 @@ static class Program
     {
         return AppBuilder.Configure<App>()
                .UsePlatformDetect()
-               .With(new X11PlatformOptions { EnableMultiTouch = false })
+               // WmClass must match the installed .desktop file's StartupWMClass so Linux desktops show
+               // our app icon (and group the taskbar entry) instead of a generic/host icon (#1).
+               .With(new X11PlatformOptions { EnableMultiTouch = false, WmClass = "Downloader" })
                .With(new Win32PlatformOptions { DpiAwareness = Win32DpiAwareness.PerMonitorDpiAware })
                .With(new AvaloniaNativePlatformOptions())
                .With(new MacOSPlatformOptions { ShowInDock = true })

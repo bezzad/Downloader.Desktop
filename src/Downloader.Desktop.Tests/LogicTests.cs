@@ -1,6 +1,8 @@
+using System;
 using System.Text.Json;
 using Downloader;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Xunit;
 
@@ -9,6 +11,29 @@ namespace Downloader.Desktop.Tests;
 /// <summary>Pure-logic unit tests (no Avalonia runtime needed).</summary>
 public class LogicTests
 {
+    [Theory]
+    [InlineData("v1.1.0", true)]   // newer minor
+    [InlineData("v2.0.0", true)]   // newer major
+    [InlineData("v1.0.1", true)]   // newer patch
+    [InlineData("v1.0.0", false)]  // same
+    [InlineData("v0.9.9", false)]  // older
+    [InlineData("1.1", true)]      // no 'v', missing patch
+    [InlineData("garbage", false)] // unparseable
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void UpdateService_IsNewer_compares_against_1_0_0(string tag, bool expected)
+    {
+        Assert.Equal(expected, UpdateService.IsNewer(tag, new Version(1, 0, 0)));
+    }
+
+    [Fact]
+    public void UpdateService_ExpectedAssetName_matches_release_naming()
+    {
+        var name = UpdateService.ExpectedAssetName();
+        Assert.StartsWith("Downloader-", name);
+        Assert.True(name.EndsWith(".zip") || name.EndsWith(".tar.gz"), name);
+    }
+
     [Theory]
     [InlineData("movie.mp4", "video")]
     [InlineData("clip.MKV", "video")]

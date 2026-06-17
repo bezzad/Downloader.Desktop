@@ -33,6 +33,7 @@ public class SettingViewModel : ViewModelBase
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
+        CheckUpdateCommand = ReactiveCommand.CreateFromTask(() => UpdateFlow.CheckAsync(manual: true));
     }
 
     public ICommand SelectSavePathCommand { get; }
@@ -41,6 +42,59 @@ public class SettingViewModel : ViewModelBase
     public ICommand ExportLogsCommand { get; }
     public ICommand EmailLogsCommand { get; }
     public ICommand ResetDefaultsCommand { get; }
+    public ICommand CheckUpdateCommand { get; }
+
+    // ---- App behavior (tray / startup / updates) ----
+
+    /// <summary>Keep running in the tray when the window is closed. Turning it off also turns off startup.</summary>
+    public bool EnableSystemTray
+    {
+        get => S.EnableSystemTray;
+        set
+        {
+            if (S.EnableSystemTray == value) return;
+            S.EnableSystemTray = value;
+            if (value) TrayService.Enable();
+            else TrayService.Disable();
+
+            // Run-at-startup needs the tray; disabling the tray must disable startup too.
+            if (!value && S.RunAtStartup)
+            {
+                S.RunAtStartup = false;
+                StartupService.Apply(false);
+                this.RaisePropertyChanged(nameof(RunAtStartup));
+            }
+            this.RaisePropertyChanged();
+        }
+    }
+
+    /// <summary>Launch hidden to the tray when the OS starts. Enabling it also enables the tray.</summary>
+    public bool RunAtStartup
+    {
+        get => S.RunAtStartup;
+        set
+        {
+            if (S.RunAtStartup == value) return;
+
+            // Startup implies the tray; enabling startup with the tray off turns the tray on.
+            if (value && !S.EnableSystemTray)
+            {
+                S.EnableSystemTray = true;
+                TrayService.Enable();
+                this.RaisePropertyChanged(nameof(EnableSystemTray));
+            }
+
+            S.RunAtStartup = value;
+            StartupService.Apply(value);
+            this.RaisePropertyChanged();
+        }
+    }
+
+    public bool AutoUpdate
+    {
+        get => S.AutoUpdate;
+        set { S.AutoUpdate = value; this.RaisePropertyChanged(); }
+    }
 
     /// <summary>Restores every setting (and the theme) to its default value.</summary>
     private void ResetDefaults()
@@ -51,6 +105,8 @@ public class SettingViewModel : ViewModelBase
         // Re-apply settings that affect runtime services immediately.
         AppLog.SetEnabled(S.EnableLogging);
         NotificationService.Enabled = S.EnableNotifications;
+        if (S.EnableSystemTray) TrayService.Enable(); else TrayService.Disable();
+        StartupService.Apply(S.RunAtStartup);
         if (Application.Current?.Styles[0] is FluentTheme)
             Application.Current.RequestedThemeVariant = _config.ThemeMode;
 

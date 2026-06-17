@@ -93,7 +93,17 @@
             <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />
             <Setter Property="CornerRadius" Value="9" />
             <Setter Property="Padding" Value="7 1" />
+            <Setter Property="Margin" Value="8 0 0 0" />
             <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- On a selected (accent-filled) nav item the inherited text turns white, which was unreadable on
+             the light pill (#9). Give the pill an opaque light surface and an accent-colored number. -->
+        <Style Selector="Button.nav.selected Border.pill">
+            <Setter Property="Background" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.nav.selected Border.pill > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
         <!-- Colored status badge -->

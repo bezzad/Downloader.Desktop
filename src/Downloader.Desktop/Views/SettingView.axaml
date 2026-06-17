@@ -146,6 +146,45 @@
                 </StackPanel>
             </Border>
 
+            <!-- ===== App & updates ===== -->
+            <Border Classes="card">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="section" Text="{i18n:Tr Sec_AppUpdates}" Margin="0 0 0 6" />
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_SystemTray}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_SystemTray_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableSystemTray}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_RunAtStartup}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_RunAtStartup_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding RunAtStartup}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_AutoUpdate}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_AutoUpdate_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoUpdate}" />
+                    </Grid>
+
+                    <Button Margin="0 6 0 0" Padding="12 6" HorizontalAlignment="Left"
+                            Command="{Binding CheckUpdateCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
+                            <TextBlock Text="{i18n:Tr Btn_CheckUpdate}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+
             <!-- ===== Logging ===== -->
             <Border Classes="card">
                 <StackPanel Spacing="6">

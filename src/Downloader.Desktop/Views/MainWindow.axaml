@@ -16,6 +16,8 @@
         ShowInTaskbar="True"
         FontSize="{StaticResource DefaultFontSize}"
         WindowDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Downloader">
 
@@ -31,7 +33,10 @@
     </Window.DataTemplates>
 
     <Panel>
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
+    <!-- Rounded window: transparent window + clipped rounded root border (#11) -->
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="16" ClipToBounds="True"
+            Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
         <!-- ===== Custom window title bar ===== -->
         <v:TitleBar DockPanel.Dock="Top" Title="Downloader" ShowMinMax="True" />
@@ -50,7 +55,12 @@
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
                              AcceptsReturn="True" TextWrapping="NoWrap"
                              KeyDown="OnUrlBoxKeyDown"
-                             PlaceholderText="{i18n:Tr Top_PasteLink}" />
+                             PlaceholderText="{i18n:Tr Top_PasteLink}">
+                        <TextBox.InnerLeftContent>
+                            <PathIcon Data="{StaticResource LinkRegular}" Height="14" Width="14"
+                                      Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                        </TextBox.InnerLeftContent>
+                    </TextBox>
                     <Button Grid.Column="1" Classes="accent" CornerRadius="8" Height="34"
                             Padding="14 0" Margin="8 0 0 0" Cursor="Hand"
                             Command="{Binding AddDownloadItemCommand}">
@@ -64,7 +74,12 @@
                 <TextBox Grid.Column="1" Width="200" Height="34" Text="{Binding SearchText}"
                          HorizontalAlignment="Right"
                          CornerRadius="8" VerticalContentAlignment="Center"
-                         PlaceholderText="{i18n:Tr Top_Search}" />
+                         PlaceholderText="{i18n:Tr Top_Search}">
+                    <TextBox.InnerLeftContent>
+                        <PathIcon Data="{StaticResource SearchRegular}" Height="14" Width="14"
+                                  Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </TextBox.InnerLeftContent>
+                </TextBox>
             </Grid>
         </Border>
 

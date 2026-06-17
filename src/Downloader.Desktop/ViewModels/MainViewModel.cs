@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using ReactiveUI;
 
@@ -158,6 +159,62 @@ public class MainViewModel : ViewModelBase
         _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _autoSaveTimer.Tick += (_, _) => RequestSave();
         _autoSaveTimer.Start();
+
+        SetupAppShell();
+    }
+
+    private bool _quitting;
+
+    /// <summary>
+    /// Wires the system tray (#3), close-to-tray, run-at-startup (#4) and the update check (#6) once the
+    /// config is loaded and the window exists.
+    /// </summary>
+    private void SetupAppShell()
+    {
+        if (View is not Window window)
+            return;
+
+        TrayService.Init(window, Quit);
+        TrayService.NotificationsToggled = enabled =>
+        {
+            _config.Settings.EnableNotifications = enabled;
+            SaveSoon();
+        };
+        UpdateFlow.RequestShutdown = Quit;
+
+        if (_config.Settings.EnableSystemTray)
+            TrayService.Enable();
+
+        // Closing the window keeps the app alive in the tray (downloads keep running) unless the user
+        // really quit from the tray menu or the tray is turned off.
+        window.Closing += (_, e) =>
+        {
+            // Only intercept the close if a tray icon is actually present — otherwise there'd be no way
+            // to bring the window back.
+            if (TrayService.IsActive && !_quitting)
+            {
+                e.Cancel = true;
+                window.Hide();
+            }
+        };
+
+        // Keep the OS autostart entry in sync with the setting on every launch.
+        StartupService.Apply(_config.Settings.RunAtStartup);
+
+        // Launched at OS startup with --minimized → start hidden in the tray.
+        if (_config.Settings.EnableSystemTray &&
+            Environment.GetCommandLineArgs().Contains("--minimized"))
+            window.Hide();
+
+        if (_config.Settings.AutoUpdate)
+            _ = UpdateFlow.CheckAsync(manual: false);
+    }
+
+    /// <summary>Really exit the app (from the tray menu / updater), bypassing close-to-tray.</summary>
+    private void Quit()
+    {
+        _quitting = true;
+        (View as Window)?.Close();
     }
 
     private void RequestSave()

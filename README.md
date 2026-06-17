@@ -19,6 +19,8 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Clear status** — live progress and speed, a friendly reason when something fails, and a details view with per-connection progress.
 - **Light & dark themes** with a modern ocean-blue look.
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
+- **System tray** — closing the window keeps downloads running in the background; reopen, mute notifications, or quit from the tray menu. Optionally **launch at startup** (hidden in the tray).
+- **Automatic update check** — get an in-app prompt when a new version ships, and update with one click.
 - **Multi-language UI** — English, فارسی (Persian), Español, Français, العربية (Arabic), Esperanto — with full right-to-left layout for Persian/Arabic. Switch under **Settings → App language**.
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
 - **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
@@ -28,11 +30,33 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 ## Install
 The app is **fully self-contained** — every release ships with everything it needs bundled in, so there are **no prerequisites to install** (no .NET runtime, no FFmpeg, no extra libraries).
 
-1. Download the build for your operating system (Windows / macOS / Linux).
+### Quick install
+
+**Linux (recommended)** — downloads the latest release and adds a menu entry + icon:
+```bash
+curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
+```
+
+**Windows** ([winget](https://learn.microsoft.com/windows/package-manager/)):
+```powershell
+winget install bezzad.Downloader
+```
+
+**macOS & Linux** ([Homebrew](https://brew.sh)):
+```bash
+brew tap bezzad/tap && brew install --cask downloader
+```
+
+> winget and Homebrew listings are published per release (see [`packaging/`](packaging/) and [`Casks/`](Casks/)). Until a listing is live for a given version, use the manual download below.
+
+### Manual download
+1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
 2. Unzip it anywhere.
 3. Run the `Downloader` executable. That's it.
 
-> The version number is shown under **Settings → About** and increases automatically with every release.
+> The version number is shown under **Settings → About** and increases automatically with every release. With **Settings → Check for updates automatically** on, the app tells you (via an in-app toast) when a newer release is available and can download & install it for you.
+
+> First launch on an unsigned build: **Windows** SmartScreen → *More info → Run anyway*; **macOS** Gatekeeper → right-click → *Open* (or `xattr -dr com.apple.quarantine <app>`).
 
 ## Using the app
 1. **Add a download** — paste a link into the top bar and click **Add** (or press `Ctrl+N`). In the dialog you can choose the save folder, optionally set a name, and pick a queue. To add several at once, paste multiple links (one per line).

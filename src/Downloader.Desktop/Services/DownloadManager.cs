@@ -331,7 +331,8 @@ public class DownloadManager : IDownloadManager
             System.Net.WebException we => $"Network error: {we.Message}",
             UnauthorizedAccessException => "Permission denied writing the file. Try another folder.",
             IOException io => $"Disk error: {io.Message}",
-            TaskCanceledException or OperationCanceledException => "The download timed out or was cancelled.",
+            TaskCanceledException or OperationCanceledException =>
+                "The connection timed out — the server stopped responding. Please try again.",
             _ => e.Message
         };
     }
@@ -584,7 +585,9 @@ public class DownloadManager : IDownloadManager
                 }
                 else
                 {
-                    vm.ErrorMessage = e.Error != null ? Describe(e.Error) : "The download was interrupted.";
+                    vm.ErrorMessage = e.Error != null
+                        ? Describe(e.Error)
+                        : "The connection was lost or timed out before the download finished. Please try again.";
                     vm.Status = DownloadStatus.Failed;
                     AppLog.Error($"Failed (interrupted): {vm.FileName ?? vm.Url}", e.Error);
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);

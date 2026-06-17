@@ -14,6 +14,12 @@ public static class UrlResolver
 {
     private static readonly HttpClient Client = CreateClient();
 
+    // Background name lookups are best-effort and must never starve the UI or pile up: cap how many run
+    // at once and give each a short timeout, so adding many URLs (or a slow/unresponsive server) can't
+    // leave rows stuck on "Fetching name…" or hang the resolver (#10).
+    private static readonly SemaphoreSlim NameGate = new(3, 3);
+    private static readonly TimeSpan NameTimeout = TimeSpan.FromSeconds(8);
+
     private static HttpClient CreateClient()
     {
         var handler = new SocketsHttpHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 20 };
@@ -60,9 +66,18 @@ public static class UrlResolver
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
             return null;
 
+        // Cheap fast-path: if the URL path already has a file name with an extension, use it and skip the
+        // network round-trip entirely (this is the common case and avoids most of the lookups).
+        var fromUrl = SanitizeFileName(Uri.UnescapeDataString(Path.GetFileName(uri.LocalPath)));
+        if (!string.IsNullOrWhiteSpace(fromUrl) && Path.HasExtension(fromUrl))
+            return fromUrl;
+
+        if (!await NameGate.WaitAsync(NameTimeout).ConfigureAwait(false))
+            return fromUrl; // too busy — fall back to the URL-derived name rather than hang
+
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var cts = new CancellationTokenSource(NameTimeout);
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
 
@@ -86,7 +101,11 @@ public static class UrlResolver
         catch
         {
             // Fall back to the name embedded in the original URL, if any.
-            return SanitizeFileName(Uri.UnescapeDataString(Path.GetFileName(uri.LocalPath)));
+            return fromUrl;
+        }
+        finally
+        {
+            NameGate.Release();
         }
     }
 

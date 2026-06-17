@@ -37,19 +37,37 @@ public static class NotificationService
         if (!Enabled)
             return;
 
-        if (TryNative(title, message))
+        if (TryNative(title, message, isError))
             return;
 
         ShowInApp(title, message, isError);
     }
 
-    private static bool TryNative(string title, string message)
+    /// <summary>
+    /// Shows an in-app toast the user can click to run <paramref name="onClick"/> (e.g. "Update available
+    /// — click to install"). Always uses the in-app host (we need the click handler) and ignores the
+    /// notifications on/off switch, since it's an actionable prompt rather than a passive alert.
+    /// </summary>
+    public static void ShowAction(string title, string message, Action onClick)
+    {
+        void Show() => _inApp?.Show(new Notification(
+            title, message, NotificationType.Information, TimeSpan.FromSeconds(20), onClick));
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Show();
+        else
+            Dispatcher.UIThread.Post(Show);
+    }
+
+    private static bool TryNative(string title, string message, bool isError)
     {
         try
         {
             if (OperatingSystem.IsLinux())
             {
-                Run("notify-send", new[] { "Downloader", $"{title}: {message}" });
+                // Standard freedesktop icon names — themed by the desktop environment (#5).
+                var icon = isError ? "dialog-error" : "dialog-information";
+                Run("notify-send", new[] { "-i", icon, "Downloader", $"{title}: {message}" });
                 return true;
             }
 

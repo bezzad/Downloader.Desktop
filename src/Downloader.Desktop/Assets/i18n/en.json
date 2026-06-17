@@ -80,6 +80,15 @@
   "Set_Language": "App language",
   "Set_Language_Hint": "Choose the interface language.",
 
+  "Sec_AppUpdates": "APP & UPDATES",
+  "Set_SystemTray": "Keep running in the system tray",
+  "Set_SystemTray_Hint": "Closing the window keeps downloads running in the background.",
+  "Set_RunAtStartup": "Launch at system startup",
+  "Set_RunAtStartup_Hint": "Starts hidden in the tray when you sign in.",
+  "Set_AutoUpdate": "Check for updates automatically",
+  "Set_AutoUpdate_Hint": "Tells you when a new version is available on GitHub.",
+  "Btn_CheckUpdate": "Check for updates",
+
   "Sec_Logging": "LOGGING",
   "Set_WriteLog": "Write a log file",
   "Set_WriteLog_Hint": "Records app and download-engine activity for diagnosing problems. Off by default.",

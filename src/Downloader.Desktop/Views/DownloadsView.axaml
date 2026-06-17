@@ -9,9 +9,10 @@
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
 
-    <DockPanel Margin="16">
+    <!-- Tight to the edges (#8): minimal padding, no surrounding card/border -->
+    <DockPanel Margin="5">
         <!-- Selection toolbar -->
-        <Border DockPanel.Dock="Top" Margin="0 0 0 8">
+        <Border DockPanel.Dock="Top" Margin="0 0 0 6">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <CheckBox Content="{i18n:Tr Grid_SelectAll}" IsChecked="{Binding SelectAll, Mode=TwoWay}"
                           VerticalAlignment="Center" Margin="2 0 8 0" />
@@ -56,8 +57,8 @@
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Hidden"
                   Background="Transparent"
-                  BorderThickness="1"
-                  BorderBrush="{DynamicResource SystemBaseLowColor}"
+                  BorderThickness="0"
+                  BorderBrush="Transparent"
                   CornerRadius="10">
             <DataGrid.Styles>
                 <Style Selector="TextBlock">

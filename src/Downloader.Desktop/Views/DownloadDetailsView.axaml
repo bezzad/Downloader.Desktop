@@ -10,7 +10,8 @@
         Width="640" Height="700"
         CanResize="True" MinWidth="520" MinHeight="520"
         FontSize="{StaticResource DefaultFontSize}"
-        Background="{DynamicResource ThemeBackgroundColor}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
         Icon="/Assets/downloader.png"
         x:Class="Downloader.Desktop.Views.DownloadDetailsView"
         x:DataType="vm:DownloadDetailsViewModel"
@@ -20,7 +21,8 @@
         Title="Download details">
 
     <Panel>
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="16" ClipToBounds="True" Background="{DynamicResource ThemeBackgroundColor}">
     <DockPanel>
     <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Det_Title}" ShowMinMax="False" />
     <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">

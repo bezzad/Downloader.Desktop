@@ -11,7 +11,8 @@
         Width="560" Height="460"
         CanResize="False"
         FontSize="{StaticResource DefaultFontSize}"
-        Background="{DynamicResource ThemeBackgroundColor}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
         Icon="/Assets/downloader.png"
         x:Class="Downloader.Desktop.Views.AddDownloadItemView"
         x:DataType="viewModels:AddDownloadItemViewModel"
@@ -20,7 +21,8 @@
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Add download">
 
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1">
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="16" ClipToBounds="True" Background="{DynamicResource ThemeBackgroundColor}">
     <DockPanel>
     <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Add_Title}" ShowMinMax="False" />
     <Grid Margin="28 18 28 28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
