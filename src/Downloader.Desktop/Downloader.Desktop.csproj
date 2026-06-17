@@ -3,7 +3,7 @@
         <OutputType Condition="'$(IsMacOS)'=='true'">Exe</OutputType>
         <OutputType Condition="'$(IsMacOS)'!='true'">WinExe</OutputType>
         <LangVersion>latest</LangVersion>
-        <TargetFramework Condition="'$(IsMacBuild)'=='true'">net8.0-macos</TargetFramework>
+        <TargetFramework Condition="'$(IsMacBuild)'=='true'">net10.0-macos</TargetFramework>
         <TargetFramework Condition="'$(IsMacBuild)'!='true'">net10.0</TargetFramework>
         <Nullable>disable</Nullable>
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
@@ -11,7 +11,7 @@
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
         <Title>Downloader</Title>
         <Description>Cross-platform Downloader application with fluent user interface</Description>
-        <Copyright>2024</Copyright>
+        <Copyright>2026</Copyright>
         <PackageProjectUrl>https://github.com/bezzad/Downloader.Desktop</PackageProjectUrl>
         <PackageLicenseUrl>https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/LICENSE</PackageLicenseUrl>
         <PackageIcon>Assets\downloader.png</PackageIcon>
@@ -40,7 +40,7 @@
          without editing anything. Build = days since 2024-01-01, Revision = half-seconds since midnight.
          AssemblyVersion stays major.minor.0.0 so assembly references remain stable across builds. -->
     <PropertyGroup Label="Versioning">
-        <VersionPrefix>1.0</VersionPrefix>
+        <VersionPrefix>1.1</VersionPrefix>
         <_BuildNumber>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse('2024-01-01T00:00:00Z'))).Days)</_BuildNumber>
         <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
         <Version>$(VersionPrefix).$(_BuildNumber).$(_RevisionNumber)</Version>

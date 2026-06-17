@@ -58,6 +58,10 @@ and the GitHub Release, then re-tag.
 - **Linux installer:** [`scripts/install.sh`](scripts/install.sh) (curl | bash) installs the latest release + a `.desktop` entry and icon.
 
 ## macOS .app bundle + signing
+The steps below build the plain `net10.0` self-contained binary and wrap it in an `.app` — no
+extra workload required. If instead you build the native macOS TFM path (`-p:IsMacBuild=true`,
+which targets `net10.0-macos`), first install the workload on the Mac: `dotnet workload install macos`
+(needs a recent Xcode).
 ```text
 Downloader.app/Contents/{Info.plist, MacOS/Downloader, Resources/downloader.icns}
 ```

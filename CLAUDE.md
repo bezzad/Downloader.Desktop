@@ -31,7 +31,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - The author steers and gives feedback; fold it in and keep this file current.
 
 ## Stack
-- **.NET 10** (`net10.0`); macOS build target switches to `net8.0-macos` when `IsMacBuild=true`.
+- **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
 - **Downloader 5.8.0** NuGet package (the core download engine — not in this repo).
 - DI via `Microsoft.Extensions.DependencyInjection`; logging via `Microsoft.Extensions.Logging`.
