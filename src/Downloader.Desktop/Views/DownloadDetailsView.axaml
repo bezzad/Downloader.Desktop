@@ -171,12 +171,6 @@
         <!-- Connections: just the per-connection grid (the progress bar lives in the summary above, #5) -->
         <Border Grid.Row="4" Classes="card" Margin="0 12 0 0">
             <DockPanel>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0 0 0 8">
-                    <TextBlock Grid.Column="0" Classes="section" Text="{i18n:Tr Det_Connections}" />
-                    <TextBlock Grid.Column="1" Text="{Binding PartsSummary}"
-                               Foreground="{DynamicResource SystemBaseMediumColor}" />
-                </Grid>
-
                 <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
                            Text="{i18n:Tr Det_ConnAppear}"
                            Foreground="{DynamicResource SystemBaseMediumColor}" TextWrapping="Wrap" />
@@ -184,27 +178,37 @@
                 <DataGrid ItemsSource="{Binding Parts}" AutoGenerateColumns="False" IsReadOnly="True"
                           GridLinesVisibility="Horizontal" CanUserResizeColumns="True" CanUserSortColumns="False"
                           HeadersVisibility="Column" Background="Transparent"
-                          FontSize="9" BorderThickness="0">
+                          RowHeight="26" BorderThickness="0">
+                    <!-- DataGrid.FontSize does NOT cascade to cell/header content in Avalonia, so set it on
+                         the actual TextBlocks (rows + headers) to make the connections table compact (#3). -->
+                    <DataGrid.Styles>
+                        <Style Selector="DataGridCell TextBlock">
+                            <Setter Property="FontSize" Value="11" />
+                        </Style>
+                        <Style Selector="DataGridColumnHeader TextBlock">
+                            <Setter Property="FontSize" Value="11" />
+                        </Style>
+                    </DataGrid.Styles>
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Index}" Width="50">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="vm:ChunkProgressViewModel">
-                                    <TextBlock Text="{Binding Index}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Index}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="{i18n:Tr Det_Col_Status}" Binding="{ReflectionBinding StatusText}" Width="*" />
+                        <DataGridTextColumn Header="{i18n:Tr Det_Col_Status}" Binding="{ReflectionBinding StatusText}" FontSize="11" Width="*" />
                         <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Downloaded}" Width="120">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="vm:ChunkProgressViewModel">
-                                    <TextBlock Text="{Binding DownloadedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding DownloadedText}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Total}" Width="120">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="vm:ChunkProgressViewModel">
-                                    <TextBlock Text="{Binding TotalText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding TotalText}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
