@@ -30,49 +30,103 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:QueueRowViewModel">
                         <Border Classes="card">
-                            <StackPanel Spacing="12">
-                                <!-- Header: name + running toggle + delete -->
-                                <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
+                            <StackPanel Spacing="10">
+                                <!-- Header: name + run/pause + concurrency + delete -->
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto" VerticalAlignment="Center">
                                     <TextBox Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15"
-                                             CornerRadius="6" VerticalContentAlignment="Center" MaxWidth="320"
+                                             CornerRadius="6" VerticalContentAlignment="Center" MaxWidth="280"
                                              HorizontalAlignment="Left" ToolTip.Tip="{i18n:Tr Queues_Name}" />
-                                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsRunning}"
-                                                  OffContent="{i18n:Tr Queues_Paused}" OnContent="{i18n:Tr Queues_Running}" VerticalAlignment="Center"
-                                                  ToolTip.Tip="{i18n:Tr Queues_ToggleTip}" />
-                                    <Button Grid.Column="2" Classes="icon" Command="{Binding RemoveCommand}"
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12 0"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="{i18n:Tr Queues_RunSameTime}" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <NumericUpDown Value="{Binding MaxConcurrent}" Minimum="1" Maximum="20" Increment="1"
+                                                       FormatString="N0" Width="110" VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsRunning}"
+                                                  OffContent="{i18n:Tr Queues_Paused}" OnContent="{i18n:Tr Queues_Running}"
+                                                  VerticalAlignment="Center" ToolTip.Tip="{i18n:Tr Queues_ToggleTip}" />
+                                    <Button Grid.Column="3" Classes="icon" Command="{Binding RemoveCommand}"
                                             ToolTip.Tip="{i18n:Tr Queues_DeleteTip}" Margin="8 0 0 0">
                                         <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
                                     </Button>
                                 </Grid>
 
-                                <!-- Plain-language summary -->
-                                <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                <!-- Aggregate summary + combined progress -->
+                                <TextBlock Text="{Binding SummaryText}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding OverallProgress}" Height="6"
+                                             IsVisible="{Binding HasItems}" />
 
-                                <!-- Concurrency limit -->
-                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <TextBlock Text="{i18n:Tr Queues_RunSameTime}" VerticalAlignment="Center" />
-                                    <NumericUpDown Value="{Binding MaxConcurrent}" Minimum="1" Maximum="20" Increment="1"
-                                                   FormatString="N0" Width="120" VerticalContentAlignment="Center" />
-                                </StackPanel>
-
-                                <!-- Items in this queue -->
-                                <Border Background="{DynamicResource SystemListLowColor}" CornerRadius="8" Padding="12 8">
+                                <!-- Items -->
+                                <Border Background="{DynamicResource SystemListLowColor}" CornerRadius="8" Padding="12 6">
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="{i18n:Tr Queues_Empty}" IsVisible="{Binding IsEmpty}"
-                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" Margin="0 4" />
                                         <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 4">
-                                                        <PathIcon Grid.Column="0" Height="14" Width="14"
+                                                <DataTemplate x:DataType="vm:QueueItemViewModel">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0 5" VerticalAlignment="Center">
+                                                        <PathIcon Grid.Column="0" Height="15" Width="15" VerticalAlignment="Center"
                                                                   Foreground="{DynamicResource SystemAccentColor}"
-                                                                  Data="{Binding FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Margin="9 0 0 0"
-                                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                        <Border Grid.Column="2" Classes="badge"
-                                                                Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
-                                                            <TextBlock Text="{Binding StatusText}" />
-                                                        </Border>
+                                                                  Data="{Binding Item.FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}" />
+
+                                                        <StackPanel Grid.Column="1" Margin="10 0" Spacing="3" VerticalAlignment="Center">
+                                                            <Grid ColumnDefinitions="*,Auto">
+                                                                <TextBlock Grid.Column="0" Text="{Binding Item.DisplayName}"
+                                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding Item.StatusText}" Margin="8 0 0 0"
+                                                                           FontSize="11" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                                            </Grid>
+                                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Item.Progress}" Height="4" />
+                                                        </StackPanel>
+
+                                                        <!-- Reorder priority -->
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6 0 0 0">
+                                                            <Button Classes="icon" Command="{Binding MoveUpCommand}" ToolTip.Tip="{i18n:Tr Queues_MoveUp}">
+                                                                <PathIcon Data="{DynamicResource ChevronUpRegular}" Height="12" Width="12" />
+                                                            </Button>
+                                                            <Button Classes="icon" Command="{Binding MoveDownCommand}" ToolTip.Tip="{i18n:Tr Queues_MoveDown}">
+                                                                <PathIcon Data="{DynamicResource ChevronDownRegular}" Height="12" Width="12" />
+                                                            </Button>
+                                                        </StackPanel>
+
+                                                        <!-- Per-item actions -->
+                                                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Button Classes="icon" Command="{Binding Item.PauseCommand}" IsVisible="{Binding Item.CanPause}"
+                                                                    ToolTip.Tip="{i18n:Tr Action_Pause}">
+                                                                <PathIcon Data="{DynamicResource PauseRegular}" Height="13" Width="13" />
+                                                            </Button>
+                                                            <Button Classes="icon" Command="{Binding Item.ResumeCommand}" IsVisible="{Binding Item.CanResume}"
+                                                                    ToolTip.Tip="{i18n:Tr Action_Resume}">
+                                                                <PathIcon Data="{DynamicResource PlayRegular}" Height="13" Width="13" />
+                                                            </Button>
+                                                            <Button Classes="icon" Command="{Binding Item.RetryCommand}" IsVisible="{Binding Item.CanRetry}"
+                                                                    ToolTip.Tip="{i18n:Tr Action_Retry}">
+                                                                <PathIcon Data="{DynamicResource PlayRegular}" Height="13" Width="13" />
+                                                            </Button>
+                                                            <Button Classes="icon" Command="{Binding Item.CancelCommand}" IsVisible="{Binding Item.IsActive}"
+                                                                    ToolTip.Tip="{i18n:Tr Action_Stop}">
+                                                                <PathIcon Data="{DynamicResource StopRegular}" Height="13" Width="13" />
+                                                            </Button>
+                                                            <Button Classes="icon" IsVisible="{Binding CanMoveToOtherQueue}" ToolTip.Tip="{i18n:Tr Queues_MoveTo}">
+                                                                <PathIcon Data="{DynamicResource ArrowMoveRegular}" Height="13" Width="13" />
+                                                                <Button.Flyout>
+                                                                    <MenuFlyout ItemsSource="{Binding MoveTargets}">
+                                                                        <MenuFlyout.ItemContainerTheme>
+                                                                            <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueMoveTarget"
+                                                                                          BasedOn="{StaticResource {x:Type MenuItem}}">
+                                                                                <Setter Property="Header" Value="{Binding Name}" />
+                                                                                <Setter Property="Command" Value="{Binding Command}" />
+                                                                            </ControlTheme>
+                                                                        </MenuFlyout.ItemContainerTheme>
+                                                                    </MenuFlyout>
+                                                                </Button.Flyout>
+                                                            </Button>
+                                                            <Button Classes="icon" Command="{Binding Item.RemoveCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
+                                                                <PathIcon Data="{DynamicResource DeleteRegular}" Height="13" Width="13" Foreground="IndianRed" />
+                                                            </Button>
+                                                        </StackPanel>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>

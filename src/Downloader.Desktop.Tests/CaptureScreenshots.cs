@@ -118,6 +118,15 @@ public class CaptureScreenshots
         Save(window, "settings-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
+        // Queues page (real queue manager: aggregate stats + per-item progress/actions).
+        vm.ShowQueuesCommand.Execute(null);
+        Save(window, "queues-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "queues-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        vm.ShowSettingViewCommand.Execute(null); // leave a known page before the RTL capture
+        vm.ShowAllCommand.Execute(null);
+
         // Persian (RTL) home to verify translation + right-to-left mirroring.
         Localizer.Instance.Load("fa");
         vm.ShowAllCommand.Execute(null);

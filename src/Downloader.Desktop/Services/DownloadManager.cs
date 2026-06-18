@@ -125,6 +125,10 @@ public class DownloadManager : IDownloadManager
             // Nothing is actually running on a fresh launch — show in-progress items as resumable.
             if (item.Status == DownloadStatus.Running)
                 item.Status = DownloadStatus.Paused;
+            // Backfill the queue for items saved without one (older configs) so they always belong to a
+            // queue and show up on the Queues page.
+            if (string.IsNullOrWhiteSpace(item.QueueId))
+                item.QueueId = _config.DefaultQueue?.Id;
             Items.Add(new DownloadItemViewModel(item, this));
         }
 
@@ -532,6 +536,42 @@ public class DownloadManager : IDownloadManager
 
         _config.Queues.Remove(queue);
         NotifyList();
+    }
+
+    public void MoveToQueue(DownloadItemViewModel vm, string queueId)
+    {
+        if (vm == null || string.IsNullOrEmpty(queueId))
+            return;
+        var item = vm.GetItem();
+        var from = item.QueueId;
+        if (from == queueId)
+            return;
+
+        item.QueueId = queueId;
+        NotifyList();
+        if (!string.IsNullOrEmpty(from))
+            PumpQueue(from);   // a freed slot in the old queue may let its next item start
+        PumpQueue(queueId);    // if the target queue is running with room, the moved item can start
+    }
+
+    public void MovePriority(DownloadItemViewModel vm, int direction)
+    {
+        if (vm == null || direction == 0)
+            return;
+
+        var queueId = vm.GetItem().QueueId;
+        var sameQueue = Items.Where(i => i.GetItem().QueueId == queueId).ToList();
+        var posInQueue = sameQueue.IndexOf(vm);
+        var targetInQueue = posInQueue + Math.Sign(direction);
+        if (posInQueue < 0 || targetInQueue < 0 || targetInQueue >= sameQueue.Count)
+            return; // already at the top/bottom of its queue
+
+        // Reorder within the master list (pump order = list order). Moving past the neighbour keeps every
+        // other item's relative order, so only this queue's priority changes.
+        var neighbour = sameQueue[targetInQueue];
+        Items.Move(Items.IndexOf(vm), Items.IndexOf(neighbour));
+        NotifyList();
+        PumpQueue(queueId);
     }
 
     private void Attach(DownloadItemViewModel vm, DownloadService download)

@@ -408,7 +408,8 @@ public class DownloadItemViewModel : ViewModelBase
         }
     }
 
-    private static string FormatBytes(long bytes)
+    /// <summary>Human-readable byte size (e.g. "12.5 MB"). Public so other VMs (Queues) can reuse it.</summary>
+    public static string FormatBytes(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };
         double size = bytes;

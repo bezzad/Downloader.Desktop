@@ -157,6 +157,9 @@
   "Queues_DeleteTip": "Delete queue (its downloads move to another queue)",
   "Queues_RunSameTime": "Run at the same time:",
   "Queues_Empty": "No downloads in this queue yet.",
+  "Queues_MoveUp": "Move up (start sooner)",
+  "Queues_MoveDown": "Move down (start later)",
+  "Queues_MoveTo": "Move to another queue",
 
   "Sched_Title": "Scheduler",
   "Sched_Add": "New schedule",

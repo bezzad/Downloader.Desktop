@@ -234,6 +234,36 @@ public class AppTests
         var row = queues.Queues[0];
 
         Assert.Equal(1, row.TotalCount);
-        Assert.Contains("waiting", row.Summary);
+        Assert.Contains("waiting", row.SummaryText);
+        Assert.Single(row.Items);                       // the item shows up as a wrapped row
+        Assert.Equal(1, row.WaitingCount);
+    }
+
+    [AvaloniaFact]
+    public void Move_to_queue_reassigns_item()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var vm = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var other = manager.AddQueue("Second");
+
+        manager.MoveToQueue(vm, other.Id);
+
+        Assert.Equal(other.Id, vm.GetItem().QueueId);
+    }
+
+    [AvaloniaFact]
+    public void Move_priority_reorders_within_queue()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip" }, autoStart: false);
+
+        Assert.True(manager.Items.IndexOf(a) < manager.Items.IndexOf(b));
+        manager.MovePriority(b, -1); // move b up past a
+        Assert.True(manager.Items.IndexOf(b) < manager.Items.IndexOf(a));
     }
 }

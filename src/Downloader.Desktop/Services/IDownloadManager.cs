@@ -68,4 +68,11 @@ public interface IDownloadManager
 
     /// <summary>Removes a queue, reassigning its items to another queue (keeps at least one).</summary>
     void RemoveQueue(DownloadQueue queue);
+
+    /// <summary>Moves a download into another queue and re-pumps both (capped) queues.</summary>
+    void MoveToQueue(DownloadItemViewModel vm, string queueId);
+
+    /// <summary>Changes a download's priority within its queue by shifting it earlier/later in the
+    /// list (<paramref name="direction"/> -1 = up/sooner, +1 = down/later); pump order follows list order.</summary>
+    void MovePriority(DownloadItemViewModel vm, int direction);
 }
