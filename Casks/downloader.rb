@@ -5,11 +5,11 @@ cask "downloader" do
   version "1.1.1"
 
   on_arm do
-    sha256 "REPLACE_WITH_SHA256_OF_Downloader-osx-arm64.tar.gz"
+    sha256 "fa2900f203470ad614c0669edd631d7ce677fa69b7fca0f2b9d026e3db52dd5e"
     url "https://github.com/bezzad/Downloader.Desktop/releases/download/v#{version}/Downloader-osx-arm64.tar.gz"
   end
   on_intel do
-    sha256 "REPLACE_WITH_SHA256_OF_Downloader-osx-x64.tar.gz"
+    sha256 "077c8d31f775a3a1db887104711286e66c26e89b38abe851ee83f213be28ee2a"
     url "https://github.com/bezzad/Downloader.Desktop/releases/download/v#{version}/Downloader-osx-x64.tar.gz"
   end
 

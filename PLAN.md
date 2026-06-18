@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-19
 **Branch**: develop
-**Now working on**: macOS app ships as a real `.app` bundle (fixes Spotlight-invisible + dies-with-terminal) — pipeline/cask/docs done; needs a v1.1.1 release to go live
+**Now working on**: (idle) — macOS `.app` fix shipped in v1.1.1 and verified live via brew
 
 ## Status legend
 - `[ ]` todo
@@ -21,12 +21,13 @@ so any machine/AI picks up the true last state.
 - `[!]` blocked / failed
 
 ## Active
-- [~] Ship macOS as a proper `.app` bundle. **Root cause of "app invisible in Spotlight + closes when terminal closes":** the Homebrew cask installed a bare Unix binary (`binary "Downloader"`), which macOS never indexes and which runs as a foreground terminal child. **Fix (done, on develop):** new `scripts/make-macos-app.sh` wraps the self-contained binary into `Downloader.app` (Info.plist + icns); `release.yml` + `publish.sh` use it for `osx-*`; cask switched to `app "Downloader.app"` (v1.1.1); README/CONTRIBUTING updated. **Verified locally on this Mac**: extracted-from-tarball `.app` launches detached (parent PID 1 = launchd) and registers as `com.apple.application-bundle`. **Remaining:** cut the **v1.1.1 release** (all 4 platform assets, so `install.sh`'s "latest" Linux fetch keeps working) and fill the cask's two real sha256 + push to `bezzad/homebrew-tap` — needs author go-ahead on the release/tag (see Blocked).
+- (none)
 
 ## Todo
 - (none)
 
 ## Done
+- [x] **Fixed macOS app invisible in Spotlight + closing when terminal closes.** Root cause: the Homebrew cask installed a bare Unix binary (`binary "Downloader"`) — macOS never indexes it and it runs as a foreground terminal child. Fix: ship a real `Downloader.app` bundle. Added `scripts/make-macos-app.sh` (wraps the self-contained binary + Info.plist + icns), wired into `release.yml` + `publish.sh` for `osx-*`, cask → `app "Downloader.app"`, README/CONTRIBUTING updated — c602e17. Cut **release v1.1.1** (CI built all 4 platforms, macOS as `.app`), filled the cask's real per-arch sha256, pushed to `bezzad/homebrew-tap` (commit 652c1c4). **Verified live on this Mac**: `brew install --cask downloader` → `/Applications/Downloader.app`, found by Spotlight (`mdfind`) + LaunchServices, launches detached (parent PID 1). cask sha commit on develop — see below.
 - [x] Set up cross-machine task tracking: PLAN.md, TASKS.md, CLAUDE.md workflow section — 53ec993
 - [x] Remove private full-name path from settings screenshots: sanitized sample `DefaultSavePath` + de-hardcoded screenshot `OutDir` in `CaptureScreenshots.cs`, regenerated all 7 PNGs — 4dc44b2. Note: the old string remains in git history on all branches (already public on GitHub) — author chose to leave history as-is rather than rewrite/force-push.
 - [x] Codified permanent standing rules in CLAUDE.md (Clean Code/KISS, invoke `downloader-desktop` skill before starting, always record failures in PLAN/TASKS for cross-machine visibility); resolved the resulting conflict with the old "never commit automatically" line; added pointers in PLAN.md/TASKS.md headers — 1ef9a1a
