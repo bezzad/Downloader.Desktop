@@ -35,16 +35,17 @@
     </PropertyGroup>
 
     <!-- ===== Automatic versioning (#16) =====
-         Bump VersionPrefix (major.minor) by hand only when you want; the build & revision numbers
-         are derived from the UTC build time so every release gets a unique, increasing version
-         without editing anything. Build = days since 2024-01-01, Revision = half-seconds since midnight.
-         AssemblyVersion stays major.minor.0.0 so assembly references remain stable across builds. -->
+         VersionPrefix is the FULL major.minor.patch semantic version and must match the release tag
+         (the release workflow stamps it from the tag via -p:VersionPrefix=<tag-without-v>, so the running
+         app always reports exactly the released version — this is what the update check compares against).
+         AssemblyVersion = VersionPrefix.0 so the app can report its real patch number (the update check
+         reads Major.Minor.Build); the 4th component (a unique, increasing revision = half-seconds since
+         midnight UTC) only differentiates builds in FileVersion. Keep VersionPrefix three-part. -->
     <PropertyGroup Label="Versioning">
-        <VersionPrefix>1.1</VersionPrefix>
-        <_BuildNumber>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse('2024-01-01T00:00:00Z'))).Days)</_BuildNumber>
+        <VersionPrefix>1.1.2</VersionPrefix>
         <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
-        <Version>$(VersionPrefix).$(_BuildNumber).$(_RevisionNumber)</Version>
-        <AssemblyVersion>$(VersionPrefix).0.0</AssemblyVersion>
+        <Version>$(VersionPrefix).$(_RevisionNumber)</Version>
+        <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
         <FileVersion>$(Version)</FileVersion>
         <InformationalVersion>$(Version)</InformationalVersion>
     </PropertyGroup>

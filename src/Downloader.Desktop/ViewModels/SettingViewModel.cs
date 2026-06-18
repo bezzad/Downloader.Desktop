@@ -115,13 +115,12 @@ public class SettingViewModel : ViewModelBase
         this.RaisePropertyChanged(string.Empty);
     }
 
-    /// <summary>App version (auto-generated at build time, #16), shown in the About card.</summary>
-    public string AppVersion =>
-        System.Reflection.Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?.Split('+')[0]
-        ?? typeof(SettingViewModel).Assembly.GetName().Version?.ToString()
-        ?? "1.0";
+    /// <summary>
+    /// App version shown in the About card — the clean 3-part major.minor.patch (e.g. "1.1.2"), the
+    /// SAME value the update check compares against the latest release tag, so About and "up to
+    /// date / update available" always agree and match the published version.
+    /// </summary>
+    public string AppVersion => UpdateService.CurrentVersion.ToString();
 
     public bool EnableLogging
     {

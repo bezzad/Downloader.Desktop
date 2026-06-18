@@ -27,6 +27,19 @@ public class LogicTests
     }
 
     [Fact]
+    public void UpdateService_reports_a_real_patch_version_and_ignores_its_own_release()
+    {
+        // Regression (#update-false-alarm): AssemblyVersion used to be pinned to major.minor.0.0, so the
+        // app always reported x.y.0 and treated every patch release (e.g. v1.1.1) as "newer" forever.
+        // CurrentVersion must carry the real patch, and a release equal to it must NOT be an update.
+        var current = UpdateService.CurrentVersion;
+        Assert.False(UpdateService.IsNewer($"v{current.Major}.{current.Minor}.{current.Build}", current),
+            $"App version {current} should not see its own release as an update.");
+        Assert.True(UpdateService.IsNewer($"v{current.Major}.{current.Minor}.{current.Build + 1}", current),
+            "The next patch up should still register as an update.");
+    }
+
+    [Fact]
     public void UpdateService_ExpectedAssetName_matches_release_naming()
     {
         var name = UpdateService.ExpectedAssetName();

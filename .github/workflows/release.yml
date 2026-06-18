@@ -45,12 +45,17 @@ jobs:
       - name: Publish (self-contained, single file)
         shell: bash
         run: |
+          # Stamp the version from the tag (v1.2.3 -> 1.2.3) so the built app reports exactly the
+          # released version and the in-app update check doesn't false-alarm. Non-tag runs use the csproj default.
+          VER_ARG=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VER_ARG="-p:VersionPrefix=${GITHUB_REF_NAME#v}"; fi
           dotnet publish src/Downloader.Desktop/Downloader.Desktop.csproj \
             -c Release -r ${{ matrix.rid }} --self-contained true \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:EnableCompressionInSingleFile=true \
             -p:DebugType=None -p:DebugSymbols=false \
+            $VER_ARG \
             -o publish/${{ matrix.rid }}
 
       - name: Package
