@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-18
 **Branch**: develop
-**Now working on**: winget PR submitted (microsoft/winget-pkgs#390226) — blocked on author signing Microsoft CLA
+**Now working on**: (idle) — winget PR #390226 CLA signed; now in Microsoft's validation/review queue (out of our hands)
 
 ## Status legend
 - `[ ]` todo
@@ -34,4 +34,7 @@ so any machine/AI picks up the true last state.
 - [x] **Published the Homebrew tap — `brew install --cask downloader` now works.** Created public repo `github.com/bezzad/homebrew-tap` via `gh`, pushed `Casks/downloader.rb` (v1.1.0 + real per-arch SHA) + README there. **Verified end-to-end on this Mac**: `brew tap bezzad/tap` → `brew install --cask downloader` → real arm64 Mach-O binary linked at `/opt/homebrew/bin/Downloader` (then uninstalled the test). Note: newer Homebrew requires `brew trust bezzad/tap` before install — documented in both READMEs. Main-repo README restored the working `brew` command + trust note — bec765f.
 
 ## Blocked/Failed
-- [!] winget `bezzad.Downloader` v1.1.0 publish — **PR opened: microsoft/winget-pkgs#390226** (forked winget-pkgs, pushed 3 manifests under `manifests/b/bezzad/Downloader/1.1.0/` via `gh api`, opened PR). Blocked on **Microsoft CLA**: their bot (`microsoft-github-policy-service`) requires the author to comment `@microsoft-github-policy-service agree` on the PR — a one-time legal agreement only the author can sign. After CLA: Azure validation pipeline runs (downloads installer, verifies SHA256, sandbox-installs); watch the PR for `Validation-*` labels / moderator review. Once merged, `winget install downloader` works on Windows. Fork branch: `bezzad:bezzad.Downloader-1.1.0`.
+- (none)
+
+## Waiting on external review
+- [~] winget `bezzad.Downloader` v1.1.0 — **PR microsoft/winget-pkgs#390226**, CLA signed (`license/cla: SUCCESS`). Now in Microsoft's automated validation (downloads installer, verifies SHA256, Windows-sandbox install test) + moderator review — entirely on their side, can take hours–days. **`winget install downloader` starts working on Windows only once this PR is merged.** If validation fails, check the PR's Azure pipeline link / labels for the reason and push a fix to fork branch `bezzad:bezzad.Downloader-1.1.0`. Manifests also kept in-repo at `packaging/winget/` for the next version bump.
