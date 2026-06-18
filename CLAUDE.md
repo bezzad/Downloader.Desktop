@@ -27,7 +27,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Describe before building**: state what I'll add (files/structure/behavior) and why, before/as I write it.
 - **Small, reviewable increments** following the roadmap below; get something working early so the author can give feedback.
 - **UI = mockup first**: show a layout/structure proposal and let the author pick before committing detailed work.
-- **Never commit automatically**: make edits in the working tree and leave them for the author to review; only run `git commit`/`git push` when the author explicitly asks.
+- **Commit policy — superseded by "Workflow & progress tracking" below**: that section's "commit frequently and push to `develop`" is the current standing rule for routine work (code steps, PLAN.md/TASKS.md updates, skill-file notes). The old default of waiting for explicit per-commit approval no longer applies on `develop`; it still applies to anything outside that scope (e.g. force-pushes, branch/history changes, releases/tags).
 - The author steers and gives feedback; fold it in and keep this file current.
 
 ## Stack
@@ -158,9 +158,12 @@ Keep this list current as items land.
 ## Conventions
 - Git user: `bezzad`. Main branch: `main`.
 - C#: `LangVersion=latest`, file-scoped namespaces, `Avalonia`/`ReactiveUI` idioms (`RaiseAndSetIfChanged`, `ReactiveCommand.CreateFromTask`).
+- **Code style — Clean Code, KISS, as simple as possible**: smallest change that solves the actual problem, no speculative abstractions/layers/config knobs, no dead code, prefer readability over cleverness. Standing rule, applies to every task without being repeated.
 - Keep this file updated when structure changes to minimize re-exploration.
 
 ## Workflow & progress tracking
+These rules are permanent and apply to every conversation/task in this repo — do not wait to be told again.
+- **Before starting any task here, invoke the repo's `downloader-desktop` skill first** (build/run/test commands + known gotchas live there — don't re-derive them).
 - Do ALL work directly on `develop`. Never create feature branches.
 - Commit frequently — one commit per logical step, with clear messages — and push to `develop` so any machine can pull the latest state.
 - If work is unfinished at the end of a session, commit the WIP to `develop` anyway, using a `wip:` message prefix, so nothing is stranded on one machine.
@@ -168,7 +171,7 @@ Keep this list current as items land.
   - When given tasks, write them into Todo first, then start.
   - Move to Active and mark `[~]` when starting.
   - Mark `[x]` and move to Done with a one-line note and commit hash when finished.
-  - Mark `[!]` and move to Blocked/Failed with the reason if it fails.
+  - **Mark `[!]` and move to Blocked/Failed with the reason if it fails — do this immediately, before ending the session, even if no code change resulted.** Commit and push that update too. This is how the next machine/AI session learns the true last state instead of repeating or losing the failed attempt.
   - Update "Last updated" and "Now working on" every time.
 - Commit `PLAN.md` together with the code change it describes, on `develop`.
 - For large backlogs, also keep `TASKS.md` updated as the full board.

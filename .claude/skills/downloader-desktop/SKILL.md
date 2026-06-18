@@ -12,7 +12,7 @@ All commands run from the **`src/`** folder (where `Downloader.Desktop.sln` live
 ## Maintaining this skill (read first, every session)
 Treat this file as a living cache. **Whenever you discover something non-obvious that a future session would otherwise have to re-derive** (an engine API shape, a gotcha, a settled design choice), append a concise boilerplate note here. The goal is *steadily fewer tokens per session*: each future run should read the answer here instead of re-grepping the codebase or the sibling `../Downloader` engine. Keep additions short and factual — a few lines, not essays. Prune notes that become wrong. This is an explicit standing instruction from the author.
 
-**Never commit automatically.** Make edits (skill, code, docs) in the working tree and leave them staged/unstaged for the author to review; only run `git commit`/`git push` when the author explicitly asks. (This overrides any general "commit the skill change automatically" guidance.)
+**Commit policy**: follow root `CLAUDE.md` → "Workflow & progress tracking" — commit frequently directly to `develop` and push, including skill-file notes, as part of routine work. (Superseded the older "never commit automatically" rule once the cross-machine PLAN.md/TASKS.md workflow was set up.)
 
 ## Engine (`Downloader` 5.8.0) quick reference — sibling repo `../Downloader` is exactly this version
 - `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
