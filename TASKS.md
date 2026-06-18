@@ -14,4 +14,4 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked/fa
 |--------|------|--------------|--------|
 | [x] | Set up cross-machine task tracking | PLAN.md, TASKS.md, CLAUDE.md (Workflow & progress tracking section) | 53ec993 |
 | [x] | Remove private full name from README settings screenshots | `src/Downloader.Desktop.Tests/CaptureScreenshots.cs` (sanitized sample `DefaultSavePath`, de-hardcoded `OutDir`), regenerated `docs/screenshots/*.png`. History on `main`/other branches still has the old string — author opted to leave history as-is. | 4dc44b2 |
-| [x] | Codify standing rules (Clean Code/KISS, skill-first, failure tracking) | `CLAUDE.md` (Conventions + Workflow & progress tracking + resolved commit-policy conflict), `.claude/skills/downloader-desktop/SKILL.md` (commit-policy note), `PLAN.md`/`TASKS.md` header pointers | _pending_ |
+| [x] | Codify standing rules (Clean Code/KISS, skill-first, failure tracking) | `CLAUDE.md` (Conventions + Workflow & progress tracking + resolved commit-policy conflict), `.claude/skills/downloader-desktop/SKILL.md` (commit-policy note), `PLAN.md`/`TASKS.md` header pointers | 1ef9a1a |
