@@ -9,3 +9,4 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked/fa
 | Status | Task | Files/Notes | Commit |
 |--------|------|--------------|--------|
 | [x] | Set up cross-machine task tracking | PLAN.md, TASKS.md, CLAUDE.md (Workflow & progress tracking section) | 53ec993 |
+| [x] | Remove private full name from README settings screenshots | `src/Downloader.Desktop.Tests/CaptureScreenshots.cs` (sanitized sample `DefaultSavePath`, de-hardcoded `OutDir`), regenerated `docs/screenshots/*.png`. History on `main`/other branches still has the old string — author opted to leave history as-is. | _pending_ |

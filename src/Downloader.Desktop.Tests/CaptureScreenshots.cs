@@ -22,7 +22,15 @@ namespace Downloader.Desktop.Tests;
 /// </summary>
 public class CaptureScreenshots
 {
-    private const string OutDir = "/home/behzad-khosravifar/Documents/sources/Downloader.Desktop/docs/screenshots";
+    private static readonly string OutDir = Path.Combine(FindRepoRoot(), "docs", "screenshots");
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "Downloader.Desktop.sln")))
+            dir = dir.Parent;
+        return dir?.Parent?.FullName ?? throw new DirectoryNotFoundException("Could not locate repo root (Downloader.Desktop.sln not found in any parent directory).");
+    }
 
     private sealed class SampleFileService : IFileService
     {
@@ -35,6 +43,7 @@ public class CaptureScreenshots
     private static Config SampleConfig()
     {
         var config = Config.New();
+        config.Settings.DefaultSavePath = "/home/user/Downloads";
         config.Downloads.Add(Item("ubuntu-24.04.2-desktop.iso", 5_100_000_000, 3_162_000_000, DownloadStatus.Running));
         config.Downloads.Add(Item("interstellar-trailer.mp4", 240_000_000, 74_400_000, DownloadStatus.Running));
         config.Downloads.Add(Item("the-daily-podcast-ep12.mp3", 52_000_000, 18_200_000, DownloadStatus.Paused));
