@@ -6,7 +6,7 @@ file (and `TASKS.md`) at the start of every session before doing anything else.
 
 **Last updated**: 2026-06-18
 **Branch**: develop
-**Now working on**: Setting up cross-machine task tracking (this file, TASKS.md, CLAUDE.md workflow rules)
+**Now working on**: (idle — nothing in progress)
 
 ## Status legend
 - `[ ]` todo
@@ -15,13 +15,13 @@ file (and `TASKS.md`) at the start of every session before doing anything else.
 - `[!]` blocked / failed
 
 ## Active
-- [~] Set up cross-machine task tracking (PLAN.md, TASKS.md, CLAUDE.md workflow section)
+- (none)
 
 ## Todo
 - [ ] (add upcoming tasks here as they're identified)
 
 ## Done
-- [x] Created PLAN.md and TASKS.md, documented workflow rules in CLAUDE.md — 2026-06-18
+- [x] Set up cross-machine task tracking: PLAN.md, TASKS.md, CLAUDE.md workflow section — 53ec993
 
 ## Blocked/Failed
 - (none)

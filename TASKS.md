@@ -8,4 +8,4 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked/fa
 
 | Status | Task | Files/Notes | Commit |
 |--------|------|--------------|--------|
-| [x] | Set up cross-machine task tracking | PLAN.md, TASKS.md, CLAUDE.md (Workflow & progress tracking section) | _pending_ |
+| [x] | Set up cross-machine task tracking | PLAN.md, TASKS.md, CLAUDE.md (Workflow & progress tracking section) | 53ec993 |
