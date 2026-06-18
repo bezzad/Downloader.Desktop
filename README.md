@@ -39,14 +39,21 @@ The app is **fully self-contained** — every release ships with everything it n
 
 ### Quick install
 
+**macOS** ([Homebrew](https://brew.sh)):
+```bash
+brew tap bezzad/tap
+brew install --cask downloader
+```
+> Recent Homebrew versions ask you to trust a third-party tap before installing. If you see that prompt, run `brew trust bezzad/tap` (or add `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`) and re-run the install.
+
 **Linux** — downloads the latest release and adds a menu entry + icon:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
 
-**Windows & macOS** — no package-manager listing yet (see note below); use [Manual download](#manual-download).
+**Windows** — no package-manager listing yet (see note below); use [Manual download](#manual-download).
 
-> **winget and Homebrew are not published yet.** `winget install downloader` and `brew tap bezzad/tap` will fail until those listings go live — the manifests are prepared and release-ready in [`packaging/winget`](packaging/winget) and [`Casks/`](Casks/), but winget requires a reviewed PR to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) and Homebrew requires a `bezzad/homebrew-tap` repo, neither of which exists yet. This section will be updated with working commands once both are live.
+> **winget is not published yet.** `winget install downloader` will fail until the listing goes live — the manifests are prepared and release-ready in [`packaging/winget`](packaging/winget), but winget requires a reviewed PR to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) that hasn't been submitted yet. This note will be removed once it's live.
 
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.

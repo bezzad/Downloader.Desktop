@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-18
 **Branch**: develop
-**Now working on**: Publishing the Homebrew tap (waiting on author to create `bezzad/homebrew-tap`)
+**Now working on**: (idle) — Homebrew tap published + verified; winget PR ready but paused at author checkpoint
 
 ## Status legend
 - `[ ]` todo
@@ -21,16 +21,17 @@ so any machine/AI picks up the true last state.
 - `[!]` blocked / failed
 
 ## Active
-- [~] Publish Homebrew tap so `brew tap bezzad/tap && brew install --cask downloader` works. `gh` is installed locally but unauthenticated; author has `gh`/repo-creation rights elsewhere and will create `bezzad/homebrew-tap` (empty) and confirm — then push `Casks/downloader.rb` into it using this session's existing git push access. winget-pkgs PR is a separate follow-up, also pending author's `gh auth login`.
+- (none)
 
 ## Todo
-- [ ] Submit winget-pkgs PR for `bezzad.Downloader` v1.1.0 (manifests ready in `packaging/winget/`) once author runs `gh auth login`
+- [ ] Submit winget-pkgs PR for `bezzad.Downloader` v1.1.0. Manifests ready + validated in `packaging/winget/` (consistent id/version 1.1.0, real 64-char SHA, reachable URL, nested-portable `Downloader.exe` confirmed present in the zip). `gh` is now authenticated as `bezzad`. **Paused at author checkpoint**: author asked to be told once the tap was done before any winget step; forking `microsoft/winget-pkgs` + opening the PR is a third-party externally-visible action awaiting explicit go-ahead. Plan when resumed: `gh repo fork microsoft/winget-pkgs --clone=false`, add the 3 manifests under `manifests/b/bezzad/Downloader/1.1.0/` via `gh api` (avoid cloning the ~10GB repo), open PR; then monitor Microsoft's automated validation.
 
 ## Done
 - [x] Set up cross-machine task tracking: PLAN.md, TASKS.md, CLAUDE.md workflow section — 53ec993
 - [x] Remove private full-name path from settings screenshots: sanitized sample `DefaultSavePath` + de-hardcoded screenshot `OutDir` in `CaptureScreenshots.cs`, regenerated all 7 PNGs — 4dc44b2. Note: the old string remains in git history on all branches (already public on GitHub) — author chose to leave history as-is rather than rewrite/force-push.
 - [x] Codified permanent standing rules in CLAUDE.md (Clean Code/KISS, invoke `downloader-desktop` skill before starting, always record failures in PLAN/TASKS for cross-machine visibility); resolved the resulting conflict with the old "never commit automatically" line; added pointers in PLAN.md/TASKS.md headers — 1ef9a1a
-- [x] Diagnosed + fixed non-working winget/Homebrew install commands: confirmed `bezzad/homebrew-tap` (404) and the winget-pkgs manifest (404) were never actually published; corrected README to stop presenting them as ready and explain why; filled in real version+sha256 (was `1.0.0`/placeholder) in `Casks/downloader.rb` + `packaging/winget/*.yaml` from the real v1.1.0 release assets — 588f505. Author chose to actually publish: see Active for the tap (in progress) and Todo for winget.
+- [x] Diagnosed + fixed non-working winget/Homebrew install commands: confirmed `bezzad/homebrew-tap` (404) and the winget-pkgs manifest (404) were never actually published; corrected README to stop presenting them as ready and explain why; filled in real version+sha256 (was `1.0.0`/placeholder) in `Casks/downloader.rb` + `packaging/winget/*.yaml` from the real v1.1.0 release assets — 588f505.
+- [x] **Published the Homebrew tap — `brew install --cask downloader` now works.** Created public repo `github.com/bezzad/homebrew-tap` via `gh`, pushed `Casks/downloader.rb` (v1.1.0 + real per-arch SHA) + README there. **Verified end-to-end on this Mac**: `brew tap bezzad/tap` → `brew install --cask downloader` → real arm64 Mach-O binary linked at `/opt/homebrew/bin/Downloader` (then uninstalled the test). Note: newer Homebrew requires `brew trust bezzad/tap` before install — documented in both READMEs. Main-repo README restored the working `brew` command + trust note — _pending commit_.
 
 ## Blocked/Failed
 - (none)
