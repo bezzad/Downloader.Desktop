@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-18
 **Branch**: develop
-**Now working on**: (idle) — Homebrew tap published + verified; winget PR ready but paused at author checkpoint
+**Now working on**: winget PR submitted (microsoft/winget-pkgs#390226) — blocked on author signing Microsoft CLA
 
 ## Status legend
 - `[ ]` todo
@@ -24,7 +24,7 @@ so any machine/AI picks up the true last state.
 - (none)
 
 ## Todo
-- [ ] Submit winget-pkgs PR for `bezzad.Downloader` v1.1.0. Manifests ready + validated in `packaging/winget/` (consistent id/version 1.1.0, real 64-char SHA, reachable URL, nested-portable `Downloader.exe` confirmed present in the zip). `gh` is now authenticated as `bezzad`. **Paused at author checkpoint**: author asked to be told once the tap was done before any winget step; forking `microsoft/winget-pkgs` + opening the PR is a third-party externally-visible action awaiting explicit go-ahead. Plan when resumed: `gh repo fork microsoft/winget-pkgs --clone=false`, add the 3 manifests under `manifests/b/bezzad/Downloader/1.1.0/` via `gh api` (avoid cloning the ~10GB repo), open PR; then monitor Microsoft's automated validation.
+- (none)
 
 ## Done
 - [x] Set up cross-machine task tracking: PLAN.md, TASKS.md, CLAUDE.md workflow section — 53ec993
@@ -34,4 +34,4 @@ so any machine/AI picks up the true last state.
 - [x] **Published the Homebrew tap — `brew install --cask downloader` now works.** Created public repo `github.com/bezzad/homebrew-tap` via `gh`, pushed `Casks/downloader.rb` (v1.1.0 + real per-arch SHA) + README there. **Verified end-to-end on this Mac**: `brew tap bezzad/tap` → `brew install --cask downloader` → real arm64 Mach-O binary linked at `/opt/homebrew/bin/Downloader` (then uninstalled the test). Note: newer Homebrew requires `brew trust bezzad/tap` before install — documented in both READMEs. Main-repo README restored the working `brew` command + trust note — bec765f.
 
 ## Blocked/Failed
-- (none)
+- [!] winget `bezzad.Downloader` v1.1.0 publish — **PR opened: microsoft/winget-pkgs#390226** (forked winget-pkgs, pushed 3 manifests under `manifests/b/bezzad/Downloader/1.1.0/` via `gh api`, opened PR). Blocked on **Microsoft CLA**: their bot (`microsoft-github-policy-service`) requires the author to comment `@microsoft-github-policy-service agree` on the PR — a one-time legal agreement only the author can sign. After CLA: Azure validation pipeline runs (downloads installer, verifies SHA256, sandbox-installs); watch the PR for `Validation-*` labels / moderator review. Once merged, `winget install downloader` works on Windows. Fork branch: `bezzad:bezzad.Downloader-1.1.0`.
