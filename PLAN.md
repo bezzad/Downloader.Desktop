@@ -10,9 +10,9 @@ write Clean Code/KISS — simplest solution, no speculative abstractions; on
 failure, mark `[!]` in Blocked/Failed with the reason and commit+push immediately
 so any machine/AI picks up the true last state.
 
-**Last updated**: 2026-06-18
+**Last updated**: 2026-06-19
 **Branch**: develop
-**Now working on**: (idle) — winget PR #390226 CLA signed; now in Microsoft's validation/review queue (out of our hands)
+**Now working on**: macOS app ships as a real `.app` bundle (fixes Spotlight-invisible + dies-with-terminal) — pipeline/cask/docs done; needs a v1.1.1 release to go live
 
 ## Status legend
 - `[ ]` todo
@@ -21,7 +21,7 @@ so any machine/AI picks up the true last state.
 - `[!]` blocked / failed
 
 ## Active
-- (none)
+- [~] Ship macOS as a proper `.app` bundle. **Root cause of "app invisible in Spotlight + closes when terminal closes":** the Homebrew cask installed a bare Unix binary (`binary "Downloader"`), which macOS never indexes and which runs as a foreground terminal child. **Fix (done, on develop):** new `scripts/make-macos-app.sh` wraps the self-contained binary into `Downloader.app` (Info.plist + icns); `release.yml` + `publish.sh` use it for `osx-*`; cask switched to `app "Downloader.app"` (v1.1.1); README/CONTRIBUTING updated. **Verified locally on this Mac**: extracted-from-tarball `.app` launches detached (parent PID 1 = launchd) and registers as `com.apple.application-bundle`. **Remaining:** cut the **v1.1.1 release** (all 4 platform assets, so `install.sh`'s "latest" Linux fetch keeps working) and fill the cask's two real sha256 + push to `bezzad/homebrew-tap` — needs author go-ahead on the release/tag (see Blocked).
 
 ## Todo
 - (none)

@@ -58,22 +58,17 @@ and the GitHub Release, then re-tag.
 - **Linux installer:** [`scripts/install.sh`](scripts/install.sh) (curl | bash) installs the latest release + a `.desktop` entry and icon.
 
 ## macOS .app bundle + signing
-The steps below build the plain `net10.0` self-contained binary and wrap it in an `.app` — no
-extra workload required. If instead you build the native macOS TFM path (`-p:IsMacBuild=true`,
-which targets `net10.0-macos`), first install the workload on the Mac: `dotnet workload install macos`
-(needs a recent Xcode).
-```text
-Downloader.app/Contents/{Info.plist, MacOS/Downloader, Resources/downloader.icns}
-```
+The macOS release ships a proper **`Downloader.app`** bundle (Spotlight-visible, launches detached) —
+both `release.yml` and `./scripts/publish.sh osx-arm64` produce it by wrapping the plain `net10.0`
+self-contained binary via [`scripts/make-macos-app.sh`](scripts/make-macos-app.sh). No extra workload
+is required. (The native macOS TFM path — `-p:IsMacBuild=true`, targeting `net10.0-macos` — is separate
+and needs `dotnet workload install macos` + a recent Xcode; it is not used by the release.)
 ```shell
-mkdir -p "publish/osx-arm64/Downloader.app/Contents/MacOS" "publish/osx-arm64/Downloader.app/Contents/Resources"
-dotnet publish -r osx-arm64 -c Release --self-contained true -p:PublishSingleFile=true \
-  -o "publish/osx-arm64/Downloader.app/Contents/MacOS/"
-cp Downloader.Desktop/Assets/Info.plist        "publish/osx-arm64/Downloader.app/Contents/"
-cp Downloader.Desktop/Assets/downloader.icns   "publish/osx-arm64/Downloader.app/Contents/Resources/"
-# Distribute outside the App Store: sign with a Developer ID certificate
+# Wrap an existing publish output into Downloader.app (done automatically by publish.sh/release.yml):
+scripts/make-macos-app.sh publish/osx-arm64 publish/osx-arm64-app 1.2.3
+# Distribute outside the App Store: sign the bundle with a Developer ID certificate
 codesign --force --options runtime --sign "Developer ID Application: Behzad Khosravifar (XXXX)" \
-  "publish/osx-arm64/Downloader.app"
+  "publish/osx-arm64-app/Downloader.app"
 ```
 [Avalonia macOS packaging guide](https://avaloniaui.net/blog/the-definitive-guide-to-building-and-deploying-avalonia-applications-for-macos)
 

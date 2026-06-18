@@ -44,7 +44,9 @@ The app is **fully self-contained** — every release ships with everything it n
 brew tap bezzad/tap
 brew install --cask downloader
 ```
-> Recent Homebrew versions ask you to trust a third-party tap before installing. If you see that prompt, run `brew trust bezzad/tap` (or add `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`) and re-run the install.
+This installs **Downloader.app** into your Applications folder — open it from **Launchpad**, **Spotlight** (⌘-Space → "Downloader"), or Finder like any other app.
+> - Recent Homebrew versions ask you to trust a third-party tap before installing. If you see that prompt, run `brew trust bezzad/tap` (or set `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`) and re-run the install.
+> - The app isn't notarized yet, so the first launch may be blocked: right-click **Downloader** in Applications → **Open**, or run `xattr -dr com.apple.quarantine "/Applications/Downloader.app"`.
 
 **Linux** — downloads the latest release and adds a menu entry + icon:
 ```bash
@@ -53,12 +55,13 @@ curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scri
 
 **Windows** — no package-manager listing yet (see note below); use [Manual download](#manual-download).
 
-> **winget is not published yet.** `winget install downloader` will fail until the listing goes live — the manifests are prepared and release-ready in [`packaging/winget`](packaging/winget), but winget requires a reviewed PR to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) that hasn't been submitted yet. This note will be removed once it's live.
+> **winget is pending review.** `winget install downloader` doesn't work yet: the package has been [submitted to microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/pulls?q=bezzad.Downloader) and is waiting on Microsoft's validation/review. Once that PR is merged, the command will work; until then use the [Manual download](#manual-download).
 
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
-2. Unzip it anywhere.
-3. Run the `Downloader` executable. That's it.
+2. Unpack it:
+   - **macOS** — open `Downloader-osx-*.tar.gz` and drag **Downloader.app** into your **Applications** folder, then launch it from Launchpad/Spotlight.
+   - **Windows / Linux** — unzip anywhere and run the `Downloader` executable. That's it.
 
 > The version number is shown under **Settings → About** and increases automatically with every release. With **Settings → Check for updates automatically** on, the app tells you (via an in-app toast) when a newer release is available and can download & install it for you.
 

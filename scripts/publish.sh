@@ -9,6 +9,8 @@ cd "$(dirname "$0")/.."
 PROJ="src/Downloader.Desktop/Downloader.Desktop.csproj"
 RIDS=("$@")
 [ ${#RIDS[@]} -eq 0 ] && RIDS=("linux-x64")
+# Version stamped into the macOS .app bundle; override with VERSION=1.2.3 ./scripts/publish.sh ...
+VERSION="${VERSION:-0.0.0-dev}"
 
 mkdir -p dist
 for RID in "${RIDS[@]}"; do
@@ -26,6 +28,11 @@ for RID in "${RIDS[@]}"; do
   if [[ "$RID" == win-* ]]; then
     [ -f "$OUT/Downloader.Desktop.exe" ] && mv -f "$OUT/Downloader.Desktop.exe" "$OUT/Downloader.exe"
     (cd "$OUT" && zip -qr "../Downloader-$RID.zip" ./*)
+  elif [[ "$RID" == osx-* ]]; then
+    # macOS ships a proper .app bundle (Spotlight-visible, launches detached), not a bare binary.
+    [ -f "$OUT/Downloader.Desktop" ] && mv -f "$OUT/Downloader.Desktop" "$OUT/Downloader"
+    "$(dirname "$0")/make-macos-app.sh" "$OUT" "$OUT-app" "$VERSION"
+    tar -czf "dist/Downloader-$RID.tar.gz" -C "$OUT-app" Downloader.app
   else
     [ -f "$OUT/Downloader.Desktop" ] && mv -f "$OUT/Downloader.Desktop" "$OUT/Downloader"
     chmod +x "$OUT/Downloader" 2>/dev/null || true

@@ -56,14 +56,21 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          cd publish/${{ matrix.rid }}
+          OUT="publish/${{ matrix.rid }}"
           if [[ "${{ matrix.rid }}" == win-* ]]; then
-            [ -f Downloader.Desktop.exe ] && mv -f Downloader.Desktop.exe Downloader.exe
-            7z a "../../${{ matrix.artifact }}.zip" ./* >/dev/null
+            [ -f "$OUT/Downloader.Desktop.exe" ] && mv -f "$OUT/Downloader.Desktop.exe" "$OUT/Downloader.exe"
+            (cd "$OUT" && 7z a "../../${{ matrix.artifact }}.zip" ./* >/dev/null)
+          elif [[ "${{ matrix.rid }}" == osx-* ]]; then
+            # macOS ships a proper .app bundle so the app appears in Spotlight/Launchpad and
+            # launches detached (a bare Unix binary does neither). Version comes from the tag (v1.2.3 -> 1.2.3).
+            [ -f "$OUT/Downloader.Desktop" ] && mv -f "$OUT/Downloader.Desktop" "$OUT/Downloader"
+            VERSION="${GITHUB_REF_NAME#v}"; [[ "$GITHUB_REF" == refs/tags/* ]] || VERSION="0.0.0"
+            scripts/make-macos-app.sh "$OUT" "$OUT-app" "$VERSION"
+            tar -czf "${{ matrix.artifact }}.tar.gz" -C "$OUT-app" Downloader.app
           else
-            [ -f Downloader.Desktop ] && mv -f Downloader.Desktop Downloader
-            chmod +x Downloader || true
-            tar -czf "../../${{ matrix.artifact }}.tar.gz" ./*
+            [ -f "$OUT/Downloader.Desktop" ] && mv -f "$OUT/Downloader.Desktop" "$OUT/Downloader"
+            chmod +x "$OUT/Downloader" || true
+            tar -czf "${{ matrix.artifact }}.tar.gz" -C "$OUT" .
           fi
 
       - name: Upload build artifact
