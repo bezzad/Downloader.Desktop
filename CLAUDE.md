@@ -141,9 +141,15 @@ Rough order to turn the current skeleton into the MVP above:
 13. ✅ **Round 13 — small fixes** (DONE, uncommitted for review):
    - **Open-folder** now reveals/selects the file for **in-progress** rows too (reveals `<name>.download` when the final file isn't there yet; completed rows already worked).
    - **Details "Connections"** grid font reduced to 11 to match the section above; **fragment palette** changed to a cohesive **blue→teal** range (no reds/oranges).
-   - **winget**: added `Moniker: downloader` so `winget install downloader` works (identifier must stay `bezzad.Downloader`); README updated.
+   - **winget**: added `Moniker: downloader` so `winget install downloader` will work once the package is actually published to winget-pkgs (identifier must stay `bezzad.Downloader`); README updated.
    - #2 (notification green tick) was already correct on GNOME (`emblem-default`) — no change needed; reverted an unnecessary bundled-icon attempt.
    - **Tests**: still **63**, all green.
+
+14. ✅ **Round 14 — fix non-working install commands** (DONE):
+   - `winget install downloader` and `brew tap bezzad/tap` were both broken: the winget package was never submitted to `microsoft/winget-pkgs` and `bezzad/homebrew-tap` doesn't exist on GitHub yet, so both 404/fail on a clean machine. README's old footnote undersold this ("until a listing is live for a given version") when really *no version* has ever been published.
+   - **Fixed README**: Quick install now only shows the Linux script as a working one-liner, points Windows/macOS to Manual download, and states plainly that winget/Homebrew aren't published yet (with why, and where the ready manifests live).
+   - **Fixed the templates themselves** so they're publish-ready: `Casks/downloader.rb` and `packaging/winget/*.yaml` had `1.0.0`/`REPLACE_WITH_SHA256_*` placeholders never updated for any real release — bumped to `1.1.0` and filled in real sha256 for all 3 assets (computed from the actual `v1.1.0` GitHub release).
+   - **Still not actually published** (needs the author's explicit go-ahead, see below): creating `bezzad/homebrew-tap` and submitting the `wingetcreate`/manual PR to `microsoft/winget-pkgs` are both externally-visible, third-party actions — not done automatically.
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

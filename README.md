@@ -39,22 +39,14 @@ The app is **fully self-contained** — every release ships with everything it n
 
 ### Quick install
 
-**Linux (recommended)** — downloads the latest release and adds a menu entry + icon:
+**Linux** — downloads the latest release and adds a menu entry + icon:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
 
-**Windows** ([winget](https://learn.microsoft.com/windows/package-manager/)):
-```powershell
-winget install downloader
-```
+**Windows & macOS** — no package-manager listing yet (see note below); use [Manual download](#manual-download).
 
-**macOS & Linux** ([Homebrew](https://brew.sh)):
-```bash
-brew tap bezzad/tap && brew install --cask downloader
-```
-
-> winget and Homebrew listings are published per release (see [`packaging/`](packaging/) and [`Casks/`](Casks/)). Until a listing is live for a given version, use the manual download below.
+> **winget and Homebrew are not published yet.** `winget install downloader` and `brew tap bezzad/tap` will fail until those listings go live — the manifests are prepared and release-ready in [`packaging/winget`](packaging/winget) and [`Casks/`](Casks/), but winget requires a reviewed PR to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) and Homebrew requires a `bezzad/homebrew-tap` repo, neither of which exists yet. This section will be updated with working commands once both are live.
 
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
