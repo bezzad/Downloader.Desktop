@@ -74,9 +74,10 @@ public static class NotificationService
 
             if (OperatingSystem.IsMacOS())
             {
-                var script = $"display notification \"{Escape(message)}\" with title \"Downloader\" subtitle \"{Escape(title)}\"";
-                Run("osascript", new[] { "-e", script });
-                return true;
+                // Post in-process so the banner shows the app's own icon. (osascript "display
+                // notification" always shows Script Editor's generic script icon and can't be
+                // overridden.) Falls through to the in-app toast if the native call fails.
+                return MacNotifier.TryNotify("Downloader", title, message);
             }
         }
         catch
@@ -108,6 +109,4 @@ public static class NotificationService
             psi.ArgumentList.Add(a);
         Process.Start(psi);
     }
-
-    private static string Escape(string s) => (s ?? string.Empty).Replace("\"", "\\\"");
 }
