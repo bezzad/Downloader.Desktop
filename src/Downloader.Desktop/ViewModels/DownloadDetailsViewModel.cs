@@ -54,9 +54,12 @@ public class DownloadDetailsViewModel : ViewModelBase
         // off the UI thread). Attach now if it's ready, otherwise AttachDownload runs once it's set.
         AttachDownload(item?.Download);
 
-        // If the download is already finished when the dialog opens, show every segment full.
+        // If the download is already finished when the dialog opens, reflect its terminal state on
+        // every segment instead of leaving them reading "Downloading".
         if (Item?.Status == DownloadStatus.Completed)
             CompleteAllParts();
+        else if (Item?.Status is DownloadStatus.Failed or DownloadStatus.Stopped or DownloadStatus.Paused)
+            FreezeParts(Item.Status);
     }
 
     /// <summary>
@@ -143,6 +146,10 @@ public class DownloadDetailsViewModel : ViewModelBase
                 // per-part throttle, leaving segments just shy of full. Snap them all to 100%.
                 if (Item?.Status == DownloadStatus.Completed)
                     CompleteAllParts();
+                // When it stops without completing, freeze the segments so they stop reading
+                // "Downloading" (no further progress events arrive to update them).
+                else if (Item?.Status is DownloadStatus.Failed or DownloadStatus.Stopped or DownloadStatus.Paused)
+                    FreezeParts(Item.Status);
             });
     }
 
@@ -254,6 +261,20 @@ public class DownloadDetailsViewModel : ViewModelBase
             part.Complete();
     }
 
+    /// <summary>Freezes every unfinished segment to mirror the parent's stopped/failed/paused state.</summary>
+    private void FreezeParts(DownloadStatus status)
+    {
+        var key = status switch
+        {
+            DownloadStatus.Failed => "State_Failed",
+            DownloadStatus.Stopped => "State_Stopped",
+            DownloadStatus.Paused => "State_Paused",
+            _ => "State_Pending"
+        };
+        foreach (var part in Parts)
+            part.Freeze(key);
+    }
+
     /// <summary>Detach engine handlers; call when the dialog closes.</summary>
     public void Cleanup()
     {
@@ -304,6 +325,10 @@ public class ChunkProgressViewModel : ViewModelBase
     private double _speed;
     private long _received;
     private long _total;
+    // When the whole download stops without completing (Failed/Stopped/Paused), the segment must stop
+    // reading "Downloading": with no more progress events its last status would otherwise stick. This
+    // overrides the progress-derived status until fresh progress (a resume) arrives.
+    private string _frozenStatusKey;
 
     public ChunkProgressViewModel(int index, long total = 0)
     {
@@ -345,6 +370,7 @@ public class ChunkProgressViewModel : ViewModelBase
 
     public void Update(double progress, double speed, long received, long total)
     {
+        _frozenStatusKey = null; // fresh progress means this segment is active again
         _progress = progress;
         _speed = speed;
         _received = received;
@@ -376,6 +402,8 @@ public class ChunkProgressViewModel : ViewModelBase
         if (!changed)
             return;
 
+        _frozenStatusKey = null; // advancing again (e.g. resumed) — drop any frozen override
+
         this.RaisePropertyChanged(nameof(Progress));
         this.RaisePropertyChanged(nameof(DownloadedText));
         this.RaisePropertyChanged(nameof(TotalText));
@@ -385,6 +413,7 @@ public class ChunkProgressViewModel : ViewModelBase
     /// <summary>Forces this segment to full (download finished).</summary>
     public void Complete()
     {
+        _frozenStatusKey = null;
         _progress = 100;
         _speed = 0;
         if (_total > 0)
@@ -395,10 +424,26 @@ public class ChunkProgressViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(StatusText));
     }
 
+    /// <summary>
+    /// Freezes an unfinished segment to mirror the parent download's terminal/inactive state
+    /// (Failed/Stopped/Paused): zeroes the live speed and overrides the status so it no longer reads
+    /// "Downloading" once progress events stop. A fully received segment is left as Completed.
+    /// </summary>
+    public void Freeze(string statusKey)
+    {
+        if (_progress >= 99.99)
+            return;
+        _frozenStatusKey = statusKey;
+        _speed = 0;
+        this.RaisePropertyChanged(nameof(SpeedText));
+        this.RaisePropertyChanged(nameof(StatusText));
+    }
+
     public double Progress => _progress;
 
     public string StatusText => _progress >= 99.99
         ? Localizer.Instance["State_Completed"]
+        : _frozenStatusKey != null ? Localizer.Instance[_frozenStatusKey]
         : _progress > 0 ? Localizer.Instance["State_Downloading"] : Localizer.Instance["State_Pending"];
     public string DownloadedText => FormatBytes(_received);
     public string TotalText => _total > 0 ? FormatBytes(_total) : "—";

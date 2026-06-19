@@ -58,6 +58,13 @@ public class Config
         Settings ??= DownloadSettings.New();
         if (string.IsNullOrWhiteSpace(Settings.DefaultSavePath))
             Settings.DefaultSavePath = DownloadSettings.New().DefaultSavePath;
+
+        // Migrate the old, too-aggressive per-block read deadline. Configs written before the fix
+        // persisted BlockTimeout=1000ms (1 s per 8 KB block), which falsely fails healthy but bursty
+        // downloads with "connection timed out". Bump any value at/below that old default up to the
+        // new safe default so existing users get the fix without touching Settings manually.
+        if (Settings.BlockTimeout <= 1000)
+            Settings.BlockTimeout = DownloadSettings.New().BlockTimeout;
         Downloads ??= new List<DownloadItem>();
         Queues ??= new List<DownloadQueue>();
         if (Queues.Count == 0)

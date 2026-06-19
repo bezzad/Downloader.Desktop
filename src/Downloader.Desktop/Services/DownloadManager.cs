@@ -355,7 +355,7 @@ public class DownloadManager : IDownloadManager
             UnauthorizedAccessException => "Permission denied writing the file. Try another folder.",
             IOException io => $"Disk error: {io.Message}",
             TaskCanceledException or OperationCanceledException =>
-                "The connection timed out — the server stopped responding. Please try again.",
+                "The download timed out — data stopped arriving in time after several retries. Please try again.",
             _ => e.Message
         };
     }

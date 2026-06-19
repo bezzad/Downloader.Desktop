@@ -48,7 +48,14 @@ public class DownloadSettings
     // ---- Advanced ----
     public int BufferBlockSize { get; set; } = 8192;
     public int MaxTryAgainOnFailure { get; set; } = 5;
-    public int BlockTimeout { get; set; } = 1000;
+
+    /// <summary>
+    /// Per-block read deadline in ms (the timeout for a single <see cref="BufferBlockSize"/>-sized
+    /// read), NOT a connection timeout. Kept generous (5 s) because throttled/bursty servers (e.g.
+    /// video CDNs) routinely pause more than a second between bursts on a healthy connection; a
+    /// too-small value turns those normal pauses into spurious "connection timed out" failures.
+    /// </summary>
+    public int BlockTimeout { get; set; } = 5000;
 
     /// <summary>
     /// Overall HttpClient timeout in ms — this is the timeout for the WHOLE chunk request incl.
