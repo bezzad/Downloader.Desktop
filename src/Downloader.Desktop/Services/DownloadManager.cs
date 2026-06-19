@@ -238,19 +238,38 @@ public class DownloadManager : IDownloadManager
         return vm;
     }
 
-    private static async Task ResolvePreviewNameAsync(DownloadItemViewModel vm)
+    private async Task ResolvePreviewNameAsync(DownloadItemViewModel vm)
     {
         var url = vm.GetItem().Url;
         if (string.IsNullOrWhiteSpace(url))
             return;
 
-        var name = await UrlResolver.ResolveFileNameAsync(url).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(name))
+        // Show any name embedded in the URL instantly (free, no network) so the row never lingers
+        // on "Fetching name…" while the probe runs.
+        var quick = UrlResolver.NameFromUrl(url);
+        if (!string.IsNullOrWhiteSpace(quick))
             OnUi(() =>
             {
                 if (string.IsNullOrWhiteSpace(vm.FileName))
-                    vm.PreviewName = name;
+                    vm.PreviewName = quick;
             });
+
+        // Then a single lightweight probe (Downloader 5.9.0 RemoteFileResolver) yields the
+        // authoritative name AND size without starting a download, so queued rows waiting on a slot
+        // preview both (#4). Honors the user's request settings (proxy/headers/credentials).
+        var info = await UrlResolver
+            .ResolveFileInfoAsync(url, _config?.Settings?.ToConfiguration())
+            .ConfigureAwait(false);
+        if (info == null)
+            return;
+
+        OnUi(() =>
+        {
+            if (!string.IsNullOrWhiteSpace(info.FileName) && string.IsNullOrWhiteSpace(vm.FileName))
+                vm.PreviewName = info.FileName;
+            if (info.FileSize > 0 && vm.Size is null or 0)
+                vm.Size = info.FileSize;
+        });
     }
 
     public async void Start(DownloadItemViewModel vm)
@@ -289,7 +308,7 @@ public class DownloadManager : IDownloadManager
             {
                 // Follow redirects up-front for the primary URL (handles 307/308, signed links, etc.).
                 // The engine also follows redirects, so this is a best-effort optimization only.
-                var resolved = await UrlResolver.ResolveAsync(urls[0]).ConfigureAwait(false);
+                var resolved = await UrlResolver.ResolveAsync(urls[0], configuration).ConfigureAwait(false);
                 if (!string.Equals(resolved, urls[0], StringComparison.Ordinal))
                 {
                     AppLog.Info($"Resolved redirect: {urls[0]} -> {resolved}");

@@ -1,118 +1,135 @@
 using System;
 using System.IO;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Downloader;
 
 namespace Downloader.Desktop.Services;
 
 /// <summary>
-/// Follows HTTP redirects (incl. 301/302/303/307/308) once and returns the final URL, so the
-/// download engine receives a direct link. Best-effort: returns the original URL on any failure.
+/// Thin wrapper over the Downloader engine's <see cref="RemoteFileResolver"/> (exposed in
+/// Downloader 5.9.0), which performs the <b>same</b> name/size probe the download pipeline uses
+/// internally — a single lightweight <c>Range: 0-0</c> GET that follows redirects — so we can
+/// preview a file's name and size <b>without starting a download</b>, and resolve its final
+/// (post-redirect) URL for the engine.
+///
+/// <para>
+/// Replacing the previous hand-rolled <see cref="System.Net.Http.HttpClient"/> probe with the
+/// engine's resolver means previews now honor the user's request settings (headers, proxy,
+/// credentials, cookies, redirect policy) and a single probe yields the name, size and final
+/// address together (#4).
+/// </para>
+///
+/// <para>
+/// The resolver doc notes callers that probe many URLs should add their own concurrency limiting
+/// and timeouts; we keep the previous tuning so adding many URLs (or a slow/unresponsive server)
+/// can't leave rows stuck on "Fetching name…" or starve the UI (#10).
+/// </para>
 /// </summary>
 public static class UrlResolver
 {
-    private static readonly HttpClient Client = CreateClient();
+    // Cap how many preview probes run at once and time-box each one (background, best-effort).
+    private static readonly SemaphoreSlim PreviewGate = new(3, 3);
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(8);
 
-    // Background name lookups are best-effort and must never starve the UI or pile up: cap how many run
-    // at once and give each a short timeout, so adding many URLs (or a slow/unresponsive server) can't
-    // leave rows stuck on "Fetching name…" or hang the resolver (#10).
-    private static readonly SemaphoreSlim NameGate = new(3, 3);
-    private static readonly TimeSpan NameTimeout = TimeSpan.FromSeconds(8);
-
-    private static HttpClient CreateClient()
+    /// <summary>
+    /// Follows redirects (best-effort) and returns the final URL so the engine receives a direct
+    /// link. Used at download start; the engine also follows redirects, so this is an optimization
+    /// only. Returns the original URL on any failure. Not gated: starting a download must not wait
+    /// behind background preview probes.
+    /// </summary>
+    public static async Task<string> ResolveAsync(string url, DownloadConfiguration configuration = null)
     {
-        var handler = new SocketsHttpHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 20 };
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
-    }
-
-    public static async Task<string> ResolveAsync(string url)
-    {
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        if (!IsHttp(url, out _))
             return url;
 
-        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            return url;
-
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            // Range 0-0 keeps it cheap; ResponseHeadersRead avoids downloading the body.
-            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-            request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
-
-            using var response = await Client
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token)
-                .ConfigureAwait(false);
-
-            var finalUri = response.RequestMessage?.RequestUri;
-            return finalUri?.AbsoluteUri ?? url;
-        }
-        catch
-        {
-            return url; // network/timeout/HEAD-unsupported — fall back to the original URL
-        }
+        var info = await ProbeAsync(url, configuration, gated: false).ConfigureAwait(false);
+        return info?.Address?.AbsoluteUri ?? url;
     }
 
     /// <summary>
-    /// Best-effort resolution of the file name from a URL without downloading it: follows redirects
-    /// and reads Content-Disposition, falling back to the final URL's path. Used so queued downloads
-    /// (waiting on a queue slot) can show their name before they actually start (#4). Returns null on failure.
+    /// The file name embedded in the URL path, if it already looks like a real file (has an
+    /// extension). Pure/synchronous and free — lets the UI show a name instantly before any probe.
+    /// Returns null when the URL carries no usable name.
     /// </summary>
-    public static async Task<string> ResolveFileNameAsync(string url)
+    public static string NameFromUrl(string url)
     {
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        if (!IsHttp(url, out var uri))
             return null;
-        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            return null;
+        var name = SanitizeFileName(Uri.UnescapeDataString(Path.GetFileName(uri.LocalPath)));
+        return !string.IsNullOrWhiteSpace(name) && Path.HasExtension(name) ? name : null;
+    }
 
-        // Cheap fast-path: if the URL path already has a file name with an extension, use it and skip the
-        // network round-trip entirely (this is the common case and avoids most of the lookups).
-        var fromUrl = SanitizeFileName(Uri.UnescapeDataString(Path.GetFileName(uri.LocalPath)));
-        if (!string.IsNullOrWhiteSpace(fromUrl) && Path.HasExtension(fromUrl))
+    /// <summary>
+    /// Best-effort file-name resolution without downloading: uses the cheap URL fast-path first
+    /// (no network) and only probes the server when the URL carries no usable name. Returns null
+    /// when nothing could be resolved.
+    /// </summary>
+    public static async Task<string> ResolveFileNameAsync(string url, DownloadConfiguration configuration = null)
+    {
+        var fromUrl = NameFromUrl(url);
+        if (!string.IsNullOrWhiteSpace(fromUrl))
             return fromUrl;
 
-        if (!await NameGate.WaitAsync(NameTimeout).ConfigureAwait(false))
-            return fromUrl; // too busy — fall back to the URL-derived name rather than hang
+        var info = await ProbeAsync(url, configuration, gated: true).ConfigureAwait(false);
+        return SanitizeFileName(info?.FileName) ?? UrlPathName(url);
+    }
+
+    /// <summary>
+    /// Best-effort name + size + range-support probe without downloading, gated and time-boxed.
+    /// Returns null when the probe could not run (too busy, timed out, failed, or non-http URL).
+    /// </summary>
+    public static Task<RemoteFileInfo> ResolveFileInfoAsync(string url, DownloadConfiguration configuration = null)
+        => ProbeAsync(url, configuration, gated: true);
+
+    /// <summary>
+    /// Runs <see cref="RemoteFileResolver.GetFileInfoAsync(string, DownloadConfiguration, CancellationToken)"/>
+    /// with an optional concurrency gate and a hard timeout. Never throws — returns null on any failure.
+    /// </summary>
+    private static async Task<RemoteFileInfo> ProbeAsync(string url, DownloadConfiguration configuration, bool gated)
+    {
+        if (!IsHttp(url, out _))
+            return null;
+
+        if (gated && !await PreviewGate.WaitAsync(ProbeTimeout).ConfigureAwait(false))
+            return null; // too busy — caller falls back to a URL-derived name
 
         try
         {
-            using var cts = new CancellationTokenSource(NameTimeout);
-            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-            request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
-
-            using var response = await Client
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token)
+            using var cts = new CancellationTokenSource(ProbeTimeout);
+            return await RemoteFileResolver
+                .GetFileInfoAsync(url, configuration, cts.Token)
                 .ConfigureAwait(false);
-
-            var cd = response.Content?.Headers?.ContentDisposition;
-            var name = cd?.FileNameStar ?? cd?.FileName;
-            if (!string.IsNullOrWhiteSpace(name))
-                name = name.Trim('"', ' ');
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                var finalUri = response.RequestMessage?.RequestUri ?? uri;
-                name = Uri.UnescapeDataString(Path.GetFileName(finalUri.LocalPath));
-            }
-
-            return SanitizeFileName(name);
         }
         catch
         {
-            // Fall back to the name embedded in the original URL, if any.
-            return fromUrl;
+            return null; // network/timeout/cancel/server hiding info — best effort
         }
         finally
         {
-            NameGate.Release();
+            if (gated)
+                PreviewGate.Release();
         }
+    }
+
+    private static string UrlPathName(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            ? SanitizeFileName(Uri.UnescapeDataString(Path.GetFileName(uri.LocalPath)))
+            : null;
+
+    private static bool IsHttp(string url, out Uri uri)
+    {
+        uri = null;
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out uri))
+            return false;
+        return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
     }
 
     private static string SanitizeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return null;
+        name = name.Trim('"', ' ');
         foreach (var c in Path.GetInvalidFileNameChars())
             name = name.Replace(c, '_');
         return string.IsNullOrWhiteSpace(name) ? null : name;
