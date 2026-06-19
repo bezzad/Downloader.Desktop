@@ -81,6 +81,14 @@ public class DownloadItem
     /// <summary>File name; may be null/empty until the engine resolves it from the URL/headers.</summary>
     public string FileName { get; set; }
 
+    /// <summary>
+    /// Display-only name resolved from the URL/Content-Disposition before the download actually starts
+    /// (for items still waiting on a queue slot). Persisted so a queued item keeps showing its name
+    /// after an app restart instead of reverting to "unnamed" (the engine still resolves the
+    /// authoritative <see cref="FileName"/> when it starts).
+    /// </summary>
+    public string PreviewName { get; set; }
+
     /// <summary>Optional grouping label (e.g. the batch a multi-URL add created). Null = ungrouped.</summary>
     public string Group { get; set; }
 

@@ -3,7 +3,8 @@
              x:Class="Downloader.Desktop.Views.ResizeGrips">
     <!-- Thin transparent edge/corner strips that drive native resize on a borderless (SystemDecorations=None)
          window. The center cell has no background so all content clicks pass straight through. -->
-    <Grid RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
+    <Grid RowDefinitions="6,*,6" ColumnDefinitions="6,*,6"
+          PointerMoved="OnMoved" PointerReleased="OnReleased">
         <Border Grid.Row="0" Grid.Column="0" Background="Transparent" Tag="NorthWest" Cursor="TopLeftCorner" PointerPressed="OnPressed" />
         <Border Grid.Row="0" Grid.Column="1" Background="Transparent" Tag="North"     Cursor="SizeNorthSouth" PointerPressed="OnPressed" />
         <Border Grid.Row="0" Grid.Column="2" Background="Transparent" Tag="NorthEast" Cursor="TopRightCorner" PointerPressed="OnPressed" />

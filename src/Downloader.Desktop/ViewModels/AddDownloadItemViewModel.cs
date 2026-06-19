@@ -106,8 +106,9 @@ public class AddDownloadItemViewModel : ViewModelBase
             ? _config?.Settings?.DefaultSavePath
             : StorageFolderPath;
 
-        // Remember the chosen folder as the default for next time.
-        if (_config?.Settings != null && !string.IsNullOrWhiteSpace(folder))
+        // Remember the chosen folder as the default for next time — unless the user turned that off,
+        // in which case adding a download must not change the default save path.
+        if (_config?.Settings is { RememberLastSavePath: true } && !string.IsNullOrWhiteSpace(folder))
             _config.Settings.DefaultSavePath = folder;
 
         var single = urls.Count == 1;

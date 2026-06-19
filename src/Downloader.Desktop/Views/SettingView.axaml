@@ -82,6 +82,14 @@
 
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_RememberSavePath}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_RememberSavePath_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding RememberLastSavePath}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Set_Language}" />
                             <TextBlock Classes="hint" Text="{i18n:Tr Set_Language_Hint}" />
                         </StackPanel>

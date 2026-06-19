@@ -197,6 +197,21 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
+                        <!-- Per-connection progress: a colored bar with the % overlaid, so each
+                             chunk's completion is visible at a glance next to its downloaded MB. -->
+                        <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Progress}" Width="150">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ChunkProgressViewModel">
+                                    <Grid VerticalAlignment="Center" Margin="6 0">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                                                     Foreground="{Binding Brush}" Height="14" CornerRadius="3"
+                                                     MinWidth="0" MinHeight="0" Padding="0" />
+                                        <TextBlock Text="{Binding Progress, StringFormat='{}{0:0}%'}" FontSize="10"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="{i18n:Tr Det_Col_Status}" Binding="{ReflectionBinding StatusText}" FontSize="11" Width="*" />
                         <DataGridTemplateColumn Header="{i18n:Tr Det_Col_Downloaded}" Width="120">
                             <DataGridTemplateColumn.CellTemplate>

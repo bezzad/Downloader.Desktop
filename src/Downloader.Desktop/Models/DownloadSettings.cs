@@ -13,6 +13,13 @@ public class DownloadSettings
     // ---- Basic ----
     public string DefaultSavePath { get; set; }
 
+    /// <summary>
+    /// When true (default), the folder chosen for a new download becomes the default save path for
+    /// the next one. When false, adding a download with a custom folder leaves the default save path
+    /// unchanged.
+    /// </summary>
+    public bool RememberLastSavePath { get; set; } = true;
+
     /// <summary>Number of parts (connections) a file is split into.</summary>
     public int ChunkCount { get; set; } = 8;
 

@@ -86,6 +86,7 @@ public class DownloadItemViewModel : ViewModelBase
         _item = item ?? new DownloadItem();
         _manager = manager;
         _status = _item.Status;
+        _previewName = _item.PreviewName; // restore the cached name for items not yet started
         _progress = _item.Size is > 0 ? (double)_item.Downloaded / _item.Size.Value * 100 : 0;
 
         PauseCommand = ReactiveCommand.Create(() => _manager?.Pause(this));
@@ -165,8 +166,9 @@ public class DownloadItemViewModel : ViewModelBase
 
     /// <summary>
     /// Display-only name resolved (from URL/Content-Disposition) for a queued download before it
-    /// actually starts, so rows waiting on a queue slot still show a name (#4). Not persisted and not
-    /// forced on the engine — the engine still resolves the authoritative name when it starts.
+    /// actually starts, so rows waiting on a queue slot still show a name (#4). Persisted on the item
+    /// so it survives an app restart, but not forced on the engine — the engine still resolves the
+    /// authoritative name when it starts.
     /// </summary>
     public string PreviewName
     {
@@ -176,6 +178,7 @@ public class DownloadItemViewModel : ViewModelBase
             if (_previewName != value)
             {
                 _previewName = value;
+                _item.PreviewName = value; // cache so the name survives a restart
                 this.RaisePropertyChanged();
                 this.RaisePropertyChanged(nameof(DisplayName));
                 this.RaisePropertyChanged(nameof(IsNamePending));

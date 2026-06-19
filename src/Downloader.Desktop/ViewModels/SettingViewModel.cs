@@ -187,6 +187,13 @@ public class SettingViewModel : ViewModelBase
         set { S.DefaultSavePath = value; this.RaisePropertyChanged(); }
     }
 
+    /// <summary>When on, the folder picked for a new download becomes the default save path.</summary>
+    public bool RememberLastSavePath
+    {
+        get => S.RememberLastSavePath;
+        set { S.RememberLastSavePath = value; this.RaisePropertyChanged(); }
+    }
+
     public int ChunkCount
     {
         get => S.ChunkCount;
