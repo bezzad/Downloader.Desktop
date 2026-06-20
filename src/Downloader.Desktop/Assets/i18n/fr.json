@@ -1,5 +1,5 @@
 {
-  "Top_PasteLink": "Collez un lien de téléchargement…",
+  "Top_PasteLink": "Collez les liens de téléchargement…",
   "Top_Add": "Ajouter",
   "Top_Search": "Rechercher",
   "Nav_Status": "ÉTAT",
@@ -136,5 +136,18 @@
   "Sched_Stop": "Heure de fin",
   "Sched_Once": "Exécuter une fois",
   "Sched_Queue": "File d’attente",
-  "Sched_Remove": "Supprimer"
+  "Sched_Remove": "Supprimer",
+  "Action_StartQueue": "Démarrer la file",
+  "Action_StopQueue": "Arrêter la file",
+  "Action_StopAll": "Tout arrêter",
+  "Sec_Notifications": "NOTIFICATIONS",
+  "Set_NotifyComplete": "Quand un téléchargement se termine",
+  "Set_NotifyFailed": "Quand un téléchargement échoue",
+  "Set_NotifyAllComplete": "Quand tous les téléchargements sont terminés",
+  "Set_NotifyShutdown": "Avant d'éteindre l'ordinateur",
+  "Set_NotifyShutdown_Hint": "Affiche un avis de 30 secondes sur lequel vous pouvez cliquer pour annuler l'arrêt.",
+  "Set_ShutdownOnComplete": "Éteindre l'ordinateur quand tous les téléchargements sont terminés",
+  "Set_ShutdownOnComplete_Hint": "S'éteint 30 secondes après le dernier téléchargement terminé (annulable).",
+  "Set_BrowserIntegration": "Intégration au navigateur",
+  "Set_BrowserIntegration_Hint": "Permet à une extension de navigateur d'envoyer des liens à cette application via une connexion locale."
 }

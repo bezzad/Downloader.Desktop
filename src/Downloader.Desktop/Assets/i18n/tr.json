@@ -1,5 +1,5 @@
 {
-  "Top_PasteLink": "Bir indirme bağlantısı yapıştırın…",
+  "Top_PasteLink": "İndirme bağlantılarını yapıştırın…",
   "Top_Add": "Ekle",
   "Top_Search": "Ara",
   "Nav_Status": "DURUM",
@@ -161,5 +161,18 @@
   "Sched_OnceOn": "Bir kez",
   "Sched_OnceOff": "Yinele",
   "Sched_Queue": "Kuyruk",
-  "Sched_Remove": "Kaldır"
+  "Sched_Remove": "Kaldır",
+  "Action_StartQueue": "Kuyruğu başlat",
+  "Action_StopQueue": "Kuyruğu durdur",
+  "Action_StopAll": "Tümünü durdur",
+  "Sec_Notifications": "BİLDİRİMLER",
+  "Set_NotifyComplete": "Bir indirme tamamlandığında",
+  "Set_NotifyFailed": "Bir indirme başarısız olduğunda",
+  "Set_NotifyAllComplete": "Tüm indirmeler tamamlandığında",
+  "Set_NotifyShutdown": "Bilgisayar kapatılmadan önce",
+  "Set_NotifyShutdown_Hint": "Kapatmayı iptal etmek için tıklayabileceğiniz 30 saniyelik bir bildirim gösterir.",
+  "Set_ShutdownOnComplete": "Tüm indirmeler bittiğinde bilgisayarı kapat",
+  "Set_ShutdownOnComplete_Hint": "Son indirme tamamlandıktan 30 saniye sonra kapanır (iptal edilebilir).",
+  "Set_BrowserIntegration": "Tarayıcı entegrasyonu",
+  "Set_BrowserIntegration_Hint": "Bir tarayıcı uzantısının yerel bir bağlantı üzerinden bu uygulamaya bağlantı göndermesine izin verir."
 }

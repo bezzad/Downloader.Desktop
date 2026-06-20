@@ -1,5 +1,5 @@
 {
-  "Top_PasteLink": "یک پیوند دانلود را اینجا بچسبانید…",
+  "Top_PasteLink": "پیوندهای دانلود را بچسبانید…",
   "Top_Add": "افزودن",
   "Top_Search": "جستجو",
   "Nav_Status": "وضعیت",
@@ -138,5 +138,18 @@
   "Sched_Stop": "زمان پایان",
   "Sched_Once": "یک‌بار اجرا",
   "Sched_Queue": "صف",
-  "Sched_Remove": "حذف"
+  "Sched_Remove": "حذف",
+  "Action_StartQueue": "شروع صف",
+  "Action_StopQueue": "توقف صف",
+  "Action_StopAll": "توقف همه",
+  "Sec_Notifications": "اعلان‌ها",
+  "Set_NotifyComplete": "وقتی یک دانلود کامل می‌شود",
+  "Set_NotifyFailed": "وقتی یک دانلود ناموفق می‌شود",
+  "Set_NotifyAllComplete": "وقتی همهٔ دانلودها کامل می‌شوند",
+  "Set_NotifyShutdown": "پیش از خاموش‌کردن رایانه",
+  "Set_NotifyShutdown_Hint": "یک اعلان ۳۰ ثانیه‌ای نشان می‌دهد که با کلیک روی آن می‌توانید خاموش‌شدن را لغو کنید.",
+  "Set_ShutdownOnComplete": "خاموش‌کردن رایانه پس از پایان همهٔ دانلودها",
+  "Set_ShutdownOnComplete_Hint": "۳۰ ثانیه پس از کامل‌شدن آخرین دانلود خاموش می‌شود (قابل لغو).",
+  "Set_BrowserIntegration": "یکپارچگی با مرورگر",
+  "Set_BrowserIntegration_Hint": "به افزونهٔ مرورگر اجازه می‌دهد از طریق یک اتصال محلی پیوندها را به این برنامه بفرستد."
 }

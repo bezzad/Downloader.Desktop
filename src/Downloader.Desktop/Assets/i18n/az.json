@@ -1,5 +1,5 @@
 {
-  "Top_PasteLink": "Endirmə linki yapışdırın…",
+  "Top_PasteLink": "Yükləmə bağlantılarını yapışdırın…",
   "Top_Add": "Əlavə et",
   "Top_Search": "Axtar",
   "Nav_Status": "STATUS",
@@ -161,5 +161,18 @@
   "Sched_OnceOn": "Bir dəfə",
   "Sched_OnceOff": "Təkrarla",
   "Sched_Queue": "Növbə",
-  "Sched_Remove": "Sil"
+  "Sched_Remove": "Sil",
+  "Action_StartQueue": "Növbəni başlat",
+  "Action_StopQueue": "Növbəni dayandır",
+  "Action_StopAll": "Hamısını dayandır",
+  "Sec_Notifications": "BİLDİRİŞLƏR",
+  "Set_NotifyComplete": "Bir yükləmə tamamlandıqda",
+  "Set_NotifyFailed": "Bir yükləmə uğursuz olduqda",
+  "Set_NotifyAllComplete": "Bütün yükləmələr tamamlandıqda",
+  "Set_NotifyShutdown": "Kompüter söndürülməzdən əvvəl",
+  "Set_NotifyShutdown_Hint": "Söndürməni ləğv etmək üçün klikləyə biləcəyiniz 30 saniyəlik bildiriş göstərir.",
+  "Set_ShutdownOnComplete": "Bütün yükləmələr bitdikdə kompüteri söndür",
+  "Set_ShutdownOnComplete_Hint": "Son yükləmə tamamlandıqdan 30 saniyə sonra söndürülür (ləğv edilə bilər).",
+  "Set_BrowserIntegration": "Brauzer inteqrasiyası",
+  "Set_BrowserIntegration_Hint": "Brauzer genişlənməsinə yerli bağlantı vasitəsilə bu tətbiqə keçidlər göndərməyə imkan verir."
 }
