@@ -120,6 +120,11 @@
   "Set_AutoUpdate": "Check for updates automatically",
   "Set_AutoUpdate_Hint": "Tells you when a new version is available on GitHub.",
   "Btn_CheckUpdate": "Check for updates",
+  "Update_Checking": "Checking…",
+  "Update_Downloading": "Downloading update…",
+  "Update_Restart": "Restart to update",
+  "Update_Button": "Update Downloader",
+  "Update_Ready_Tip": "A new version is ready — restart to install",
 
   "Sec_Logging": "LOGGING",
   "Set_WriteLog": "Write a log file",

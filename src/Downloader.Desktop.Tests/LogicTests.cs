@@ -176,6 +176,17 @@ public class LogicTests
     }
 
     [Fact]
+    public void SingleInstance_FirstUrl_picks_the_first_http_arg()
+    {
+        Assert.Equal("https://host/a.zip",
+            SingleInstanceService.FirstUrl(new[] { "--minimized", "https://host/a.zip", "http://x/y" }));
+        Assert.Equal("http://h/f", SingleInstanceService.FirstUrl(new[] { "http://h/f" }));
+        Assert.Null(SingleInstanceService.FirstUrl(new[] { "--minimized", "/some/file" }));
+        Assert.Null(SingleInstanceService.FirstUrl(System.Array.Empty<string>()));
+        Assert.Null(SingleInstanceService.FirstUrl(null));
+    }
+
+    [Fact]
     public void About_links_are_wellformed()
     {
         Assert.StartsWith("https://github.com/bezzad", AboutViewModel.RepoUrl);

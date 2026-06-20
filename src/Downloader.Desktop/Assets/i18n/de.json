@@ -201,5 +201,10 @@
   "Shutdown_Canceled_Msg": "Der Computer bleibt eingeschaltet.",
   "Shutdown_Notify_Title": "Wird bald heruntergefahren",
   "Shutdown_Notify_Msg": "Downloads fertig — der Computer fährt in {0}s herunter. Öffne Downloader zum Abbrechen.",
-  "Action_UrlCopied": "URL kopiert!"
+  "Action_UrlCopied": "URL kopiert!",
+  "Update_Checking": "Wird geprüft…",
+  "Update_Downloading": "Update wird heruntergeladen…",
+  "Update_Restart": "Zum Aktualisieren neu starten",
+  "Update_Button": "Downloader aktualisieren",
+  "Update_Ready_Tip": "Eine neue Version ist bereit — zum Installieren neu starten"
 }

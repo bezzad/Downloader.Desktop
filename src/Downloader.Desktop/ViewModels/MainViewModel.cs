@@ -55,6 +55,8 @@ public class MainViewModel : ViewModelBase
                 { FileName = AboutViewModel.DonateUrl, UseShellExecute = true }); }
             catch { /* best-effort */ }
         });
+        ApplyUpdateCommand = ReactiveCommand.Create(UpdateFlow.ApplyAndRestart);
+        UpdateFlow.Changed += OnUpdateStateChanged;
 
         _downloadManager.StatsChanged += OnStatsChanged;
         _downloadManager.ListChanged += OnListChanged;
@@ -89,6 +91,12 @@ public class MainViewModel : ViewModelBase
     public ICommand ToggleSidebarCommand { get; }
     public ICommand ShowAboutCommand { get; }
     public ICommand DonateCommand { get; }
+    public ICommand ApplyUpdateCommand { get; }
+
+    /// <summary>True once a new version is downloaded and ready — shows the nav "Update Downloader" button.</summary>
+    public bool IsUpdateReady => UpdateFlow.IsReady;
+
+    private void OnUpdateStateChanged() => this.RaisePropertyChanged(nameof(IsUpdateReady));
 
     /// <summary>When false the left rail collapses to an icons-only strip.</summary>
     public bool IsSidebarExpanded
@@ -190,18 +198,19 @@ public class MainViewModel : ViewModelBase
             _config.Settings.EnableNotifications = enabled;
             SaveSoon();
         };
-        UpdateFlow.RequestShutdown = Quit;
+        UpdateFlow.RequestQuit = Quit;
 
         if (_config.Settings.EnableSystemTray)
             TrayService.Enable();
 
         // Closing the window keeps the app alive in the tray (downloads keep running) unless the user
-        // really quit from the tray menu or the tray is turned off.
+        // really quit from the tray menu, the tray is turned off, or an update is staged (closing should
+        // then actually exit so the update applies).
         window.Closing += (_, e) =>
         {
             // Only intercept the close if a tray icon is actually present — otherwise there'd be no way
-            // to bring the window back.
-            if (TrayService.IsActive && !_quitting)
+            // to bring the window back. When an update is ready, let the close go through so it installs.
+            if (TrayService.IsActive && !_quitting && !UpdateFlow.IsReady)
             {
                 e.Cancel = true;
                 window.Hide();
@@ -215,6 +224,17 @@ public class MainViewModel : ViewModelBase
         BrowserIntegrationService.OnUrlCaptured = CaptureUrl;
         if (_config.Settings.EnableBrowserIntegration)
             BrowserIntegrationService.Start();
+
+        // Single instance: a second launch forwards its URL here — surface the window and add the link.
+        SingleInstanceService.SetMessageHandler(msg =>
+        {
+            BringToFront();
+            if (!string.IsNullOrWhiteSpace(msg))
+                CaptureUrl(msg);
+        });
+        // Handle a URL passed to this (the first) instance too.
+        if (SingleInstanceService.FirstUrl(Environment.GetCommandLineArgs()) is { } startupUrl)
+            CaptureUrl(startupUrl);
 
         // Launched at OS startup with --minimized → start hidden in the tray.
         if (_config.Settings.EnableSystemTray &&
@@ -230,13 +250,22 @@ public class MainViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(url))
             return;
-        if (View is Window window)
-        {
-            window.Show();
-            window.Activate();
-        }
+        BringToFront();
         DownloadUrl = url;
         _ = AddDownloadItem();
+    }
+
+    /// <summary>Restores + activates the main window (used by single-instance and captured links).</summary>
+    private void BringToFront()
+    {
+        if (View is not Window window)
+            return;
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+        window.Show();
+        window.Activate();
+        window.Topmost = true;
+        window.Topmost = false; // brief topmost flip nudges it to the foreground across WMs
     }
 
     /// <summary>Really exit the app (from the tray menu / updater), bypassing close-to-tray.</summary>

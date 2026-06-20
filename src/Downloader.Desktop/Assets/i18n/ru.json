@@ -203,5 +203,10 @@
   "Shutdown_Canceled_Msg": "Компьютер останется включённым.",
   "Shutdown_Notify_Title": "Скоро выключение",
   "Shutdown_Notify_Msg": "Загрузки завершены — компьютер выключится через {0}с. Откройте Downloader, чтобы отменить.",
-  "Action_UrlCopied": "URL скопирован!"
+  "Action_UrlCopied": "URL скопирован!",
+  "Update_Checking": "Проверка…",
+  "Update_Downloading": "Загрузка обновления…",
+  "Update_Restart": "Перезапустить для обновления",
+  "Update_Button": "Обновить Downloader",
+  "Update_Ready_Tip": "Новая версия готова — перезапустите для установки"
 }

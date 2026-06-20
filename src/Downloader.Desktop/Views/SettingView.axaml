@@ -231,13 +231,23 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableBrowserIntegration}" />
                     </Grid>
 
-                    <Button Margin="0 6 0 0" Padding="12 6" HorizontalAlignment="Left"
-                            Command="{Binding CheckUpdateCommand}">
-                        <StackPanel Orientation="Horizontal" Spacing="7">
-                            <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
-                            <TextBlock Text="{i18n:Tr Btn_CheckUpdate}" VerticalAlignment="Center" />
+                    <!-- Check for updates → (downloading: progress) → Restart to update. The label
+                         reflects UpdateFlow state; a progress bar shows during the background download. -->
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0 6 0 0" VerticalAlignment="Center">
+                        <Button Padding="12 6" Command="{Binding CheckUpdateCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
+                                <TextBlock Text="{Binding UpdateButtonText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                    IsVisible="{Binding IsUpdateDownloading}">
+                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
+                                         Width="160" Height="6" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UpdateProgressText}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </StackPanel>
-                    </Button>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

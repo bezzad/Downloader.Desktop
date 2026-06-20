@@ -201,5 +201,10 @@
   "Shutdown_Canceled_Msg": "Kompüter açıq qalacaq.",
   "Shutdown_Notify_Title": "Tezliklə söndürüləcək",
   "Shutdown_Notify_Msg": "Yükləmələr bitdi — kompüter {0}s sonra söndürüləcək. Ləğv üçün Downloader-i açın.",
-  "Action_UrlCopied": "URL kopyalandı!"
+  "Action_UrlCopied": "URL kopyalandı!",
+  "Update_Checking": "Yoxlanılır…",
+  "Update_Downloading": "Yeniləmə yüklənir…",
+  "Update_Restart": "Yeniləmək üçün yenidən başlat",
+  "Update_Button": "Downloader-i yenilə",
+  "Update_Ready_Tip": "Yeni versiya hazırdır — quraşdırmaq üçün yenidən başladın"
 }

@@ -203,5 +203,10 @@
   "Shutdown_Canceled_Msg": "计算机将保持开机。",
   "Shutdown_Notify_Title": "即将关机",
   "Shutdown_Notify_Msg": "下载已完成 — 计算机将在 {0} 秒后关机。打开 Downloader 取消。",
-  "Action_UrlCopied": "链接已复制！"
+  "Action_UrlCopied": "链接已复制！",
+  "Update_Checking": "正在检查…",
+  "Update_Downloading": "正在下载更新…",
+  "Update_Restart": "重启以更新",
+  "Update_Button": "更新 Downloader",
+  "Update_Ready_Tip": "新版本已就绪 — 重启即可安装"
 }

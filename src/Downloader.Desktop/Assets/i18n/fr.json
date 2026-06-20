@@ -176,5 +176,10 @@
   "Shutdown_Canceled_Msg": "L'ordinateur restera allumé.",
   "Shutdown_Notify_Title": "Arrêt imminent",
   "Shutdown_Notify_Msg": "Téléchargements terminés — l'ordinateur s'éteindra dans {0}s. Ouvrez Downloader pour annuler.",
-  "Action_UrlCopied": "URL copiée !"
+  "Action_UrlCopied": "URL copiée !",
+  "Update_Checking": "Vérification…",
+  "Update_Downloading": "Téléchargement de la mise à jour…",
+  "Update_Restart": "Redémarrer pour mettre à jour",
+  "Update_Button": "Mettre à jour Downloader",
+  "Update_Ready_Tip": "Une nouvelle version est prête — redémarrez pour l'installer"
 }

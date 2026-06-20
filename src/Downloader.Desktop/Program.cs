@@ -2,6 +2,7 @@
 using Avalonia.ReactiveUI;
 using System;
 using Avalonia.Controls;
+using Downloader.Desktop.Services;
 
 namespace Downloader.Desktop;
 
@@ -13,6 +14,12 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Single instance: if one is already running, forward our args (e.g. a URL) to it and exit so
+        // clicking the taskbar/tray icon — or `downloader <url>` from the extension — surfaces the
+        // existing window instead of launching a second copy.
+        if (!SingleInstanceService.TryClaim(args))
+            return;
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnMainWindowClose);
     }
 
