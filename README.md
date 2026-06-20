@@ -81,6 +81,10 @@ Your downloads list and settings are saved automatically. Config file location:
 
 ---
 
+## Reporting bugs & requesting features
+
+Please report bugs and request features through **[GitHub Issues](https://github.com/bezzad/Downloader.Desktop/issues)** — not by Telegram or email. Issues are tracked, searchable, and handled through an automated workflow, so this is the **fastest** way to get a response (and it lets others find the same fix). Before opening one, search existing issues to avoid duplicates.
+
 ## Build from source
 ```shell
 git clone https://github.com/bezzad/Downloader.Desktop.git

@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Downloader — Browser Integration",
+  "version": "1.0.0",
+  "description": "Adds 'Download with Downloader', captures video/audio/HLS media, and sends links to the Downloader desktop app.",
+  "permissions": ["contextMenus", "webRequest", "tabs", "scripting", "notifications"],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:15151/*",
+    "http://localhost:15151/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Downloader",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

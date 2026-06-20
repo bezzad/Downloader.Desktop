@@ -82,9 +82,19 @@ public static class BrowserIntegrationService
 
             try
             {
-                var url = ExtractUrl(ctx.Request.Url);
-                // Permissive CORS so the extension's fetch from a web page is allowed.
+                // Permissive CORS so the extension's fetch is allowed.
                 ctx.Response.AddHeader("Access-Control-Allow-Origin", "*");
+
+                var path = ctx.Request.Url?.AbsolutePath ?? "/";
+                if (path.Contains("ping", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Health check used by the extension to show "connected".
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.Close();
+                    continue;
+                }
+
+                var url = ExtractUrl(ctx.Request.Url);
                 ctx.Response.StatusCode = string.IsNullOrWhiteSpace(url) ? 400 : 200;
                 ctx.Response.Close();
 

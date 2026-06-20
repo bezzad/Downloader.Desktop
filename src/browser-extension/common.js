@@ -1,0 +1,69 @@
+// Shared helpers for the Downloader browser extension (Chrome/Edge/Firefox, Manifest V3).
+// `api` resolves to the WebExtensions namespace on every browser.
+const api = globalThis.browser || globalThis.chrome;
+
+// The desktop app's local loopback listener (see Services/BrowserIntegrationService.cs).
+const APP_PORT = 15151;
+const APP_BASE = `http://127.0.0.1:${APP_PORT}`;
+
+// Media we can hand to the engine: direct HTTP(S) files + HLS playlists. (YouTube and other
+// encrypted/DRM streaming sites are NOT supported — they don't expose a direct, fetchable URL.)
+const MEDIA_EXTENSIONS = [
+  "mp4", "mkv", "webm", "mov", "avi", "flv", "m4v", "mpg", "mpeg", "ts",
+  "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma",
+  "m3u8" // HLS playlist
+];
+const MEDIA_CONTENT_TYPES = [
+  "video/", "audio/",
+  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl"
+];
+
+function extOf(url) {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const dot = path.lastIndexOf(".");
+    return dot >= 0 ? path.slice(dot + 1) : "";
+  } catch {
+    return "";
+  }
+}
+
+function isHttp(url) {
+  return typeof url === "string" && /^https?:\/\//i.test(url);
+}
+
+function looksLikeMedia(url) {
+  return isHttp(url) && MEDIA_EXTENSIONS.includes(extOf(url));
+}
+
+function isMediaContentType(ct) {
+  if (!ct) return false;
+  const v = ct.toLowerCase();
+  return MEDIA_CONTENT_TYPES.some(t => v.startsWith(t) || v.includes(t));
+}
+
+// Send a single URL to the desktop app. Returns true on success.
+async function sendToApp(url) {
+  if (!isHttp(url)) return false;
+  const endpoint = `${APP_BASE}/add?url=${encodeURIComponent(url)}`;
+  try {
+    const res = await fetch(endpoint, { method: "GET" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Is the desktop app reachable? (A failed /add with no url returns 400 — still proves it's up.)
+async function pingApp() {
+  try {
+    const res = await fetch(`${APP_BASE}/ping`, { method: "GET" });
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS };
+}

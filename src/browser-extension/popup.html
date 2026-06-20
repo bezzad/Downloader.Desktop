@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Downloader</title>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="" width="22" height="22" />
+    <span class="title">Downloader</span>
+    <span id="status" class="status off" title="Desktop app connection">●</span>
+  </header>
+
+  <section>
+    <div class="row">
+      <input id="manualUrl" type="text" placeholder="Paste a link to download…" />
+      <button id="sendManual" class="primary">Send</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span>Detected media</span>
+      <button id="scanLinks" class="link">Scan page links</button>
+    </div>
+    <ul id="list" class="list"></ul>
+    <p id="empty" class="empty">No media detected on this page yet.</p>
+  </section>
+
+  <footer>
+    <button id="sendAll" class="primary wide">Download all listed</button>
+  </footer>
+
+  <script src="common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
