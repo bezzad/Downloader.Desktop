@@ -137,6 +137,25 @@ public class LogicTests
         Assert.Equal("Completed", chunk.StatusText);
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1:15151/add?url=https%3A%2F%2Fhost%2Ffile.zip", "https://host/file.zip")]
+    [InlineData("http://127.0.0.1:15151/add?foo=1&url=https://host/a.bin", "https://host/a.bin")]
+    [InlineData("http://127.0.0.1:15151/add?url=", null)]
+    [InlineData("http://127.0.0.1:15151/add", null)]
+    public void BrowserIntegration_extracts_url_param(string requestUri, string expected)
+    {
+        Assert.Equal(expected, BrowserIntegrationService.ExtractUrl(new System.Uri(requestUri)));
+    }
+
+    [Fact]
+    public void Localizer_lists_all_shipped_languages()
+    {
+        // The 9 original packs + the 7 added in Round 15.
+        Assert.Equal(16, Localizer.Languages.Count);
+        foreach (var code in new[] { "it", "pt", "ru", "hi", "zh", "ja", "ko" })
+            Assert.Contains(Localizer.Languages, l => l.Code == code);
+    }
+
     [Fact]
     public void DownloadItem_FilePath_combines_folder_and_name()
     {

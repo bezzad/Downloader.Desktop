@@ -75,6 +75,9 @@ jobs:
           else
             [ -f "$OUT/Downloader.Desktop" ] && mv -f "$OUT/Downloader.Desktop" "$OUT/Downloader"
             chmod +x "$OUT/Downloader" || true
+            # Ship the app icon next to the binary so the Linux installer can register it for the
+            # app menu / taskbar (a raw ELF can't carry one).
+            cp -f src/Downloader.Desktop/Assets/downloader.png "$OUT/downloader.png" || true
             tar -czf "${{ matrix.artifact }}.tar.gz" -C "$OUT" .
           fi
 

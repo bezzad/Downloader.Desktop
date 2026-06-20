@@ -223,6 +223,49 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void StopAll_stops_running_and_queued_items()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 3;
+        manager.Initialize(config);
+
+        for (int i = 0; i < 8; i++)
+            manager.Add(new DownloadItem { Url = $"https://10.255.255.1/file{i}.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.StartAll();
+        Assert.True(manager.ActiveCount > 0);
+
+        manager.StopAll();
+
+        Assert.Equal(0, manager.ActiveCount);
+        Assert.Equal(0, manager.QueuedCount);
+        Assert.All(manager.Items, vm => Assert.Equal(DownloadStatus.Stopped, vm.Status));
+    }
+
+    [AvaloniaFact]
+    public void AllDownloadsCompleted_fires_once_when_list_drains()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        config.DefaultQueue.IsRunning = false; // don't let the pump kick off background (network) starts
+
+        var fired = 0;
+        manager.AllDownloadsCompleted += () => fired++;
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        // Drive them through the manager's post-completion bookkeeping (test seam).
+        manager.RaiseCompletedForTest(a);
+        Assert.Equal(0, fired); // b still queued → not "all complete" yet
+
+        manager.RaiseCompletedForTest(b);
+        Assert.Equal(1, fired); // everything done → fired exactly once
+    }
+
+    [AvaloniaFact]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();

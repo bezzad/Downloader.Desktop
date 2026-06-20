@@ -36,6 +36,9 @@ for RID in "${RIDS[@]}"; do
   else
     [ -f "$OUT/Downloader.Desktop" ] && mv -f "$OUT/Downloader.Desktop" "$OUT/Downloader"
     chmod +x "$OUT/Downloader" 2>/dev/null || true
+    # Ship the app icon alongside the binary so the Linux installer can register it for the
+    # app menu / taskbar (a raw ELF can't carry one). install.sh picks it up from here.
+    cp -f "src/Downloader.Desktop/Assets/downloader.png" "$OUT/downloader.png" 2>/dev/null || true
     tar -czf "dist/Downloader-$RID.tar.gz" -C "$OUT" .
   fi
   echo ">> Done: dist/Downloader-$RID.*"

@@ -502,6 +502,17 @@ public class DownloadManager : IDownloadManager
 
     private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
 
+    /// <summary>Test seam: runs the same post-completion bookkeeping the engine's completed handler does,
+    /// without a real download (mark Completed → pump the queue → maybe raise all-complete).</summary>
+    public void RaiseCompletedForTest(DownloadItemViewModel vm)
+    {
+        vm.Progress = 100;
+        vm.Status = DownloadStatus.Completed;
+        TryStartNextInQueue(vm.GetItem().QueueId);
+        MaybeAllCompleted();
+        NotifyList();
+    }
+
     private DownloadQueue FindQueue(string id) =>
         _config?.Queues?.FirstOrDefault(q => q.Id == id);
 
