@@ -44,6 +44,7 @@ public class DownloadsViewModel : ViewModelBase
         PauseSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)));
         StopSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Cancel(i)));
         RemoveSelectedCommand = ReactiveCommand.Create(RemoveSelected);
+        StopAllCommand = ReactiveCommand.Create(() => _manager.StopAll());
     }
 
     /// <summary>Filterable view bound to the DataGrid.</summary>
@@ -54,6 +55,23 @@ public class DownloadsViewModel : ViewModelBase
     public ICommand PauseSelectedCommand { get; }
     public ICommand StopSelectedCommand { get; }
     public ICommand RemoveSelectedCommand { get; }
+    public ICommand StopAllCommand { get; }
+
+    /// <summary>Menu entries for "Start queue ▾" — one per queue, each starting that queue's items.</summary>
+    public System.Collections.Generic.IEnumerable<QueueActionTarget> StartQueueTargets =>
+        _manager?.Queues.Select(q => new QueueActionTarget
+        {
+            Name = q.Name,
+            Command = ReactiveCommand.Create(() => _manager.StartQueue(q))
+        }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
+
+    /// <summary>Menu entries for "Stop queue ▾" — one per queue, each pausing that queue.</summary>
+    public System.Collections.Generic.IEnumerable<QueueActionTarget> StopQueueTargets =>
+        _manager?.Queues.Select(q => new QueueActionTarget
+        {
+            Name = q.Name,
+            Command = ReactiveCommand.Create(() => _manager.PauseQueue(q))
+        }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
 
     private bool _selectAll;
 
@@ -157,4 +175,11 @@ public class DownloadsViewModel : ViewModelBase
         });
         Refresh();
     }
+}
+
+/// <summary>A "start/stop queue X" menu entry: a queue name plus the ready-to-bind action.</summary>
+public sealed class QueueActionTarget
+{
+    public string Name { get; init; }
+    public ICommand Command { get; init; }
 }

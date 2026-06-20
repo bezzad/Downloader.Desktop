@@ -32,6 +32,9 @@ public static class NotificationService
     public static void NotifyFailed(string fileName, string reason) =>
         Notify("Download failed", $"{(string.IsNullOrWhiteSpace(fileName) ? "A download" : fileName)} failed. {reason}".Trim(), true);
 
+    public static void NotifyAllCompleted(int count) =>
+        Notify("All downloads complete", count > 0 ? $"All {count} downloads finished." : "All downloads finished.", false);
+
     public static void Notify(string title, string message, bool isError)
     {
         if (!Enabled)

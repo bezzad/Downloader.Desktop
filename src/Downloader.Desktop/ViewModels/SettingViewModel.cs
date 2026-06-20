@@ -107,6 +107,7 @@ public class SettingViewModel : ViewModelBase
         NotificationService.Enabled = S.EnableNotifications;
         if (S.EnableSystemTray) TrayService.Enable(); else TrayService.Disable();
         StartupService.Apply(S.RunAtStartup);
+        if (S.EnableBrowserIntegration) BrowserIntegrationService.Start(); else BrowserIntegrationService.Stop();
         if (Application.Current?.Styles[0] is FluentTheme)
             Application.Current.RequestedThemeVariant = _config.ThemeMode;
 
@@ -150,6 +151,57 @@ public class SettingViewModel : ViewModelBase
                     "Notifications enabled",
                     "You'll get a desktop alert here when a download completes or fails.",
                     isError: false);
+
+            // The per-event toggles live under the master, so refresh their enabled state in the UI.
+            this.RaisePropertyChanged(nameof(NotifyOnComplete));
+            this.RaisePropertyChanged(nameof(NotifyOnFailed));
+            this.RaisePropertyChanged(nameof(NotifyOnAllComplete));
+            this.RaisePropertyChanged(nameof(NotifyOnShutdown));
+        }
+    }
+
+    public bool NotifyOnComplete
+    {
+        get => S.NotifyOnComplete;
+        set { S.NotifyOnComplete = value; this.RaisePropertyChanged(); }
+    }
+
+    public bool NotifyOnFailed
+    {
+        get => S.NotifyOnFailed;
+        set { S.NotifyOnFailed = value; this.RaisePropertyChanged(); }
+    }
+
+    public bool NotifyOnAllComplete
+    {
+        get => S.NotifyOnAllComplete;
+        set { S.NotifyOnAllComplete = value; this.RaisePropertyChanged(); }
+    }
+
+    public bool NotifyOnShutdown
+    {
+        get => S.NotifyOnShutdown;
+        set { S.NotifyOnShutdown = value; this.RaisePropertyChanged(); }
+    }
+
+    /// <summary>Power off the computer once every download finishes (30 s cancelable notice first).</summary>
+    public bool ShutdownOnCompletion
+    {
+        get => S.ShutdownOnCompletion;
+        set { S.ShutdownOnCompletion = value; this.RaisePropertyChanged(); }
+    }
+
+    /// <summary>Let a browser extension hand links to the app over a local loopback port.</summary>
+    public bool EnableBrowserIntegration
+    {
+        get => S.EnableBrowserIntegration;
+        set
+        {
+            if (S.EnableBrowserIntegration == value) return;
+            S.EnableBrowserIntegration = value;
+            if (value) BrowserIntegrationService.Start();
+            else BrowserIntegrationService.Stop();
+            this.RaisePropertyChanged();
         }
     }
 

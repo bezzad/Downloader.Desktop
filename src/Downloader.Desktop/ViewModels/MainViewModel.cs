@@ -51,6 +51,7 @@ public class MainViewModel : ViewModelBase
 
         _downloadManager.StatsChanged += OnStatsChanged;
         _downloadManager.ListChanged += OnListChanged;
+        _downloadManager.AllDownloadsCompleted += OnAllDownloadsCompleted;
         RxApp.MainThreadScheduler.ScheduleAsync(InitMainViewModelAsync);
     }
 
@@ -201,6 +202,11 @@ public class MainViewModel : ViewModelBase
         // Keep the OS autostart entry in sync with the setting on every launch.
         StartupService.Apply(_config.Settings.RunAtStartup);
 
+        // Browser integration: a captured link opens the Add dialog pre-filled, window brought forward.
+        BrowserIntegrationService.OnUrlCaptured = CaptureUrl;
+        if (_config.Settings.EnableBrowserIntegration)
+            BrowserIntegrationService.Start();
+
         // Launched at OS startup with --minimized → start hidden in the tray.
         if (_config.Settings.EnableSystemTray &&
             Environment.GetCommandLineArgs().Contains("--minimized"))
@@ -208,6 +214,20 @@ public class MainViewModel : ViewModelBase
 
         if (_config.Settings.AutoUpdate)
             _ = UpdateFlow.CheckAsync(manual: false);
+    }
+
+    /// <summary>A link arrived from the browser extension — surface the window and open Add pre-filled.</summary>
+    private void CaptureUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+        if (View is Window window)
+        {
+            window.Show();
+            window.Activate();
+        }
+        DownloadUrl = url;
+        _ = AddDownloadItem();
     }
 
     /// <summary>Really exit the app (from the tray menu / updater), bypassing close-to-tray.</summary>
@@ -250,6 +270,23 @@ public class MainViewModel : ViewModelBase
 
         _saveSoonTimer.Stop();
         _saveSoonTimer.Start(); // restart the debounce window
+    }
+
+    /// <summary>
+    /// Fired when every download has finished. Shows the "all complete" notification and, if the user
+    /// opted in, starts the cancelable shutdown countdown.
+    /// </summary>
+    private void OnAllDownloadsCompleted()
+    {
+        var s = _config?.Settings;
+        if (s == null)
+            return;
+
+        if (s.EnableNotifications && s.NotifyOnAllComplete)
+            NotificationService.NotifyAllCompleted(_downloadManager.CompletedCount);
+
+        if (s.ShutdownOnCompletion)
+            ShutdownService.Schedule(notify: s.EnableNotifications && s.NotifyOnShutdown);
     }
 
     private void OnStatsChanged()

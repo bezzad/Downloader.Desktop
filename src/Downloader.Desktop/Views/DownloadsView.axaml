@@ -34,10 +34,63 @@
                         <TextBlock Text="{i18n:Tr Action_Stop}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
+
+                <Border Width="1" Margin="4 2" Background="{DynamicResource SystemBaseLowColor}" />
+
+                <!-- Start a whole queue: pick which queue from the dropdown (#2) -->
+                <Button Classes="icon" ToolTip.Tip="{i18n:Tr Action_StartQueue}">
+                    <Button.Flyout>
+                        <MenuFlyout ItemsSource="{Binding StartQueueTargets}">
+                            <MenuFlyout.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
+                                              BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Name}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </ControlTheme>
+                            </MenuFlyout.ItemContainerTheme>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource PlayRegular}" />
+                        <TextBlock Text="{i18n:Tr Action_StartQueue}" VerticalAlignment="Center" />
+                        <PathIcon Data="{DynamicResource ChevronDownRegular}" Height="9" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Stop a whole queue: pick which queue from the dropdown (#3) -->
+                <Button Classes="icon" ToolTip.Tip="{i18n:Tr Action_StopQueue}">
+                    <Button.Flyout>
+                        <MenuFlyout ItemsSource="{Binding StopQueueTargets}">
+                            <MenuFlyout.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
+                                              BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Name}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </ControlTheme>
+                            </MenuFlyout.ItemContainerTheme>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource PauseRegular}" />
+                        <TextBlock Text="{i18n:Tr Action_StopQueue}" VerticalAlignment="Center" />
+                        <PathIcon Data="{DynamicResource ChevronDownRegular}" Height="9" />
+                    </StackPanel>
+                </Button>
+
+                <Border Width="1" Margin="4 2" Background="{DynamicResource SystemBaseLowColor}" />
+
                 <Button Classes="icon" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
                         <TextBlock Text="{i18n:Tr Action_Remove}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Stop every item, regardless of queue (#4) -->
+                <Button Classes="icon" Command="{Binding StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{DynamicResource StopRegular}" />
+                        <TextBlock Text="{i18n:Tr Action_StopAll}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>

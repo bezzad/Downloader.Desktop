@@ -24,6 +24,13 @@ public class DownloadManager : IDownloadManager
 
     public event Action StatsChanged;
     public event Action ListChanged;
+    public event Action AllDownloadsCompleted;
+
+    public IReadOnlyList<DownloadQueue> Queues => _config?.Queues ?? new List<DownloadQueue>();
+
+    // Guards the "all complete" event so it fires once per batch, not on every item after the list
+    // has already drained. Re-armed whenever a download (re)starts.
+    private bool _allCompleteFired;
 
     public double TotalSpeed
     {
@@ -40,6 +47,26 @@ public class DownloadManager : IDownloadManager
     public int ActiveCount => Items.Count(i => i.Status == DownloadStatus.Running);
     public int QueuedCount => Items.Count(i => i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedCount => Items.Count(i => i.Status == DownloadStatus.Completed);
+
+    private bool NotifyCompleteEnabled => _config?.Settings is { EnableNotifications: true, NotifyOnComplete: true };
+    private bool NotifyFailedEnabled => _config?.Settings is { EnableNotifications: true, NotifyOnFailed: true };
+
+    /// <summary>
+    /// After an item finishes, if nothing is left running or waiting (and at least one completed),
+    /// raise <see cref="AllDownloadsCompleted"/> exactly once. Consumers handle the user-facing parts
+    /// (all-complete notification, shutdown-on-completion) so this stays UI/OS-free and testable.
+    /// </summary>
+    private void MaybeAllCompleted()
+    {
+        if (_allCompleteFired)
+            return;
+        if (ActiveCount > 0 || QueuedCount > 0)
+            return;
+        if (CompletedCount == 0)
+            return;
+        _allCompleteFired = true;
+        AllDownloadsCompleted?.Invoke();
+    }
 
     // ---------------- UI update pump (perf) ----------------
     // A single dispatcher timer flushes all rows' staged progress to the UI at a fixed rate, so the
@@ -293,6 +320,7 @@ public class DownloadManager : IDownloadManager
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
         vm.Status = DownloadStatus.Running;
+        _allCompleteFired = false; // a new run means "all complete" can fire again when it drains
         EnsureUiPump();
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
@@ -454,8 +482,12 @@ public class DownloadManager : IDownloadManager
     public void StopAll() =>
         RunBatch(() =>
         {
-            foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Running).ToList())
-                Pause(vm);
+            // Stop everything in flight or waiting. Cancel() guards terminal states, so completed/failed
+            // rows are left alone. Stopping the queued rows too keeps the pump from refilling freed slots.
+            foreach (var vm in Items.Where(v =>
+                         v.Status is DownloadStatus.Running or DownloadStatus.Paused
+                                  or DownloadStatus.Created or DownloadStatus.None).ToList())
+                Cancel(vm);
         });
 
     public void ClearCompleted()
@@ -649,7 +681,8 @@ public class DownloadManager : IDownloadManager
                         : "The connection was lost or timed out before the download finished. Please try again.";
                     vm.Status = DownloadStatus.Failed;
                     AppLog.Error($"Failed (interrupted): {vm.FileName ?? vm.Url}", e.Error);
-                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                    if (NotifyFailedEnabled)
+                        NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
                 }
             }
             else if (e.Error != null)
@@ -657,18 +690,21 @@ public class DownloadManager : IDownloadManager
                 vm.ErrorMessage = Describe(e.Error);
                 vm.Status = DownloadStatus.Failed;
                 AppLog.Error($"Failed: {vm.FileName ?? vm.Url}", e.Error);
-                NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                if (NotifyFailedEnabled)
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
             else
             {
                 vm.Progress = 100;
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
-                NotificationService.NotifyCompleted(vm.FileName);
+                if (NotifyCompleteEnabled)
+                    NotificationService.NotifyCompleted(vm.FileName);
             }
 
             // A finished/stopped item frees a slot — let the queue start the next one.
             TryStartNextInQueue(vm.GetItem().QueueId);
+            MaybeAllCompleted();
             NotifyList();
         });
     }

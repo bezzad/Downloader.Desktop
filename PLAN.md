@@ -10,9 +10,9 @@ write Clean Code/KISS — simplest solution, no speculative abstractions; on
 failure, mark `[!]` in Blocked/Failed with the reason and commit+push immediately
 so any machine/AI picks up the true last state.
 
-**Last updated**: 2026-06-19
+**Last updated**: 2026-06-20
 **Branch**: develop
-**Now working on**: (idle) — v1.2.0 released (engine 5.9.0 name+size preview, name caching, per-chunk %, "remember save folder", tr/az/de, timeout + macOS-resize fixes); develop merged to main
+**Now working on**: Round 15 — 9-item batch (shutdown-on-complete, queue start/stop split buttons, stop-all, granular notifications, 7 new languages, browser-integration listener, paste-links placeholder, Linux icon fix). Author answered: browser=local HTTP listener (app side only); shutdown=persistent Setting, shutdown-only; new locales = Hindi/zh-Hans/pt-BR + it/ru/ja/ko.
 
 Author decisions (2026-06-19 overnight batch): may cut releases autonomously; Issue 1 = just fix the false alarm (don't touch update/download mechanism); Queues = full "real queue manager" redesign (mockup approved); Instagram = R&D plan only, no code.
 
@@ -23,7 +23,16 @@ Author decisions (2026-06-19 overnight batch): may cut releases autonomously; Is
 - `[!]` blocked / failed
 
 ## Active
-- (none)
+- [~] **Round 15 — 9-item batch** (see "Now working on"):
+  1. [ ] Shutdown system on completion (persistent Setting) + 30s cancelable notification
+  2. [ ] Start Queue split-button (flyout of queues) in downloads toolbar
+  3. [ ] Stop Queue split-button (flyout of queues) in downloads toolbar
+  4. [ ] Stop All button (stops every item) next to Remove
+  5. [ ] Granular notification settings (complete / failed / all-complete / shutdown)
+  6. [ ] i18n: Hindi, Italian, Portuguese(BR), Russian, Chinese(Hans), Japanese, Korean
+  7. [ ] Browser-integration local HTTP listener (app side; setting, default off)
+  8. [ ] Paste box placeholder → "Paste download links…"
+  9. [ ] Linux install.sh icon fix (app menu/taskbar shows the app icon)
 
 ## Todo
 - [ ] (author, when awake) Interactively launch `/Applications/Downloader.app` (Spotlight/double-click) to eyeball the new Queues page. Note: a real GUI launch is expected to work — the only failure seen was an `Avalonia.Native` render-timer error (-6661) when launching from this background/headless shell, which happens at platform bootstrap BEFORE any app code and is purely "no window-server session", not a code bug. Verified instead via build + 66 tests (incl. real-App headless render of Queues) + screenshots.

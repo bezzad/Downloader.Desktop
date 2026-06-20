@@ -27,6 +27,13 @@ public sealed class Localizer : INotifyPropertyChanged
         new LanguageOption("tr", "Türkçe"),
         new LanguageOption("az", "Azərbaycan"),
         new LanguageOption("de", "Deutsch"),
+        new LanguageOption("it", "Italiano"),
+        new LanguageOption("pt", "Português"),
+        new LanguageOption("ru", "Русский"),
+        new LanguageOption("hi", "हिन्दी"),
+        new LanguageOption("zh", "中文"),
+        new LanguageOption("ja", "日本語"),
+        new LanguageOption("ko", "한국어"),
     };
 
     private static readonly HashSet<string> RtlLanguages = new(StringComparer.OrdinalIgnoreCase) { "fa", "ar" };
