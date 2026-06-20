@@ -1,0 +1,55 @@
+name: downloader
+base: core22
+adopt-info: version
+summary: Fast multi-connection download manager
+description: |
+  Downloader is a free, open-source, cross-platform download manager built on the
+  multi-connection Downloader engine. It splits each file into parts for faster downloads,
+  supports pause/resume, queues, a scheduler, speed limits, and mirror fallbacks.
+
+  Updates are delivered automatically through the Snap Store (the in-app updater is disabled
+  in the snap build).
+
+grade: stable
+confinement: strict
+compression: lzo
+
+apps:
+  downloader:
+    command: bin/Downloader
+    extensions: [gnome]   # provides graphics/fonts/theme + desktop integration (GTK/mesa/fontconfig)
+    plugs:
+      - home              # save to the user's folders
+      - removable-media   # save to external/USB drives
+      - network           # download
+      - network-bind      # local listeners (browser integration + single-instance lock)
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+      - audio-playback
+      - unity7
+      - gsettings
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "0"
+
+parts:
+  # Sets the snap version from snap/local/VERSION (written by scripts/build-snap.sh / CI).
+  version:
+    plugin: nil
+    override-pull: |
+      craftctl default
+      craftctl set version="$(cat "$CRAFT_PROJECT_DIR/snap/local/VERSION" 2>/dev/null || echo 0.0.0)"
+
+  # Dumps the self-contained, single-file linux-x64 publish output (produced before packing).
+  downloader:
+    after: [version]
+    plugin: dump
+    source: publish/linux-x64
+    organize:
+      Downloader: bin/Downloader
+    stage-packages:
+      - libicu70
+      - libssl3

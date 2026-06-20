@@ -47,7 +47,13 @@ This installs **Downloader.app** into your Applications folder — open it from 
 > - Recent Homebrew versions ask you to trust a third-party tap before installing. If you see that prompt, run `brew trust bezzad/tap` (or set `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`) and re-run the install.
 > - The app isn't notarized yet. The Homebrew cask **removes the quarantine flag automatically on install**, so it should launch normally — you do **not** need to run `xattr` by hand. If macOS still blocks the first launch, right-click **Downloader** in Applications → **Open**, or run `xattr -dr com.apple.quarantine "/Applications/Downloader.app"`.
 
-**Linux** — downloads the latest release and adds a menu entry + icon:
+**Linux (Snap)** — recommended; auto-updates via the Snap Store:
+```bash
+sudo snap install downloader
+```
+> Pending first publish to the Snap Store. Until it's live, use the install script below or [Manual download](#manual-download).
+
+**Linux (script)** — downloads the latest release and adds a menu entry + icon:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
@@ -62,7 +68,7 @@ curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scri
    - **macOS** — open `Downloader-osx-*.tar.gz` and drag **Downloader.app** into your **Applications** folder, then launch it from Launchpad/Spotlight.
    - **Windows / Linux** — unzip anywhere and run the `Downloader` executable. That's it.
 
-> The version number is shown under **Settings → About** and increases automatically with every release. With **Settings → Check for updates automatically** on, the app tells you (via an in-app toast) when a newer release is available and can download & install it for you.
+> The version number is shown under **Settings → About** and increases automatically with every release. With **Settings → Check for updates automatically** on, the app downloads a newer release in the background, then shows an **“Update Downloader”** button at the bottom of the left menu plus a system notification. Click it (or just close the app) to install — it restarts into the new version. _Snap builds update through the Snap Store instead, so the in-app updater is disabled there._
 
 > First launch on an unsigned build: **Windows** SmartScreen → *More info → Run anyway*; **macOS** Gatekeeper → right-click → *Open* (or `xattr -dr com.apple.quarantine <app>`).
 
@@ -78,6 +84,18 @@ Your downloads list and settings are saved automatically. Config file location:
 - **Linux:** `~/.config/Downloader/config.json`
 - **macOS:** `~/Library/Application Support/Downloader/config.json`
 - **Windows:** `%APPDATA%\Downloader\config.json`
+
+## Browser extension
+
+A companion **browser extension** (Chrome, Edge, Firefox) sends links straight to the app:
+
+- Right-click a link/image/video/audio → **“Download with Downloader.”**
+- A popup to paste a link, scan the page for links, or grab detected **video / audio / HLS (`.m3u8`)** media.
+- Captured links are sent only to the desktop app on your machine — enable **Settings → Browser integration** in the app first. (DRM/encrypted sites like YouTube aren’t supported.)
+
+**Install** (store listings pending review — see [`src/browser-extension`](src/browser-extension)):
+- _Chrome Web Store / Edge Add-ons / Firefox AMO_ — links added here once published.
+- **Load it now (developer mode):** see [`src/browser-extension/README.md`](src/browser-extension/README.md) to load the unpacked extension.
 
 ---
 
