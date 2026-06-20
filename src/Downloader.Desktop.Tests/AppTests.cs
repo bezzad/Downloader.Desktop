@@ -356,6 +356,47 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void StartQueue_runs_remaining_stopped_and_failed_items()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5;
+        manager.Initialize(config);
+
+        // Non-routable host so nothing actually connects; we only assert state transitions.
+        var stopped = manager.Add(new DownloadItem { Url = "https://10.255.255.1/a.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var failed = manager.Add(new DownloadItem { Url = "https://10.255.255.1/b.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var done = manager.Add(new DownloadItem { Url = "https://10.255.255.1/c.zip", SaveFolder = "/tmp" }, autoStart: false);
+        stopped.Status = DownloadStatus.Stopped;
+        failed.Status = DownloadStatus.Failed;
+        done.Status = DownloadStatus.Completed;
+
+        manager.StartQueue(config.DefaultQueue);
+
+        // The stopped and failed rows must be (re)started; the completed one is left alone.
+        Assert.NotEqual(DownloadStatus.Stopped, stopped.Status);
+        Assert.NotEqual(DownloadStatus.Failed, failed.Status);
+        Assert.Equal(DownloadStatus.Completed, done.Status);
+    }
+
+    [AvaloniaFact]
+    public void Completed_item_loads_at_full_progress_even_without_downloaded_bytes()
+    {
+        // A file that already existed on disk is Completed but may have Downloaded=0 persisted.
+        var item = new DownloadItem { FileName = "a.zip", Size = 1000, Downloaded = 0, Status = DownloadStatus.Completed };
+        var vm = new DownloadItemViewModel(item, null);
+        Assert.Equal(100, vm.Progress);
+    }
+
+    [AvaloniaFact]
+    public void Setting_status_completed_forces_full_progress()
+    {
+        var vm = new DownloadItemViewModel(new DownloadItem { Size = 1000 }, null) { Progress = 0 };
+        vm.Status = DownloadStatus.Completed;
+        Assert.Equal(100, vm.Progress);
+    }
+
+    [AvaloniaFact]
     public void AlreadyExisted_completed_row_shows_exists_text()
     {
         Localizer.Instance.Load("en");

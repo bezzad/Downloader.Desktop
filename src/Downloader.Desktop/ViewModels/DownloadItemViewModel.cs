@@ -87,7 +87,10 @@ public class DownloadItemViewModel : ViewModelBase
         _manager = manager;
         _status = _item.Status;
         _previewName = _item.PreviewName; // restore the cached name for items not yet started
-        _progress = _item.Size is > 0 ? (double)_item.Downloaded / _item.Size.Value * 100 : 0;
+        // A completed item is always full — show 100% even if Downloaded wasn't persisted (e.g. a file
+        // that already existed on disk and was skipped). Otherwise compute from bytes.
+        _progress = _item.Status == DownloadStatus.Completed ? 100
+            : _item.Size is > 0 ? (double)_item.Downloaded / _item.Size.Value * 100 : 0;
 
         PauseCommand = ReactiveCommand.Create(() => _manager?.Pause(this));
         ResumeCommand = ReactiveCommand.Create(() => _manager?.Resume(this));
@@ -285,6 +288,9 @@ public class DownloadItemViewModel : ViewModelBase
         {
             this.RaiseAndSetIfChanged(ref _status, value);
             _item.Status = value;
+            // A completed row is always shown full, regardless of how it got there.
+            if (value == DownloadStatus.Completed)
+                Progress = 100;
             this.RaisePropertyChanged(nameof(StatusText));
             this.RaisePropertyChanged(nameof(CanPause));
             this.RaisePropertyChanged(nameof(CanResume));

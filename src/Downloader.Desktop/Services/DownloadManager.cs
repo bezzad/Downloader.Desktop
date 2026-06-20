@@ -568,7 +568,19 @@ public class DownloadManager : IDownloadManager
         if (queue == null)
             return;
         queue.IsRunning = true;
-        PumpQueue(queue.Id); // resumes paused + starts queued, all capped at MaxConcurrent
+
+        // "Start queue" should run every *remaining* (non-completed) download in it. The pump only
+        // picks up Paused/Created/None, so re-queue Stopped/Failed rows to Created first — otherwise
+        // selecting a queue after a Stop/Stop-all (rows are Stopped) appeared to do nothing.
+        RunBatch(() =>
+        {
+            foreach (var vm in Items.Where(i =>
+                         i.GetItem().QueueId == queue.Id &&
+                         i.Status is DownloadStatus.Stopped or DownloadStatus.Failed).ToList())
+                vm.Status = DownloadStatus.Created;
+
+            PumpQueue(queue.Id); // resumes paused + starts queued, all capped at MaxConcurrent
+        });
         NotifyList();
     }
 
@@ -770,8 +782,12 @@ public class DownloadManager : IDownloadManager
         try
         {
             var len = new FileInfo(path).Length;
-            if (len > 0 && vm.Size is null or 0)
-                vm.Size = len;
+            if (len > 0)
+            {
+                if (vm.Size is null or 0)
+                    vm.Size = len;
+                vm.Downloaded = len; // persist full bytes so the bar stays 100% after a restart
+            }
         }
         catch { /* size is best-effort */ }
 
