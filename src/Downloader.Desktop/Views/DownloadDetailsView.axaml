@@ -18,22 +18,19 @@
         WindowDecorations="None"
         WindowStartupLocation="CenterOwner"
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
-        Title="Download details">
+        Title="{Binding WindowTitle}">
 
     <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
-    <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Det_Title}" ShowMinMax="False" />
-    <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <!-- Title bar shows the live "{percent}% {file name}" caption (next to the app icon). -->
+    <v:TitleBar DockPanel.Dock="Top" Title="{Binding WindowTitle}" ShowMinMax="False" />
+    <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,*,Auto">
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Spacing="3">
-            <TextBlock Text="{Binding Item.FileName}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <!-- Source URL (editable when stopped) + copy -->
-        <Border Grid.Row="1" Classes="card" Margin="0 12 0 0">
+        <!-- Source URL (editable when stopped) + copy. The file name now lives in the title bar, so
+             there's no separate header here (it was redundant with this URL section). -->
+        <Border Grid.Row="0" Classes="card">
             <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{i18n:Tr Det_SourceUrl}" VerticalAlignment="Center"
@@ -74,7 +71,7 @@
 
         <!-- Error banner: shows the failure reason with a copy button so it can be pasted into a
              GitHub issue. The message is also selectable for partial copies. -->
-        <Border Grid.Row="2" Margin="0 12 0 0" CornerRadius="8" Padding="12 10"
+        <Border Grid.Row="1" Margin="0 12 0 0" CornerRadius="8" Padding="12 10"
                 Background="{DynamicResource DangerColor}" IsVisible="{Binding HasError}">
             <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
                 <PathIcon Grid.Column="0" Data="{StaticResource WarningRegular}" Height="16"
@@ -95,7 +92,7 @@
         </Border>
 
         <!-- Summary + actions + live speed limit -->
-        <Border Grid.Row="3" Classes="card" Margin="0 12 0 0">
+        <Border Grid.Row="2" Classes="card" Margin="0 12 0 0">
             <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                     <TextBlock Grid.Column="0" Text="{i18n:Tr Det_Status}" Margin="0 0 10 0"
@@ -189,7 +186,7 @@
         </Border>
 
         <!-- Connections: just the per-connection grid (the progress bar lives in the summary above, #5) -->
-        <Border Grid.Row="4" Classes="card" Margin="0 12 0 0">
+        <Border Grid.Row="3" Classes="card" Margin="0 12 0 0">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
                            Text="{i18n:Tr Det_ConnAppear}"
@@ -253,7 +250,7 @@
         </Border>
 
         <!-- Footer -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 14 0 0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 14 0 0">
             <Button Content="{i18n:Tr Btn_Close}" Padding="18 7" Click="OnCloseClick" />
         </StackPanel>
     </Grid>

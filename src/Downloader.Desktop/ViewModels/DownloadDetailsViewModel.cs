@@ -197,6 +197,11 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
     {
+        // The title bar shows live "{percent}% {name}", so refresh it as progress/name/status change.
+        if (e.PropertyName is nameof(DownloadItemViewModel.Progress) or nameof(DownloadItemViewModel.FileName)
+            or nameof(DownloadItemViewModel.DisplayName) or nameof(DownloadItemViewModel.Status))
+            Dispatcher.UIThread.Post(() => this.RaisePropertyChanged(nameof(WindowTitle)));
+
         // The engine handle is created after the dialog may have opened — attach as soon as it's set.
         if (e.PropertyName == nameof(DownloadItemViewModel.Download))
         {
@@ -247,6 +252,18 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     public bool HasError => Item?.HasError == true;
     public string ErrorMessage => Item?.ErrorMessage;
+
+    /// <summary>Window/title-bar caption: live "{percent}% {file name}" (e.g. "21% movie.mkv").</summary>
+    public string WindowTitle
+    {
+        get
+        {
+            if (Item == null)
+                return L("Det_Title");
+            var name = Item.DisplayName;
+            return string.IsNullOrWhiteSpace(name) ? L("Det_Title") : $"{Item.Progress:0}% {name}";
+        }
+    }
 
     /// <summary>Live speed cap in KB/s (0 = unlimited). Applies to the running download.</summary>
     public long SpeedLimitKb
