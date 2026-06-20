@@ -319,6 +319,7 @@ public class DownloadManager : IDownloadManager
         item.SaveFolder = folder;
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
+        vm.AlreadyExisted = false;
         vm.Status = DownloadStatus.Running;
         _allCompleteFired = false; // a new run means "all complete" can fire again when it drains
         EnsureUiPump();
@@ -685,6 +686,11 @@ public class DownloadManager : IDownloadManager
                 {
                     // user action — keep the status as-is
                 }
+                else if (TryMarkAlreadyExists(vm, e))
+                {
+                    // The engine skipped the download because the file is already on disk
+                    // (FileExistPolicy=IgnoreDownload). That's a success, not a failure (#issue).
+                }
                 else
                 {
                     vm.ErrorMessage = e.Error != null
@@ -718,6 +724,48 @@ public class DownloadManager : IDownloadManager
             MaybeAllCompleted();
             NotifyList();
         });
+    }
+
+    /// <summary>
+    /// Detects the "file already exists, so the engine ignored the download" case (FileExistPolicy =
+    /// IgnoreDownload). The engine reports this as a cancel with no error and never fires DownloadStarted,
+    /// which would otherwise look like a timeout failure. When the resolved file is actually present on
+    /// disk, mark the row Completed (flagged AlreadyExisted) instead. Returns true if handled.
+    /// </summary>
+    /// <summary>True when a no-error cancel really means "the file is already on disk and the policy is
+    /// to skip it" (FileExistPolicy=IgnoreDownload), not a transfer failure. Pure + testable.</summary>
+    public static bool LooksAlreadyDownloaded(FileExistPolicy policy, string path) =>
+        policy == FileExistPolicy.IgnoreDownload && !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+
+    private bool TryMarkAlreadyExists(DownloadItemViewModel vm, System.ComponentModel.AsyncCompletedEventArgs e)
+    {
+        var path = (e.UserState as DownloadPackage)?.FileName ?? vm.Download?.Package?.FileName;
+        if (!LooksAlreadyDownloaded(_config?.Settings?.FileExistPolicy ?? FileExistPolicy.Delete, path))
+            return false;
+
+        // Backfill name/folder/size from the file the engine found (DownloadStarted never fired).
+        var name = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(vm.FileName) && !string.IsNullOrWhiteSpace(name))
+            vm.FileName = name;
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(dir))
+            vm.GetItem().SaveFolder = dir;
+        try
+        {
+            var len = new FileInfo(path).Length;
+            if (len > 0 && vm.Size is null or 0)
+                vm.Size = len;
+        }
+        catch { /* size is best-effort */ }
+
+        vm.ErrorMessage = null;
+        vm.Progress = 100;
+        vm.AlreadyExisted = true;
+        vm.Status = DownloadStatus.Completed;
+        AppLog.Info($"Already downloaded (file exists, skipped): {vm.FileName}");
+        if (NotifyCompleteEnabled)
+            NotificationService.NotifyCompleted(vm.FileName);
+        return true;
     }
 
     private static void OnUi(Action action)

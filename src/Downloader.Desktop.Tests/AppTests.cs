@@ -333,6 +333,21 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void AlreadyExisted_completed_row_shows_exists_text()
+    {
+        Localizer.Instance.Load("en");
+        var vm = new DownloadItemViewModel(new DownloadItem(), null)
+        {
+            Status = DownloadStatus.Completed
+        };
+        Assert.Equal("Completed", vm.StatusText);
+
+        vm.AlreadyExisted = true;
+        Assert.Equal("Already downloaded", vm.StatusText);
+        Assert.True(vm.IsCompleted); // still counts as done (Open file works, no retry)
+    }
+
+    [AvaloniaFact]
     public void TimeLeft_reflects_remaining_over_speed()
     {
         var item = new DownloadItem { Status = DownloadStatus.Running };

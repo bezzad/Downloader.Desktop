@@ -165,6 +165,25 @@ public class LogicTests
     }
 
     [Fact]
+    public void LooksAlreadyDownloaded_only_for_ignore_policy_and_existing_file()
+    {
+        var tmp = System.IO.Path.GetTempFileName(); // a real, existing file
+        try
+        {
+            Assert.True(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.IgnoreDownload, tmp));
+            // Other policies don't "ignore", so a cancel there is a real failure, not an existing file.
+            Assert.False(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.Delete, tmp));
+            // IgnoreDownload but the file isn't there → a genuine interruption, not "already exists".
+            Assert.False(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.IgnoreDownload, tmp + ".missing"));
+            Assert.False(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.IgnoreDownload, null));
+        }
+        finally
+        {
+            System.IO.File.Delete(tmp);
+        }
+    }
+
+    [Fact]
     public void About_links_are_wellformed()
     {
         Assert.StartsWith("https://github.com/bezzad", AboutViewModel.RepoUrl);

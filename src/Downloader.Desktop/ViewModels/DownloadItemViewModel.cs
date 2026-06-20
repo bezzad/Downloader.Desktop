@@ -305,6 +305,24 @@ public class DownloadItemViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _isChecked, value);
     }
 
+    private bool _alreadyExisted;
+
+    /// <summary>True when the download was skipped because the file was already on disk
+    /// (FileExistPolicy=IgnoreDownload). The row is Completed, but the status text says so.</summary>
+    public bool AlreadyExisted
+    {
+        get => _alreadyExisted;
+        set
+        {
+            if (_alreadyExisted != value)
+            {
+                _alreadyExisted = value;
+                this.RaisePropertyChanged();
+                this.RaisePropertyChanged(nameof(StatusText));
+            }
+        }
+    }
+
     private static string L(string key) => Localizer.Instance[key];
 
     public string StatusText => Status switch
@@ -314,7 +332,7 @@ public class DownloadItemViewModel : ViewModelBase
         // Keep the percentage visible (and the bar filled) when paused/stopped, not just a state word.
         DownloadStatus.Paused => $"{Progress:0}% · {L("State_Paused")}",
         DownloadStatus.Stopped => $"{Progress:0}% · {L("State_Stopped")}",
-        DownloadStatus.Completed => L("State_Completed"),
+        DownloadStatus.Completed => _alreadyExisted ? L("State_Exists") : L("State_Completed"),
         DownloadStatus.Failed => L("State_Failed"),
         _ => Status.ToString()
     };

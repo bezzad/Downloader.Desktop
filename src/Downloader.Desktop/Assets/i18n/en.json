@@ -47,6 +47,7 @@
   "State_Paused": "Paused",
   "State_Stopped": "Stopped",
   "State_Completed": "Completed",
+  "State_Exists": "Already downloaded",
   "State_Failed": "Failed",
   "State_Downloading": "Downloading",
   "State_Pending": "Pending",
