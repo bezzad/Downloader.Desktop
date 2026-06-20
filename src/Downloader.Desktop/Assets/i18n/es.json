@@ -166,5 +166,14 @@
   "Contact_Email": "Correo",
   "State_Exists": "Ya descargado",
   "Action_CopyError": "Copiar mensaje de error",
-  "Action_ErrorCopied": "¡Error copiado!"
+  "Action_ErrorCopied": "¡Error copiado!",
+  "Shutdown_Title": "Apagando",
+  "Shutdown_Message": "Todas las descargas han terminado. El equipo se apagará automáticamente.",
+  "Shutdown_Countdown": "Apagando en {0} segundos",
+  "Shutdown_Cancel": "Cancelar",
+  "Shutdown_Now": "Apagar ahora",
+  "Shutdown_Canceled_Title": "Apagado cancelado",
+  "Shutdown_Canceled_Msg": "El equipo permanecerá encendido.",
+  "Shutdown_Notify_Title": "Apagado próximo",
+  "Shutdown_Notify_Msg": "Descargas finalizadas: el equipo se apagará en {0}s. Abre Downloader para cancelar."
 }

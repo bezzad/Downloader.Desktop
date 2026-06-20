@@ -166,5 +166,14 @@
   "Contact_Email": "Retpoŝto",
   "State_Exists": "Jam elŝutita",
   "Action_CopyError": "Kopii erarmesaĝon",
-  "Action_ErrorCopied": "Eraro kopiita!"
+  "Action_ErrorCopied": "Eraro kopiita!",
+  "Shutdown_Title": "Malŝaltado",
+  "Shutdown_Message": "Ĉiuj elŝutoj finiĝis. La komputilo malŝaltiĝos aŭtomate.",
+  "Shutdown_Countdown": "Malŝalto post {0} sekundoj",
+  "Shutdown_Cancel": "Nuligi",
+  "Shutdown_Now": "Malŝalti nun",
+  "Shutdown_Canceled_Title": "Malŝalto nuligita",
+  "Shutdown_Canceled_Msg": "La komputilo restos ŝaltita.",
+  "Shutdown_Notify_Title": "Baldaŭ malŝaltos",
+  "Shutdown_Notify_Msg": "Elŝutoj finiĝis — la komputilo malŝaltiĝos post {0}s. Malfermu Downloader por nuligi."
 }

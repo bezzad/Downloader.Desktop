@@ -193,5 +193,14 @@
   "Contact_Email": "E-mail",
   "State_Exists": "Já baixado",
   "Action_CopyError": "Copiar mensagem de erro",
-  "Action_ErrorCopied": "Erro copiado!"
+  "Action_ErrorCopied": "Erro copiado!",
+  "Shutdown_Title": "Desligando",
+  "Shutdown_Message": "Todos os downloads terminaram. O computador será desligado automaticamente.",
+  "Shutdown_Countdown": "Desligando em {0} segundos",
+  "Shutdown_Cancel": "Cancelar",
+  "Shutdown_Now": "Desligar agora",
+  "Shutdown_Canceled_Title": "Desligamento cancelado",
+  "Shutdown_Canceled_Msg": "O computador permanecerá ligado.",
+  "Shutdown_Notify_Title": "Desligando em breve",
+  "Shutdown_Notify_Msg": "Downloads concluídos — o computador desligará em {0}s. Abra o Downloader para cancelar."
 }

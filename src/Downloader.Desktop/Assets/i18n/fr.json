@@ -166,5 +166,14 @@
   "Contact_Email": "E-mail",
   "State_Exists": "Déjà téléchargé",
   "Action_CopyError": "Copier le message d'erreur",
-  "Action_ErrorCopied": "Erreur copiée !"
+  "Action_ErrorCopied": "Erreur copiée !",
+  "Shutdown_Title": "Arrêt en cours",
+  "Shutdown_Message": "Tous les téléchargements sont terminés. L'ordinateur va s'éteindre automatiquement.",
+  "Shutdown_Countdown": "Arrêt dans {0} secondes",
+  "Shutdown_Cancel": "Annuler",
+  "Shutdown_Now": "Éteindre maintenant",
+  "Shutdown_Canceled_Title": "Arrêt annulé",
+  "Shutdown_Canceled_Msg": "L'ordinateur restera allumé.",
+  "Shutdown_Notify_Title": "Arrêt imminent",
+  "Shutdown_Notify_Msg": "Téléchargements terminés — l'ordinateur s'éteindra dans {0}s. Ouvrez Downloader pour annuler."
 }

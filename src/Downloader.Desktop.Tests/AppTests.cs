@@ -266,6 +266,29 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Stopping_items_does_not_arm_all_completed_even_with_a_finished_item()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        config.DefaultQueue.IsRunning = false;
+
+        var fired = 0;
+        manager.AllDownloadsCompleted += () => fired++;
+
+        var done = manager.Add(new DownloadItem { Url = "https://host/done.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var other = manager.Add(new DownloadItem { Url = "https://host/other.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.RaiseCompletedForTest(done);     // one finished, 'other' still queued → no fire
+        Assert.Equal(0, fired);
+
+        // User clicks Stop All → 'other' is cancelled (Stopped). Nothing is active/queued and a
+        // completed item remains, but a *stop* must NOT trigger the shutdown/all-complete flow.
+        manager.RaiseStoppedForTest(other);
+        Assert.Equal(0, fired);
+    }
+
+    [AvaloniaFact]
     public void SelectAll_header_is_tri_state_and_drives_selection()
     {
         var manager = new DownloadManager();

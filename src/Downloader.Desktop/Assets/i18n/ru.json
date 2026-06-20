@@ -193,5 +193,14 @@
   "Contact_Email": "Эл. почта",
   "State_Exists": "Уже загружено",
   "Action_CopyError": "Копировать сообщение об ошибке",
-  "Action_ErrorCopied": "Ошибка скопирована!"
+  "Action_ErrorCopied": "Ошибка скопирована!",
+  "Shutdown_Title": "Выключение",
+  "Shutdown_Message": "Все загрузки завершены. Компьютер будет выключен автоматически.",
+  "Shutdown_Countdown": "Выключение через {0} секунд",
+  "Shutdown_Cancel": "Отмена",
+  "Shutdown_Now": "Выключить сейчас",
+  "Shutdown_Canceled_Title": "Выключение отменено",
+  "Shutdown_Canceled_Msg": "Компьютер останется включённым.",
+  "Shutdown_Notify_Title": "Скоро выключение",
+  "Shutdown_Notify_Msg": "Загрузки завершены — компьютер выключится через {0}с. Откройте Downloader, чтобы отменить."
 }

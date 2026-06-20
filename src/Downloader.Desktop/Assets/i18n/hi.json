@@ -193,5 +193,14 @@
   "Contact_Email": "ईमेल",
   "State_Exists": "पहले ही डाउनलोड हो चुका",
   "Action_CopyError": "त्रुटि संदेश कॉपी करें",
-  "Action_ErrorCopied": "त्रुटि कॉपी हो गई!"
+  "Action_ErrorCopied": "त्रुटि कॉपी हो गई!",
+  "Shutdown_Title": "बंद हो रहा है",
+  "Shutdown_Message": "सभी डाउनलोड पूरे हो गए। कंप्यूटर स्वतः बंद हो जाएगा।",
+  "Shutdown_Countdown": "{0} सेकंड में बंद हो रहा है",
+  "Shutdown_Cancel": "रद्द करें",
+  "Shutdown_Now": "अभी बंद करें",
+  "Shutdown_Canceled_Title": "बंद होना रद्द किया गया",
+  "Shutdown_Canceled_Msg": "कंप्यूटर चालू रहेगा।",
+  "Shutdown_Notify_Title": "जल्द ही बंद होगा",
+  "Shutdown_Notify_Msg": "डाउनलोड पूरे — कंप्यूटर {0}s में बंद होगा। रद्द करने के लिए Downloader खोलें।"
 }

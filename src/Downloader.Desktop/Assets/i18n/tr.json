@@ -191,5 +191,14 @@
   "Contact_Email": "E-posta",
   "State_Exists": "Zaten indirildi",
   "Action_CopyError": "Hata mesajını kopyala",
-  "Action_ErrorCopied": "Hata kopyalandı!"
+  "Action_ErrorCopied": "Hata kopyalandı!",
+  "Shutdown_Title": "Kapatılıyor",
+  "Shutdown_Message": "Tüm indirmeler tamamlandı. Bilgisayar otomatik olarak kapanacak.",
+  "Shutdown_Countdown": "{0} saniye içinde kapanıyor",
+  "Shutdown_Cancel": "İptal",
+  "Shutdown_Now": "Şimdi kapat",
+  "Shutdown_Canceled_Title": "Kapatma iptal edildi",
+  "Shutdown_Canceled_Msg": "Bilgisayar açık kalacak.",
+  "Shutdown_Notify_Title": "Yakında kapanacak",
+  "Shutdown_Notify_Msg": "İndirmeler bitti — bilgisayar {0}s içinde kapanacak. İptal için Downloader'ı açın."
 }

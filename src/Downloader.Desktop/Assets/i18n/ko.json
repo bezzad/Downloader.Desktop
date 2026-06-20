@@ -193,5 +193,14 @@
   "Contact_Email": "이메일",
   "State_Exists": "이미 다운로드됨",
   "Action_CopyError": "오류 메시지 복사",
-  "Action_ErrorCopied": "오류가 복사되었습니다!"
+  "Action_ErrorCopied": "오류가 복사되었습니다!",
+  "Shutdown_Title": "종료 중",
+  "Shutdown_Message": "모든 다운로드가 완료되었습니다. 컴퓨터가 자동으로 종료됩니다.",
+  "Shutdown_Countdown": "{0}초 후 종료",
+  "Shutdown_Cancel": "취소",
+  "Shutdown_Now": "지금 종료",
+  "Shutdown_Canceled_Title": "종료가 취소됨",
+  "Shutdown_Canceled_Msg": "컴퓨터가 켜진 상태로 유지됩니다.",
+  "Shutdown_Notify_Title": "곧 종료됩니다",
+  "Shutdown_Notify_Msg": "다운로드 완료 — 컴퓨터가 {0}초 후 종료됩니다. 취소하려면 Downloader를 여세요."
 }

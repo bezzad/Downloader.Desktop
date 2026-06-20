@@ -168,5 +168,14 @@
   "Contact_Email": "ایمیل",
   "State_Exists": "قبلاً دانلود شده",
   "Action_CopyError": "کپی پیام خطا",
-  "Action_ErrorCopied": "خطا کپی شد!"
+  "Action_ErrorCopied": "خطا کپی شد!",
+  "Shutdown_Title": "در حال خاموش‌شدن",
+  "Shutdown_Message": "همهٔ دانلودها تمام شدند. رایانه به‌طور خودکار خاموش می‌شود.",
+  "Shutdown_Countdown": "خاموش‌شدن تا {0} ثانیه دیگر",
+  "Shutdown_Cancel": "انصراف",
+  "Shutdown_Now": "اکنون خاموش کن",
+  "Shutdown_Canceled_Title": "خاموش‌شدن لغو شد",
+  "Shutdown_Canceled_Msg": "رایانه روشن می‌ماند.",
+  "Shutdown_Notify_Title": "به‌زودی خاموش می‌شود",
+  "Shutdown_Notify_Msg": "همهٔ دانلودها تمام شدند — رایانه تا {0} ثانیهٔ دیگر خاموش می‌شود. برای لغو، Downloader را باز کنید."
 }

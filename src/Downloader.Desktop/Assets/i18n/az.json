@@ -191,5 +191,14 @@
   "Contact_Email": "E-poçt",
   "State_Exists": "Artıq yüklənib",
   "Action_CopyError": "Xəta mesajını kopyala",
-  "Action_ErrorCopied": "Xəta kopyalandı!"
+  "Action_ErrorCopied": "Xəta kopyalandı!",
+  "Shutdown_Title": "Söndürülür",
+  "Shutdown_Message": "Bütün yükləmələr tamamlandı. Kompüter avtomatik söndürüləcək.",
+  "Shutdown_Countdown": "{0} saniyəyə söndürülür",
+  "Shutdown_Cancel": "Ləğv et",
+  "Shutdown_Now": "İndi söndür",
+  "Shutdown_Canceled_Title": "Söndürmə ləğv edildi",
+  "Shutdown_Canceled_Msg": "Kompüter açıq qalacaq.",
+  "Shutdown_Notify_Title": "Tezliklə söndürüləcək",
+  "Shutdown_Notify_Msg": "Yükləmələr bitdi — kompüter {0}s sonra söndürüləcək. Ləğv üçün Downloader-i açın."
 }

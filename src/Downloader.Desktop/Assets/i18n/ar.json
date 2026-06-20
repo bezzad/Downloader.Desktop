@@ -166,5 +166,14 @@
   "Contact_Email": "البريد",
   "State_Exists": "تم تنزيله مسبقًا",
   "Action_CopyError": "نسخ رسالة الخطأ",
-  "Action_ErrorCopied": "تم نسخ الخطأ!"
+  "Action_ErrorCopied": "تم نسخ الخطأ!",
+  "Shutdown_Title": "جارٍ إيقاف التشغيل",
+  "Shutdown_Message": "اكتملت جميع التنزيلات. سيتم إيقاف تشغيل الكمبيوتر تلقائيًا.",
+  "Shutdown_Countdown": "إيقاف التشغيل خلال {0} ثانية",
+  "Shutdown_Cancel": "إلغاء",
+  "Shutdown_Now": "إيقاف التشغيل الآن",
+  "Shutdown_Canceled_Title": "تم إلغاء إيقاف التشغيل",
+  "Shutdown_Canceled_Msg": "سيبقى الكمبيوتر قيد التشغيل.",
+  "Shutdown_Notify_Title": "سيتم إيقاف التشغيل قريبًا",
+  "Shutdown_Notify_Msg": "اكتملت التنزيلات — سيتم إيقاف تشغيل الكمبيوتر خلال {0} ثانية. افتح Downloader للإلغاء."
 }

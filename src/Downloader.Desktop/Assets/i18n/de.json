@@ -191,5 +191,14 @@
   "Contact_Email": "E-Mail",
   "State_Exists": "Bereits heruntergeladen",
   "Action_CopyError": "Fehlermeldung kopieren",
-  "Action_ErrorCopied": "Fehler kopiert!"
+  "Action_ErrorCopied": "Fehler kopiert!",
+  "Shutdown_Title": "Wird heruntergefahren",
+  "Shutdown_Message": "Alle Downloads sind abgeschlossen. Der Computer wird automatisch heruntergefahren.",
+  "Shutdown_Countdown": "Herunterfahren in {0} Sekunden",
+  "Shutdown_Cancel": "Abbrechen",
+  "Shutdown_Now": "Jetzt herunterfahren",
+  "Shutdown_Canceled_Title": "Herunterfahren abgebrochen",
+  "Shutdown_Canceled_Msg": "Der Computer bleibt eingeschaltet.",
+  "Shutdown_Notify_Title": "Wird bald heruntergefahren",
+  "Shutdown_Notify_Msg": "Downloads fertig — der Computer fährt in {0}s herunter. Öffne Downloader zum Abbrechen."
 }

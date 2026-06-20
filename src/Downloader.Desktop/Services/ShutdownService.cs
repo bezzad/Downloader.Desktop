@@ -1,73 +1,99 @@
 using System;
 using System.Diagnostics;
 using Avalonia.Threading;
+using Downloader.Desktop.ViewModels;
+using Downloader.Desktop.Views;
 
 namespace Downloader.Desktop.Services;
 
 /// <summary>
 /// Powers the computer off a short, cancelable delay after all downloads finish (opt-in via
-/// <c>DownloadSettings.ShutdownOnCompletion</c>). Shows an actionable in-app notice the user can
-/// click to cancel — so someone still at the keyboard isn't shut down on them. The OS power-off
-/// call itself is best-effort and platform-specific; it is intentionally not unit-tested (like the
-/// updater's self-swap), the testable part is the manager deciding when to arm this.
+/// <c>DownloadSettings.ShutdownOnCompletion</c>).
+///
+/// The user MUST be able to stop it, even if the app was minimized to the system tray — so this shows
+/// a Topmost countdown dialog with a clear Cancel button (a standalone window appears regardless of
+/// whether the main window is hidden) AND fires a native OS notification as a heads-up. The OS
+/// power-off call is best-effort/platform-specific and not unit-tested (like the updater's self-swap);
+/// the testable part is the manager deciding WHEN to arm this.
 /// </summary>
 public static class ShutdownService
 {
     private const int CountdownSeconds = 30;
 
-    private static DispatcherTimer _timer;
+    private static ShutdownView _dialog;
 
-    /// <summary>True while a shutdown countdown is running.</summary>
-    public static bool IsScheduled => _timer is { IsEnabled: true };
+    /// <summary>True while a shutdown countdown dialog is showing.</summary>
+    public static bool IsScheduled => _dialog != null;
 
-    /// <summary>
-    /// Test/seam hook: when set, called instead of the real OS power-off. Returns nothing.
-    /// Lets tests assert the countdown elapses without actually shutting the machine down.
-    /// </summary>
+    /// <summary>Test/seam hook: when set, called instead of the real OS power-off.</summary>
     public static Action PowerOffOverride { get; set; }
 
     /// <summary>
-    /// Starts a single <see cref="CountdownSeconds"/>-second countdown to shut down. No-op if one is
-    /// already running. <paramref name="notify"/> shows the cancelable notice (mirrors the user's
-    /// "notify on shutdown" setting).
+    /// Starts the cancelable shutdown countdown. No-op if one is already running. <paramref name="notify"/>
+    /// also fires a native OS notification (mirrors the "notify on shutdown" setting); the dialog is shown
+    /// regardless, since it's the safety mechanism that lets the user cancel.
     /// </summary>
     public static void Schedule(bool notify)
     {
-        if (IsScheduled)
-            return;
-
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(CountdownSeconds) };
-        _timer.Tick += (_, _) =>
+        void Show()
         {
-            Stop();
-            PowerOff();
-        };
-        _timer.Start();
+            if (IsScheduled)
+                return;
 
-        if (notify)
-            NotificationService.ShowAction(
-                "Shutting down in 30s",
-                "All downloads finished. The computer will shut down in 30 seconds — click here to cancel.",
-                Cancel);
+            // Native (system) heads-up so a user with the app in the tray still gets an OS alert.
+            if (notify)
+                NotificationService.Notify(
+                    Localizer.Instance["Shutdown_Notify_Title"],
+                    string.Format(Localizer.Instance["Shutdown_Notify_Msg"], CountdownSeconds),
+                    isError: false);
+
+            var vm = new ShutdownViewModel(CountdownSeconds, onElapsed: PowerOff, onCancel: OnCanceled);
+            _dialog = new ShutdownView { DataContext = vm };
+            vm.CloseRequested += Close;
+            _dialog.Show();           // standalone Topmost window — visible even if the main window is hidden
+            _dialog.Activate();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Show();
+        else
+            Dispatcher.UIThread.Post(Show);
     }
 
-    /// <summary>Cancels a pending shutdown (called when the user clicks the notice).</summary>
+    /// <summary>Cancels a pending shutdown (e.g. from a tray action). Safe from any thread.</summary>
     public static void Cancel()
     {
-        if (!IsScheduled)
-            return;
-        Stop();
-        NotificationService.Notify("Shutdown canceled", "The computer will stay on.", isError: false);
+        void Do()
+        {
+            if (!IsScheduled)
+                return;
+            Close();
+            OnCanceled();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Do();
+        else
+            Dispatcher.UIThread.Post(Do);
     }
 
-    private static void Stop()
+    private static void OnCanceled() =>
+        NotificationService.Notify(
+            Localizer.Instance["Shutdown_Canceled_Title"],
+            Localizer.Instance["Shutdown_Canceled_Msg"],
+            isError: false);
+
+    private static void Close()
     {
-        _timer?.Stop();
-        _timer = null;
+        var dlg = _dialog;
+        _dialog = null;
+        try { dlg?.Close(); } catch { /* already closed */ }
     }
 
     private static void PowerOff()
     {
+        Close();
+
         if (PowerOffOverride != null)
         {
             PowerOffOverride();

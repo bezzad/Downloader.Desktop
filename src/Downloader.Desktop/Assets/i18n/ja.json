@@ -193,5 +193,14 @@
   "Contact_Email": "メール",
   "State_Exists": "ダウンロード済み",
   "Action_CopyError": "エラーメッセージをコピー",
-  "Action_ErrorCopied": "エラーをコピーしました！"
+  "Action_ErrorCopied": "エラーをコピーしました！",
+  "Shutdown_Title": "シャットダウン中",
+  "Shutdown_Message": "すべてのダウンロードが完了しました。コンピューターは自動的にシャットダウンします。",
+  "Shutdown_Countdown": "{0} 秒後にシャットダウン",
+  "Shutdown_Cancel": "キャンセル",
+  "Shutdown_Now": "今すぐシャットダウン",
+  "Shutdown_Canceled_Title": "シャットダウンを取消しました",
+  "Shutdown_Canceled_Msg": "コンピューターは起動したままになります。",
+  "Shutdown_Notify_Title": "まもなくシャットダウン",
+  "Shutdown_Notify_Msg": "ダウンロード完了 — {0}秒後にシャットダウンします。取消すには Downloader を開いてください。"
 }

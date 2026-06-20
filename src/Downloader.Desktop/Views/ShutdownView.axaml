@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="240"
+        Width="420" Height="240"
+        CanResize="False"
+        Topmost="True"
+        ShowInTaskbar="True"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterScreen"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Icon="/Assets/downloader.png"
+        x:Class="Downloader.Desktop.Views.ShutdownView"
+        x:DataType="vm:ShutdownViewModel"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="Shutting down">
+
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+        <DockPanel>
+            <v:TitleBar DockPanel.Dock="Top" Title="{Binding Title}" ShowMinMax="False" />
+            <StackPanel Margin="22 16 22 18" Spacing="14" VerticalAlignment="Center">
+                <Grid ColumnDefinitions="Auto,*">
+                    <PathIcon Grid.Column="0" Data="{DynamicResource WarningRegular}" Height="26" Width="26"
+                              Foreground="{DynamicResource SystemAccentColor}" VerticalAlignment="Top" Margin="0 0 12 0" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding CountdownText}" FontSize="20" FontWeight="Bold"
+                                   Foreground="{DynamicResource SystemAccentColor}" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Content="{Binding ShutdownNowText}" Padding="14 7"
+                            Command="{Binding ShutdownNowCommand}" />
+                    <Button Classes="accent" Content="{Binding CancelText}" Padding="18 7"
+                            Command="{Binding CancelCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </DockPanel>
+    </Border>
+</Window>

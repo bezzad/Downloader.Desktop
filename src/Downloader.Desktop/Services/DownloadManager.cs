@@ -509,9 +509,15 @@ public class DownloadManager : IDownloadManager
     {
         vm.Progress = 100;
         vm.Status = DownloadStatus.Completed;
-        TryStartNextInQueue(vm.GetItem().QueueId);
-        MaybeAllCompleted();
-        NotifyList();
+        FinishTerminal(vm);
+    }
+
+    /// <summary>Test seam: simulate a user stop/cancel reaching the terminal bookkeeping (must NOT
+    /// arm the all-complete / shutdown trigger even if completed items remain in the list).</summary>
+    public void RaiseStoppedForTest(DownloadItemViewModel vm)
+    {
+        vm.Status = DownloadStatus.Stopped;
+        FinishTerminal(vm);
     }
 
     private DownloadQueue FindQueue(string id) =>
@@ -719,11 +725,22 @@ public class DownloadManager : IDownloadManager
                     NotificationService.NotifyCompleted(vm.FileName);
             }
 
-            // A finished/stopped item frees a slot — let the queue start the next one.
-            TryStartNextInQueue(vm.GetItem().QueueId);
-            MaybeAllCompleted();
-            NotifyList();
+            FinishTerminal(vm);
         });
+    }
+
+    /// <summary>
+    /// Shared post-terminal bookkeeping for a row that just reached an end state: free its queue slot,
+    /// and evaluate "all downloads complete" ONLY when this row actually completed. The latter guard is
+    /// what stops "Stop All" (which cancels rows → Stopped) from arming a shutdown just because a
+    /// finished item is sitting in the list.
+    /// </summary>
+    private void FinishTerminal(DownloadItemViewModel vm)
+    {
+        TryStartNextInQueue(vm.GetItem().QueueId);
+        if (vm.Status == DownloadStatus.Completed)
+            MaybeAllCompleted();
+        NotifyList();
     }
 
     /// <summary>
