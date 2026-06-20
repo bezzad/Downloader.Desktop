@@ -33,6 +33,8 @@
   "Action_CopyUrl": "Copy URL",
   "Action_CopyPath": "Copy path",
   "Action_PathCopied": "Path copied!",
+  "Action_CopyError": "Copy error message",
+  "Action_ErrorCopied": "Error copied!",
 
   "Col_Name": "Name",
   "Col_Size": "Size",

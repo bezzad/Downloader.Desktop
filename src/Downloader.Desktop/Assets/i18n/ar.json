@@ -164,5 +164,7 @@
   "Contact_Github": "غيت‌هاب",
   "Contact_Telegram": "تيليجرام",
   "Contact_Email": "البريد",
-  "State_Exists": "تم تنزيله مسبقًا"
+  "State_Exists": "تم تنزيله مسبقًا",
+  "Action_CopyError": "نسخ رسالة الخطأ",
+  "Action_ErrorCopied": "تم نسخ الخطأ!"
 }

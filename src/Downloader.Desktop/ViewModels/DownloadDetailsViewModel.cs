@@ -42,6 +42,7 @@ public class DownloadDetailsViewModel : ViewModelBase
 
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
         CopyPathCommand = ReactiveCommand.CreateFromTask(CopyPathAsync);
+        CopyErrorCommand = ReactiveCommand.CreateFromTask(CopyErrorAsync);
         AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
 
         // Seed the mirror editor from the stored mirrors (everything after the primary URL).
@@ -94,6 +95,7 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     public ICommand CopyUrlCommand { get; }
     public ICommand CopyPathCommand { get; }
+    public ICommand CopyErrorCommand { get; }
     public ICommand AddMirrorCommand { get; }
 
     // Transient "copied" feedback for the copy-path button: flips the icon to a checkmark and the
@@ -131,6 +133,40 @@ public class DownloadDetailsViewModel : ViewModelBase
 
         PathCopied = false;
         this.RaisePropertyChanged(nameof(CopyPathTooltip));
+    }
+
+    // Transient "copied" feedback for the copy-error button (independent token from the path copy).
+    private bool _errorCopied;
+    private int _errorCopyToken;
+
+    /// <summary>True for a short moment after the error is copied (drives the checkmark icon).</summary>
+    public bool ErrorCopied
+    {
+        get => _errorCopied;
+        private set => this.RaiseAndSetIfChanged(ref _errorCopied, value);
+    }
+
+    /// <summary>Tooltip for the copy-error button ("Copy error" → "Error copied!" right after a copy).</summary>
+    public string CopyErrorTooltip => _errorCopied ? L("Action_ErrorCopied") : L("Action_CopyError");
+
+    /// <summary>Copies the failure message to the clipboard so the user can paste it into a GitHub issue.</summary>
+    private async Task CopyErrorAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ErrorMessage))
+            return;
+
+        await DialogHelper.CopyTextAsync(ErrorMessage);
+
+        ErrorCopied = true;
+        this.RaisePropertyChanged(nameof(CopyErrorTooltip));
+
+        var token = ++_errorCopyToken;
+        await Task.Delay(2000);
+        if (token != _errorCopyToken)
+            return;
+
+        ErrorCopied = false;
+        this.RaisePropertyChanged(nameof(CopyErrorTooltip));
     }
 
     /// <summary>Editable mirror URLs (each a row with its own remove button in the UI). (#7)</summary>

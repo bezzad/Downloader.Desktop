@@ -191,5 +191,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "邮箱",
-  "State_Exists": "已下载"
+  "State_Exists": "已下载",
+  "Action_CopyError": "复制错误信息",
+  "Action_ErrorCopied": "错误已复制！"
 }

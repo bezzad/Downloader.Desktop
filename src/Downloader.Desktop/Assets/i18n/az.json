@@ -189,5 +189,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "E-poçt",
-  "State_Exists": "Artıq yüklənib"
+  "State_Exists": "Artıq yüklənib",
+  "Action_CopyError": "Xəta mesajını kopyala",
+  "Action_ErrorCopied": "Xəta kopyalandı!"
 }

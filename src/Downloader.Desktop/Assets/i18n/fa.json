@@ -166,5 +166,7 @@
   "Contact_Github": "گیت‌هاب",
   "Contact_Telegram": "تلگرام",
   "Contact_Email": "ایمیل",
-  "State_Exists": "قبلاً دانلود شده"
+  "State_Exists": "قبلاً دانلود شده",
+  "Action_CopyError": "کپی پیام خطا",
+  "Action_ErrorCopied": "خطا کپی شد!"
 }

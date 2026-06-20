@@ -164,5 +164,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "Retpoŝto",
-  "State_Exists": "Jam elŝutita"
+  "State_Exists": "Jam elŝutita",
+  "Action_CopyError": "Kopii erarmesaĝon",
+  "Action_ErrorCopied": "Eraro kopiita!"
 }

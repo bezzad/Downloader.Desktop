@@ -72,13 +72,26 @@
             </StackPanel>
         </Border>
 
-        <!-- Error banner -->
+        <!-- Error banner: shows the failure reason with a copy button so it can be pasted into a
+             GitHub issue. The message is also selectable for partial copies. -->
         <Border Grid.Row="2" Margin="0 12 0 0" CornerRadius="8" Padding="12 10"
                 Background="{DynamicResource DangerColor}" IsVisible="{Binding HasError}">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <PathIcon Data="{StaticResource WarningRegular}" Height="16" Foreground="White" VerticalAlignment="Top" />
-                <TextBlock Text="{Binding ErrorMessage}" Foreground="White" TextWrapping="Wrap" />
-            </StackPanel>
+            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
+                <PathIcon Grid.Column="0" Data="{StaticResource WarningRegular}" Height="16"
+                          Foreground="White" VerticalAlignment="Top" Margin="0 2 10 0" />
+                <SelectableTextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="White"
+                                     TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Padding="6"
+                        CornerRadius="6" Cursor="Hand" Margin="8 0 0 0" VerticalAlignment="Top"
+                        Command="{Binding CopyErrorCommand}" ToolTip.Tip="{Binding CopyErrorTooltip}">
+                    <Panel>
+                        <PathIcon Data="{DynamicResource CopyRegular}" Height="15" Foreground="White"
+                                  IsVisible="{Binding !ErrorCopied}" />
+                        <PathIcon Data="{DynamicResource CheckmarkRegular}" Height="15" Foreground="White"
+                                  IsVisible="{Binding ErrorCopied}" />
+                    </Panel>
+                </Button>
+            </Grid>
         </Border>
 
         <!-- Summary + actions + live speed limit -->

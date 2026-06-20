@@ -191,5 +191,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "이메일",
-  "State_Exists": "이미 다운로드됨"
+  "State_Exists": "이미 다운로드됨",
+  "Action_CopyError": "오류 메시지 복사",
+  "Action_ErrorCopied": "오류가 복사되었습니다!"
 }

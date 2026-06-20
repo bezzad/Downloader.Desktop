@@ -191,5 +191,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "Эл. почта",
-  "State_Exists": "Уже загружено"
+  "State_Exists": "Уже загружено",
+  "Action_CopyError": "Копировать сообщение об ошибке",
+  "Action_ErrorCopied": "Ошибка скопирована!"
 }

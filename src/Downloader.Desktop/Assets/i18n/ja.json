@@ -191,5 +191,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "メール",
-  "State_Exists": "ダウンロード済み"
+  "State_Exists": "ダウンロード済み",
+  "Action_CopyError": "エラーメッセージをコピー",
+  "Action_ErrorCopied": "エラーをコピーしました！"
 }

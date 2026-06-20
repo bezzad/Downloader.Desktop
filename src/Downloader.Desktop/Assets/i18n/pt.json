@@ -191,5 +191,7 @@
   "Contact_Github": "GitHub",
   "Contact_Telegram": "Telegram",
   "Contact_Email": "E-mail",
-  "State_Exists": "Já baixado"
+  "State_Exists": "Já baixado",
+  "Action_CopyError": "Copiar mensagem de erro",
+  "Action_ErrorCopied": "Erro copiado!"
 }
