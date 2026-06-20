@@ -48,6 +48,13 @@ public class MainViewModel : ViewModelBase
         ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
+        ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
+        DonateCommand = ReactiveCommand.Create(() =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                { FileName = AboutViewModel.DonateUrl, UseShellExecute = true }); }
+            catch { /* best-effort */ }
+        });
 
         _downloadManager.StatsChanged += OnStatsChanged;
         _downloadManager.ListChanged += OnListChanged;
@@ -80,6 +87,8 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowSchedulerCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
     public ICommand ToggleSidebarCommand { get; }
+    public ICommand ShowAboutCommand { get; }
+    public ICommand DonateCommand { get; }
 
     /// <summary>When false the left rail collapses to an icons-only strip.</summary>
     public bool IsSidebarExpanded

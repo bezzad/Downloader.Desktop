@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-20
 **Branch**: develop
-**Now working on**: (idle) — Round 15 done (all 9 items implemented, 83 tests green, app launches clean). Uncommitted-to-main; pushed to develop. Author may merge/release when ready. NOTE: browser-integration is the app-side listener only — the matching browser extension still needs to be built separately (sends GET/POST to http://127.0.0.1:15151/add?url=…).
+**Now working on**: Round 16 — UI batch + browser extension. Author answers: contact = Telegram @bezzad + behzad.khosravifar@gmail.com; Donate(♥)+About(i) in top bar, Donate.md at repo root; toolbar Start/Pause/Stop/Remove act on SELECTED rows only + disabled when none selected (Stop All / Start Queue / Stop Queue always enabled); browser extension = Chrome/Edge + Firefox MV3 only (no Safari, no deploy yet — author tests locally first).
 
 Author decisions (2026-06-19 overnight batch): may cut releases autonomously; Issue 1 = just fix the false alarm (don't touch update/download mechanism); Queues = full "real queue manager" redesign (mockup approved); Instagram = R&D plan only, no code.
 
@@ -23,7 +23,16 @@ Author decisions (2026-06-19 overnight batch): may cut releases autonomously; Is
 - `[!]` blocked / failed
 
 ## Active
-- (none)
+- [~] **Round 16 — UI batch + browser extension**:
+  1. [ ] Distinct queue Start/Stop icons (vs single-item Start/Stop)
+  2. [ ] Donate (♥) button in top bar → repo Donate.md (Tether BEP20/TRC20 + Liberapay)
+  3. [ ] About popup (i): logo+title+version+donate+website left; content sections + Github/Telegram/Email right
+  4. [ ] Time Left column + per-item ETA
+  5. [ ] Move Select-All into grid header as a tri-state checkbox (left of Name)
+  6. [ ] Restyle toolbar buttons: square, icon-top/text-bottom; enable only on selection (Start/Pause/Stop/Remove)
+  7. [ ] On state change, recolor only the progress bar (+ "%· state" text under it); stop restyling name/status text
+  8. [ ] README: report bugs via GitHub issues (not Telegram/email)
+  9. [ ] New browser-extension project (Chrome/Edge + Firefox MV3): context menu, popup, video/audio/HLS capture → app listener
 
 ## Todo
 - [ ] (author, when awake) Interactively launch `/Applications/Downloader.app` (Spotlight/double-click) to eyeball the new Queues page. Note: a real GUI launch is expected to work — the only failure seen was an `Avalonia.Native` render-timer error (-6661) when launching from this background/headless shell, which happens at platform bootstrap BEFORE any app code and is purely "no window-server session", not a code bug. Verified instead via build + 66 tests (incl. real-App headless render of Queues) + screenshots.

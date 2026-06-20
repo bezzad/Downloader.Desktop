@@ -61,6 +61,16 @@ public static class DialogHelper
         await view.ShowDialog(MainWindow);
     }
 
+    /// <summary>Opens the modal About dialog (app identity, donate, links and contacts).</summary>
+    public static async Task ShowAbout()
+    {
+        if (MainWindow == null)
+            return;
+
+        var view = new AboutView { DataContext = new AboutViewModel() };
+        await view.ShowDialog(MainWindow);
+    }
+
     /// <summary>Asks the user where to save a file; returns the chosen path or null.</summary>
     public static async Task<Uri> SaveFilePicker(string title, string suggestedName)
     {
