@@ -274,6 +274,7 @@ public class DownloadItemViewModel : ViewModelBase
         {
             this.RaiseAndSetIfChanged(ref _speed, value);
             this.RaisePropertyChanged(nameof(SpeedText));
+            this.RaisePropertyChanged(nameof(TimeLeftText));
         }
     }
 
@@ -294,6 +295,7 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(DisplayName));
             this.RaisePropertyChanged(nameof(IsNamePending));
             this.RaisePropertyChanged(nameof(ShowStatusBadge));
+            this.RaisePropertyChanged(nameof(TimeLeftText));
         }
     }
 
@@ -320,6 +322,33 @@ public class DownloadItemViewModel : ViewModelBase
     public string SizeText => Size is > 0 ? FormatBytes(Size.Value) : "—";
 
     public string SpeedText => Speed > 0 ? FormatBytes((long)Speed) + "/s" : "—";
+
+    /// <summary>Estimated time remaining (remaining bytes ÷ current speed). "—" unless actively running.</summary>
+    public string TimeLeftText
+    {
+        get
+        {
+            if (_status != DownloadStatus.Running || Speed <= 0 || Size is not > 0)
+                return "—";
+            var remaining = Size.Value - Downloaded;
+            if (remaining <= 0)
+                return "—";
+            return FormatDuration(remaining / Speed);
+        }
+    }
+
+    /// <summary>Formats a number of seconds as a compact duration (e.g. "45s", "1m 23s", "2h 5m").</summary>
+    public static string FormatDuration(double seconds)
+    {
+        if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0)
+            return "—";
+        var t = TimeSpan.FromSeconds(seconds);
+        if (t.TotalHours >= 1)
+            return $"{(int)t.TotalHours}h {t.Minutes}m";
+        if (t.TotalMinutes >= 1)
+            return $"{t.Minutes}m {t.Seconds}s";
+        return $"{t.Seconds}s";
+    }
 
     public string LastTry => _item.LastTry?.ToString("dd MMM yyyy");
 

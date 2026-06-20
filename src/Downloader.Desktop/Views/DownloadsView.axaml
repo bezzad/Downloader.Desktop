@@ -11,34 +11,39 @@
 
     <!-- Tight to the edges (#8): minimal padding, no surrounding card/border -->
     <DockPanel Margin="5">
-        <!-- Selection toolbar -->
+        <!-- Action toolbar: square buttons, icon on top + label below. The first group acts on the
+             selected rows (disabled when nothing is checked); the second group is selection-independent. -->
         <Border DockPanel.Dock="Top" Margin="0 0 0 6">
-            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <CheckBox Content="{i18n:Tr Grid_SelectAll}" IsChecked="{Binding SelectAll, Mode=TwoWay}"
-                          VerticalAlignment="Center" Margin="2 0 8 0" />
-                <Button Classes="icon" Command="{Binding StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource PlayRegular}" />
-                        <TextBlock Text="{i18n:Tr Action_Start}" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <Button Classes="tool" Command="{Binding StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource PlayRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Start}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
-                <Button Classes="icon" Command="{Binding PauseSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Pause}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource PauseRegular}" />
-                        <TextBlock Text="{i18n:Tr Action_Pause}" VerticalAlignment="Center" />
+                <Button Classes="tool" Command="{Binding PauseSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Pause}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource PauseRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Pause}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
-                <Button Classes="icon" Command="{Binding StopSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Stop}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource StopRegular}" />
-                        <TextBlock Text="{i18n:Tr Action_Stop}" VerticalAlignment="Center" />
+                <Button Classes="tool" Command="{Binding StopSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Stop}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Stop}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource DeleteRegular}" HorizontalAlignment="Center" Foreground="#E5594F" />
+                        <TextBlock Text="{i18n:Tr Action_Remove}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
 
-                <Border Width="1" Margin="4 2" Background="{DynamicResource SystemBaseLowColor}" />
+                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
 
-                <!-- Start a whole queue: pick which queue from the dropdown (#2) -->
-                <Button Classes="icon" ToolTip.Tip="{i18n:Tr Action_StartQueue}">
+                <!-- Start a whole queue (selection-independent): pick which queue from the dropdown (#2) -->
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Action_StartQueue}">
                     <Button.Flyout>
                         <MenuFlyout ItemsSource="{Binding StartQueueTargets}">
                             <MenuFlyout.ItemContainerTheme>
@@ -50,15 +55,14 @@
                             </MenuFlyout.ItemContainerTheme>
                         </MenuFlyout>
                     </Button.Flyout>
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource PlayRegular}" />
-                        <TextBlock Text="{i18n:Tr Action_StartQueue}" VerticalAlignment="Center" />
-                        <PathIcon Data="{DynamicResource ChevronDownRegular}" Height="9" />
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource PlayStackRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_StartQueue}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
 
-                <!-- Stop a whole queue: pick which queue from the dropdown (#3) -->
-                <Button Classes="icon" ToolTip.Tip="{i18n:Tr Action_StopQueue}">
+                <!-- Stop a whole queue (selection-independent): pick which queue from the dropdown (#3) -->
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Action_StopQueue}">
                     <Button.Flyout>
                         <MenuFlyout ItemsSource="{Binding StopQueueTargets}">
                             <MenuFlyout.ItemContainerTheme>
@@ -70,27 +74,17 @@
                             </MenuFlyout.ItemContainerTheme>
                         </MenuFlyout>
                     </Button.Flyout>
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource PauseRegular}" />
-                        <TextBlock Text="{i18n:Tr Action_StopQueue}" VerticalAlignment="Center" />
-                        <PathIcon Data="{DynamicResource ChevronDownRegular}" Height="9" />
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource StopStackRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_StopQueue}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
 
-                <Border Width="1" Margin="4 2" Background="{DynamicResource SystemBaseLowColor}" />
-
-                <Button Classes="icon" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
-                        <TextBlock Text="{i18n:Tr Action_Remove}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-
-                <!-- Stop every item, regardless of queue (#4) -->
-                <Button Classes="icon" Command="{Binding StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{DynamicResource StopRegular}" />
-                        <TextBlock Text="{i18n:Tr Action_StopAll}" VerticalAlignment="Center" />
+                <!-- Stop every item, regardless of queue or selection (#4) -->
+                <Button Classes="tool" Command="{Binding StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -118,14 +112,6 @@
                     <Setter Property="FontSize" Value="13" />
                     <Setter Property="VerticalAlignment" Value="Center" />
                 </Style>
-                <Style Selector="TextBlock.failed">
-                    <Setter Property="Foreground" Value="{DynamicResource DangerColor}" />
-                    <Setter Property="FontWeight" Value="SemiBold" />
-                </Style>
-                <Style Selector="TextBlock.pending">
-                    <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
-                    <Setter Property="FontStyle" Value="Italic" />
-                </Style>
                 <!-- Select the whole row, no per-cell focus border (#13) -->
                 <Style Selector="DataGridCell:focus /template/ Rectangle#FocusVisual">
                     <Setter Property="IsVisible" Value="False" />
@@ -138,7 +124,13 @@
                 </Style>
             </DataGrid.Styles>
             <DataGrid.Columns>
-                <DataGridTemplateColumn Width="38">
+                <!-- Tri-state "select all" lives in the header now (left of Name), not in the toolbar (#5) -->
+                <DataGridTemplateColumn Width="44" CanUserSort="False">
+                    <DataGridTemplateColumn.Header>
+                        <CheckBox IsChecked="{Binding SelectAllState, Mode=TwoWay}" IsThreeState="True"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  ToolTip.Tip="{i18n:Tr Grid_SelectAll}" />
+                    </DataGridTemplateColumn.Header>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
@@ -162,10 +154,10 @@
                                 <PathIcon Data="{Binding FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
                                           Height="16" Width="16"
                                           Foreground="{DynamicResource SystemAccentColor}" />
+                                <!-- Name keeps a single consistent style across all states (#7); only the
+                                     progress bar color + status text below it reflect the state. -->
                                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"
-                                           Classes.failed="{Binding HasError}"
-                                           Classes.pending="{Binding IsNamePending}"
                                            ToolTip.Tip="{Binding ErrorMessage}" />
                             </StackPanel>
                         </DataTemplate>
@@ -183,16 +175,12 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0" Spacing="3">
-                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="6" />
-                                <!-- Running shows %, other states show a colored badge -->
-                                <TextBlock Text="{Binding StatusText}" FontSize="11" IsVisible="{Binding !ShowStatusBadge}"
+                                <!-- Only the bar color changes with state; the text below shows "%· state" (#7) -->
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Height="6"
+                                             Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                <TextBlock Text="{Binding StatusText}" FontSize="11"
                                            HorizontalAlignment="Center"
                                            Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                <Border Classes="badge" IsVisible="{Binding ShowStatusBadge}"
-                                        HorizontalAlignment="Center"
-                                        Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
-                                    <TextBlock Text="{Binding StatusText}" />
-                                </Border>
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -202,6 +190,14 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <TextBlock Text="{Binding SpeedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="{i18n:Tr Col_TimeLeft}" Width="90" SortMemberPath="TimeLeftText">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <TextBlock Text="{Binding TimeLeftText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
