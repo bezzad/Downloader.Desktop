@@ -28,6 +28,8 @@
   "Action_OpenFile": "Open file",
   "Action_OpenFolder": "Open folder",
   "Action_CopyUrl": "Copy URL",
+  "Action_CopyPath": "Copy path",
+  "Action_PathCopied": "Path copied!",
 
   "Col_Name": "Name",
   "Col_Size": "Size",

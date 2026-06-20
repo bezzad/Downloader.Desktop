@@ -136,9 +136,16 @@
                     <TextBox Grid.Column="1" Text="{Binding FilePath}" IsReadOnly="True"
                              CornerRadius="6" VerticalContentAlignment="Center"
                              FontSize="12" />
+                    <!-- Right of the path box: copy the saved path to the clipboard. The icon flips to a
+                         checkmark and the tooltip reads "Path copied!" for a moment as confirmation.
+                         Opening the folder is still available via the action button below. -->
                     <Button Grid.Column="2" Classes="icon" Margin="6 0 0 0"
-                            Command="{Binding OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
-                        <PathIcon Data="{DynamicResource FolderRegular}" />
+                            Command="{Binding CopyPathCommand}" ToolTip.Tip="{Binding CopyPathTooltip}">
+                        <Panel>
+                            <PathIcon Data="{DynamicResource CopyRegular}" IsVisible="{Binding !PathCopied}" />
+                            <PathIcon Data="{DynamicResource CheckmarkRegular}" Foreground="MediumSeaGreen"
+                                      IsVisible="{Binding PathCopied}" />
+                        </Panel>
                     </Button>
                 </Grid>
 

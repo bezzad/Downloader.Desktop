@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
 using Downloader.Desktop.Services;
@@ -40,6 +41,7 @@ public class DownloadDetailsViewModel : ViewModelBase
         Item = item;
 
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
+        CopyPathCommand = ReactiveCommand.CreateFromTask(CopyPathAsync);
         AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
 
         // Seed the mirror editor from the stored mirrors (everything after the primary URL).
@@ -91,7 +93,45 @@ public class DownloadDetailsViewModel : ViewModelBase
     }
 
     public ICommand CopyUrlCommand { get; }
+    public ICommand CopyPathCommand { get; }
     public ICommand AddMirrorCommand { get; }
+
+    // Transient "copied" feedback for the copy-path button: flips the icon to a checkmark and the
+    // tooltip to "Path copied!" for a couple of seconds, then reverts. Guarded so rapid clicks don't
+    // stack reverts that snap the state back early.
+    private bool _pathCopied;
+    private int _copyFeedbackToken;
+
+    /// <summary>True for a short moment after the saved path is copied (drives the checkmark icon).</summary>
+    public bool PathCopied
+    {
+        get => _pathCopied;
+        private set => this.RaiseAndSetIfChanged(ref _pathCopied, value);
+    }
+
+    /// <summary>Tooltip for the copy-path button: normally "Copy path", "Path copied!" right after a copy.</summary>
+    public string CopyPathTooltip => _pathCopied ? L("Action_PathCopied") : L("Action_CopyPath");
+
+    /// <summary>Copies the saved file path to the clipboard and briefly confirms it on the button.</summary>
+    private async Task CopyPathAsync()
+    {
+        var path = FilePath;
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        await DialogHelper.CopyTextAsync(path);
+
+        PathCopied = true;
+        this.RaisePropertyChanged(nameof(CopyPathTooltip));
+
+        var token = ++_copyFeedbackToken;
+        await Task.Delay(2000);
+        if (token != _copyFeedbackToken)
+            return; // a newer copy took over — let it own the revert
+
+        PathCopied = false;
+        this.RaisePropertyChanged(nameof(CopyPathTooltip));
+    }
 
     /// <summary>Editable mirror URLs (each a row with its own remove button in the UI). (#7)</summary>
     public ObservableCollection<MirrorEntryViewModel> Mirrors { get; } = new();

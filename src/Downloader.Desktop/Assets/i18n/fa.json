@@ -25,6 +25,8 @@
   "Action_OpenFile": "باز کردن فایل",
   "Action_OpenFolder": "باز کردن پوشه",
   "Action_CopyUrl": "کپی نشانی",
+  "Action_CopyPath": "کپی مسیر",
+  "Action_PathCopied": "مسیر کپی شد!",
   "Col_Name": "نام",
   "Col_Size": "اندازه",
   "Col_Progress": "پیشرفت",
