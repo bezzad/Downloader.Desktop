@@ -15,6 +15,13 @@ public partial class DownloadsView : UserControl
         InitializeComponent();
     }
 
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // A highlighted row counts as "selected" for the toolbar, even when its checkbox is unchecked.
+        if (sender is DataGrid grid && DataContext is DownloadsViewModel vm)
+            vm.SetGridSelection(grid.SelectedItems);
+    }
+
     private async void OnRowDoubleTapped(object sender, TappedEventArgs e)
     {
         if (e.Source is not Visual v)

@@ -27,29 +27,26 @@
         <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr About_Title}" ShowMinMax="False" />
 
         <Grid ColumnDefinitions="240,*">
-            <!-- ===== Left: identity ===== -->
-            <StackPanel Grid.Column="0" Margin="22 14 16 18" Spacing="6" VerticalAlignment="Top">
-                <Border Width="96" Height="96" CornerRadius="20" HorizontalAlignment="Left"
-                        Background="{DynamicResource SystemChromeLowColor}" Margin="0 4 0 8">
+            <!-- ===== Left: identity (centered) ===== -->
+            <StackPanel Grid.Column="0" Margin="16 18 16 18" Spacing="6"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Width="96" Height="96" CornerRadius="20" HorizontalAlignment="Center"
+                        Background="{DynamicResource SystemChromeLowColor}" Margin="0 0 0 8">
                     <Image Source="/Assets/downloader.png" Width="76" Height="76" />
                 </Border>
-                <TextBlock Text="{Binding AppName}" FontSize="22" FontWeight="Bold" />
-                <TextBlock Text="{Binding VersionText}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-
-                <TextBlock Text="{i18n:Tr About_DevelopedWith}" Margin="0 14 0 2"
+                <TextBlock Text="{Binding AppName}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding VersionText}" HorizontalAlignment="Center"
                            Foreground="{DynamicResource SystemBaseMediumColor}" />
-                <Button Classes="accent" CornerRadius="8" Padding="14 6" HorizontalAlignment="Left"
+
+                <TextBlock Text="{i18n:Tr About_DevelopedWith}" Margin="0 14 0 2" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                <Button Classes="accent" CornerRadius="8" Padding="16 6" HorizontalAlignment="Center"
                         Cursor="Hand" Command="{Binding OpenDonateCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <PathIcon Data="{DynamicResource HeartRegular}" Height="14" />
                         <TextBlock Text="{i18n:Tr About_Donate}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-
-                <Button Classes="link" Margin="0 8 0 0" Padding="0" HorizontalAlignment="Left"
-                        Cursor="Hand" Command="{Binding OpenRepoCommand}"
-                        Foreground="{DynamicResource SystemAccentColor}" Background="Transparent"
-                        Content="{Binding WebsiteText}" />
             </StackPanel>
 
             <!-- ===== Right: content + contacts ===== -->

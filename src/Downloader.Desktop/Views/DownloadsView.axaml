@@ -94,6 +94,7 @@
         <DataGrid x:Name="Root"
                   ItemsSource="{Binding ItemsView}"
                   DoubleTapped="OnRowDoubleTapped"
+                  SelectionChanged="OnSelectionChanged"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   GridLinesVisibility="Horizontal"
                   CanUserReorderColumns="True"
@@ -103,6 +104,7 @@
                   RowHeight="46"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Hidden"
+                  ColumnHeaderHeight="38"
                   Background="Transparent"
                   BorderThickness="0"
                   BorderBrush="Transparent"
@@ -125,12 +127,10 @@
             </DataGrid.Styles>
             <DataGrid.Columns>
                 <!-- Tri-state "select all" lives in the header now (left of Name), not in the toolbar (#5) -->
-                <DataGridTemplateColumn Width="44" CanUserSort="False">
-                    <DataGridTemplateColumn.Header>
-                        <CheckBox IsChecked="{Binding SelectAllState, Mode=TwoWay}" IsThreeState="True"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                  ToolTip.Tip="{i18n:Tr Grid_SelectAll}" />
-                    </DataGridTemplateColumn.Header>
+                <!-- Header hosts the tri-state "select all" — but this DataGrid won't render a *control*
+                     in a column header (only string headers show), so the checkbox is overlaid over this
+                     column's header band instead (see the CheckBox after the DataGrid). -->
+                <DataGridTemplateColumn Width="44" CanUserSort="False" CanUserResize="False">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
@@ -234,6 +234,13 @@
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
+
+        <!-- Tri-state "select all", overlaid on the first column's header band (the DataGrid won't
+             render a control inside a column header, so it lives here, aligned to that column). -->
+        <CheckBox IsChecked="{Binding SelectAllState, Mode=TwoWay}" IsThreeState="True"
+                  IsVisible="{Binding !IsEmpty}"
+                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14 9 0 0"
+                  ToolTip.Tip="{i18n:Tr Grid_SelectAll}" />
 
         <!-- Empty state -->
         <StackPanel IsVisible="{Binding IsEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center"

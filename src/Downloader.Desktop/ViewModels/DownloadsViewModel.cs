@@ -107,8 +107,29 @@ public class DownloadsViewModel : ViewModelBase
             Command = ReactiveCommand.Create(() => _manager.PauseQueue(q))
         }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
 
-    /// <summary>True while at least one row is checked — drives the per-row bulk buttons' enabled state.</summary>
-    public bool HasSelection => _manager?.Items.Any(i => i.IsChecked) == true;
+    // Rows highlighted in the DataGrid (independent of the checkboxes). Pushed in from the view's
+    // SelectionChanged so that simply selecting a row also counts as "selected" for the toolbar.
+    private readonly System.Collections.Generic.List<DownloadItemViewModel> _gridSelection = new();
+
+    /// <summary>Called by the view when the DataGrid's highlighted rows change.</summary>
+    public void SetGridSelection(System.Collections.IList items)
+    {
+        _gridSelection.Clear();
+        if (items != null)
+            foreach (var it in items)
+                if (it is DownloadItemViewModel vm)
+                    _gridSelection.Add(vm);
+        RaiseSelectionChanged();
+    }
+
+    /// <summary>The rows the toolbar acts on: checked rows plus any DataGrid-highlighted rows.</summary>
+    private System.Collections.Generic.List<DownloadItemViewModel> SelectedTargets() =>
+        _manager == null
+            ? new System.Collections.Generic.List<DownloadItemViewModel>()
+            : _manager.Items.Where(i => i.IsChecked || _gridSelection.Contains(i)).ToList();
+
+    /// <summary>True while at least one row is checked OR highlighted — drives the bulk buttons' enabled state.</summary>
+    public bool HasSelection => SelectedTargets().Count > 0;
 
     /// <summary>
     /// Grid-header tri-state checkbox: true = all visible rows checked, false = none, null = some.
@@ -207,7 +228,7 @@ public class DownloadsViewModel : ViewModelBase
         // Batch so a large selection re-filters the grid once, not once per row (avoids UI freeze).
         _manager.Batch(() =>
         {
-            foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
+            foreach (var item in SelectedTargets())
                 action(item);
         });
         Refresh();
@@ -219,7 +240,7 @@ public class DownloadsViewModel : ViewModelBase
             return;
         _manager.Batch(() =>
         {
-            foreach (var item in _manager.Items.Where(i => i.IsChecked).ToList())
+            foreach (var item in SelectedTargets())
                 _ = _manager.Remove(item);
         });
         Refresh();

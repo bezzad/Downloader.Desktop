@@ -50,9 +50,6 @@ public class AboutViewModel : ViewModelBase
     /// <summary>The clean 3-part version shown under the title (same value the update check uses).</summary>
     public string VersionText => string.Format(Localizer.Instance["About_Version"], UpdateService.CurrentVersion);
 
-    /// <summary>Repo address shown as the website link in the dialog.</summary>
-    public string WebsiteText => "github.com/bezzad/Downloader.Desktop";
-
     private static void Open(string url)
     {
         try
