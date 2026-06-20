@@ -68,6 +68,9 @@ public interface IDownloadManager
     /// <summary>Pauses every running item in a queue and marks it paused.</summary>
     void PauseQueue(DownloadQueue queue);
 
+    /// <summary>Stops every item in a queue (running/paused/queued → Stopped) and marks it not running.</summary>
+    void StopQueue(DownloadQueue queue);
+
     /// <summary>Starts the next queued item(s) while a concurrency slot is free.</summary>
     void PumpQueue(string queueId);
 
