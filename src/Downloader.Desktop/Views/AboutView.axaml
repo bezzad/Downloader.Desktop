@@ -1,0 +1,113 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="360"
+        Width="640" Height="360"
+        CanResize="False"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Icon="/Assets/downloader.png"
+        x:Class="Downloader.Desktop.Views.AboutView"
+        x:DataType="vm:AboutViewModel"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="About">
+
+    <Panel>
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+    <DockPanel>
+        <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr About_Title}" ShowMinMax="False" />
+
+        <Grid ColumnDefinitions="240,*">
+            <!-- ===== Left: identity (centered) ===== -->
+            <StackPanel Grid.Column="0" Margin="16 18 16 18" Spacing="6"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Width="96" Height="96" CornerRadius="20" HorizontalAlignment="Center"
+                        Background="{DynamicResource SystemChromeLowColor}" Margin="0 0 0 8">
+                    <Image Source="/Assets/downloader.png" Width="76" Height="76" />
+                </Border>
+                <TextBlock Text="{Binding AppName}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding VersionText}" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+
+                <TextBlock Text="{i18n:Tr About_DevelopedWith}" Margin="0 14 0 2" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                <Button Classes="accent" CornerRadius="8" Padding="16 6" HorizontalAlignment="Center"
+                        Cursor="Hand" Command="{Binding OpenDonateCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <PathIcon Data="{DynamicResource HeartRegular}" Height="14" />
+                        <TextBlock Text="{i18n:Tr About_Donate}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- ===== Right: content + contacts ===== -->
+            <DockPanel Grid.Column="1" Margin="6 14 22 16">
+                <!-- Contact row pinned to the bottom -->
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6"
+                            HorizontalAlignment="Right" Margin="0 12 0 0">
+                    <Button Classes="icon" Command="{Binding OpenGithubCommand}" ToolTip.Tip="{i18n:Tr Contact_Github}">
+                        <PathIcon Data="{DynamicResource GithubRegular}" />
+                    </Button>
+                    <Button Classes="icon" Command="{Binding OpenTelegramCommand}" ToolTip.Tip="{i18n:Tr Contact_Telegram}">
+                        <PathIcon Data="{DynamicResource SendRegular}" />
+                    </Button>
+                    <Button Classes="icon" Command="{Binding OpenEmailCommand}" ToolTip.Tip="{i18n:Tr Contact_Email}">
+                        <PathIcon Data="{DynamicResource MailRegular}" />
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <Button Classes="about" Command="{Binding OpenRepoCommand}">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <PathIcon Grid.Column="0" Data="{DynamicResource HeartRegular}" Width="22" Height="22"
+                                      VerticalAlignment="Center" Margin="2 0 14 0"
+                                      Foreground="{DynamicResource SystemAccentColor}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{i18n:Tr About_Sec1_Title}" FontWeight="SemiBold" />
+                                <TextBlock Text="{i18n:Tr About_Sec1_Sub}"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+
+                    <Button Classes="about" Command="{Binding OpenEngineCommand}">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <PathIcon Grid.Column="0" Data="{DynamicResource GithubRegular}" Width="22" Height="22"
+                                      VerticalAlignment="Center" Margin="2 0 14 0"
+                                      Foreground="{DynamicResource SystemAccentColor}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{i18n:Tr About_Sec2_Title}" FontWeight="SemiBold" />
+                                <TextBlock Text="{i18n:Tr About_Sec2_Sub}"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+
+                    <Button Classes="about" Command="{Binding OpenTranslateCommand}">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <PathIcon Grid.Column="0" Data="{DynamicResource GlobeRegular}" Width="22" Height="22"
+                                      VerticalAlignment="Center" Margin="2 0 14 0"
+                                      Foreground="{DynamicResource SystemAccentColor}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{i18n:Tr About_Sec3_Title}" FontWeight="SemiBold" />
+                                <TextBlock Text="{i18n:Tr About_Sec3_Sub}"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+    </Border>
+    </Panel>
+</Window>

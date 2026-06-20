@@ -88,6 +88,54 @@
             <Setter Property="Width" Value="15" />
         </Style>
 
+        <!-- Square toolbar button: icon on top, label below (Round 16). Greys out when disabled. -->
+        <Style Selector="Button.tool">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8 6" />
+            <Setter Property="MinWidth" Value="62" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="Button.tool:disabled">
+            <Setter Property="Opacity" Value="0.4" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="Button.tool PathIcon">
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Width" Value="18" />
+        </Style>
+
+        <!-- About-dialog content section button (icon + title/subtitle, looks like a flat card) -->
+        <Style Selector="Button.about">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14 11" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.about:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+
+        <!-- Plain hyperlink-style button -->
+        <Style Selector="Button.link">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="TextBlock.TextDecorations" Value="Underline" />
+        </Style>
+
         <!-- Pill counter shown next to nav items -->
         <Style Selector="Border.pill">
             <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />

@@ -154,6 +154,46 @@
                 </StackPanel>
             </Border>
 
+            <!-- ===== Notifications ===== -->
+            <Border Classes="card">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="section" Text="{i18n:Tr Sec_Notifications}" Margin="0 0 0 6" />
+
+                    <!-- The per-event toggles only apply while the master switch (above) is on. -->
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{i18n:Tr Set_NotifyComplete}" />
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnComplete}"
+                                      IsEnabled="{Binding EnableNotifications}" />
+                    </Grid>
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{i18n:Tr Set_NotifyFailed}" />
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnFailed}"
+                                      IsEnabled="{Binding EnableNotifications}" />
+                    </Grid>
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{i18n:Tr Set_NotifyAllComplete}" />
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnAllComplete}"
+                                      IsEnabled="{Binding EnableNotifications}" />
+                    </Grid>
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_NotifyShutdown}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_NotifyShutdown_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnShutdown}"
+                                      IsEnabled="{Binding EnableNotifications}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_ShutdownOnComplete}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_ShutdownOnComplete_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShutdownOnCompletion}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- ===== App & updates ===== -->
             <Border Classes="card">
                 <StackPanel Spacing="2">
@@ -181,6 +221,14 @@
                             <TextBlock Classes="hint" Text="{i18n:Tr Set_AutoUpdate_Hint}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoUpdate}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_BrowserIntegration}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_BrowserIntegration_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableBrowserIntegration}" />
                     </Grid>
 
                     <Button Margin="0 6 0 0" Padding="12 6" HorizontalAlignment="Left"

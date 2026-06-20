@@ -15,6 +15,16 @@ public class LocalizationTests
     [InlineData("fr")]
     [InlineData("ar")]
     [InlineData("eo")]
+    [InlineData("tr")]
+    [InlineData("az")]
+    [InlineData("de")]
+    [InlineData("it")]
+    [InlineData("pt")]
+    [InlineData("ru")]
+    [InlineData("hi")]
+    [InlineData("zh")]
+    [InlineData("ja")]
+    [InlineData("ko")]
     public void Each_language_resolves_core_keys(string lang)
     {
         Localizer.Instance.Load(lang);
@@ -24,6 +34,9 @@ public class LocalizationTests
             Assert.NotEqual("Top_Add", Localizer.Instance["Top_Add"]);
             Assert.NotEqual("Nav_Settings", Localizer.Instance["Nav_Settings"]);
             Assert.False(string.IsNullOrWhiteSpace(Localizer.Instance["Settings_Title"]));
+            // Round-15 keys must resolve in every shipped language (new ones are full packs).
+            Assert.NotEqual("Action_StopAll", Localizer.Instance["Action_StopAll"]);
+            Assert.NotEqual("Set_ShutdownOnComplete", Localizer.Instance["Set_ShutdownOnComplete"]);
         }
         finally
         {

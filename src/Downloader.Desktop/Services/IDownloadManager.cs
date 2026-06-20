@@ -21,6 +21,13 @@ public interface IDownloadManager
     /// <summary>Raised when items are added/removed or change status (refresh the filtered list).</summary>
     event Action ListChanged;
 
+    /// <summary>Raised once (on the UI thread) when a download finishes and nothing is left running or
+    /// queued — used for the "all downloads complete" notification and shutdown-on-completion.</summary>
+    event Action AllDownloadsCompleted;
+
+    /// <summary>The configured queues (read-only view for building per-queue menus).</summary>
+    System.Collections.Generic.IReadOnlyList<DownloadQueue> Queues { get; }
+
     /// <summary>Combined speed of all running downloads, bytes/second.</summary>
     double TotalSpeed { get; }
 
@@ -47,7 +54,7 @@ public interface IDownloadManager
     /// <summary>Resumes every paused/stopped/ready item.</summary>
     void StartAll();
 
-    /// <summary>Pauses every active item.</summary>
+    /// <summary>Stops every item (running, paused or queued) — cancels their engines and marks them Stopped.</summary>
     void StopAll();
 
     /// <summary>Removes every completed item from the list.</summary>

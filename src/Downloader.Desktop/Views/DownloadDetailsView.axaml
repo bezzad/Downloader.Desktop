@@ -18,28 +18,29 @@
         WindowDecorations="None"
         WindowStartupLocation="CenterOwner"
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
-        Title="Download details">
+        Title="{Binding WindowTitle}">
 
     <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
-    <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Det_Title}" ShowMinMax="False" />
-    <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <!-- Title bar shows the live "{percent}% {file name}" caption (next to the app icon). -->
+    <v:TitleBar DockPanel.Dock="Top" Title="{Binding WindowTitle}" ShowMinMax="False" />
+    <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,*,Auto">
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Spacing="3">
-            <TextBlock Text="{Binding Item.FileName}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <!-- Source URL (editable when stopped) + copy -->
-        <Border Grid.Row="1" Classes="card" Margin="0 12 0 0">
+        <!-- Source URL (editable when stopped) + copy. The file name now lives in the title bar, so
+             there's no separate header here (it was redundant with this URL section). -->
+        <Border Grid.Row="0" Classes="card">
             <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{i18n:Tr Det_SourceUrl}" VerticalAlignment="Center"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    <Button Grid.Column="1" Classes="icon" Command="{Binding CopyUrlCommand}" ToolTip.Tip="{i18n:Tr Action_CopyUrl}">
-                        <PathIcon Data="{StaticResource ListRegular}" Height="14" />
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding CopyUrlCommand}" ToolTip.Tip="{Binding CopyUrlTooltip}">
+                        <Panel>
+                            <PathIcon Data="{DynamicResource CopyRegular}" IsVisible="{Binding !UrlCopied}" />
+                            <PathIcon Data="{DynamicResource CheckmarkRegular}" Foreground="MediumSeaGreen"
+                                      IsVisible="{Binding UrlCopied}" />
+                        </Panel>
                     </Button>
                 </Grid>
                 <TextBox Text="{Binding EditableUrl, Mode=TwoWay}" IsReadOnly="{Binding !CanEdit}"
@@ -72,17 +73,30 @@
             </StackPanel>
         </Border>
 
-        <!-- Error banner -->
-        <Border Grid.Row="2" Margin="0 12 0 0" CornerRadius="8" Padding="12 10"
+        <!-- Error banner: shows the failure reason with a copy button so it can be pasted into a
+             GitHub issue. The message is also selectable for partial copies. -->
+        <Border Grid.Row="1" Margin="0 12 0 0" CornerRadius="8" Padding="12 10"
                 Background="{DynamicResource DangerColor}" IsVisible="{Binding HasError}">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <PathIcon Data="{StaticResource WarningRegular}" Height="16" Foreground="White" VerticalAlignment="Top" />
-                <TextBlock Text="{Binding ErrorMessage}" Foreground="White" TextWrapping="Wrap" />
-            </StackPanel>
+            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
+                <PathIcon Grid.Column="0" Data="{StaticResource WarningRegular}" Height="16"
+                          Foreground="White" VerticalAlignment="Top" Margin="0 2 10 0" />
+                <SelectableTextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="White"
+                                     TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Padding="6"
+                        CornerRadius="6" Cursor="Hand" Margin="8 0 0 0" VerticalAlignment="Top"
+                        Command="{Binding CopyErrorCommand}" ToolTip.Tip="{Binding CopyErrorTooltip}">
+                    <Panel>
+                        <PathIcon Data="{DynamicResource CopyRegular}" Height="15" Foreground="White"
+                                  IsVisible="{Binding !ErrorCopied}" />
+                        <PathIcon Data="{DynamicResource CheckmarkRegular}" Height="15" Foreground="White"
+                                  IsVisible="{Binding ErrorCopied}" />
+                    </Panel>
+                </Button>
+            </Grid>
         </Border>
 
         <!-- Summary + actions + live speed limit -->
-        <Border Grid.Row="3" Classes="card" Margin="0 12 0 0">
+        <Border Grid.Row="2" Classes="card" Margin="0 12 0 0">
             <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                     <TextBlock Grid.Column="0" Text="{i18n:Tr Det_Status}" Margin="0 0 10 0"
@@ -136,9 +150,16 @@
                     <TextBox Grid.Column="1" Text="{Binding FilePath}" IsReadOnly="True"
                              CornerRadius="6" VerticalContentAlignment="Center"
                              FontSize="12" />
+                    <!-- Right of the path box: copy the saved path to the clipboard. The icon flips to a
+                         checkmark and the tooltip reads "Path copied!" for a moment as confirmation.
+                         Opening the folder is still available via the action button below. -->
                     <Button Grid.Column="2" Classes="icon" Margin="6 0 0 0"
-                            Command="{Binding OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
-                        <PathIcon Data="{DynamicResource FolderRegular}" />
+                            Command="{Binding CopyPathCommand}" ToolTip.Tip="{Binding CopyPathTooltip}">
+                        <Panel>
+                            <PathIcon Data="{DynamicResource CopyRegular}" IsVisible="{Binding !PathCopied}" />
+                            <PathIcon Data="{DynamicResource CheckmarkRegular}" Foreground="MediumSeaGreen"
+                                      IsVisible="{Binding PathCopied}" />
+                        </Panel>
                     </Button>
                 </Grid>
 
@@ -169,7 +190,7 @@
         </Border>
 
         <!-- Connections: just the per-connection grid (the progress bar lives in the summary above, #5) -->
-        <Border Grid.Row="4" Classes="card" Margin="0 12 0 0">
+        <Border Grid.Row="3" Classes="card" Margin="0 12 0 0">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" IsVisible="{Binding !HasParts}"
                            Text="{i18n:Tr Det_ConnAppear}"
@@ -233,7 +254,7 @@
         </Border>
 
         <!-- Footer -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 14 0 0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 14 0 0">
             <Button Content="{i18n:Tr Btn_Close}" Padding="18 7" Click="OnCloseClick" />
         </StackPanel>
     </Grid>

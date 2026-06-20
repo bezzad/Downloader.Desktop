@@ -71,15 +71,22 @@
                     </Button>
                 </Grid>
 
-                <TextBox Grid.Column="1" Width="200" Height="34" Text="{Binding SearchText}"
-                         HorizontalAlignment="Right"
-                         CornerRadius="8" VerticalContentAlignment="Center"
-                         PlaceholderText="{i18n:Tr Top_Search}">
-                    <TextBox.InnerLeftContent>
-                        <PathIcon Data="{StaticResource SearchRegular}" Height="14" Width="14"
-                                  Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    </TextBox.InnerLeftContent>
-                </TextBox>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                    <TextBox Width="200" Height="34" Text="{Binding SearchText}"
+                             CornerRadius="8" VerticalContentAlignment="Center"
+                             PlaceholderText="{i18n:Tr Top_Search}">
+                        <TextBox.InnerLeftContent>
+                            <PathIcon Data="{StaticResource SearchRegular}" Height="14" Width="14"
+                                      Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                        </TextBox.InnerLeftContent>
+                    </TextBox>
+                    <Button Classes="icon" Command="{Binding DonateCommand}" ToolTip.Tip="{i18n:Tr About_Donate}">
+                        <PathIcon Data="{StaticResource HeartRegular}" Foreground="#E5594F" />
+                    </Button>
+                    <Button Classes="icon" Command="{Binding ShowAboutCommand}" ToolTip.Tip="{i18n:Tr About_Title}">
+                        <PathIcon Data="{StaticResource InfoRegular}" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 

@@ -223,6 +223,209 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void StopAll_stops_running_and_queued_items()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 3;
+        manager.Initialize(config);
+
+        for (int i = 0; i < 8; i++)
+            manager.Add(new DownloadItem { Url = $"https://10.255.255.1/file{i}.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.StartAll();
+        Assert.True(manager.ActiveCount > 0);
+
+        manager.StopAll();
+
+        Assert.Equal(0, manager.ActiveCount);
+        Assert.Equal(0, manager.QueuedCount);
+        Assert.All(manager.Items, vm => Assert.Equal(DownloadStatus.Stopped, vm.Status));
+    }
+
+    [AvaloniaFact]
+    public void AllDownloadsCompleted_fires_once_when_list_drains()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        config.DefaultQueue.IsRunning = false; // don't let the pump kick off background (network) starts
+
+        var fired = 0;
+        manager.AllDownloadsCompleted += () => fired++;
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        // Drive them through the manager's post-completion bookkeeping (test seam).
+        manager.RaiseCompletedForTest(a);
+        Assert.Equal(0, fired); // b still queued → not "all complete" yet
+
+        manager.RaiseCompletedForTest(b);
+        Assert.Equal(1, fired); // everything done → fired exactly once
+    }
+
+    [AvaloniaFact]
+    public void Stopping_items_does_not_arm_all_completed_even_with_a_finished_item()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        config.DefaultQueue.IsRunning = false;
+
+        var fired = 0;
+        manager.AllDownloadsCompleted += () => fired++;
+
+        var done = manager.Add(new DownloadItem { Url = "https://host/done.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var other = manager.Add(new DownloadItem { Url = "https://host/other.zip", SaveFolder = "/tmp" }, autoStart: false);
+
+        manager.RaiseCompletedForTest(done);     // one finished, 'other' still queued → no fire
+        Assert.Equal(0, fired);
+
+        // User clicks Stop All → 'other' is cancelled (Stopped). Nothing is active/queued and a
+        // completed item remains, but a *stop* must NOT trigger the shutdown/all-complete flow.
+        manager.RaiseStoppedForTest(other);
+        Assert.Equal(0, fired);
+    }
+
+    [AvaloniaFact]
+    public void SelectAll_header_is_tri_state_and_drives_selection()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip" }, autoStart: false);
+
+        Assert.False(view.SelectAllState);   // none checked → false
+        Assert.False(view.HasSelection);
+
+        a.IsChecked = true;
+        Assert.Null(view.SelectAllState);     // some checked → indeterminate
+        Assert.True(view.HasSelection);
+
+        b.IsChecked = true;
+        Assert.True(view.SelectAllState);     // all checked → true
+
+        view.SelectAllState = false;          // setting clears every row
+        Assert.False(a.IsChecked);
+        Assert.False(b.IsChecked);
+
+        view.SelectAllState = true;           // setting selects every row
+        Assert.True(a.IsChecked);
+        Assert.True(b.IsChecked);
+    }
+
+    [AvaloniaFact]
+    public void Selected_bulk_commands_disable_without_selection()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        Assert.False(((System.Windows.Input.ICommand)view.StartSelectedCommand).CanExecute(null));
+        Assert.False(((System.Windows.Input.ICommand)view.RemoveSelectedCommand).CanExecute(null));
+        // Stop-all is selection-independent — always available.
+        Assert.True(((System.Windows.Input.ICommand)view.StopAllCommand).CanExecute(null));
+
+        a.IsChecked = true;
+        Assert.True(((System.Windows.Input.ICommand)view.StartSelectedCommand).CanExecute(null));
+        Assert.True(((System.Windows.Input.ICommand)view.StopSelectedCommand).CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void Grid_row_selection_enables_bulk_commands_without_checkboxes()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        Assert.False(view.HasSelection);
+
+        // Selecting (highlighting) a row in the DataGrid counts as selected — no checkbox needed (#3).
+        view.SetGridSelection(new System.Collections.Generic.List<object> { a });
+        Assert.True(view.HasSelection);
+        Assert.True(((System.Windows.Input.ICommand)view.StartSelectedCommand).CanExecute(null));
+        Assert.False(a.IsChecked); // the checkbox stays unchecked
+
+        view.SetGridSelection(null);
+        Assert.False(view.HasSelection);
+    }
+
+    [AvaloniaFact]
+    public void StartQueue_runs_remaining_stopped_and_failed_items()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5;
+        manager.Initialize(config);
+
+        // Non-routable host so nothing actually connects; we only assert state transitions.
+        var stopped = manager.Add(new DownloadItem { Url = "https://10.255.255.1/a.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var failed = manager.Add(new DownloadItem { Url = "https://10.255.255.1/b.zip", SaveFolder = "/tmp" }, autoStart: false);
+        var done = manager.Add(new DownloadItem { Url = "https://10.255.255.1/c.zip", SaveFolder = "/tmp" }, autoStart: false);
+        stopped.Status = DownloadStatus.Stopped;
+        failed.Status = DownloadStatus.Failed;
+        done.Status = DownloadStatus.Completed;
+
+        manager.StartQueue(config.DefaultQueue);
+
+        // The stopped and failed rows must be (re)started; the completed one is left alone.
+        Assert.NotEqual(DownloadStatus.Stopped, stopped.Status);
+        Assert.NotEqual(DownloadStatus.Failed, failed.Status);
+        Assert.Equal(DownloadStatus.Completed, done.Status);
+    }
+
+    [AvaloniaFact]
+    public void Completed_item_loads_at_full_progress_even_without_downloaded_bytes()
+    {
+        // A file that already existed on disk is Completed but may have Downloaded=0 persisted.
+        var item = new DownloadItem { FileName = "a.zip", Size = 1000, Downloaded = 0, Status = DownloadStatus.Completed };
+        var vm = new DownloadItemViewModel(item, null);
+        Assert.Equal(100, vm.Progress);
+    }
+
+    [AvaloniaFact]
+    public void Setting_status_completed_forces_full_progress()
+    {
+        var vm = new DownloadItemViewModel(new DownloadItem { Size = 1000 }, null) { Progress = 0 };
+        vm.Status = DownloadStatus.Completed;
+        Assert.Equal(100, vm.Progress);
+    }
+
+    [AvaloniaFact]
+    public void AlreadyExisted_completed_row_shows_exists_text()
+    {
+        Localizer.Instance.Load("en");
+        var vm = new DownloadItemViewModel(new DownloadItem(), null)
+        {
+            Status = DownloadStatus.Completed
+        };
+        Assert.Equal("Completed", vm.StatusText);
+
+        vm.AlreadyExisted = true;
+        Assert.Equal("Already downloaded", vm.StatusText);
+        Assert.True(vm.IsCompleted); // still counts as done (Open file works, no retry)
+    }
+
+    [AvaloniaFact]
+    public void TimeLeft_reflects_remaining_over_speed()
+    {
+        var item = new DownloadItem { Status = DownloadStatus.Running };
+        var vm = new DownloadItemViewModel(item, null) { Status = DownloadStatus.Running };
+        vm.Size = 1000;
+        vm.Downloaded = 200;
+        vm.Speed = 100;                 // 800 bytes / 100 B/s = 8s
+        Assert.Equal("8s", vm.TimeLeftText);
+
+        vm.Status = DownloadStatus.Paused;
+        Assert.Equal("—", vm.TimeLeftText);
+    }
+
+    [AvaloniaFact]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();

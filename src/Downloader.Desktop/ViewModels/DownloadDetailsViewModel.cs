@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
 using Downloader.Desktop.Services;
@@ -39,7 +40,9 @@ public class DownloadDetailsViewModel : ViewModelBase
     {
         Item = item;
 
-        CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
+        CopyUrlCommand = ReactiveCommand.CreateFromTask(CopyUrlAsync);
+        CopyPathCommand = ReactiveCommand.CreateFromTask(CopyPathAsync);
+        CopyErrorCommand = ReactiveCommand.CreateFromTask(CopyErrorAsync);
         AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
 
         // Seed the mirror editor from the stored mirrors (everything after the primary URL).
@@ -91,7 +94,115 @@ public class DownloadDetailsViewModel : ViewModelBase
     }
 
     public ICommand CopyUrlCommand { get; }
+    public ICommand CopyPathCommand { get; }
+    public ICommand CopyErrorCommand { get; }
     public ICommand AddMirrorCommand { get; }
+
+    // Transient "copied" feedback for the copy-path button: flips the icon to a checkmark and the
+    // tooltip to "Path copied!" for a couple of seconds, then reverts. Guarded so rapid clicks don't
+    // stack reverts that snap the state back early.
+    private bool _pathCopied;
+    private int _copyFeedbackToken;
+
+    /// <summary>True for a short moment after the saved path is copied (drives the checkmark icon).</summary>
+    public bool PathCopied
+    {
+        get => _pathCopied;
+        private set => this.RaiseAndSetIfChanged(ref _pathCopied, value);
+    }
+
+    /// <summary>Tooltip for the copy-path button: normally "Copy path", "Path copied!" right after a copy.</summary>
+    public string CopyPathTooltip => _pathCopied ? L("Action_PathCopied") : L("Action_CopyPath");
+
+    /// <summary>Copies the saved file path to the clipboard and briefly confirms it on the button.</summary>
+    private async Task CopyPathAsync()
+    {
+        var path = FilePath;
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        await DialogHelper.CopyTextAsync(path);
+
+        PathCopied = true;
+        this.RaisePropertyChanged(nameof(CopyPathTooltip));
+
+        var token = ++_copyFeedbackToken;
+        await Task.Delay(2000);
+        if (token != _copyFeedbackToken)
+            return; // a newer copy took over — let it own the revert
+
+        PathCopied = false;
+        this.RaisePropertyChanged(nameof(CopyPathTooltip));
+    }
+
+    // Transient "copied" feedback for the copy-URL button (same UX as the copy-path button).
+    private bool _urlCopied;
+    private int _urlCopyToken;
+
+    /// <summary>True for a short moment after the source URL is copied (drives the checkmark icon).</summary>
+    public bool UrlCopied
+    {
+        get => _urlCopied;
+        private set => this.RaiseAndSetIfChanged(ref _urlCopied, value);
+    }
+
+    /// <summary>Tooltip for the copy-URL button ("Copy URL" → "URL copied!" right after a copy).</summary>
+    public string CopyUrlTooltip => _urlCopied ? L("Action_UrlCopied") : L("Action_CopyUrl");
+
+    /// <summary>Copies the source URL to the clipboard and briefly confirms it on the button.</summary>
+    private async Task CopyUrlAsync()
+    {
+        var url = Item?.Url;
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        await DialogHelper.CopyTextAsync(url);
+
+        UrlCopied = true;
+        this.RaisePropertyChanged(nameof(CopyUrlTooltip));
+
+        var token = ++_urlCopyToken;
+        await Task.Delay(2000);
+        if (token != _urlCopyToken)
+            return;
+
+        UrlCopied = false;
+        this.RaisePropertyChanged(nameof(CopyUrlTooltip));
+    }
+
+    // Transient "copied" feedback for the copy-error button (independent token from the path copy).
+    private bool _errorCopied;
+    private int _errorCopyToken;
+
+    /// <summary>True for a short moment after the error is copied (drives the checkmark icon).</summary>
+    public bool ErrorCopied
+    {
+        get => _errorCopied;
+        private set => this.RaiseAndSetIfChanged(ref _errorCopied, value);
+    }
+
+    /// <summary>Tooltip for the copy-error button ("Copy error" → "Error copied!" right after a copy).</summary>
+    public string CopyErrorTooltip => _errorCopied ? L("Action_ErrorCopied") : L("Action_CopyError");
+
+    /// <summary>Copies the failure message to the clipboard so the user can paste it into a GitHub issue.</summary>
+    private async Task CopyErrorAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ErrorMessage))
+            return;
+
+        await DialogHelper.CopyTextAsync(ErrorMessage);
+
+        ErrorCopied = true;
+        this.RaisePropertyChanged(nameof(CopyErrorTooltip));
+
+        var token = ++_errorCopyToken;
+        await Task.Delay(2000);
+        if (token != _errorCopyToken)
+            return;
+
+        ErrorCopied = false;
+        this.RaisePropertyChanged(nameof(CopyErrorTooltip));
+    }
 
     /// <summary>Editable mirror URLs (each a row with its own remove button in the UI). (#7)</summary>
     public ObservableCollection<MirrorEntryViewModel> Mirrors { get; } = new();
@@ -121,6 +232,11 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
     {
+        // The title bar shows live "{percent}% {name}", so refresh it as progress/name/status change.
+        if (e.PropertyName is nameof(DownloadItemViewModel.Progress) or nameof(DownloadItemViewModel.FileName)
+            or nameof(DownloadItemViewModel.DisplayName) or nameof(DownloadItemViewModel.Status))
+            Dispatcher.UIThread.Post(() => this.RaisePropertyChanged(nameof(WindowTitle)));
+
         // The engine handle is created after the dialog may have opened — attach as soon as it's set.
         if (e.PropertyName == nameof(DownloadItemViewModel.Download))
         {
@@ -171,6 +287,18 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     public bool HasError => Item?.HasError == true;
     public string ErrorMessage => Item?.ErrorMessage;
+
+    /// <summary>Window/title-bar caption: live "{percent}% {file name}" (e.g. "21% movie.mkv").</summary>
+    public string WindowTitle
+    {
+        get
+        {
+            if (Item == null)
+                return L("Det_Title");
+            var name = Item.DisplayName;
+            return string.IsNullOrWhiteSpace(name) ? L("Det_Title") : $"{Item.Progress:0}% {name}";
+        }
+    }
 
     /// <summary>Live speed cap in KB/s (0 = unlimited). Applies to the running download.</summary>
     public long SpeedLimitKb

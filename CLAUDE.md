@@ -182,3 +182,24 @@ These rules are permanent and apply to every conversation/task in this repo — 
 - Commit `PLAN.md` together with the code change it describes, on `develop`.
 - For large backlogs, also keep `TASKS.md` updated as the full board.
 - At the START of every session, read `PLAN.md` (and `TASKS.md`) and continue from there. Never rely on in-session memory surviving across machines — if it matters, it must be in `PLAN.md` and committed.
+
+## Release routine (publishing a new version)
+These steps are **standing, pre-authorized** — when the author asks to publish/release a new version
+`vX.Y.Z`, do ALL of the following without asking again:
+1. Bump the version, merge `develop` → `main`, tag `vX.Y.Z`, and push the tag. `.github/workflows/release.yml`
+   then builds win/linux/macOS×2 (`Downloader-<rid>.tar.gz`) and attaches them to the GitHub Release. Wait
+   for that run to finish so the macOS assets exist.
+2. **Always update the Homebrew tap — this is a mandatory part of every release, not a separate request.**
+   In `bezzad/homebrew-tap` → `Casks/downloader.rb`, set `version "X.Y.Z"` and the two `sha256` (arm64 then
+   intel) from the released macOS archives, commit, and push to the tap repo. Then sync the in-repo mirror
+   `Casks/downloader.rb` on `develop` to match.
+
+   ```bash
+   VER=X.Y.Z
+   TAP=$(brew --repository bezzad/tap)
+   ARM=$(curl -fsSL "https://github.com/bezzad/Downloader.Desktop/releases/download/v$VER/Downloader-osx-arm64.tar.gz" | shasum -a 256 | awk '{print $1}')
+   X64=$(curl -fsSL "https://github.com/bezzad/Downloader.Desktop/releases/download/v$VER/Downloader-osx-x64.tar.gz"   | shasum -a 256 | awk '{print $1}')
+   # edit Casks/downloader.rb: version "$VER", on_arm sha256 "$ARM", on_intel sha256 "$X64"; commit + push the tap
+   ```
+3. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
+4. Record the release in `PLAN.md`/`TASKS.md` (version, tag, commit hashes, tap commit) per the workflow above.

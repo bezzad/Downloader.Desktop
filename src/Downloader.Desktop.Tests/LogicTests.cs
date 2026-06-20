@@ -137,6 +137,70 @@ public class LogicTests
         Assert.Equal("Completed", chunk.StatusText);
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1:15151/add?url=https%3A%2F%2Fhost%2Ffile.zip", "https://host/file.zip")]
+    [InlineData("http://127.0.0.1:15151/add?foo=1&url=https://host/a.bin", "https://host/a.bin")]
+    [InlineData("http://127.0.0.1:15151/add?url=", null)]
+    [InlineData("http://127.0.0.1:15151/add", null)]
+    public void BrowserIntegration_extracts_url_param(string requestUri, string expected)
+    {
+        Assert.Equal(expected, BrowserIntegrationService.ExtractUrl(new System.Uri(requestUri)));
+    }
+
+    [Theory]
+    [InlineData(45, "45s")]
+    [InlineData(83, "1m 23s")]
+    [InlineData(3900, "1h 5m")]
+    [InlineData(-1, "—")]
+    public void FormatDuration_is_compact(double seconds, string expected)
+    {
+        Assert.Equal(expected, DownloadItemViewModel.FormatDuration(seconds));
+    }
+
+    [Fact]
+    public void FormatDuration_handles_non_finite()
+    {
+        Assert.Equal("—", DownloadItemViewModel.FormatDuration(double.PositiveInfinity));
+        Assert.Equal("—", DownloadItemViewModel.FormatDuration(double.NaN));
+    }
+
+    [Fact]
+    public void LooksAlreadyDownloaded_only_for_ignore_policy_and_existing_file()
+    {
+        var tmp = System.IO.Path.GetTempFileName(); // a real, existing file
+        try
+        {
+            Assert.True(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.IgnoreDownload, tmp));
+            // Other policies don't "ignore", so a cancel there is a real failure, not an existing file.
+            Assert.False(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.Delete, tmp));
+            // IgnoreDownload but the file isn't there → a genuine interruption, not "already exists".
+            Assert.False(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.IgnoreDownload, tmp + ".missing"));
+            Assert.False(DownloadManager.LooksAlreadyDownloaded(FileExistPolicy.IgnoreDownload, null));
+        }
+        finally
+        {
+            System.IO.File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public void About_links_are_wellformed()
+    {
+        Assert.StartsWith("https://github.com/bezzad", AboutViewModel.RepoUrl);
+        Assert.Contains("Donate.md", AboutViewModel.DonateUrl);
+        Assert.Equal("https://t.me/bezzad", AboutViewModel.TelegramUrl);
+        Assert.Contains("@", AboutViewModel.Email);
+    }
+
+    [Fact]
+    public void Localizer_lists_all_shipped_languages()
+    {
+        // The 9 original packs + the 7 added in Round 15.
+        Assert.Equal(16, Localizer.Languages.Count);
+        foreach (var code in new[] { "it", "pt", "ru", "hi", "zh", "ja", "ko" })
+            Assert.Contains(Localizer.Languages, l => l.Code == code);
+    }
+
     [Fact]
     public void DownloadItem_FilePath_combines_folder_and_name()
     {

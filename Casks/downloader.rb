@@ -2,14 +2,14 @@
 # Before each release, update `version` and the two `sha256` values (shasum -a 256 <archive>).
 # The release archive contains a proper "Downloader.app" bundle (Spotlight-visible, launches detached).
 cask "downloader" do
-  version "1.1.3"
+  version "1.2.0"
 
   on_arm do
-    sha256 "422bdf171000a2b6557cfa778f2d782664413d1f80f2d9b1902732803db64c51"
+    sha256 "4106036d944bd2c8bf511a7e59ba84b1f23be66a3ce36e537f37be81848349e9"
     url "https://github.com/bezzad/Downloader.Desktop/releases/download/v#{version}/Downloader-osx-arm64.tar.gz"
   end
   on_intel do
-    sha256 "d979b81d1c8a5e06e323d150b8293fffee789826568db0223ed4b1b093899b96"
+    sha256 "aa300445ffc119d2c2540cb4973421565a97a19af5030115775e8ce9bc209594"
     url "https://github.com/bezzad/Downloader.Desktop/releases/download/v#{version}/Downloader-osx-x64.tar.gz"
   end
 
@@ -19,9 +19,18 @@ cask "downloader" do
 
   app "Downloader.app"
 
+  # Downloader is not notarized yet, so Homebrew quarantines it and macOS blocks the first
+  # launch ("unidentified developer"). Strip the quarantine flag on install so the user does
+  # not have to run `xattr -dr com.apple.quarantine ...` by hand after every install/upgrade.
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Downloader.app"]
+  end
+
   caveats <<~EOS
-    Downloader is not notarized yet. On first launch macOS may block it:
-    right-click Downloader in Applications and choose Open, or run:
+    Downloader is not notarized yet. The quarantine flag is removed automatically on install,
+    so it should launch normally. If macOS still blocks it, right-click Downloader in
+    Applications and choose Open, or run:
       xattr -dr com.apple.quarantine "#{appdir}/Downloader.app"
   EOS
 end

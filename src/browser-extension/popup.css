@@ -1,0 +1,40 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  width: 360px;
+  margin: 0;
+  font: 13px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
+  background: Canvas;
+  color: CanvasText;
+}
+header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid rgba(128,128,128,.25);
+}
+.title { font-weight: 600; font-size: 14px; flex: 1; }
+.status { font-size: 12px; }
+.status.on { color: #1FA971; }
+.status.off { color: #E5594F; }
+section { padding: 10px 12px; }
+.row { display: flex; gap: 6px; }
+input[type=text] {
+  flex: 1; padding: 7px 9px; border-radius: 7px;
+  border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
+}
+button {
+  cursor: pointer; border: none; border-radius: 7px; padding: 7px 11px;
+  background: rgba(128,128,128,.18); color: CanvasText; font-size: 13px;
+}
+button:hover { background: rgba(128,128,128,.30); }
+button.primary { background: #0E8FB3; color: #fff; }
+button.primary:hover { background: #0c7c9c; }
+button.wide { width: 100%; }
+button.link { background: none; color: #0E8FB3; padding: 2px 4px; }
+.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+.list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,.15); }
+.list .meta { flex: 1; min-width: 0; }
+.list .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list .type { color: #888; font-size: 11px; }
+.empty { color: #888; text-align: center; padding: 8px 0; }
+footer { padding: 10px 12px; border-top: 1px solid rgba(128,128,128,.25); }

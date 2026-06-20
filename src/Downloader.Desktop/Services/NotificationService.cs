@@ -32,6 +32,9 @@ public static class NotificationService
     public static void NotifyFailed(string fileName, string reason) =>
         Notify("Download failed", $"{(string.IsNullOrWhiteSpace(fileName) ? "A download" : fileName)} failed. {reason}".Trim(), true);
 
+    public static void NotifyAllCompleted(int count) =>
+        Notify("All downloads complete", count > 0 ? $"All {count} downloads finished." : "All downloads finished.", false);
+
     public static void Notify(string title, string message, bool isError)
     {
         if (!Enabled)
@@ -74,9 +77,10 @@ public static class NotificationService
 
             if (OperatingSystem.IsMacOS())
             {
-                var script = $"display notification \"{Escape(message)}\" with title \"Downloader\" subtitle \"{Escape(title)}\"";
-                Run("osascript", new[] { "-e", script });
-                return true;
+                // Post in-process so the banner shows the app's own icon. (osascript "display
+                // notification" always shows Script Editor's generic script icon and can't be
+                // overridden.) Falls through to the in-app toast if the native call fails.
+                return MacNotifier.TryNotify("Downloader", title, message);
             }
         }
         catch
@@ -108,6 +112,4 @@ public static class NotificationService
             psi.ArgumentList.Add(a);
         Process.Start(psi);
     }
-
-    private static string Escape(string s) => (s ?? string.Empty).Replace("\"", "\\\"");
 }

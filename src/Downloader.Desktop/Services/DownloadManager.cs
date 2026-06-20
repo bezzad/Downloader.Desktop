@@ -24,6 +24,13 @@ public class DownloadManager : IDownloadManager
 
     public event Action StatsChanged;
     public event Action ListChanged;
+    public event Action AllDownloadsCompleted;
+
+    public IReadOnlyList<DownloadQueue> Queues => _config?.Queues ?? new List<DownloadQueue>();
+
+    // Guards the "all complete" event so it fires once per batch, not on every item after the list
+    // has already drained. Re-armed whenever a download (re)starts.
+    private bool _allCompleteFired;
 
     public double TotalSpeed
     {
@@ -40,6 +47,26 @@ public class DownloadManager : IDownloadManager
     public int ActiveCount => Items.Count(i => i.Status == DownloadStatus.Running);
     public int QueuedCount => Items.Count(i => i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedCount => Items.Count(i => i.Status == DownloadStatus.Completed);
+
+    private bool NotifyCompleteEnabled => _config?.Settings is { EnableNotifications: true, NotifyOnComplete: true };
+    private bool NotifyFailedEnabled => _config?.Settings is { EnableNotifications: true, NotifyOnFailed: true };
+
+    /// <summary>
+    /// After an item finishes, if nothing is left running or waiting (and at least one completed),
+    /// raise <see cref="AllDownloadsCompleted"/> exactly once. Consumers handle the user-facing parts
+    /// (all-complete notification, shutdown-on-completion) so this stays UI/OS-free and testable.
+    /// </summary>
+    private void MaybeAllCompleted()
+    {
+        if (_allCompleteFired)
+            return;
+        if (ActiveCount > 0 || QueuedCount > 0)
+            return;
+        if (CompletedCount == 0)
+            return;
+        _allCompleteFired = true;
+        AllDownloadsCompleted?.Invoke();
+    }
 
     // ---------------- UI update pump (perf) ----------------
     // A single dispatcher timer flushes all rows' staged progress to the UI at a fixed rate, so the
@@ -292,7 +319,9 @@ public class DownloadManager : IDownloadManager
         item.SaveFolder = folder;
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
+        vm.AlreadyExisted = false;
         vm.Status = DownloadStatus.Running;
+        _allCompleteFired = false; // a new run means "all complete" can fire again when it drains
         EnsureUiPump();
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
@@ -454,8 +483,12 @@ public class DownloadManager : IDownloadManager
     public void StopAll() =>
         RunBatch(() =>
         {
-            foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Running).ToList())
-                Pause(vm);
+            // Stop everything in flight or waiting. Cancel() guards terminal states, so completed/failed
+            // rows are left alone. Stopping the queued rows too keeps the pump from refilling freed slots.
+            foreach (var vm in Items.Where(v =>
+                         v.Status is DownloadStatus.Running or DownloadStatus.Paused
+                                  or DownloadStatus.Created or DownloadStatus.None).ToList())
+                Cancel(vm);
         });
 
     public void ClearCompleted()
@@ -469,6 +502,23 @@ public class DownloadManager : IDownloadManager
     }
 
     private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
+
+    /// <summary>Test seam: runs the same post-completion bookkeeping the engine's completed handler does,
+    /// without a real download (mark Completed → pump the queue → maybe raise all-complete).</summary>
+    public void RaiseCompletedForTest(DownloadItemViewModel vm)
+    {
+        vm.Progress = 100;
+        vm.Status = DownloadStatus.Completed;
+        FinishTerminal(vm);
+    }
+
+    /// <summary>Test seam: simulate a user stop/cancel reaching the terminal bookkeeping (must NOT
+    /// arm the all-complete / shutdown trigger even if completed items remain in the list).</summary>
+    public void RaiseStoppedForTest(DownloadItemViewModel vm)
+    {
+        vm.Status = DownloadStatus.Stopped;
+        FinishTerminal(vm);
+    }
 
     private DownloadQueue FindQueue(string id) =>
         _config?.Queues?.FirstOrDefault(q => q.Id == id);
@@ -518,7 +568,19 @@ public class DownloadManager : IDownloadManager
         if (queue == null)
             return;
         queue.IsRunning = true;
-        PumpQueue(queue.Id); // resumes paused + starts queued, all capped at MaxConcurrent
+
+        // "Start queue" should run every *remaining* (non-completed) download in it. The pump only
+        // picks up Paused/Created/None, so re-queue Stopped/Failed rows to Created first — otherwise
+        // selecting a queue after a Stop/Stop-all (rows are Stopped) appeared to do nothing.
+        RunBatch(() =>
+        {
+            foreach (var vm in Items.Where(i =>
+                         i.GetItem().QueueId == queue.Id &&
+                         i.Status is DownloadStatus.Stopped or DownloadStatus.Failed).ToList())
+                vm.Status = DownloadStatus.Created;
+
+            PumpQueue(queue.Id); // resumes paused + starts queued, all capped at MaxConcurrent
+        });
         NotifyList();
     }
 
@@ -642,6 +704,11 @@ public class DownloadManager : IDownloadManager
                 {
                     // user action — keep the status as-is
                 }
+                else if (TryMarkAlreadyExists(vm, e))
+                {
+                    // The engine skipped the download because the file is already on disk
+                    // (FileExistPolicy=IgnoreDownload). That's a success, not a failure (#issue).
+                }
                 else
                 {
                     vm.ErrorMessage = e.Error != null
@@ -649,7 +716,8 @@ public class DownloadManager : IDownloadManager
                         : "The connection was lost or timed out before the download finished. Please try again.";
                     vm.Status = DownloadStatus.Failed;
                     AppLog.Error($"Failed (interrupted): {vm.FileName ?? vm.Url}", e.Error);
-                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                    if (NotifyFailedEnabled)
+                        NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
                 }
             }
             else if (e.Error != null)
@@ -657,20 +725,80 @@ public class DownloadManager : IDownloadManager
                 vm.ErrorMessage = Describe(e.Error);
                 vm.Status = DownloadStatus.Failed;
                 AppLog.Error($"Failed: {vm.FileName ?? vm.Url}", e.Error);
-                NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                if (NotifyFailedEnabled)
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
             else
             {
                 vm.Progress = 100;
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
-                NotificationService.NotifyCompleted(vm.FileName);
+                if (NotifyCompleteEnabled)
+                    NotificationService.NotifyCompleted(vm.FileName);
             }
 
-            // A finished/stopped item frees a slot — let the queue start the next one.
-            TryStartNextInQueue(vm.GetItem().QueueId);
-            NotifyList();
+            FinishTerminal(vm);
         });
+    }
+
+    /// <summary>
+    /// Shared post-terminal bookkeeping for a row that just reached an end state: free its queue slot,
+    /// and evaluate "all downloads complete" ONLY when this row actually completed. The latter guard is
+    /// what stops "Stop All" (which cancels rows → Stopped) from arming a shutdown just because a
+    /// finished item is sitting in the list.
+    /// </summary>
+    private void FinishTerminal(DownloadItemViewModel vm)
+    {
+        TryStartNextInQueue(vm.GetItem().QueueId);
+        if (vm.Status == DownloadStatus.Completed)
+            MaybeAllCompleted();
+        NotifyList();
+    }
+
+    /// <summary>
+    /// Detects the "file already exists, so the engine ignored the download" case (FileExistPolicy =
+    /// IgnoreDownload). The engine reports this as a cancel with no error and never fires DownloadStarted,
+    /// which would otherwise look like a timeout failure. When the resolved file is actually present on
+    /// disk, mark the row Completed (flagged AlreadyExisted) instead. Returns true if handled.
+    /// </summary>
+    /// <summary>True when a no-error cancel really means "the file is already on disk and the policy is
+    /// to skip it" (FileExistPolicy=IgnoreDownload), not a transfer failure. Pure + testable.</summary>
+    public static bool LooksAlreadyDownloaded(FileExistPolicy policy, string path) =>
+        policy == FileExistPolicy.IgnoreDownload && !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+
+    private bool TryMarkAlreadyExists(DownloadItemViewModel vm, System.ComponentModel.AsyncCompletedEventArgs e)
+    {
+        var path = (e.UserState as DownloadPackage)?.FileName ?? vm.Download?.Package?.FileName;
+        if (!LooksAlreadyDownloaded(_config?.Settings?.FileExistPolicy ?? FileExistPolicy.Delete, path))
+            return false;
+
+        // Backfill name/folder/size from the file the engine found (DownloadStarted never fired).
+        var name = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(vm.FileName) && !string.IsNullOrWhiteSpace(name))
+            vm.FileName = name;
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(dir))
+            vm.GetItem().SaveFolder = dir;
+        try
+        {
+            var len = new FileInfo(path).Length;
+            if (len > 0)
+            {
+                if (vm.Size is null or 0)
+                    vm.Size = len;
+                vm.Downloaded = len; // persist full bytes so the bar stays 100% after a restart
+            }
+        }
+        catch { /* size is best-effort */ }
+
+        vm.ErrorMessage = null;
+        vm.Progress = 100;
+        vm.AlreadyExisted = true;
+        vm.Status = DownloadStatus.Completed;
+        AppLog.Info($"Already downloaded (file exists, skipped): {vm.FileName}");
+        if (NotifyCompleteEnabled)
+            NotificationService.NotifyCompleted(vm.FileName);
+        return true;
     }
 
     private static void OnUi(Action action)

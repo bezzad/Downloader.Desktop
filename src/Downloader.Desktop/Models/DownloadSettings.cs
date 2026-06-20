@@ -37,8 +37,30 @@ public class DownloadSettings
     /// <summary>Write a diagnostic log file (off by default).</summary>
     public bool EnableLogging { get; set; } = false;
 
-    /// <summary>Show a desktop notification when a download completes or fails (on by default).</summary>
+    /// <summary>Master switch for desktop notifications (on by default). The per-event toggles below
+    /// only fire when this is on.</summary>
     public bool EnableNotifications { get; set; } = true;
+
+    /// <summary>Notify when a single download finishes (on by default).</summary>
+    public bool NotifyOnComplete { get; set; } = true;
+
+    /// <summary>Notify when a download fails (on by default).</summary>
+    public bool NotifyOnFailed { get; set; } = true;
+
+    /// <summary>Notify once when every active download has finished (on by default).</summary>
+    public bool NotifyOnAllComplete { get; set; } = true;
+
+    /// <summary>Notify (with a 30 s cancel option) when the system is about to shut down because all
+    /// downloads completed (on by default). Only relevant when <see cref="ShutdownOnCompletion"/> is on.</summary>
+    public bool NotifyOnShutdown { get; set; } = true;
+
+    /// <summary>Power the computer off once every active download has finished (off by default). A 30 s
+    /// cancelable notice is shown first so a user at the keyboard can stop it.</summary>
+    public bool ShutdownOnCompletion { get; set; } = false;
+
+    /// <summary>Listen on a local loopback port so a browser extension can send links to the app
+    /// (off by default — it opens a localhost socket).</summary>
+    public bool EnableBrowserIntegration { get; set; } = false;
 
     /// <summary>UI language code (en, fa, es, fr, ar, eo). Default English.</summary>
     public string Language { get; set; } = "en";
