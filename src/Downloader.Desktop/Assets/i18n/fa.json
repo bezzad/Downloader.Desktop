@@ -177,5 +177,6 @@
   "Shutdown_Canceled_Title": "خاموش‌شدن لغو شد",
   "Shutdown_Canceled_Msg": "رایانه روشن می‌ماند.",
   "Shutdown_Notify_Title": "به‌زودی خاموش می‌شود",
-  "Shutdown_Notify_Msg": "همهٔ دانلودها تمام شدند — رایانه تا {0} ثانیهٔ دیگر خاموش می‌شود. برای لغو، Downloader را باز کنید."
+  "Shutdown_Notify_Msg": "همهٔ دانلودها تمام شدند — رایانه تا {0} ثانیهٔ دیگر خاموش می‌شود. برای لغو، Downloader را باز کنید.",
+  "Action_UrlCopied": "نشانی کپی شد!"
 }

@@ -202,5 +202,6 @@
   "Shutdown_Canceled_Title": "Выключение отменено",
   "Shutdown_Canceled_Msg": "Компьютер останется включённым.",
   "Shutdown_Notify_Title": "Скоро выключение",
-  "Shutdown_Notify_Msg": "Загрузки завершены — компьютер выключится через {0}с. Откройте Downloader, чтобы отменить."
+  "Shutdown_Notify_Msg": "Загрузки завершены — компьютер выключится через {0}с. Откройте Downloader, чтобы отменить.",
+  "Action_UrlCopied": "URL скопирован!"
 }

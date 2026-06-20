@@ -202,5 +202,6 @@
   "Shutdown_Canceled_Title": "बंद होना रद्द किया गया",
   "Shutdown_Canceled_Msg": "कंप्यूटर चालू रहेगा।",
   "Shutdown_Notify_Title": "जल्द ही बंद होगा",
-  "Shutdown_Notify_Msg": "डाउनलोड पूरे — कंप्यूटर {0}s में बंद होगा। रद्द करने के लिए Downloader खोलें।"
+  "Shutdown_Notify_Msg": "डाउनलोड पूरे — कंप्यूटर {0}s में बंद होगा। रद्द करने के लिए Downloader खोलें।",
+  "Action_UrlCopied": "URL कॉपी हो गया!"
 }

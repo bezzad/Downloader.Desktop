@@ -202,5 +202,6 @@
   "Shutdown_Canceled_Title": "Spegnimento annullato",
   "Shutdown_Canceled_Msg": "Il computer resterà acceso.",
   "Shutdown_Notify_Title": "Spegnimento imminente",
-  "Shutdown_Notify_Msg": "Download terminati — il computer si spegnerà tra {0}s. Apri Downloader per annullare."
+  "Shutdown_Notify_Msg": "Download terminati — il computer si spegnerà tra {0}s. Apri Downloader per annullare.",
+  "Action_UrlCopied": "URL copiato!"
 }

@@ -40,7 +40,7 @@ public class DownloadDetailsViewModel : ViewModelBase
     {
         Item = item;
 
-        CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Item?.Url));
+        CopyUrlCommand = ReactiveCommand.CreateFromTask(CopyUrlAsync);
         CopyPathCommand = ReactiveCommand.CreateFromTask(CopyPathAsync);
         CopyErrorCommand = ReactiveCommand.CreateFromTask(CopyErrorAsync);
         AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
@@ -133,6 +133,41 @@ public class DownloadDetailsViewModel : ViewModelBase
 
         PathCopied = false;
         this.RaisePropertyChanged(nameof(CopyPathTooltip));
+    }
+
+    // Transient "copied" feedback for the copy-URL button (same UX as the copy-path button).
+    private bool _urlCopied;
+    private int _urlCopyToken;
+
+    /// <summary>True for a short moment after the source URL is copied (drives the checkmark icon).</summary>
+    public bool UrlCopied
+    {
+        get => _urlCopied;
+        private set => this.RaiseAndSetIfChanged(ref _urlCopied, value);
+    }
+
+    /// <summary>Tooltip for the copy-URL button ("Copy URL" → "URL copied!" right after a copy).</summary>
+    public string CopyUrlTooltip => _urlCopied ? L("Action_UrlCopied") : L("Action_CopyUrl");
+
+    /// <summary>Copies the source URL to the clipboard and briefly confirms it on the button.</summary>
+    private async Task CopyUrlAsync()
+    {
+        var url = Item?.Url;
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        await DialogHelper.CopyTextAsync(url);
+
+        UrlCopied = true;
+        this.RaisePropertyChanged(nameof(CopyUrlTooltip));
+
+        var token = ++_urlCopyToken;
+        await Task.Delay(2000);
+        if (token != _urlCopyToken)
+            return;
+
+        UrlCopied = false;
+        this.RaisePropertyChanged(nameof(CopyUrlTooltip));
     }
 
     // Transient "copied" feedback for the copy-error button (independent token from the path copy).

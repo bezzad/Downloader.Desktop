@@ -175,5 +175,6 @@
   "Shutdown_Canceled_Title": "Arrêt annulé",
   "Shutdown_Canceled_Msg": "L'ordinateur restera allumé.",
   "Shutdown_Notify_Title": "Arrêt imminent",
-  "Shutdown_Notify_Msg": "Téléchargements terminés — l'ordinateur s'éteindra dans {0}s. Ouvrez Downloader pour annuler."
+  "Shutdown_Notify_Msg": "Téléchargements terminés — l'ordinateur s'éteindra dans {0}s. Ouvrez Downloader pour annuler.",
+  "Action_UrlCopied": "URL copiée !"
 }

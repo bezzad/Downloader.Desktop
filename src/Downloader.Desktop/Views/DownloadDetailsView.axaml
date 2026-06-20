@@ -35,8 +35,12 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{i18n:Tr Det_SourceUrl}" VerticalAlignment="Center"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    <Button Grid.Column="1" Classes="icon" Command="{Binding CopyUrlCommand}" ToolTip.Tip="{i18n:Tr Action_CopyUrl}">
-                        <PathIcon Data="{StaticResource ListRegular}" Height="14" />
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding CopyUrlCommand}" ToolTip.Tip="{Binding CopyUrlTooltip}">
+                        <Panel>
+                            <PathIcon Data="{DynamicResource CopyRegular}" IsVisible="{Binding !UrlCopied}" />
+                            <PathIcon Data="{DynamicResource CheckmarkRegular}" Foreground="MediumSeaGreen"
+                                      IsVisible="{Binding UrlCopied}" />
+                        </Panel>
                     </Button>
                 </Grid>
                 <TextBox Text="{Binding EditableUrl, Mode=TwoWay}" IsReadOnly="{Binding !CanEdit}"

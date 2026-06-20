@@ -200,5 +200,6 @@
   "Shutdown_Canceled_Title": "Söndürmə ləğv edildi",
   "Shutdown_Canceled_Msg": "Kompüter açıq qalacaq.",
   "Shutdown_Notify_Title": "Tezliklə söndürüləcək",
-  "Shutdown_Notify_Msg": "Yükləmələr bitdi — kompüter {0}s sonra söndürüləcək. Ləğv üçün Downloader-i açın."
+  "Shutdown_Notify_Msg": "Yükləmələr bitdi — kompüter {0}s sonra söndürüləcək. Ləğv üçün Downloader-i açın.",
+  "Action_UrlCopied": "URL kopyalandı!"
 }

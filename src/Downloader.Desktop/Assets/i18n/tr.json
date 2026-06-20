@@ -200,5 +200,6 @@
   "Shutdown_Canceled_Title": "Kapatma iptal edildi",
   "Shutdown_Canceled_Msg": "Bilgisayar açık kalacak.",
   "Shutdown_Notify_Title": "Yakında kapanacak",
-  "Shutdown_Notify_Msg": "İndirmeler bitti — bilgisayar {0}s içinde kapanacak. İptal için Downloader'ı açın."
+  "Shutdown_Notify_Msg": "İndirmeler bitti — bilgisayar {0}s içinde kapanacak. İptal için Downloader'ı açın.",
+  "Action_UrlCopied": "URL kopyalandı!"
 }

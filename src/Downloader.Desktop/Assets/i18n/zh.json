@@ -202,5 +202,6 @@
   "Shutdown_Canceled_Title": "已取消关机",
   "Shutdown_Canceled_Msg": "计算机将保持开机。",
   "Shutdown_Notify_Title": "即将关机",
-  "Shutdown_Notify_Msg": "下载已完成 — 计算机将在 {0} 秒后关机。打开 Downloader 取消。"
+  "Shutdown_Notify_Msg": "下载已完成 — 计算机将在 {0} 秒后关机。打开 Downloader 取消。",
+  "Action_UrlCopied": "链接已复制！"
 }
