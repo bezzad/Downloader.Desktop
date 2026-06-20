@@ -41,8 +41,7 @@ The app is **fully self-contained** — every release ships with everything it n
 
 **macOS** ([Homebrew](https://brew.sh)):
 ```bash
-brew tap bezzad/tap
-brew install --cask downloader
+brew tap bezzad/tap && brew install --cask downloader
 ```
 This installs **Downloader.app** into your Applications folder — open it from **Launchpad**, **Spotlight** (⌘-Space → "Downloader"), or Finder like any other app.
 > - Recent Homebrew versions ask you to trust a third-party tap before installing. If you see that prompt, run `brew trust bezzad/tap` (or set `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`) and re-run the install.
