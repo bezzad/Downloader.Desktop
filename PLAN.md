@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-20
 **Branch**: develop
-**Now working on**: (idle) — Round 16 done (all 9 items, 92 tests green, app launches clean), pushed to develop. **Author to-do before publish:** (a) test the browser extension locally (load unpacked from `src/browser-extension/`, enable Settings → Browser integration) then tell me to prep store deploy; (b) review the machine-translated About/queue strings in non-English locales; (c) merge develop → main + release when ready.
+**Now working on**: Releasing **v1.3.0** (Rounds 15+16 + fixes) — bump VersionPrefix→1.3.0, merge develop→main, tag v1.3.0, then update the Homebrew tap once CI attaches the macOS assets.
 
 Author decisions (2026-06-19 overnight batch): may cut releases autonomously; Issue 1 = just fix the false alarm (don't touch update/download mechanism); Queues = full "real queue manager" redesign (mockup approved); Instagram = R&D plan only, no code.
 
