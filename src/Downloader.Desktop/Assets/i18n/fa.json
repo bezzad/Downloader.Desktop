@@ -151,5 +151,19 @@
   "Set_ShutdownOnComplete": "خاموش‌کردن رایانه پس از پایان همهٔ دانلودها",
   "Set_ShutdownOnComplete_Hint": "۳۰ ثانیه پس از کامل‌شدن آخرین دانلود خاموش می‌شود (قابل لغو).",
   "Set_BrowserIntegration": "یکپارچگی با مرورگر",
-  "Set_BrowserIntegration_Hint": "به افزونهٔ مرورگر اجازه می‌دهد از طریق یک اتصال محلی پیوندها را به این برنامه بفرستد."
+  "Set_BrowserIntegration_Hint": "به افزونهٔ مرورگر اجازه می‌دهد از طریق یک اتصال محلی پیوندها را به این برنامه بفرستد.",
+  "Col_TimeLeft": "زمان باقی‌مانده",
+  "About_Title": "درباره",
+  "About_Version": "نسخه {0}",
+  "About_DevelopedWith": "ساخته‌شده با ❤ برای شما",
+  "About_Donate": "حمایت مالی",
+  "About_Sec1_Title": "رایگان و متن‌باز",
+  "About_Sec1_Sub": "مشاهده کد منبع",
+  "About_Sec2_Title": "قدرت‌گرفته از موتور Downloader",
+  "About_Sec2_Sub": "مرور موتور متن‌باز",
+  "About_Sec3_Title": "در زبان‌های گوناگون",
+  "About_Sec3_Sub": "به ترجمه برنامه کمک کنید",
+  "Contact_Github": "گیت‌هاب",
+  "Contact_Telegram": "تلگرام",
+  "Contact_Email": "ایمیل"
 }

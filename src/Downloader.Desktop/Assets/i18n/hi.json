@@ -2,7 +2,6 @@
   "Top_PasteLink": "डाउनलोड लिंक पेस्ट करें…",
   "Top_Add": "जोड़ें",
   "Top_Search": "खोजें",
-
   "Nav_Status": "स्थिति",
   "Nav_Manage": "प्रबंधन",
   "Nav_AllDownloads": "सभी डाउनलोड",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "शेड्यूलर",
   "Nav_Settings": "सेटिंग्स",
   "Nav_ToggleMenu": "मेनू छोटा / बड़ा करें",
-
   "Status_Downloading": "डाउनलोड हो रहा है",
   "Status_Queued": "क़तार में",
   "Status_Done": "पूर्ण",
-
   "Grid_SelectAll": "सभी चुनें",
   "Action_Start": "शुरू करें",
   "Action_Pause": "रोकें",
@@ -33,16 +30,13 @@
   "Action_CopyUrl": "URL कॉपी करें",
   "Action_CopyPath": "पथ कॉपी करें",
   "Action_PathCopied": "पथ कॉपी हो गया!",
-
   "Col_Name": "नाम",
   "Col_Size": "आकार",
   "Col_Progress": "प्रगति",
   "Col_Speed": "गति",
-
   "Empty_Title": "अभी कोई डाउनलोड नहीं",
   "Empty_Hint": "शुरू करने के लिए ऊपर बॉक्स में एक लिंक पेस्ट करें और जोड़ें पर क्लिक करें।",
   "Group_Downloads": "डाउनलोड",
-
   "State_Queued": "क़तार में",
   "State_Paused": "रुका हुआ",
   "State_Stopped": "बंद",
@@ -52,7 +46,6 @@
   "State_Pending": "लंबित",
   "Name_Fetching": "नाम प्राप्त हो रहा है…",
   "Name_Unnamed": "(बिना नाम)",
-
   "Add_Title": "डाउनलोड जोड़ें",
   "Add_Links": "लिंक — प्रति पंक्ति एक",
   "Add_LinksPlaceholder": "https://…  (नीचे दिए फ़ोल्डर में सभी डाउनलोड करने हेतु प्रति पंक्ति एक करके कई लिंक पेस्ट करें)",
@@ -63,7 +56,6 @@
   "Add_Queue": "क़तार",
   "Add_Download": "डाउनलोड",
   "Tooltip_Browse": "ब्राउज़ करें",
-
   "Settings_Title": "सेटिंग्स",
   "Settings_Reset": "डिफ़ॉल्ट पर रीसेट करें",
   "Settings_ResetTip": "हर सेटिंग को उसके डिफ़ॉल्ट मान पर पुनर्स्थापित करें",
@@ -86,7 +78,6 @@
   "Set_Notifications_Hint": "नीचे दिए अलर्ट के लिए मुख्य स्विच।",
   "Set_Language": "ऐप की भाषा",
   "Set_Language_Hint": "इंटरफ़ेस की भाषा चुनें।",
-
   "Sec_Notifications": "सूचनाएँ",
   "Set_NotifyComplete": "जब कोई डाउनलोड पूरा हो",
   "Set_NotifyFailed": "जब कोई डाउनलोड विफल हो",
@@ -97,7 +88,6 @@
   "Set_ShutdownOnComplete_Hint": "अंतिम डाउनलोड पूरा होने के 30 सेकंड बाद बंद होता है (रद्द किया जा सकता है)।",
   "Set_BrowserIntegration": "ब्राउज़र एकीकरण",
   "Set_BrowserIntegration_Hint": "ब्राउज़र एक्सटेंशन को स्थानीय कनेक्शन के माध्यम से इस ऐप में लिंक भेजने दें।",
-
   "Sec_AppUpdates": "ऐप और अपडेट",
   "Set_SystemTray": "सिस्टम ट्रे में चलता रखें",
   "Set_SystemTray_Hint": "विंडो बंद करने पर डाउनलोड पृष्ठभूमि में चलते रहते हैं।",
@@ -106,14 +96,12 @@
   "Set_AutoUpdate": "अपडेट स्वतः जाँचें",
   "Set_AutoUpdate_Hint": "GitHub पर नया संस्करण उपलब्ध होने पर बताता है।",
   "Btn_CheckUpdate": "अपडेट जाँचें",
-
   "Sec_Logging": "लॉगिंग",
   "Set_WriteLog": "एक लॉग फ़ाइल लिखें",
   "Set_WriteLog_Hint": "समस्याओं के निदान हेतु ऐप और डाउनलोड इंजन की गतिविधि रिकॉर्ड करता है। डिफ़ॉल्ट रूप से बंद।",
   "Btn_OpenLogs": "लॉग फ़ोल्डर खोलें",
   "Btn_ExportLog": "लॉग निर्यात करें…",
   "Btn_EmailLogs": "डेवलपर को लॉग ईमेल करें",
-
   "Adv_Header": "उन्नत",
   "Set_BufferBlock": "बफ़र ब्लॉक आकार (बाइट्स)",
   "Set_MaxRetries": "विफलता पर अधिकतम पुनः प्रयास",
@@ -127,7 +115,6 @@
   "Set_ClearOnFail": "डाउनलोड विफल होने पर पैकेज साफ़ करें",
   "Set_FileExists": "जब फ़ाइल पहले से मौजूद हो",
   "Set_FileExt": "प्रगति-में फ़ाइल एक्सटेंशन",
-
   "Net_Header": "नेटवर्क और अनुरोध हेडर",
   "Net_Hint": "कठिन सर्वरों के लिए उन्नत HTTP विकल्प — आमतौर पर इन्हें वैसे ही छोड़ना सुरक्षित है।",
   "Set_UserAgent": "User agent",
@@ -139,9 +126,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "प्रॉक्सी",
   "Set_ProxyPlaceholder": "http://host:port (कोई नहीं हेतु खाली छोड़ें)",
-
   "About_Desc": "क्रॉस-प्लेटफ़ॉर्म डाउनलोड प्रबंधक। कोई इंस्टॉलेशन या निर्भरता आवश्यक नहीं।",
-
   "Det_Title": "डाउनलोड विवरण",
   "Det_SourceUrl": "स्रोत URL",
   "Det_Mirrors": "मिरर URL ({0})",
@@ -161,7 +146,6 @@
   "Det_Col_Total": "कुल",
   "Det_ConnAppear": "फ़ाइल डाउनलोड होते समय कनेक्शन यहाँ दिखते हैं।",
   "Btn_Close": "बंद करें",
-
   "Queues_Title": "क़तारें",
   "Queues_Add": "नई क़तार",
   "Queues_MaxConcurrent": "अधिकतम समवर्ती",
@@ -179,7 +163,6 @@
   "Queues_MoveUp": "ऊपर ले जाएँ (पहले शुरू करें)",
   "Queues_MoveDown": "नीचे ले जाएँ (बाद में शुरू करें)",
   "Queues_MoveTo": "दूसरी क़तार में ले जाएँ",
-
   "Sched_Title": "शेड्यूलर",
   "Sched_Add": "नया शेड्यूल",
   "Sched_Desc": "निर्धारित समय पर क़तार स्वतः शुरू और बंद करें।",
@@ -193,5 +176,19 @@
   "Sched_OnceOn": "एक बार",
   "Sched_OnceOff": "दोहराएँ",
   "Sched_Queue": "क़तार",
-  "Sched_Remove": "हटाएँ"
+  "Sched_Remove": "हटाएँ",
+  "Col_TimeLeft": "शेष समय",
+  "About_Title": "परिचय",
+  "About_Version": "संस्करण {0}",
+  "About_DevelopedWith": "आपके लिए ❤ से बनाया गया",
+  "About_Donate": "दान करें",
+  "About_Sec1_Title": "मुफ़्त और ओपन सोर्स",
+  "About_Sec1_Sub": "सोर्स कोड देखें",
+  "About_Sec2_Title": "Downloader इंजन द्वारा संचालित",
+  "About_Sec2_Sub": "ओपन-सोर्स इंजन देखें",
+  "About_Sec3_Title": "कई भाषाओं में उपलब्ध",
+  "About_Sec3_Sub": "ऐप का अनुवाद करने में मदद करें",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "टेलीग्राम",
+  "Contact_Email": "ईमेल"
 }

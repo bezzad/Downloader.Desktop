@@ -147,6 +147,32 @@ public class LogicTests
         Assert.Equal(expected, BrowserIntegrationService.ExtractUrl(new System.Uri(requestUri)));
     }
 
+    [Theory]
+    [InlineData(45, "45s")]
+    [InlineData(83, "1m 23s")]
+    [InlineData(3900, "1h 5m")]
+    [InlineData(-1, "—")]
+    public void FormatDuration_is_compact(double seconds, string expected)
+    {
+        Assert.Equal(expected, DownloadItemViewModel.FormatDuration(seconds));
+    }
+
+    [Fact]
+    public void FormatDuration_handles_non_finite()
+    {
+        Assert.Equal("—", DownloadItemViewModel.FormatDuration(double.PositiveInfinity));
+        Assert.Equal("—", DownloadItemViewModel.FormatDuration(double.NaN));
+    }
+
+    [Fact]
+    public void About_links_are_wellformed()
+    {
+        Assert.StartsWith("https://github.com/bezzad", AboutViewModel.RepoUrl);
+        Assert.Contains("Donate.md", AboutViewModel.DonateUrl);
+        Assert.Equal("https://t.me/bezzad", AboutViewModel.TelegramUrl);
+        Assert.Contains("@", AboutViewModel.Email);
+    }
+
     [Fact]
     public void Localizer_lists_all_shipped_languages()
     {

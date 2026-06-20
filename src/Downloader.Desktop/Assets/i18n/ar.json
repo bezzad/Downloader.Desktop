@@ -149,5 +149,19 @@
   "Set_ShutdownOnComplete": "إيقاف تشغيل الكمبيوتر عند انتهاء جميع التنزيلات",
   "Set_ShutdownOnComplete_Hint": "يتوقف بعد 30 ثانية من اكتمال آخر تنزيل (قابل للإلغاء).",
   "Set_BrowserIntegration": "التكامل مع المتصفح",
-  "Set_BrowserIntegration_Hint": "يسمح لإضافة المتصفح بإرسال الروابط إلى هذا التطبيق عبر اتصال محلي."
+  "Set_BrowserIntegration_Hint": "يسمح لإضافة المتصفح بإرسال الروابط إلى هذا التطبيق عبر اتصال محلي.",
+  "Col_TimeLeft": "الوقت المتبقي",
+  "About_Title": "حول",
+  "About_Version": "الإصدار {0}",
+  "About_DevelopedWith": "صُنع بـ ❤ من أجلك",
+  "About_Donate": "تبرّع",
+  "About_Sec1_Title": "مجاني ومفتوح المصدر",
+  "About_Sec1_Sub": "عرض الكود المصدري",
+  "About_Sec2_Title": "مدعوم بمحرك Downloader",
+  "About_Sec2_Sub": "تصفّح المحرك مفتوح المصدر",
+  "About_Sec3_Title": "متوفّر بعدة لغات",
+  "About_Sec3_Sub": "ساعد في ترجمة التطبيق",
+  "Contact_Github": "غيت‌هاب",
+  "Contact_Telegram": "تيليجرام",
+  "Contact_Email": "البريد"
 }

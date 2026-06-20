@@ -149,5 +149,19 @@
   "Set_ShutdownOnComplete": "Malŝalti la komputilon kiam ĉiuj elŝutoj finiĝas",
   "Set_ShutdownOnComplete_Hint": "Malŝaltas 30 sekundojn post la lasta finita elŝuto (nuligebla).",
   "Set_BrowserIntegration": "Retumila integriĝo",
-  "Set_BrowserIntegration_Hint": "Permesas al retumila kromaĵo sendi ligilojn al ĉi tiu aplikaĵo per loka konekto."
+  "Set_BrowserIntegration_Hint": "Permesas al retumila kromaĵo sendi ligilojn al ĉi tiu aplikaĵo per loka konekto.",
+  "Col_TimeLeft": "Restanta tempo",
+  "About_Title": "Pri",
+  "About_Version": "Versio {0}",
+  "About_DevelopedWith": "Farita kun ❤ por vi",
+  "About_Donate": "Donaci",
+  "About_Sec1_Title": "Libera kaj malfermitkoda",
+  "About_Sec1_Sub": "Vidi la fontkodon",
+  "About_Sec2_Title": "Funkciigata de la motoro Downloader",
+  "About_Sec2_Sub": "Foliumi la malfermitkodan motoron",
+  "About_Sec3_Title": "Havebla en pluraj lingvoj",
+  "About_Sec3_Sub": "Helpu traduki la aplikaĵon",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "Retpoŝto"
 }

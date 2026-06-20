@@ -2,7 +2,6 @@
   "Top_PasteLink": "Вставьте ссылки для загрузки…",
   "Top_Add": "Добавить",
   "Top_Search": "Поиск",
-
   "Nav_Status": "СТАТУС",
   "Nav_Manage": "УПРАВЛЕНИЕ",
   "Nav_AllDownloads": "Все загрузки",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "Планировщик",
   "Nav_Settings": "Настройки",
   "Nav_ToggleMenu": "Свернуть / развернуть меню",
-
   "Status_Downloading": "загружается",
   "Status_Queued": "в очереди",
   "Status_Done": "готово",
-
   "Grid_SelectAll": "Выбрать всё",
   "Action_Start": "Старт",
   "Action_Pause": "Пауза",
@@ -33,16 +30,13 @@
   "Action_CopyUrl": "Копировать URL",
   "Action_CopyPath": "Копировать путь",
   "Action_PathCopied": "Путь скопирован!",
-
   "Col_Name": "Имя",
   "Col_Size": "Размер",
   "Col_Progress": "Прогресс",
   "Col_Speed": "Скорость",
-
   "Empty_Title": "Загрузок пока нет",
   "Empty_Hint": "Вставьте ссылку в поле выше и нажмите «Добавить», чтобы начать.",
   "Group_Downloads": "Загрузки",
-
   "State_Queued": "В очереди",
   "State_Paused": "Приостановлено",
   "State_Stopped": "Остановлено",
@@ -52,7 +46,6 @@
   "State_Pending": "Ожидание",
   "Name_Fetching": "Получение имени…",
   "Name_Unnamed": "(без имени)",
-
   "Add_Title": "Добавить загрузку",
   "Add_Links": "Ссылки — по одной в строке",
   "Add_LinksPlaceholder": "https://…  (вставьте несколько ссылок, по одной в строке, чтобы загрузить все в папку ниже)",
@@ -63,7 +56,6 @@
   "Add_Queue": "Очередь",
   "Add_Download": "Загрузить",
   "Tooltip_Browse": "Обзор",
-
   "Settings_Title": "Настройки",
   "Settings_Reset": "Сбросить по умолчанию",
   "Settings_ResetTip": "Восстановить все настройки до значений по умолчанию",
@@ -86,7 +78,6 @@
   "Set_Notifications_Hint": "Главный переключатель для уведомлений ниже.",
   "Set_Language": "Язык приложения",
   "Set_Language_Hint": "Выберите язык интерфейса.",
-
   "Sec_Notifications": "УВЕДОМЛЕНИЯ",
   "Set_NotifyComplete": "При завершении загрузки",
   "Set_NotifyFailed": "При ошибке загрузки",
@@ -97,7 +88,6 @@
   "Set_ShutdownOnComplete_Hint": "Выключение через 30 секунд после последней загрузки (можно отменить).",
   "Set_BrowserIntegration": "Интеграция с браузером",
   "Set_BrowserIntegration_Hint": "Позволяет расширению браузера отправлять ссылки в это приложение через локальное соединение.",
-
   "Sec_AppUpdates": "ПРИЛОЖЕНИЕ И ОБНОВЛЕНИЯ",
   "Set_SystemTray": "Оставлять работать в системном трее",
   "Set_SystemTray_Hint": "При закрытии окна загрузки продолжаются в фоне.",
@@ -106,14 +96,12 @@
   "Set_AutoUpdate": "Автоматически проверять обновления",
   "Set_AutoUpdate_Hint": "Сообщает, когда на GitHub доступна новая версия.",
   "Btn_CheckUpdate": "Проверить обновления",
-
   "Sec_Logging": "ЖУРНАЛ",
   "Set_WriteLog": "Записывать файл журнала",
   "Set_WriteLog_Hint": "Записывает активность приложения и движка загрузок для диагностики проблем. По умолчанию выключено.",
   "Btn_OpenLogs": "Открыть папку журналов",
   "Btn_ExportLog": "Экспортировать журнал…",
   "Btn_EmailLogs": "Отправить журналы разработчику",
-
   "Adv_Header": "Дополнительно",
   "Set_BufferBlock": "Размер блока буфера (байт)",
   "Set_MaxRetries": "Макс. попыток при ошибке",
@@ -127,7 +115,6 @@
   "Set_ClearOnFail": "Очищать пакет при ошибке загрузки",
   "Set_FileExists": "Когда файл уже существует",
   "Set_FileExt": "Расширение файла в процессе",
-
   "Net_Header": "Сеть и заголовки запроса",
   "Net_Hint": "Дополнительные параметры HTTP для проблемных серверов — обычно можно оставить как есть.",
   "Set_UserAgent": "User agent",
@@ -139,9 +126,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Прокси",
   "Set_ProxyPlaceholder": "http://host:port (оставьте пустым, если не нужен)",
-
   "About_Desc": "Кроссплатформенный менеджер загрузок. Установка и зависимости не требуются.",
-
   "Det_Title": "Сведения о загрузке",
   "Det_SourceUrl": "URL источника",
   "Det_Mirrors": "URL зеркал ({0})",
@@ -161,7 +146,6 @@
   "Det_Col_Total": "Всего",
   "Det_ConnAppear": "Соединения появляются здесь во время загрузки файла.",
   "Btn_Close": "Закрыть",
-
   "Queues_Title": "Очереди",
   "Queues_Add": "Новая очередь",
   "Queues_MaxConcurrent": "Макс. одновременно",
@@ -179,7 +163,6 @@
   "Queues_MoveUp": "Вверх (запустить раньше)",
   "Queues_MoveDown": "Вниз (запустить позже)",
   "Queues_MoveTo": "Переместить в другую очередь",
-
   "Sched_Title": "Планировщик",
   "Sched_Add": "Новое расписание",
   "Sched_Desc": "Автоматически запускает и останавливает очередь в заданное время.",
@@ -193,5 +176,19 @@
   "Sched_OnceOn": "Один раз",
   "Sched_OnceOff": "Повторять",
   "Sched_Queue": "Очередь",
-  "Sched_Remove": "Удалить"
+  "Sched_Remove": "Удалить",
+  "Col_TimeLeft": "Осталось",
+  "About_Title": "О программе",
+  "About_Version": "Версия {0}",
+  "About_DevelopedWith": "Сделано с ❤ для вас",
+  "About_Donate": "Поддержать",
+  "About_Sec1_Title": "Бесплатно и с открытым кодом",
+  "About_Sec1_Sub": "Посмотреть исходный код",
+  "About_Sec2_Title": "На движке Downloader",
+  "About_Sec2_Sub": "Открыть движок с открытым кодом",
+  "About_Sec3_Title": "Доступно на многих языках",
+  "About_Sec3_Sub": "Помочь с переводом",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "Эл. почта"
 }

@@ -149,5 +149,19 @@
   "Set_ShutdownOnComplete": "Éteindre l'ordinateur quand tous les téléchargements sont terminés",
   "Set_ShutdownOnComplete_Hint": "S'éteint 30 secondes après le dernier téléchargement terminé (annulable).",
   "Set_BrowserIntegration": "Intégration au navigateur",
-  "Set_BrowserIntegration_Hint": "Permet à une extension de navigateur d'envoyer des liens à cette application via une connexion locale."
+  "Set_BrowserIntegration_Hint": "Permet à une extension de navigateur d'envoyer des liens à cette application via une connexion locale.",
+  "Col_TimeLeft": "Temps restant",
+  "About_Title": "À propos",
+  "About_Version": "Version {0}",
+  "About_DevelopedWith": "Conçu avec ❤ pour vous",
+  "About_Donate": "Faire un don",
+  "About_Sec1_Title": "Libre et open source",
+  "About_Sec1_Sub": "Voir le code source",
+  "About_Sec2_Title": "Propulsé par le moteur Downloader",
+  "About_Sec2_Sub": "Parcourir le moteur open source",
+  "About_Sec3_Title": "Disponible en plusieurs langues",
+  "About_Sec3_Sub": "Aidez à traduire l'application",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "E-mail"
 }

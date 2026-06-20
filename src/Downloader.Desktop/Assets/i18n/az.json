@@ -174,5 +174,19 @@
   "Set_ShutdownOnComplete": "Bütün yükləmələr bitdikdə kompüteri söndür",
   "Set_ShutdownOnComplete_Hint": "Son yükləmə tamamlandıqdan 30 saniyə sonra söndürülür (ləğv edilə bilər).",
   "Set_BrowserIntegration": "Brauzer inteqrasiyası",
-  "Set_BrowserIntegration_Hint": "Brauzer genişlənməsinə yerli bağlantı vasitəsilə bu tətbiqə keçidlər göndərməyə imkan verir."
+  "Set_BrowserIntegration_Hint": "Brauzer genişlənməsinə yerli bağlantı vasitəsilə bu tətbiqə keçidlər göndərməyə imkan verir.",
+  "Col_TimeLeft": "Qalan vaxt",
+  "About_Title": "Haqqında",
+  "About_Version": "Versiya {0}",
+  "About_DevelopedWith": "Sizin üçün ❤ ilə hazırlanıb",
+  "About_Donate": "İanə et",
+  "About_Sec1_Title": "Pulsuz və açıq mənbə",
+  "About_Sec1_Sub": "Mənbə kodunu gör",
+  "About_Sec2_Title": "Downloader mühərriki ilə işləyir",
+  "About_Sec2_Sub": "Açıq mənbə mühərrikinə bax",
+  "About_Sec3_Title": "Bir çox dildə mövcuddur",
+  "About_Sec3_Sub": "Tətbiqi tərcümə etməyə kömək et",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "E-poçt"
 }

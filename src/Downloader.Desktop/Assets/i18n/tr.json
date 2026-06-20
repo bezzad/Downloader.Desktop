@@ -174,5 +174,19 @@
   "Set_ShutdownOnComplete": "Tüm indirmeler bittiğinde bilgisayarı kapat",
   "Set_ShutdownOnComplete_Hint": "Son indirme tamamlandıktan 30 saniye sonra kapanır (iptal edilebilir).",
   "Set_BrowserIntegration": "Tarayıcı entegrasyonu",
-  "Set_BrowserIntegration_Hint": "Bir tarayıcı uzantısının yerel bir bağlantı üzerinden bu uygulamaya bağlantı göndermesine izin verir."
+  "Set_BrowserIntegration_Hint": "Bir tarayıcı uzantısının yerel bir bağlantı üzerinden bu uygulamaya bağlantı göndermesine izin verir.",
+  "Col_TimeLeft": "Kalan süre",
+  "About_Title": "Hakkında",
+  "About_Version": "Sürüm {0}",
+  "About_DevelopedWith": "Sizin için ❤ ile yapıldı",
+  "About_Donate": "Bağış yap",
+  "About_Sec1_Title": "Ücretsiz ve açık kaynak",
+  "About_Sec1_Sub": "Kaynak kodunu görüntüle",
+  "About_Sec2_Title": "Downloader motoruyla güçlendirildi",
+  "About_Sec2_Sub": "Açık kaynak motoru incele",
+  "About_Sec3_Title": "Birçok dilde mevcut",
+  "About_Sec3_Sub": "Uygulamayı çevirmeye yardım et",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "E-posta"
 }

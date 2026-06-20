@@ -2,7 +2,6 @@
   "Top_PasteLink": "ダウンロードリンクを貼り付け…",
   "Top_Add": "追加",
   "Top_Search": "検索",
-
   "Nav_Status": "ステータス",
   "Nav_Manage": "管理",
   "Nav_AllDownloads": "すべてのダウンロード",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "スケジューラー",
   "Nav_Settings": "設定",
   "Nav_ToggleMenu": "メニューを折りたたむ / 展開",
-
   "Status_Downloading": "ダウンロード中",
   "Status_Queued": "待機中",
   "Status_Done": "完了",
-
   "Grid_SelectAll": "すべて選択",
   "Action_Start": "開始",
   "Action_Pause": "一時停止",
@@ -33,16 +30,13 @@
   "Action_CopyUrl": "URL をコピー",
   "Action_CopyPath": "パスをコピー",
   "Action_PathCopied": "パスをコピーしました！",
-
   "Col_Name": "名前",
   "Col_Size": "サイズ",
   "Col_Progress": "進捗",
   "Col_Speed": "速度",
-
   "Empty_Title": "ダウンロードはまだありません",
   "Empty_Hint": "上のボックスにリンクを貼り付けて「追加」をクリックして開始します。",
   "Group_Downloads": "ダウンロード",
-
   "State_Queued": "待機中",
   "State_Paused": "一時停止",
   "State_Stopped": "停止",
@@ -52,7 +46,6 @@
   "State_Pending": "保留中",
   "Name_Fetching": "名前を取得中…",
   "Name_Unnamed": "（名称未設定）",
-
   "Add_Title": "ダウンロードを追加",
   "Add_Links": "リンク — 1 行に 1 つ",
   "Add_LinksPlaceholder": "https://…  （1 行に 1 つずつ複数のリンクを貼り付けると、すべて下のフォルダーにダウンロードします）",
@@ -63,7 +56,6 @@
   "Add_Queue": "キュー",
   "Add_Download": "ダウンロード",
   "Tooltip_Browse": "参照",
-
   "Settings_Title": "設定",
   "Settings_Reset": "既定値にリセット",
   "Settings_ResetTip": "すべての設定を既定値に戻します",
@@ -86,7 +78,6 @@
   "Set_Notifications_Hint": "以下の通知のメインスイッチ。",
   "Set_Language": "アプリの言語",
   "Set_Language_Hint": "インターフェースの言語を選択します。",
-
   "Sec_Notifications": "通知",
   "Set_NotifyComplete": "ダウンロードが完了したとき",
   "Set_NotifyFailed": "ダウンロードが失敗したとき",
@@ -97,7 +88,6 @@
   "Set_ShutdownOnComplete_Hint": "最後のダウンロード完了の 30 秒後にシャットダウンします（キャンセル可）。",
   "Set_BrowserIntegration": "ブラウザー連携",
   "Set_BrowserIntegration_Hint": "ブラウザー拡張機能がローカル接続でこのアプリにリンクを送れるようにします。",
-
   "Sec_AppUpdates": "アプリと更新",
   "Set_SystemTray": "システムトレイで実行し続ける",
   "Set_SystemTray_Hint": "ウィンドウを閉じてもダウンロードはバックグラウンドで続行します。",
@@ -106,14 +96,12 @@
   "Set_AutoUpdate": "更新を自動的に確認する",
   "Set_AutoUpdate_Hint": "GitHub に新しいバージョンがあるとお知らせします。",
   "Btn_CheckUpdate": "更新を確認",
-
   "Sec_Logging": "ログ",
   "Set_WriteLog": "ログファイルを書き込む",
   "Set_WriteLog_Hint": "問題診断のためにアプリとダウンロードエンジンの動作を記録します。既定ではオフ。",
   "Btn_OpenLogs": "ログフォルダーを開く",
   "Btn_ExportLog": "ログをエクスポート…",
   "Btn_EmailLogs": "開発者にログをメール送信",
-
   "Adv_Header": "詳細設定",
   "Set_BufferBlock": "バッファブロックサイズ（バイト）",
   "Set_MaxRetries": "失敗時の最大再試行回数",
@@ -127,7 +115,6 @@
   "Set_ClearOnFail": "ダウンロード失敗時にパッケージを削除",
   "Set_FileExists": "ファイルが既に存在する場合",
   "Set_FileExt": "進行中ファイルの拡張子",
-
   "Net_Header": "ネットワークとリクエストヘッダー",
   "Net_Hint": "扱いにくいサーバー向けの高度な HTTP オプション — 通常はそのままで問題ありません。",
   "Set_UserAgent": "User agent",
@@ -139,9 +126,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "プロキシ",
   "Set_ProxyPlaceholder": "http://host:port（不要な場合は空欄）",
-
   "About_Desc": "クロスプラットフォームのダウンロードマネージャー。インストールや依存関係は不要です。",
-
   "Det_Title": "ダウンロードの詳細",
   "Det_SourceUrl": "ソース URL",
   "Det_Mirrors": "ミラー URL ({0})",
@@ -161,7 +146,6 @@
   "Det_Col_Total": "合計",
   "Det_ConnAppear": "ファイルのダウンロード中に接続がここに表示されます。",
   "Btn_Close": "閉じる",
-
   "Queues_Title": "キュー",
   "Queues_Add": "新しいキュー",
   "Queues_MaxConcurrent": "最大同時数",
@@ -179,7 +163,6 @@
   "Queues_MoveUp": "上へ（早く開始）",
   "Queues_MoveDown": "下へ（後で開始）",
   "Queues_MoveTo": "別のキューに移動",
-
   "Sched_Title": "スケジューラー",
   "Sched_Add": "新しいスケジュール",
   "Sched_Desc": "設定した時刻にキューを自動的に開始・停止します。",
@@ -193,5 +176,19 @@
   "Sched_OnceOn": "一度",
   "Sched_OnceOff": "繰り返し",
   "Sched_Queue": "キュー",
-  "Sched_Remove": "削除"
+  "Sched_Remove": "削除",
+  "Col_TimeLeft": "残り時間",
+  "About_Title": "このアプリについて",
+  "About_Version": "バージョン {0}",
+  "About_DevelopedWith": "あなたのために ❤ を込めて",
+  "About_Donate": "寄付",
+  "About_Sec1_Title": "無料・オープンソース",
+  "About_Sec1_Sub": "ソースコードを見る",
+  "About_Sec2_Title": "Downloader エンジンを搭載",
+  "About_Sec2_Sub": "オープンソースのエンジンを見る",
+  "About_Sec3_Title": "多言語に対応",
+  "About_Sec3_Sub": "アプリの翻訳に協力する",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "メール"
 }

@@ -266,6 +266,67 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void SelectAll_header_is_tri_state_and_drives_selection()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip" }, autoStart: false);
+
+        Assert.False(view.SelectAllState);   // none checked → false
+        Assert.False(view.HasSelection);
+
+        a.IsChecked = true;
+        Assert.Null(view.SelectAllState);     // some checked → indeterminate
+        Assert.True(view.HasSelection);
+
+        b.IsChecked = true;
+        Assert.True(view.SelectAllState);     // all checked → true
+
+        view.SelectAllState = false;          // setting clears every row
+        Assert.False(a.IsChecked);
+        Assert.False(b.IsChecked);
+
+        view.SelectAllState = true;           // setting selects every row
+        Assert.True(a.IsChecked);
+        Assert.True(b.IsChecked);
+    }
+
+    [AvaloniaFact]
+    public void Selected_bulk_commands_disable_without_selection()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        Assert.False(((System.Windows.Input.ICommand)view.StartSelectedCommand).CanExecute(null));
+        Assert.False(((System.Windows.Input.ICommand)view.RemoveSelectedCommand).CanExecute(null));
+        // Stop-all is selection-independent — always available.
+        Assert.True(((System.Windows.Input.ICommand)view.StopAllCommand).CanExecute(null));
+
+        a.IsChecked = true;
+        Assert.True(((System.Windows.Input.ICommand)view.StartSelectedCommand).CanExecute(null));
+        Assert.True(((System.Windows.Input.ICommand)view.StopSelectedCommand).CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void TimeLeft_reflects_remaining_over_speed()
+    {
+        var item = new DownloadItem { Status = DownloadStatus.Running };
+        var vm = new DownloadItemViewModel(item, null) { Status = DownloadStatus.Running };
+        vm.Size = 1000;
+        vm.Downloaded = 200;
+        vm.Speed = 100;                 // 800 bytes / 100 B/s = 8s
+        Assert.Equal("8s", vm.TimeLeftText);
+
+        vm.Status = DownloadStatus.Paused;
+        Assert.Equal("—", vm.TimeLeftText);
+    }
+
+    [AvaloniaFact]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();

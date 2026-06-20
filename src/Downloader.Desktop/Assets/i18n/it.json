@@ -2,7 +2,6 @@
   "Top_PasteLink": "Incolla i link da scaricare…",
   "Top_Add": "Aggiungi",
   "Top_Search": "Cerca",
-
   "Nav_Status": "STATO",
   "Nav_Manage": "GESTISCI",
   "Nav_AllDownloads": "Tutti i download",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "Pianificazione",
   "Nav_Settings": "Impostazioni",
   "Nav_ToggleMenu": "Comprimi / espandi menu",
-
   "Status_Downloading": "in download",
   "Status_Queued": "in coda",
   "Status_Done": "completati",
-
   "Grid_SelectAll": "Seleziona tutto",
   "Action_Start": "Avvia",
   "Action_Pause": "Pausa",
@@ -33,16 +30,13 @@
   "Action_CopyUrl": "Copia URL",
   "Action_CopyPath": "Copia percorso",
   "Action_PathCopied": "Percorso copiato!",
-
   "Col_Name": "Nome",
   "Col_Size": "Dimensione",
   "Col_Progress": "Avanzamento",
   "Col_Speed": "Velocità",
-
   "Empty_Title": "Ancora nessun download",
   "Empty_Hint": "Incolla un link nella casella sopra e clicca Aggiungi per iniziare.",
   "Group_Downloads": "Download",
-
   "State_Queued": "In coda",
   "State_Paused": "In pausa",
   "State_Stopped": "Fermato",
@@ -52,7 +46,6 @@
   "State_Pending": "In attesa",
   "Name_Fetching": "Recupero nome…",
   "Name_Unnamed": "(senza nome)",
-
   "Add_Title": "Aggiungi download",
   "Add_Links": "Link — uno per riga",
   "Add_LinksPlaceholder": "https://…  (incolla più link, uno per riga, per scaricarli tutti nella cartella sotto)",
@@ -63,7 +56,6 @@
   "Add_Queue": "Coda",
   "Add_Download": "Scarica",
   "Tooltip_Browse": "Sfoglia",
-
   "Settings_Title": "Impostazioni",
   "Settings_Reset": "Ripristina predefiniti",
   "Settings_ResetTip": "Ripristina ogni impostazione al valore predefinito",
@@ -86,7 +78,6 @@
   "Set_Notifications_Hint": "Interruttore principale per gli avvisi sotto.",
   "Set_Language": "Lingua dell'app",
   "Set_Language_Hint": "Scegli la lingua dell'interfaccia.",
-
   "Sec_Notifications": "NOTIFICHE",
   "Set_NotifyComplete": "Quando un download è completato",
   "Set_NotifyFailed": "Quando un download fallisce",
@@ -97,7 +88,6 @@
   "Set_ShutdownOnComplete_Hint": "Si spegne 30 secondi dopo l'ultimo download completato (annullabile).",
   "Set_BrowserIntegration": "Integrazione con il browser",
   "Set_BrowserIntegration_Hint": "Permetti a un'estensione del browser di inviare link a questa app tramite una connessione locale.",
-
   "Sec_AppUpdates": "APP E AGGIORNAMENTI",
   "Set_SystemTray": "Mantieni in esecuzione nell'area di notifica",
   "Set_SystemTray_Hint": "Chiudendo la finestra i download continuano in background.",
@@ -106,14 +96,12 @@
   "Set_AutoUpdate": "Controlla automaticamente gli aggiornamenti",
   "Set_AutoUpdate_Hint": "Ti avvisa quando è disponibile una nuova versione su GitHub.",
   "Btn_CheckUpdate": "Controlla aggiornamenti",
-
   "Sec_Logging": "REGISTRO",
   "Set_WriteLog": "Scrivi un file di log",
   "Set_WriteLog_Hint": "Registra l'attività dell'app e del motore di download per diagnosticare i problemi. Disattivato per impostazione predefinita.",
   "Btn_OpenLogs": "Apri cartella dei log",
   "Btn_ExportLog": "Esporta log…",
   "Btn_EmailLogs": "Invia i log allo sviluppatore",
-
   "Adv_Header": "Avanzate",
   "Set_BufferBlock": "Dimensione blocco buffer (byte)",
   "Set_MaxRetries": "Tentativi massimi in caso di errore",
@@ -127,7 +115,6 @@
   "Set_ClearOnFail": "Cancella il pacchetto quando un download fallisce",
   "Set_FileExists": "Quando il file esiste già",
   "Set_FileExt": "Estensione del file in corso",
-
   "Net_Header": "Rete e intestazioni della richiesta",
   "Net_Hint": "Opzioni HTTP avanzate per server problematici — di solito è sicuro lasciarle invariate.",
   "Set_UserAgent": "User agent",
@@ -139,9 +126,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
   "Set_ProxyPlaceholder": "http://host:porta (lascia vuoto per nessuno)",
-
   "About_Desc": "Gestore di download multipiattaforma. Nessuna installazione o dipendenza richiesta.",
-
   "Det_Title": "Dettagli download",
   "Det_SourceUrl": "URL di origine",
   "Det_Mirrors": "URL mirror ({0})",
@@ -161,7 +146,6 @@
   "Det_Col_Total": "Totale",
   "Det_ConnAppear": "Le connessioni appaiono qui durante il download del file.",
   "Btn_Close": "Chiudi",
-
   "Queues_Title": "Code",
   "Queues_Add": "Nuova coda",
   "Queues_MaxConcurrent": "Max simultanei",
@@ -179,7 +163,6 @@
   "Queues_MoveUp": "Sposta su (avvia prima)",
   "Queues_MoveDown": "Sposta giù (avvia dopo)",
   "Queues_MoveTo": "Sposta in un'altra coda",
-
   "Sched_Title": "Pianificazione",
   "Sched_Add": "Nuova pianificazione",
   "Sched_Desc": "Avvia e ferma una coda automaticamente a orari prestabiliti.",
@@ -193,5 +176,19 @@
   "Sched_OnceOn": "Una volta",
   "Sched_OnceOff": "Ripeti",
   "Sched_Queue": "Coda",
-  "Sched_Remove": "Rimuovi"
+  "Sched_Remove": "Rimuovi",
+  "Col_TimeLeft": "Tempo rimanente",
+  "About_Title": "Informazioni",
+  "About_Version": "Versione {0}",
+  "About_DevelopedWith": "Fatto con ❤ per te",
+  "About_Donate": "Dona",
+  "About_Sec1_Title": "Libero e open source",
+  "About_Sec1_Sub": "Vedi il codice sorgente",
+  "About_Sec2_Title": "Basato sul motore Downloader",
+  "About_Sec2_Sub": "Esplora il motore open source",
+  "About_Sec3_Title": "Disponibile in molte lingue",
+  "About_Sec3_Sub": "Aiuta a tradurre l'app",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "Email"
 }

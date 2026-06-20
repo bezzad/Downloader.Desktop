@@ -149,5 +149,19 @@
   "Set_ShutdownOnComplete": "Apagar el equipo cuando terminen todas las descargas",
   "Set_ShutdownOnComplete_Hint": "Se apaga 30 segundos después de la última descarga completada (cancelable).",
   "Set_BrowserIntegration": "Integración con el navegador",
-  "Set_BrowserIntegration_Hint": "Permite que una extensión del navegador envíe enlaces a esta app mediante una conexión local."
+  "Set_BrowserIntegration_Hint": "Permite que una extensión del navegador envíe enlaces a esta app mediante una conexión local.",
+  "Col_TimeLeft": "Tiempo restante",
+  "About_Title": "Acerca de",
+  "About_Version": "Versión {0}",
+  "About_DevelopedWith": "Hecho con ❤ para ti",
+  "About_Donate": "Donar",
+  "About_Sec1_Title": "Libre y de código abierto",
+  "About_Sec1_Sub": "Ver el código fuente",
+  "About_Sec2_Title": "Impulsado por el motor Downloader",
+  "About_Sec2_Sub": "Explorar el motor de código abierto",
+  "About_Sec3_Title": "Disponible en varios idiomas",
+  "About_Sec3_Sub": "Ayuda a traducir la app",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "Correo"
 }

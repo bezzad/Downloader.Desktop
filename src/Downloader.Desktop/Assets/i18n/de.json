@@ -174,5 +174,19 @@
   "Set_ShutdownOnComplete": "Computer herunterfahren, wenn alle Downloads fertig sind",
   "Set_ShutdownOnComplete_Hint": "Fährt 30 Sekunden nach dem letzten abgeschlossenen Download herunter (abbrechbar).",
   "Set_BrowserIntegration": "Browser-Integration",
-  "Set_BrowserIntegration_Hint": "Erlaubt einer Browser-Erweiterung, Links über eine lokale Verbindung an diese App zu senden."
+  "Set_BrowserIntegration_Hint": "Erlaubt einer Browser-Erweiterung, Links über eine lokale Verbindung an diese App zu senden.",
+  "Col_TimeLeft": "Restzeit",
+  "About_Title": "Über",
+  "About_Version": "Version {0}",
+  "About_DevelopedWith": "Mit ❤ für dich entwickelt",
+  "About_Donate": "Spenden",
+  "About_Sec1_Title": "Frei & quelloffen",
+  "About_Sec1_Sub": "Quellcode ansehen",
+  "About_Sec2_Title": "Angetrieben von der Downloader-Engine",
+  "About_Sec2_Sub": "Open-Source-Engine durchsuchen",
+  "About_Sec3_Title": "In vielen Sprachen verfügbar",
+  "About_Sec3_Sub": "Hilf, die App zu übersetzen",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "E-Mail"
 }

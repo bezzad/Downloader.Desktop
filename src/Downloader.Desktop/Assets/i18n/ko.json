@@ -2,7 +2,6 @@
   "Top_PasteLink": "다운로드 링크 붙여넣기…",
   "Top_Add": "추가",
   "Top_Search": "검색",
-
   "Nav_Status": "상태",
   "Nav_Manage": "관리",
   "Nav_AllDownloads": "모든 다운로드",
@@ -13,11 +12,9 @@
   "Nav_Scheduler": "스케줄러",
   "Nav_Settings": "설정",
   "Nav_ToggleMenu": "메뉴 접기 / 펼치기",
-
   "Status_Downloading": "다운로드 중",
   "Status_Queued": "대기 중",
   "Status_Done": "완료",
-
   "Grid_SelectAll": "모두 선택",
   "Action_Start": "시작",
   "Action_Pause": "일시정지",
@@ -33,16 +30,13 @@
   "Action_CopyUrl": "URL 복사",
   "Action_CopyPath": "경로 복사",
   "Action_PathCopied": "경로가 복사되었습니다!",
-
   "Col_Name": "이름",
   "Col_Size": "크기",
   "Col_Progress": "진행률",
   "Col_Speed": "속도",
-
   "Empty_Title": "아직 다운로드가 없습니다",
   "Empty_Hint": "위 상자에 링크를 붙여넣고 추가를 클릭하여 시작하세요.",
   "Group_Downloads": "다운로드",
-
   "State_Queued": "대기 중",
   "State_Paused": "일시정지됨",
   "State_Stopped": "정지됨",
@@ -52,7 +46,6 @@
   "State_Pending": "보류 중",
   "Name_Fetching": "이름 가져오는 중…",
   "Name_Unnamed": "(이름 없음)",
-
   "Add_Title": "다운로드 추가",
   "Add_Links": "링크 — 한 줄에 하나",
   "Add_LinksPlaceholder": "https://…  (한 줄에 하나씩 여러 링크를 붙여넣으면 모두 아래 폴더로 다운로드됩니다)",
@@ -63,7 +56,6 @@
   "Add_Queue": "대기열",
   "Add_Download": "다운로드",
   "Tooltip_Browse": "찾아보기",
-
   "Settings_Title": "설정",
   "Settings_Reset": "기본값으로 재설정",
   "Settings_ResetTip": "모든 설정을 기본값으로 복원합니다",
@@ -86,7 +78,6 @@
   "Set_Notifications_Hint": "아래 알림의 기본 스위치.",
   "Set_Language": "앱 언어",
   "Set_Language_Hint": "인터페이스 언어를 선택하세요.",
-
   "Sec_Notifications": "알림",
   "Set_NotifyComplete": "다운로드가 완료될 때",
   "Set_NotifyFailed": "다운로드가 실패할 때",
@@ -97,7 +88,6 @@
   "Set_ShutdownOnComplete_Hint": "마지막 다운로드 완료 30초 후에 종료합니다 (취소 가능).",
   "Set_BrowserIntegration": "브라우저 통합",
   "Set_BrowserIntegration_Hint": "브라우저 확장 프로그램이 로컬 연결로 이 앱에 링크를 보낼 수 있게 합니다.",
-
   "Sec_AppUpdates": "앱 및 업데이트",
   "Set_SystemTray": "시스템 트레이에서 계속 실행",
   "Set_SystemTray_Hint": "창을 닫아도 다운로드가 백그라운드에서 계속됩니다.",
@@ -106,14 +96,12 @@
   "Set_AutoUpdate": "자동으로 업데이트 확인",
   "Set_AutoUpdate_Hint": "GitHub에 새 버전이 있으면 알려줍니다.",
   "Btn_CheckUpdate": "업데이트 확인",
-
   "Sec_Logging": "로깅",
   "Set_WriteLog": "로그 파일 작성",
   "Set_WriteLog_Hint": "문제 진단을 위해 앱과 다운로드 엔진 활동을 기록합니다. 기본적으로 꺼져 있습니다.",
   "Btn_OpenLogs": "로그 폴더 열기",
   "Btn_ExportLog": "로그 내보내기…",
   "Btn_EmailLogs": "개발자에게 로그 이메일 보내기",
-
   "Adv_Header": "고급",
   "Set_BufferBlock": "버퍼 블록 크기 (바이트)",
   "Set_MaxRetries": "실패 시 최대 재시도 횟수",
@@ -127,7 +115,6 @@
   "Set_ClearOnFail": "다운로드 실패 시 패키지 지우기",
   "Set_FileExists": "파일이 이미 있을 때",
   "Set_FileExt": "진행 중 파일 확장자",
-
   "Net_Header": "네트워크 및 요청 헤더",
   "Net_Hint": "까다로운 서버를 위한 고급 HTTP 옵션 — 보통 그대로 두는 것이 안전합니다.",
   "Set_UserAgent": "User agent",
@@ -139,9 +126,7 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "프록시",
   "Set_ProxyPlaceholder": "http://host:port (사용 안 하려면 비워 두세요)",
-
   "About_Desc": "크로스 플랫폼 다운로드 관리자. 설치나 종속성이 필요 없습니다.",
-
   "Det_Title": "다운로드 세부 정보",
   "Det_SourceUrl": "소스 URL",
   "Det_Mirrors": "미러 URL ({0})",
@@ -161,7 +146,6 @@
   "Det_Col_Total": "전체",
   "Det_ConnAppear": "파일을 다운로드하는 동안 연결이 여기에 표시됩니다.",
   "Btn_Close": "닫기",
-
   "Queues_Title": "대기열",
   "Queues_Add": "새 대기열",
   "Queues_MaxConcurrent": "최대 동시",
@@ -179,7 +163,6 @@
   "Queues_MoveUp": "위로 (더 일찍 시작)",
   "Queues_MoveDown": "아래로 (나중에 시작)",
   "Queues_MoveTo": "다른 대기열로 이동",
-
   "Sched_Title": "스케줄러",
   "Sched_Add": "새 일정",
   "Sched_Desc": "설정한 시간에 대기열을 자동으로 시작하고 정지합니다.",
@@ -193,5 +176,19 @@
   "Sched_OnceOn": "한 번",
   "Sched_OnceOff": "반복",
   "Sched_Queue": "대기열",
-  "Sched_Remove": "제거"
+  "Sched_Remove": "제거",
+  "Col_TimeLeft": "남은 시간",
+  "About_Title": "정보",
+  "About_Version": "버전 {0}",
+  "About_DevelopedWith": "당신을 위해 ❤ 으로 제작",
+  "About_Donate": "후원",
+  "About_Sec1_Title": "무료 및 오픈 소스",
+  "About_Sec1_Sub": "소스 코드 보기",
+  "About_Sec2_Title": "Downloader 엔진 기반",
+  "About_Sec2_Sub": "오픈 소스 엔진 둘러보기",
+  "About_Sec3_Title": "여러 언어 지원",
+  "About_Sec3_Sub": "앱 번역 돕기",
+  "Contact_Github": "GitHub",
+  "Contact_Telegram": "Telegram",
+  "Contact_Email": "이메일"
 }
