@@ -24,20 +24,20 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
 esac
 
-echo ">> Finding the latest release..."
-URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-      | grep -o "https://[^\"]*$ASSET" | head -n1)
-if [ -z "${URL:-}" ]; then
-  echo "Could not find $ASSET in the latest release. It may not be published for your architecture yet."
-  echo "See https://github.com/$REPO/releases"
-  exit 1
-fi
+# Resolve via GitHub's "latest/download" redirect, NOT the API. The api.github.com call is
+# unauthenticated-rate-limited (60/hr per IP) and was returning intermittent 504s; this CDN
+# redirect needs no API and supports curl's transient-error retries (504/503/timeout).
+URL="https://github.com/$REPO/releases/latest/download/$ASSET"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-echo ">> Downloading $ASSET ..."
-curl -fSL "$URL" -o "$TMP/app.tar.gz"
+echo ">> Downloading the latest $ASSET ..."
+if ! curl -fSL --retry 5 --retry-delay 2 "$URL" -o "$TMP/app.tar.gz"; then
+  echo "Could not download $ASSET from the latest release (network error, or it isn't published"
+  echo "for your architecture yet). See https://github.com/$REPO/releases"
+  exit 1
+fi
 
 echo ">> Installing to $APP_DIR ..."
 rm -rf "$APP_DIR"; mkdir -p "$APP_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR"
@@ -55,7 +55,7 @@ for cand in "$APP_DIR/downloader.png" "$APP_DIR/Assets/downloader.png"; do
 done
 if [ -z "$ICON_SRC" ]; then
   echo ">> Fetching app icon ..."
-  if curl -fsSL "$ICON_URL" -o "$APP_DIR/downloader.png"; then
+  if curl -fsSL --retry 5 --retry-delay 2 "$ICON_URL" -o "$APP_DIR/downloader.png"; then
     ICON_SRC="$APP_DIR/downloader.png"
   fi
 fi
