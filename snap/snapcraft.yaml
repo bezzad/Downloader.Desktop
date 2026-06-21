@@ -35,6 +35,11 @@ apps:
     environment:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "0"
+      # The single-file build self-extracts native libs (libSkiaSharp.so, …) on first run.
+      # Its default target is ~/.cache/dotnet_bundle_extract, but under strict confinement the
+      # `home` interface denies hidden dot-dirs like ~/.cache → EACCES (error 13) and the app
+      # never launches. Point extraction at $SNAP_USER_COMMON, which is always writable here.
+      DOTNET_BUNDLE_EXTRACT_BASE_DIR: $SNAP_USER_COMMON/.dotnet_bundle_extract
 
 parts:
   # Sets the snap version from snap/local/VERSION (written by scripts/build-snap.sh / CI).
