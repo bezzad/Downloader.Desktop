@@ -2,14 +2,14 @@
 # Before each release, update `version` and the two `sha256` values (shasum -a 256 <archive>).
 # The release archive contains a proper "Downloader.app" bundle (Spotlight-visible, launches detached).
 cask "downloader" do
-  version "1.3.3"
+  version "1.4.0"
 
   on_arm do
-    sha256 "58fff42ecd8c2c0cd9d19c78ed0345a3e704bed28f0e2fd6e498d6a65a9234b1"
+    sha256 "5e684564fb50f382875bf477b84eb74be9d2fe57656511eb30adc86fa082c109"
     url "https://github.com/bezzad/Downloader.Desktop/releases/download/v#{version}/Downloader-osx-arm64.tar.gz"
   end
   on_intel do
-    sha256 "ca857f70b797948968881e509e0417873d11cabb3e8c86d1d34c3b3d878ff328"
+    sha256 "465d95f3cc35fe3d5b9363375b03c160290d3ba6ae74e016757653c914c2c9a6"
     url "https://github.com/bezzad/Downloader.Desktop/releases/download/v#{version}/Downloader-osx-x64.tar.gz"
   end
 
