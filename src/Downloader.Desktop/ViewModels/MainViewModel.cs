@@ -157,7 +157,7 @@ public class MainViewModel : ViewModelBase
         AppLog.SetEnabled(_config.Settings.EnableLogging);
         NotificationService.Enabled = _config.Settings.EnableNotifications;
         Localizer.Instance.Load(_config.Settings.Language);
-        Application.Current!.RequestedThemeVariant = _config.ThemeMode;
+        ThemeService.Apply(_config); // theme variant + chosen accent
 
         _downloadManager.Initialize(_config);
         Downloads = new DownloadsViewModel(_downloadManager);
@@ -199,6 +199,7 @@ public class MainViewModel : ViewModelBase
             SaveSoon();
         };
         UpdateFlow.RequestQuit = Quit;
+        UpdateFlow.PromptUpdate = info => DialogHelper.ShowUpdatePrompt(info); // in-app Download/Later dialog
 
         if (_config.Settings.EnableSystemTray)
             TrayService.Enable();

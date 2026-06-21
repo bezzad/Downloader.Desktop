@@ -119,7 +119,9 @@ public static class SingleInstanceService
     private static void Dispatch(string msg)
     {
         if (_onMessage != null)
-            _onMessage(msg);
+            // AcceptLoop runs on a background thread; the handler touches the window (Show/Activate),
+            // which MUST happen on the UI thread or it silently no-ops (the "relaunch does nothing" bug).
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _onMessage?.Invoke(msg));
         else
             lock (_pending) _pending.Add(msg); // buffer until the app wires its handler
     }

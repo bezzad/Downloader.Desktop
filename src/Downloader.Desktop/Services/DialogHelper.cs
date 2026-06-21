@@ -71,6 +71,19 @@ public static class DialogHelper
         await view.ShowDialog(MainWindow);
     }
 
+    /// <summary>Shows the in-app "update available" prompt (Download / Later). Non-modal Topmost window so
+    /// it's visible even if the main window is hidden in the tray.</summary>
+    public static void ShowUpdatePrompt(UpdateInfo info)
+    {
+        if (info == null)
+            return;
+        var vm = new UpdatePromptViewModel(info.Version, info.ReleaseUrl);
+        var view = new UpdatePromptView { DataContext = vm };
+        vm.CloseRequested += () => { try { view.Close(); } catch { /* already closed */ } };
+        view.Show();
+        view.Activate();
+    }
+
     /// <summary>Asks the user where to save a file; returns the chosen path or null.</summary>
     public static async Task<Uri> SaveFilePicker(string title, string suggestedName)
     {

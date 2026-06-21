@@ -484,4 +484,90 @@ public class AppTests
         manager.MovePriority(b, -1); // move b up past a
         Assert.True(manager.Items.IndexOf(b) < manager.Items.IndexOf(a));
     }
+
+    [AvaloniaTheory]
+    [InlineData(DownloadStatus.Running)]
+    [InlineData(DownloadStatus.Paused)]
+    public void Interrupted_downloads_load_as_stopped(DownloadStatus saved)
+    {
+        // A Running/Paused state can't survive a restart (no live connection), so both must come back
+        // as Stopped — never a misleading "Paused" row.
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Downloads.Add(new DownloadItem { Url = "https://host/x.zip", Status = saved });
+        manager.Initialize(config);
+        Assert.Equal(DownloadStatus.Stopped, manager.Items[0].Status);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(DownloadStatus.Completed)]
+    [InlineData(DownloadStatus.Stopped)]
+    [InlineData(DownloadStatus.Failed)]
+    public void Terminal_states_survive_load(DownloadStatus saved)
+    {
+        // Only Running/Paused are normalized; finished/stopped/failed rows keep their saved state.
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Downloads.Add(new DownloadItem { Url = "https://host/x.zip", Status = saved });
+        manager.Initialize(config);
+        Assert.Equal(saved, manager.Items[0].Status);
+    }
+
+    [AvaloniaFact]
+    public void Accent_applies_color_and_selection_resources()
+    {
+        ThemeService.ApplyAccent("Blue");
+        var res = Avalonia.Application.Current!.Resources;
+        Assert.Equal(ThemeService.Find("Blue").Color, res["SystemAccentColor"]);
+        Assert.True(res.ContainsKey("RowSelectionBrush"));
+        Assert.IsAssignableFrom<IBrush>(res["RowSelectionBrush"]);
+        // Unknown key falls back to the first accent (Teal) rather than throwing.
+        Assert.Equal(ThemeService.Accents[0], ThemeService.Find("does-not-exist"));
+        ThemeService.ApplyAccent("Teal"); // restore default for other tests
+    }
+
+    [AvaloniaFact]
+    public void Every_language_has_a_loadable_flag()
+    {
+        foreach (var lang in Localizer.Languages)
+            Assert.NotNull(lang.Flag); // Assets/flags/{code}.png must be embedded for each language
+    }
+
+    [AvaloniaFact]
+    public void Start_runs_item_even_when_its_queue_was_paused()
+    {
+        // Regression (1.3.2/1.3.3): a persisted queue.IsRunning=false made every per-item Start silently
+        // no-op — the item stuck as "Queued", only rescued later by the scheduler/StartQueue. An explicit
+        // Start (row button / bulk) must un-pause the queue and actually run the item.
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var vm = manager.Add(new DownloadItem { Url = "https://10.255.255.1/f.zip", SaveFolder = "/tmp" }, autoStart: false);
+        vm.Status = DownloadStatus.Stopped;
+        config.DefaultQueue.IsRunning = false; // the stuck precondition (a saved "stopped" queue)
+
+        manager.Resume(vm); // user clicks Start on the row
+
+        Assert.True(config.DefaultQueue.IsRunning);      // explicit Start un-pauses the queue
+        Assert.Equal(DownloadStatus.Running, vm.Status); // item actually started (not stuck as Queued)
+    }
+
+    [AvaloniaFact]
+    public void Removing_a_queue_deactivates_its_schedules()
+    {
+        // Deleting a queue must disable + unbind any schedules pointing at it, so the scheduler can't
+        // act on a now-deleted target (orphaned-schedule bug).
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var q2 = manager.AddQueue("Nightly");
+        var sch = new DownloadSchedule { Name = "nightly", TargetQueueId = q2.Id, Enabled = true };
+        config.Schedules.Add(sch);
+
+        manager.RemoveQueue(q2);
+
+        Assert.DoesNotContain(q2, config.Queues);
+        Assert.False(sch.Enabled);
+        Assert.Null(sch.TargetQueueId);
+    }
 }

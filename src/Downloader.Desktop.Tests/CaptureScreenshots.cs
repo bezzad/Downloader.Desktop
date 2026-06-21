@@ -7,6 +7,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Downloader;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -51,6 +52,24 @@ public class CaptureScreenshots
         var failed = Item("project-photos.zip", 340_000_000, 41_000_000, DownloadStatus.Failed);
         failed.LastError = "Network error: the remote host could not be reached.";
         config.Downloads.Add(failed);
+
+        // Sample schedules so the Scheduler page renders populated cards.
+        config.Schedules.Add(new DownloadSchedule
+        {
+            Name = "Overnight downloads",
+            TargetQueueId = config.DefaultQueue.Id,
+            StartTime = new TimeSpan(1, 0, 0),
+            StopTime = new TimeSpan(7, 0, 0),
+            Enabled = true
+        });
+        config.Schedules.Add(new DownloadSchedule
+        {
+            Name = "Evening catch-up",
+            TargetQueueId = config.DefaultQueue.Id,
+            StartTime = new TimeSpan(20, 30, 0),
+            Once = true,
+            Enabled = false
+        });
         return config;
     }
 
@@ -89,7 +108,7 @@ public class CaptureScreenshots
         var vm = new MainViewModel(new SampleFileService(SampleConfig()), manager);
         Pump();
 
-        // Loaded items are normalized to Paused; show the first two as actively downloading.
+        // Loaded items are normalized to Stopped; show the first two as actively downloading.
         foreach (var row in manager.Items.Take(2))
         {
             row.Status = DownloadStatus.Running;
@@ -101,6 +120,20 @@ public class CaptureScreenshots
 
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         Save(window, "home-dark.png");
+
+        // VERIFY (#row-select): programmatically select a row and capture it so the selected-row text
+        // contrast can be eyeballed in both themes (a headless click only reads as hover, not selection).
+        Pump();
+        var grid = window.GetVisualDescendants().OfType<Avalonia.Controls.DataGrid>().FirstOrDefault();
+        if (grid != null)
+        {
+            grid.SelectedIndex = 1;
+            Save(window, "home-selected-dark.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+            Save(window, "home-selected-light.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            grid.SelectedIndex = -1;
+        }
 
         // VERIFY: click a cell and confirm no per-cell focus/current border appears (#3/#8).
         Avalonia.Headless.HeadlessWindowExtensions.MouseDown(window, new Avalonia.Point(360, 240), Avalonia.Input.MouseButton.Left);
@@ -118,12 +151,35 @@ public class CaptureScreenshots
         Save(window, "settings-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
+        // Settings scrolled to the new Language(flag) + Theme + Accent controls so the accent picker and
+        // the country flag are actually visible in docs (they sit below the fold in the top-of-page shot).
+        Pump();
+        var settingsView = window.GetVisualDescendants().OfType<Downloader.Desktop.Views.SettingView>().FirstOrDefault();
+        var sv = settingsView?.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>().FirstOrDefault();
+        if (sv != null)
+        {
+            sv.Offset = new Avalonia.Vector(0, 215);
+            Save(window, "settings-accent-dark.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+            Save(window, "settings-accent-light.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            sv.Offset = default;
+        }
+
         // Queues page (real queue manager: aggregate stats + per-item progress/actions).
         vm.ShowQueuesCommand.Execute(null);
         Save(window, "queues-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "queues-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // Scheduler page (daily start/stop rules per queue).
+        vm.ShowSchedulerCommand.Execute(null);
+        Save(window, "scheduler-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "scheduler-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
         vm.ShowSettingViewCommand.Execute(null); // leave a known page before the RTL capture
         vm.ShowAllCommand.Execute(null);
 
@@ -139,5 +195,13 @@ public class CaptureScreenshots
         var det = new DownloadDetailsView { DataContext = new DownloadDetailsViewModel(detItem) };
         det.Show();
         Save(det, "details-dark.png");
+
+        // In-app "update available" dialog (Download / Later) — the new user-initiated update prompt.
+        var upd = new UpdatePromptView
+        {
+            DataContext = new UpdatePromptViewModel("1.4.0", "https://github.com/bezzad/Downloader.Desktop/releases")
+        };
+        upd.Show();
+        Save(upd, "update-dialog-dark.png");
     }
 }

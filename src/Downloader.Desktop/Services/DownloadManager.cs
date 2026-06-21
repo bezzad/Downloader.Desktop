@@ -149,9 +149,12 @@ public class DownloadManager : IDownloadManager
         Items.Clear();
         foreach (var item in _config.Downloads ?? new List<DownloadItem>())
         {
-            // Nothing is actually running on a fresh launch — show in-progress items as resumable.
-            if (item.Status == DownloadStatus.Running)
-                item.Status = DownloadStatus.Paused;
+            // Nothing is actually running on a fresh launch. A saved Running OR Paused state can't
+            // survive a restart — "Paused" means the live server connection is held open with the stream
+            // reader paused, which is impossible once the process exited. So normalize both to Stopped
+            // (resumable from disk) rather than showing a misleading "Paused" row.
+            if (item.Status is DownloadStatus.Running or DownloadStatus.Paused)
+                item.Status = DownloadStatus.Stopped;
             // Backfill the queue for items saved without one (older configs) so they always belong to a
             // queue and show up on the Queues page.
             if (string.IsNullOrWhiteSpace(item.QueueId))
@@ -415,8 +418,20 @@ public class DownloadManager : IDownloadManager
         if (vm.Status is DownloadStatus.Stopped or DownloadStatus.Failed or DownloadStatus.None)
             vm.Status = DownloadStatus.Created;
 
+        // An explicit per-item Start must run even if the queue was previously paused/stopped — that
+        // IsRunning=false is persisted, so otherwise PumpQueue silently swallows the item and it stays
+        // stuck as "Queued", only rescued later by the scheduler/StartQueue (the reported bug).
+        EnsureQueueRunning(vm.GetItem().QueueId);
         PumpQueue(vm.GetItem().QueueId);
         NotifyList();
+    }
+
+    /// <summary>An explicit user start (Resume/Retry/Add) un-pauses the item's queue so the pump runs it.</summary>
+    private void EnsureQueueRunning(string queueId)
+    {
+        var queue = FindQueue(queueId);
+        if (queue != null)
+            queue.IsRunning = true;
     }
 
     public void Cancel(DownloadItemViewModel vm)
@@ -446,6 +461,7 @@ public class DownloadManager : IDownloadManager
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
         vm.Status = DownloadStatus.Created;
+        EnsureQueueRunning(vm.GetItem().QueueId); // see Resume: an explicit start un-pauses the queue
         PumpQueue(vm.GetItem().QueueId);
         NotifyList();
     }
@@ -632,6 +648,15 @@ public class DownloadManager : IDownloadManager
         var fallback = _config.Queues.FirstOrDefault(q => q.Id != queue.Id);
         foreach (var vm in Items.Where(i => i.GetItem().QueueId == queue.Id).ToList())
             vm.GetItem().QueueId = fallback?.Id;
+
+        // Deactivate any schedules bound to this queue — a schedule pointing at a deleted queue is dead
+        // and would otherwise sit enabled but inert (or act on a stale target). Disable + unbind them.
+        foreach (var sch in _config.Schedules?.Where(s => s.TargetQueueId == queue.Id).ToList()
+                            ?? new List<DownloadSchedule>())
+        {
+            sch.Enabled = false;
+            sch.TargetQueueId = null;
+        }
 
         _config.Queues.Remove(queue);
         NotifyList();

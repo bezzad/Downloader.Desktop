@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        mc:Ignorable="d" d:DesignWidth="440" d:DesignHeight="220"
+        Width="440" Height="220"
+        CanResize="False"
+        Topmost="True"
+        ShowInTaskbar="True"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterScreen"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Icon="/Assets/downloader.png"
+        x:Class="Downloader.Desktop.Views.UpdatePromptView"
+        x:DataType="vm:UpdatePromptViewModel"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="{Binding Title}">
+
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+        <DockPanel>
+            <v:TitleBar DockPanel.Dock="Top" Title="{Binding Title}" ShowMinMax="False" />
+            <StackPanel Margin="22 16 22 18" Spacing="16" VerticalAlignment="Center">
+                <Grid ColumnDefinitions="Auto,*">
+                    <PathIcon Grid.Column="0" Data="{DynamicResource ArrowDownloadRegular}" Height="28" Width="28"
+                              Foreground="{DynamicResource SystemAccentColor}" VerticalAlignment="Top" Margin="0 0 14 0" />
+                    <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" />
+                        <Button Classes="link" Padding="0" Content="{Binding ViewChangesText}"
+                                IsVisible="{Binding HasReleaseUrl}"
+                                Foreground="{DynamicResource SystemAccentColor}"
+                                Command="{Binding ViewChangesCommand}" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Content="{Binding LaterText}" Padding="16 7" Command="{Binding LaterCommand}" />
+                    <Button Classes="accent" Content="{Binding DownloadText}" Padding="18 7"
+                            Command="{Binding DownloadCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </DockPanel>
+    </Border>
+</Window>

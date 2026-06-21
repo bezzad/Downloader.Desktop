@@ -33,6 +33,8 @@ DEV_BRANCH="develop"
 CSPROJ="src/Downloader.Desktop/Downloader.Desktop.csproj"
 SNAP_VERSION_FILE="snap/local/VERSION"
 CASK_MIRROR="Casks/downloader.rb"
+WINGET_DIR="packaging/winget"          # in-repo winget manifest mirror
+WINGET_UPSTREAM="microsoft/winget-pkgs"
 
 # --- helpers ---------------------------------------------------------------
 c_blue=$'\033[1;34m'; c_green=$'\033[1;32m'; c_red=$'\033[1;31m'; c_yellow=$'\033[1;33m'; c_off=$'\033[0m'
@@ -47,9 +49,17 @@ sha256_of() { # stream a file on stdin -> hex digest
 }
 
 # --- args ------------------------------------------------------------------
-VERSION="${1:-}"; ASSUME_YES="no"
-for a in "$@"; do [[ "$a" == "--yes" || "$a" == "-y" ]] && ASSUME_YES="yes"; done
-[[ "${VERSION:-}" == "--yes" || "${VERSION:-}" == "-y" ]] && VERSION=""
+# Usage: release.sh [VERSION] [--yes] [--notes-file PATH]
+VERSION=""; ASSUME_YES="no"; NOTES_FILE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --yes|-y) ASSUME_YES="yes" ;;
+    --notes-file) shift; NOTES_FILE="${1:-}" ;;
+    -*) die "unknown flag: $1" ;;
+    *) [[ -z "$VERSION" ]] && VERSION="$1" || die "unexpected argument: $1" ;;
+  esac
+  shift
+done
 
 # Move to the repo root so relative paths work regardless of where it's invoked.
 cd "$(git rev-parse --show-toplevel)" || die "not inside a git repository"
@@ -90,11 +100,33 @@ if git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
   ok "$DEV_BRANCH is $AHEAD commit(s) ahead of $MAIN_BRANCH"
 fi
 
+# --- release notes (mandatory: every release must say what changed) --------
+# Captured up front so the author can write them, then walk away. Sources, in order:
+#   --notes-file PATH  →  prompt (interactive)  →  the commit subjects since the last tag (fallback).
+# A human "Highlights" block is set as the release body; GitHub's auto-generated "What's Changed"
+# changelog is appended after (the release.yml/snap.yml `generate_release_notes` is the bare-tag safety net).
+NOTES_BODY=""
+if [[ -n "$NOTES_FILE" ]]; then
+  [[ -f "$NOTES_FILE" ]] || die "--notes-file not found: $NOTES_FILE"
+  NOTES_BODY="$(cat "$NOTES_FILE")"
+elif [[ "$ASSUME_YES" != "yes" ]]; then
+  echo
+  echo "  Write the release notes / highlights for $TAG (what changed for users)."
+  echo "  Enter lines; finish with a single '.' on its own line:"
+  while IFS= read -r line; do [[ "$line" == "." ]] && break; NOTES_BODY+="$line"$'\n'; done
+fi
+if [[ -z "${NOTES_BODY// /}" ]]; then
+  warn "no notes given — falling back to commit subjects since the last tag"
+  NOTES_BODY="$(git log --no-merges --pretty='- %s' "v$CUR_VERSION..$DEV_BRANCH" 2>/dev/null | head -40)"
+fi
+[[ -n "${NOTES_BODY// /}" ]] || die "release notes are required and could not be derived — re-run with --notes-file"
+
 echo
 echo "  Release plan:"
 echo "    version : $CUR_VERSION -> $VERSION   (tag $TAG)"
 echo "    merge   : $DEV_BRANCH -> $MAIN_BRANCH"
-echo "    publish : GitHub Releases · Linux curl · Snap Store · Homebrew tap ($TAP_REPO)"
+echo "    publish : GitHub Releases · Linux curl · Snap Store · Homebrew tap ($TAP_REPO) · winget ($WINGET_UPSTREAM)"
+echo "    notes   : $(printf '%s' "$NOTES_BODY" | head -1)…"
 echo
 if [[ "$ASSUME_YES" != "yes" ]]; then
   read -r -p "Proceed? [y/N] " reply
@@ -145,6 +177,22 @@ while :; do
   sleep 30
 done
 
+# --- 4b. set the release notes (curated highlights + auto-generated changelog) ---
+step "Writing release notes for $TAG"
+AUTO_NOTES="$(gh api -X POST "repos/$REPO/releases/generate-notes" \
+  -f tag_name="$TAG" -f previous_tag_name="v$CUR_VERSION" --jq '.body' 2>/dev/null || true)"
+NOTES_TMP="$(mktemp)"
+{
+  printf '## Highlights\n\n%s\n' "$NOTES_BODY"
+  [[ -n "$AUTO_NOTES" ]] && printf '\n%s\n' "$AUTO_NOTES"
+} > "$NOTES_TMP"
+if gh release edit "$TAG" --repo "$REPO" --notes-file "$NOTES_TMP" >/dev/null 2>&1; then
+  ok "release notes set"
+else
+  warn "could not set release notes (the release may not be created yet) — set them manually: gh release edit $TAG"
+fi
+rm -f "$NOTES_TMP"
+
 # --- 5. update Homebrew (tap repo + in-repo mirror) ------------------------
 step "Updating Homebrew cask in $TAP_REPO"
 ARM_SHA="$(curl -fsSL "$ARM_URL" | sha256_of)"; [[ -n "$ARM_SHA" ]] || die "failed to checksum arm64 archive"
@@ -162,6 +210,47 @@ rewrite_cask() {
                   else if (n==2) sub(/sha256 "[^"]*"/, "sha256 \"" x64 "\"") }
     { print }
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+# Rewrite the in-repo winget manifests for the new version (PackageVersion in all three +
+# InstallerUrl/InstallerSha256 in the installer manifest). WIN_URL/WIN_SHA are set by the caller.
+rewrite_winget() {
+  sed -i -E "s|^(PackageVersion:).*|\1 $VERSION|" "$WINGET_DIR"/*.yaml
+  sed -i -E "s|^([[:space:]]*InstallerUrl:).*|\1 $WIN_URL|"       "$WINGET_DIR/bezzad.Downloader.installer.yaml"
+  sed -i -E "s|^([[:space:]]*InstallerSha256:).*|\1 $WIN_SHA|"    "$WINGET_DIR/bezzad.Downloader.installer.yaml"
+}
+
+# Submit the manifests to microsoft/winget-pkgs as a PR (best-effort; never fails the release).
+# Dedup-safe: skips if an open PR for this version already exists (avoids duplicate submissions).
+submit_winget() {
+  local user fork base br dir n b64 ok_all=1
+  user="$(gh api user --jq .login 2>/dev/null)" || { warn "winget: gh user lookup failed — skipping PR"; return 0; }
+  fork="$user/winget-pkgs"
+  gh repo fork "$WINGET_UPSTREAM" --clone=false >/dev/null 2>&1 || true
+  if gh api "search/issues?q=repo:$WINGET_UPSTREAM+is:pr+is:open+author:$user+bezzad.Downloader+$VERSION" \
+       --jq '.items[].title' 2>/dev/null | grep -q "version $VERSION"; then
+    warn "winget: an open PR for $VERSION already exists — skipping (no duplicate)"; return 0
+  fi
+  gh api -X POST "repos/$fork/merge-upstream" -f branch=master >/dev/null 2>&1 || true
+  base="$(gh api "repos/$fork/git/refs/heads/master" --jq '.object.sha' 2>/dev/null)" \
+    || { warn "winget: cannot read fork master — skipping PR"; return 0; }
+  br="bezzad.Downloader-$VERSION"
+  gh api -X POST "repos/$fork/git/refs" -f ref="refs/heads/$br" -f sha="$base" >/dev/null 2>&1 || true
+  dir="manifests/b/bezzad/Downloader/$VERSION"
+  for n in bezzad.Downloader.yaml bezzad.Downloader.installer.yaml bezzad.Downloader.locale.en-US.yaml; do
+    b64="$(base64 -w0 "$WINGET_DIR/$n")"
+    gh api -X PUT "repos/$fork/contents/$dir/$n" \
+      -f message="bezzad.Downloader $VERSION ($n)" -f branch="$br" -f content="$b64" >/dev/null 2>&1 || ok_all=0
+  done
+  [[ "$ok_all" == 1 ]] || { warn "winget: manifest upload failed — skipping PR"; return 0; }
+  if gh pr create --repo "$WINGET_UPSTREAM" --head "$user:$br" --base master \
+       --title "New version: bezzad.Downloader version $VERSION" \
+       --body "Automated submission of bezzad.Downloader $VERSION (portable zip → \`downloader\`). Repo: https://github.com/$REPO" \
+       >/dev/null 2>&1; then
+    ok "winget: opened PR to $WINGET_UPSTREAM for $VERSION"
+  else
+    warn "winget: could not open PR (a branch/PR may already exist) — check manually"
+  fi
 }
 
 TAP_DIR="$(mktemp -d)"
@@ -193,6 +282,26 @@ if [[ -f "$CASK_MIRROR" ]]; then
   fi
 fi
 
+# --- 6. winget (in-repo mirror + winget-pkgs PR) ---------------------------
+step "Updating winget manifests + submitting to $WINGET_UPSTREAM"
+WIN_URL="https://github.com/$REPO/releases/download/$TAG/Downloader-win-x64.zip"
+WIN_SHA="$(curl -fsSL "$WIN_URL" | sha256_of | tr '[:lower:]' '[:upper:]')"
+if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
+  ok "win-x64 sha256 = $WIN_SHA"
+  rewrite_winget
+  if [[ -n "$(git status --porcelain "$WINGET_DIR")" ]]; then
+    git add "$WINGET_DIR"
+    git commit -q -m "chore(release): bump winget manifests to $VERSION"
+    git push origin "$DEV_BRANCH"
+    ok "winget mirror updated + pushed"
+  else
+    warn "winget mirror already matches"
+  fi
+  submit_winget   # best-effort, dedup-checked
+else
+  warn "winget: missing win-x64 sha or $WINGET_DIR — skipping"
+fi
+
 # --- done ------------------------------------------------------------------
 echo
 ok "Release $TAG is out."
@@ -202,6 +311,7 @@ echo "    GitHub : gh release view $TAG --repo $REPO"
 echo "    Snap   : gh run list --repo $REPO --workflow Snap   # then 'snap info downloader'"
 echo "    Curl   : curl -fsSL https://raw.githubusercontent.com/$REPO/$MAIN_BRANCH/scripts/install.sh | bash"
 echo "    Brew   : brew update && brew info --cask $TAP_REPO/downloader"
+echo "    Winget : gh pr list --repo $WINGET_UPSTREAM --author @me   # awaits a moderator merge"
 echo
 echo "  Note: the Snap Store publish runs in CI (snap.yml). If the repo secret"
 echo "  SNAPCRAFT_STORE_CREDENTIALS is unset, download the .snap from the run and run:"

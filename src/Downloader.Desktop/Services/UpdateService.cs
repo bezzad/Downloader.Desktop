@@ -168,13 +168,17 @@ public static class UpdateService
         var extract = archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
             ? $"unzip -o \"{archive}\" -d \"{appDir}\""
             : $"tar -xzf \"{archive}\" -C \"{appDir}\"";
+        // trap '' HUP keeps the swapper alive past the parent's exit; relaunch via setsid (fallback
+        // nohup) so the NEW app runs in its own session and isn't torn down with the old process group —
+        // that detachment is what makes "restart to update" actually relaunch.
         File.WriteAllText(script,
             "#!/bin/bash\n" +
+            "trap '' HUP\n" +
             $"while kill -0 {pid} 2>/dev/null; do sleep 0.5; done\n" +
             $"{extract}\n" +
             $"chmod +x \"{exe}\" 2>/dev/null\n" +
             $"rm -f \"{archive}\"\n" +
-            $"\"{exe}\" &\n");
+            $"if command -v setsid >/dev/null 2>&1; then setsid \"{exe}\" >/dev/null 2>&1 & else nohup \"{exe}\" >/dev/null 2>&1 & fi\n");
         return script;
     }
 

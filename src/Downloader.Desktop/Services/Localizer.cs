@@ -105,7 +105,7 @@ public sealed class Localizer : INotifyPropertyChanged
     }
 }
 
-/// <summary>A selectable UI language (code + native name).</summary>
+/// <summary>A selectable UI language (code + native name + country flag).</summary>
 public sealed class LanguageOption
 {
     public LanguageOption(string code, string name)
@@ -117,4 +117,29 @@ public sealed class LanguageOption
     public string Code { get; }
     public string Name { get; }
     public override string ToString() => Name;
+
+    private Avalonia.Media.Imaging.Bitmap _flag;
+    private bool _flagLoaded;
+
+    /// <summary>Small country flag shown beside the language (lazy-loaded from Assets/flags/{code}.png).</summary>
+    public Avalonia.Media.Imaging.Bitmap Flag
+    {
+        get
+        {
+            if (_flagLoaded)
+                return _flag;
+            _flagLoaded = true;
+            try
+            {
+                using var s = Avalonia.Platform.AssetLoader.Open(
+                    new Uri($"avares://Downloader.Desktop/Assets/flags/{Code}.png"));
+                _flag = new Avalonia.Media.Imaging.Bitmap(s);
+            }
+            catch
+            {
+                _flag = null; // missing flag asset → just show the name
+            }
+            return _flag;
+        }
+    }
 }

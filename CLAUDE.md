@@ -30,6 +30,13 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Commit policy — superseded by "Workflow & progress tracking" below**: that section's "commit frequently and push to `develop`" is the current standing rule for routine work (code steps, PLAN.md/TASKS.md updates, skill-file notes). The old default of waiting for explicit per-commit approval no longer applies on `develop`; it still applies to anything outside that scope (e.g. force-pushes, branch/history changes, releases/tags).
 - The author steers and gives feedback; fold it in and keep this file current.
 
+### Standing operating rules (the author asked for these — always apply, never wait to be told again)
+- **Ask all questions BEFORE starting.** The author typically hands over a batch of tasks and then leaves the machine. Front-load every clarifying question (ambiguous scope, design choices, mappings, trade-offs) in one go *before* writing any code, using `AskUserQuestion`, so the work can run unattended afterward. Don't start, hit an ambiguity, and stall waiting for an answer that won't come.
+- **Use the available skills.** Invoke the repo's `downloader-desktop` skill first (build/run/test + gotchas), and use any other relevant available skill rather than re-deriving from scratch. Skills are the first source of truth for how to do things here.
+- **Cache recurring patterns into the skill automatically.** When a non-obvious pattern, gotcha, or decision comes up that a future session would otherwise re-derive, append a concise note to the relevant skill file (usually `.claude/skills/downloader-desktop/SKILL.md`) and commit it on `develop` — no confirmation needed. Goal: steadily fewer tokens per session.
+- **Minimal, targeted changes — don't disturb working scenarios.** Change only what the task needs. Do not refactor, "improve", or alter unrelated code paths that already work; touching them risks new bugs. When a recent change looks odd, assume it may have had a reason — review its history before overriding it. (Reinforces the Clean Code/KISS rule below.)
+- **Tests passing = done; then push.** A task is complete when the build is clean and `dotnet test` is green (add/adjust tests for the change). When everything for the session is done and green, commit and push to `develop`. If a view's UI changed, also refresh screenshots (see "Workflow & progress tracking").
+
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
@@ -182,14 +189,38 @@ These rules are permanent and apply to every conversation/task in this repo — 
 - Commit `PLAN.md` together with the code change it describes, on `develop`.
 - For large backlogs, also keep `TASKS.md` updated as the full board.
 - At the START of every session, read `PLAN.md` (and `TASKS.md`) and continue from there. Never rely on in-session memory surviving across machines — if it matters, it must be in `PLAN.md` and committed.
+- **Refresh view screenshots when the UI changes (standing routine, like updating `PLAN.md`).** At the END of all tasks in a session, if any task changed a view's UI (a `Views/*.axaml`, `App.axaml` styles/theme, icons, or anything that alters how a page looks), regenerate the `docs/screenshots/` images and commit them on `develop`:
+  - Run the gated capture test: `DLDESKTOP_CAPTURE=1 dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj --filter FullyQualifiedName~CaptureScreenshots` (from `src/`).
+  - **Verify the regenerated PNGs by viewing them** (don't commit blind) — confirm the change actually shows and nothing regressed. If a new/changed control sits below the fold, add a capture that scrolls to it (see how `CaptureScreenshots` does the settings-accent shot) so the change is actually visible.
+  - The captures are deterministic, so an unchanged UI re-renders byte-identical (no diff = nothing to commit). Commit only what changed.
+  - These screenshots feed the README/docs and the Snap Store listing, so keeping them current is part of "done" — not optional.
 
 ## Release routine (publishing a new version)
 These steps are **standing, pre-authorized** — when the author asks to publish/release a new version
-`vX.Y.Z`, do ALL of the following without asking again:
+`vX.Y.Z`, do ALL of the following without asking again.
+
+**`scripts/release.sh` automates this whole routine** (version bump → merge → tag → wait for assets →
+release notes → Homebrew tap + mirror → winget mirror + PR). Prefer running it:
+`./scripts/release.sh X.Y.Z` (prompts for release notes; pass `--notes-file notes.md` to supply them
+non-interactively). The manual steps below are the fallback / what the script does.
+
 1. Bump the version, merge `develop` → `main`, tag `vX.Y.Z`, and push the tag. `.github/workflows/release.yml`
    then builds win/linux/macOS×2 (`Downloader-<rid>.tar.gz`) and attaches them to the GitHub Release. Wait
    for that run to finish so the macOS assets exist.
-2. **Always update the Homebrew tap — this is a mandatory part of every release, not a separate request.**
+2. **Release notes are MANDATORY (high priority) — never ship a noteless release.** Every version must say
+   what changed for end users. `release.sh` captures a human "Highlights" block up front and, once the
+   release exists, sets the body (highlights + GitHub's auto-generated "What's Changed") via
+   `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, `release.yml`/`snap.yml` pass
+   `generate_release_notes: true` so even a bare tag push gets an auto changelog. If you ever release by
+   hand, write the notes — a release with an empty body is not "done".
+   **FORMAT — notes MUST be GitHub-flavored Markdown, pretty and human-friendly (NOT plain text):**
+   - Start with a one-line summary sentence, then short grouped sections with emoji headers, e.g.
+     `### ✨ New` / `### 🐛 Fixes` / `### 🔧 Under the hood`, each a few concise bullets.
+   - **Simple and summary — keep it short** (a handful of bullets, end-user wording, no commit hashes /
+     internal jargon). Reference good examples already on GitHub: **v1.0.0 / v1.1.0 / v1.2.0**.
+   - End with a thin divider + an install hint line if useful. The auto-generated "What's Changed" list
+     may follow under its own heading, but the curated Markdown highlights come first.
+3. **Always update the Homebrew tap — this is a mandatory part of every release, not a separate request.**
    In `bezzad/homebrew-tap` → `Casks/downloader.rb`, set `version "X.Y.Z"` and the two `sha256` (arm64 then
    intel) from the released macOS archives, commit, and push to the tap repo. Then sync the in-repo mirror
    `Casks/downloader.rb` on `develop` to match.
@@ -201,5 +232,14 @@ These steps are **standing, pre-authorized** — when the author asks to publish
    X64=$(curl -fsSL "https://github.com/bezzad/Downloader.Desktop/releases/download/v$VER/Downloader-osx-x64.tar.gz"   | shasum -a 256 | awk '{print $1}')
    # edit Casks/downloader.rb: version "$VER", on_arm sha256 "$ARM", on_intel sha256 "$X64"; commit + push the tap
    ```
-3. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
-4. Record the release in `PLAN.md`/`TASKS.md` (version, tag, commit hashes, tap commit) per the workflow above.
+4. **Always keep winget in sync with the latest version — mandatory part of every release.** Bump the
+   in-repo mirror `packaging/winget/*.yaml` (PackageVersion in all three + InstallerUrl/InstallerSha256 of
+   the released `Downloader-win-x64.zip`) on `develop`, then submit a PR to `microsoft/winget-pkgs` under
+   `manifests/b/bezzad/Downloader/X.Y.Z/`. `release.sh` does both via `submit_winget`. The package identifier
+   is `bezzad.Downloader` (Moniker `downloader`); the installer is the portable zip (nested `Downloader.exe`).
+   **Dedup rule (learned the hard way):** before opening a winget PR, check for an existing OPEN one
+   (`gh pr list --repo microsoft/winget-pkgs --author @me`) — close stale/older-version PRs instead of
+   stacking duplicates. winget-pkgs PRs pass automated validation then wait on a community moderator to
+   merge (the CLA is already signed for `bezzad`).
+5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
+6. Record the release in `PLAN.md`/`TASKS.md` (version, tag, commit hashes, tap commit, winget PR #) per the workflow above.

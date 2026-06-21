@@ -65,6 +65,9 @@ public class DownloadSettings
     /// <summary>UI language code (en, fa, es, fr, ar, eo). Default English.</summary>
     public string Language { get; set; } = "en";
 
+    /// <summary>Accent color key (Teal/Blue/Purple/Green/Amber). Applied on top of Light/Dark by ThemeService.</summary>
+    public string AccentColor { get; set; } = "Teal";
+
     /// <summary>Keep the app running in the system tray when the main window is closed (on by default).</summary>
     public bool EnableSystemTray { get; set; } = true;
 
