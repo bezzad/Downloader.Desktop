@@ -182,6 +182,11 @@ These rules are permanent and apply to every conversation/task in this repo — 
 - Commit `PLAN.md` together with the code change it describes, on `develop`.
 - For large backlogs, also keep `TASKS.md` updated as the full board.
 - At the START of every session, read `PLAN.md` (and `TASKS.md`) and continue from there. Never rely on in-session memory surviving across machines — if it matters, it must be in `PLAN.md` and committed.
+- **Refresh view screenshots when the UI changes (standing routine, like updating `PLAN.md`).** At the END of all tasks in a session, if any task changed a view's UI (a `Views/*.axaml`, `App.axaml` styles/theme, icons, or anything that alters how a page looks), regenerate the `docs/screenshots/` images and commit them on `develop`:
+  - Run the gated capture test: `DLDESKTOP_CAPTURE=1 dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj --filter FullyQualifiedName~CaptureScreenshots` (from `src/`).
+  - **Verify the regenerated PNGs by viewing them** (don't commit blind) — confirm the change actually shows and nothing regressed. If a new/changed control sits below the fold, add a capture that scrolls to it (see how `CaptureScreenshots` does the settings-accent shot) so the change is actually visible.
+  - The captures are deterministic, so an unchanged UI re-renders byte-identical (no diff = nothing to commit). Commit only what changed.
+  - These screenshots feed the README/docs and the Snap Store listing, so keeping them current is part of "done" — not optional.
 
 ## Release routine (publishing a new version)
 These steps are **standing, pre-authorized** — when the author asks to publish/release a new version
