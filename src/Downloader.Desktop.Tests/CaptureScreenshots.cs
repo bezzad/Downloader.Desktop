@@ -51,6 +51,24 @@ public class CaptureScreenshots
         var failed = Item("project-photos.zip", 340_000_000, 41_000_000, DownloadStatus.Failed);
         failed.LastError = "Network error: the remote host could not be reached.";
         config.Downloads.Add(failed);
+
+        // Sample schedules so the Scheduler page renders populated cards.
+        config.Schedules.Add(new DownloadSchedule
+        {
+            Name = "Overnight downloads",
+            TargetQueueId = config.DefaultQueue.Id,
+            StartTime = new TimeSpan(1, 0, 0),
+            StopTime = new TimeSpan(7, 0, 0),
+            Enabled = true
+        });
+        config.Schedules.Add(new DownloadSchedule
+        {
+            Name = "Evening catch-up",
+            TargetQueueId = config.DefaultQueue.Id,
+            StartTime = new TimeSpan(20, 30, 0),
+            Once = true,
+            Enabled = false
+        });
         return config;
     }
 
@@ -124,6 +142,14 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "queues-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // Scheduler page (daily start/stop rules per queue).
+        vm.ShowSchedulerCommand.Execute(null);
+        Save(window, "scheduler-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "scheduler-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
         vm.ShowSettingViewCommand.Execute(null); // leave a known page before the RTL capture
         vm.ShowAllCommand.Execute(null);
 
