@@ -460,3 +460,10 @@ $RECYCLE.BIN/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Snap build artifacts & credentials (never commit)
+snap-creds.txt
+*.snap
+/parts/
+/stage/
+/prime/

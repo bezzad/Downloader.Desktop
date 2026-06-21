@@ -143,3 +143,11 @@ Then verify the PNGs by viewing them. Capture uses the real `App` with `.UseSkia
 - Keep each commit green (build + tests). Commit messages end with the Co-Authored-By line. Don't reference other download-manager apps anywhere — this is an original design.
 
 See `CLAUDE.md` at the repo root for product vision, locked decisions, and the full roadmap.
+
+## Snap publishing (done — `downloader` is live on the Snap Store)
+- **Store name `downloader` is registered** to bezzad (public); `latest/stable` carries the release. Publisher login: `snapcraft whoami` (token expires 2027-06). Verify: `snapcraft status downloader` / `snap info downloader`.
+- **Do NOT build the snap locally on this dev box with `--destructive-mode`**: the host is Ubuntu **26.04 (resolute)** but the snap targets `base: core22` (22.04). Destructive mode fetches stage-packages (`libicu70`, `libssl3`) from the *host* archive, which 26.04 doesn't have → "Stage package not found: libicu70". A real build needs an isolated core22 env (LXD/multipass, both need sudo) **or** just use CI.
+- **Easiest publish path = reuse the CI-built `.snap`**: the `Snap` workflow (`.github/workflows/snap.yml`) builds correctly via `snapcore/action-build` (clean core22) and uploads a `downloader-snap` artifact on every v* tag. To publish: `gh run download <id> -n downloader-snap` then `snapcraft upload --release=stable downloader_<ver>_amd64.snap` (uses the local login; ~processing 1-2 min → "released to 'stable'").
+- **CI auto-publish caveat (fixed)**: the publish step runs only on `refs/tags/`. The v1.3.1 run built+uploaded the artifact but **died at "Attach snap to the GitHub Release"** (`Resource not accessible by integration` — default GITHUB_TOKEN can't update a Release another workflow created), which skipped "Publish to the Snap Store". Fixed by `continue-on-error: true` on the attach step + `always() && …` on the publish step. Re-running an OLD tag run won't pick up the fix (tag runs use the workflow at the tag commit) — the fix applies to the next tag. The `SNAPCRAFT_STORE_CREDENTIALS` repo secret is already set (from `snapcraft export-login`).
+- **Never commit `snap-creds.txt`** (the export-login token) — gitignored, along with `*.snap` and `parts/ stage/ prime/`.
+- **In-app updater self-disables under snap** (`SNAP` env) — the Store handles updates.
