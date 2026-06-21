@@ -210,8 +210,11 @@ non-interactively). The manual steps below are the fallback / what the script do
 2. **Release notes are MANDATORY (high priority) — never ship a noteless release.** Every version must say
    what changed for end users. `release.sh` captures a human "Highlights" block up front and, once the
    release exists, sets the body (highlights + GitHub's auto-generated "What's Changed") via
-   `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, `release.yml`/`snap.yml` pass
-   `generate_release_notes: true` so even a bare tag push gets an auto changelog. If you ever release by
+   `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, a single post-build `notes` job in
+   `release.yml` fills GitHub's auto "What's Changed" **only if the body is still empty** (so it never
+   clobbers curated notes) — even a bare tag push then gets a changelog. (Do NOT put
+   `generate_release_notes: true` on the matrix `action-gh-release` steps — 4 concurrent creates race into
+   `tag_name already_exists` and an asset upload fails; this bit v1.4.0's osx-x64.) If you ever release by
    hand, write the notes — a release with an empty body is not "done".
    **FORMAT — notes MUST be GitHub-flavored Markdown, pretty and human-friendly (NOT plain text):**
    - Start with a one-line summary sentence, then short grouped sections with emoji headers, e.g.
