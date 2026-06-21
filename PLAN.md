@@ -12,7 +12,7 @@ so any machine/AI picks up the true last state.
 
 **Last updated**: 2026-06-20
 **Branch**: develop
-**Now working on**: (idle) — Round 17 batch done on develop (CI flake fix, Telegram-style auto-update + single-instance, Snap packaging, browser-extension publish prep, queue scroll/size, Stop-queue-stops-all). 102 tests green. **Author to-do:** publish the browser extension (see `src/browser-extension/PUBLISHING.md`) and the Snap (`snapcraft login` + `scripts/build-snap.sh`), then add the store links to README. Not yet released as a version.
+**Now working on**: Releasing **v1.3.1** (macOS single-file crash fix) — bump→1.3.1, merge develop→main, tag v1.3.1, then Homebrew tap.
 
 Author decisions (2026-06-19 overnight batch): may cut releases autonomously; Issue 1 = just fix the false alarm (don't touch update/download mechanism); Queues = full "real queue manager" redesign (mockup approved); Instagram = R&D plan only, no code.
 
