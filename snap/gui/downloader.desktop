@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Downloader
+Comment=Fast multi-connection download manager
+Exec=downloader %u
+Icon=${SNAP}/meta/gui/downloader.png
+Terminal=false
+Categories=Network;FileTransfer;Utility;
+StartupWMClass=Downloader

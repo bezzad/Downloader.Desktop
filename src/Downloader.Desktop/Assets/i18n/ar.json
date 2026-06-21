@@ -176,5 +176,10 @@
   "Shutdown_Canceled_Msg": "سيبقى الكمبيوتر قيد التشغيل.",
   "Shutdown_Notify_Title": "سيتم إيقاف التشغيل قريبًا",
   "Shutdown_Notify_Msg": "اكتملت التنزيلات — سيتم إيقاف تشغيل الكمبيوتر خلال {0} ثانية. افتح Downloader للإلغاء.",
-  "Action_UrlCopied": "تم نسخ الرابط!"
+  "Action_UrlCopied": "تم نسخ الرابط!",
+  "Update_Checking": "جارٍ التحقق…",
+  "Update_Downloading": "جارٍ تنزيل التحديث…",
+  "Update_Restart": "أعد التشغيل للتحديث",
+  "Update_Button": "تحديث Downloader",
+  "Update_Ready_Tip": "إصدار جديد جاهز — أعد التشغيل للتثبيت"
 }

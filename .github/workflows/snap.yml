@@ -1,0 +1,64 @@
+# Builds the Linux Snap and (optionally) publishes it to the Snap Store.
+# - On a v* tag: builds the .snap, attaches it to the GitHub Release, and — if the
+#   SNAPCRAFT_STORE_CREDENTIALS secret is set — uploads it to the stable channel.
+# - Manual run (workflow_dispatch): just builds + uploads the .snap as an artifact.
+#
+# To enable auto-publish: create a token with `snapcraft export-login --snaps=downloader \
+#   --acls package_access,package_push,package_update,package_release -` and add it as the
+# repo secret SNAPCRAFT_STORE_CREDENTIALS. Otherwise download the artifact and run
+# `snapcraft upload --release=stable` yourself.
+name: Snap
+
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish self-contained linux-x64
+        run: |
+          VER=$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' src/Downloader.Desktop/Downloader.Desktop.csproj)
+          [[ "$GITHUB_REF" == refs/tags/v* ]] && VER="${GITHUB_REF_NAME#v}"
+          echo "$VER" > snap/local/VERSION
+          dotnet publish src/Downloader.Desktop/Downloader.Desktop.csproj \
+            -c Release -r linux-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false \
+            -p:VersionPrefix="$VER" -o publish/linux-x64
+          mv -f publish/linux-x64/Downloader.Desktop publish/linux-x64/Downloader || true
+          chmod +x publish/linux-x64/Downloader || true
+
+      - name: Build snap
+        id: snapcraft
+        uses: snapcore/action-build@v1
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: downloader-snap
+          path: "*.snap"
+
+      - name: Attach snap to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.snap"
+
+      - name: Publish to the Snap Store
+        if: startsWith(github.ref, 'refs/tags/') && env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.snapcraft.outputs.snap }}
+          release: stable

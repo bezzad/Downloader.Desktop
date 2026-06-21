@@ -49,11 +49,15 @@ jobs:
           # released version and the in-app update check doesn't false-alarm. Non-tag runs use the csproj default.
           VER_ARG=""
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VER_ARG="-p:VersionPrefix=${GITHUB_REF_NAME#v}"; fi
+          # macOS: do NOT use single-file/compression. The compressed single-file bundle crashes on
+          # Apple Silicon the first time a managed assembly is loaded (inflate -> Data Abort / SIGABRT,
+          # e.g. when a download starts). Ship a normal .app folder with loose assemblies/dylibs instead
+          # (make-macos-app.sh bundles the whole publish dir). Windows/Linux keep single-file.
+          PKG_ARGS="-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true"
+          if [[ "${{ matrix.rid }}" == osx-* ]]; then PKG_ARGS=""; fi
           dotnet publish src/Downloader.Desktop/Downloader.Desktop.csproj \
             -c Release -r ${{ matrix.rid }} --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:EnableCompressionInSingleFile=true \
+            $PKG_ARGS \
             -p:DebugType=None -p:DebugSymbols=false \
             $VER_ARG \
             -o publish/${{ matrix.rid }}

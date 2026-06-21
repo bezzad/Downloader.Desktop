@@ -176,5 +176,10 @@
   "Shutdown_Canceled_Msg": "La komputilo restos ŝaltita.",
   "Shutdown_Notify_Title": "Baldaŭ malŝaltos",
   "Shutdown_Notify_Msg": "Elŝutoj finiĝis — la komputilo malŝaltiĝos post {0}s. Malfermu Downloader por nuligi.",
-  "Action_UrlCopied": "URL kopiita!"
+  "Action_UrlCopied": "URL kopiita!",
+  "Update_Checking": "Kontrolante…",
+  "Update_Downloading": "Elŝutante ĝisdatigon…",
+  "Update_Restart": "Restartigi por ĝisdatigi",
+  "Update_Button": "Ĝisdatigi Downloader",
+  "Update_Ready_Tip": "Nova versio pretas — restartigu por instali"
 }

@@ -397,6 +397,21 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Chunk_status_text_tracks_progress()
+    {
+        // Reads localized strings, so it must run under the headless runtime with en loaded
+        // (as a plain Fact it flaked on CI, returning the raw "State_Pending" key).
+        Localizer.Instance.Load("en");
+        var chunk = new ChunkProgressViewModel(1);
+        chunk.Update(0, 0, 0, 100);
+        Assert.Equal("Pending", chunk.StatusText);
+        chunk.Update(50, 0, 50, 100);
+        Assert.Equal("Downloading", chunk.StatusText);
+        chunk.Update(100, 0, 100, 100);
+        Assert.Equal("Completed", chunk.StatusText);
+    }
+
+    [AvaloniaFact]
     public void AlreadyExisted_completed_row_shows_exists_text()
     {
         Localizer.Instance.Load("en");

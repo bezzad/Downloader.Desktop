@@ -99,12 +99,12 @@ public class DownloadsViewModel : ViewModelBase
             Command = ReactiveCommand.Create(() => _manager.StartQueue(q))
         }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
 
-    /// <summary>Menu entries for "Stop queue ▾" — one per queue, each pausing that queue.</summary>
+    /// <summary>Menu entries for "Stop queue ▾" — one per queue, each stopping all its items.</summary>
     public System.Collections.Generic.IEnumerable<QueueActionTarget> StopQueueTargets =>
         _manager?.Queues.Select(q => new QueueActionTarget
         {
             Name = q.Name,
-            Command = ReactiveCommand.Create(() => _manager.PauseQueue(q))
+            Command = ReactiveCommand.Create(() => _manager.StopQueue(q))
         }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
 
     // Rows highlighted in the DataGrid (independent of the checkboxes). Pushed in from the view's

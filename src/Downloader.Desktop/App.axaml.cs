@@ -89,6 +89,11 @@ public partial class App : Application
                 // Saving is best-effort; never block shutdown on it.
             }
 
+            // If an update was downloaded, stage the swap now: it waits for this process to exit, then
+            // extracts over the app folder and relaunches. Runs whether the user clicked "Update
+            // Downloader" or just closed the app.
+            UpdateFlow.ApplyPendingOnExit();
+
             // Set _canClose to true and Close this Window again
             _canClose = true;
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

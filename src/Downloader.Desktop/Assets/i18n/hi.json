@@ -203,5 +203,10 @@
   "Shutdown_Canceled_Msg": "कंप्यूटर चालू रहेगा।",
   "Shutdown_Notify_Title": "जल्द ही बंद होगा",
   "Shutdown_Notify_Msg": "डाउनलोड पूरे — कंप्यूटर {0}s में बंद होगा। रद्द करने के लिए Downloader खोलें।",
-  "Action_UrlCopied": "URL कॉपी हो गया!"
+  "Action_UrlCopied": "URL कॉपी हो गया!",
+  "Update_Checking": "जाँच हो रही है…",
+  "Update_Downloading": "अपडेट डाउनलोड हो रहा है…",
+  "Update_Restart": "अपडेट के लिए पुनः आरंभ करें",
+  "Update_Button": "Downloader अपडेट करें",
+  "Update_Ready_Tip": "नया संस्करण तैयार है — इंस्टॉल करने के लिए पुनः आरंभ करें"
 }

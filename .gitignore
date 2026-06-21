@@ -181,6 +181,14 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# Release/packaging artifacts (built by scripts; not checked in)
+dist/
+*.snap
+# snapcraft build dirs (repo-root)
+/parts/
+/stage/
+/prime/
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml

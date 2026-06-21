@@ -125,17 +125,9 @@ public class LogicTests
         Assert.Equal("file.zip", back.Downloads[0].FileName);
     }
 
-    [Fact]
-    public void Chunk_status_text_tracks_progress()
-    {
-        var chunk = new ChunkProgressViewModel(1);
-        chunk.Update(0, 0, 0, 100);
-        Assert.Equal("Pending", chunk.StatusText);
-        chunk.Update(50, 0, 50, 100);
-        Assert.Equal("Downloading", chunk.StatusText);
-        chunk.Update(100, 0, 100, 100);
-        Assert.Equal("Completed", chunk.StatusText);
-    }
+    // NOTE: Chunk_status_text_tracks_progress moved to AppTests as an [AvaloniaFact] — it reads
+    // Localizer strings, which are only loaded under the Avalonia headless runtime (AssetLoader). As a
+    // plain [Fact] it was order-dependent and flaky on CI (got the raw "State_Pending" key).
 
     [Theory]
     [InlineData("http://127.0.0.1:15151/add?url=https%3A%2F%2Fhost%2Ffile.zip", "https://host/file.zip")]
@@ -181,6 +173,17 @@ public class LogicTests
         {
             System.IO.File.Delete(tmp);
         }
+    }
+
+    [Fact]
+    public void SingleInstance_FirstUrl_picks_the_first_http_arg()
+    {
+        Assert.Equal("https://host/a.zip",
+            SingleInstanceService.FirstUrl(new[] { "--minimized", "https://host/a.zip", "http://x/y" }));
+        Assert.Equal("http://h/f", SingleInstanceService.FirstUrl(new[] { "http://h/f" }));
+        Assert.Null(SingleInstanceService.FirstUrl(new[] { "--minimized", "/some/file" }));
+        Assert.Null(SingleInstanceService.FirstUrl(System.Array.Empty<string>()));
+        Assert.Null(SingleInstanceService.FirstUrl(null));
     }
 
     [Fact]

@@ -203,5 +203,10 @@
   "Shutdown_Canceled_Msg": "O computador permanecerá ligado.",
   "Shutdown_Notify_Title": "Desligando em breve",
   "Shutdown_Notify_Msg": "Downloads concluídos — o computador desligará em {0}s. Abra o Downloader para cancelar.",
-  "Action_UrlCopied": "URL copiado!"
+  "Action_UrlCopied": "URL copiado!",
+  "Update_Checking": "Verificando…",
+  "Update_Downloading": "Baixando atualização…",
+  "Update_Restart": "Reiniciar para atualizar",
+  "Update_Button": "Atualizar Downloader",
+  "Update_Ready_Tip": "Uma nova versão está pronta — reinicie para instalar"
 }

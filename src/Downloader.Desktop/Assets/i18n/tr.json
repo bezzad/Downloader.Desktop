@@ -201,5 +201,10 @@
   "Shutdown_Canceled_Msg": "Bilgisayar açık kalacak.",
   "Shutdown_Notify_Title": "Yakında kapanacak",
   "Shutdown_Notify_Msg": "İndirmeler bitti — bilgisayar {0}s içinde kapanacak. İptal için Downloader'ı açın.",
-  "Action_UrlCopied": "URL kopyalandı!"
+  "Action_UrlCopied": "URL kopyalandı!",
+  "Update_Checking": "Denetleniyor…",
+  "Update_Downloading": "Güncelleme indiriliyor…",
+  "Update_Restart": "Güncellemek için yeniden başlat",
+  "Update_Button": "Downloader'ı güncelle",
+  "Update_Ready_Tip": "Yeni sürüm hazır — yüklemek için yeniden başlatın"
 }

@@ -595,6 +595,24 @@ public class DownloadManager : IDownloadManager
         NotifyList();
     }
 
+    public void StopQueue(DownloadQueue queue)
+    {
+        if (queue == null)
+            return;
+        queue.IsRunning = false;
+        // "Stop queue" stops every item in the queue (running/paused/queued → Stopped), not just a
+        // pause of the running ones. Cancel() guards terminal states, so completed/failed are untouched.
+        RunBatch(() =>
+        {
+            foreach (var vm in Items.Where(i =>
+                         i.GetItem().QueueId == queue.Id &&
+                         i.Status is DownloadStatus.Running or DownloadStatus.Paused
+                                  or DownloadStatus.Created or DownloadStatus.None).ToList())
+                Cancel(vm);
+        });
+        NotifyList();
+    }
+
     public DownloadQueue AddQueue(string name)
     {
         var queue = new DownloadQueue

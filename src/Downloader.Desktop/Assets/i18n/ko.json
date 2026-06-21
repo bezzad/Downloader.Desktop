@@ -203,5 +203,10 @@
   "Shutdown_Canceled_Msg": "컴퓨터가 켜진 상태로 유지됩니다.",
   "Shutdown_Notify_Title": "곧 종료됩니다",
   "Shutdown_Notify_Msg": "다운로드 완료 — 컴퓨터가 {0}초 후 종료됩니다. 취소하려면 Downloader를 여세요.",
-  "Action_UrlCopied": "URL이 복사되었습니다!"
+  "Action_UrlCopied": "URL이 복사되었습니다!",
+  "Update_Checking": "확인 중…",
+  "Update_Downloading": "업데이트 다운로드 중…",
+  "Update_Restart": "재시작하여 업데이트",
+  "Update_Button": "Downloader 업데이트",
+  "Update_Ready_Tip": "새 버전이 준비됨 — 재시작하여 설치"
 }

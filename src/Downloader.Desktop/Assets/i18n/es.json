@@ -176,5 +176,10 @@
   "Shutdown_Canceled_Msg": "El equipo permanecerá encendido.",
   "Shutdown_Notify_Title": "Apagado próximo",
   "Shutdown_Notify_Msg": "Descargas finalizadas: el equipo se apagará en {0}s. Abre Downloader para cancelar.",
-  "Action_UrlCopied": "¡URL copiada!"
+  "Action_UrlCopied": "¡URL copiada!",
+  "Update_Checking": "Comprobando…",
+  "Update_Downloading": "Descargando actualización…",
+  "Update_Restart": "Reiniciar para actualizar",
+  "Update_Button": "Actualizar Downloader",
+  "Update_Ready_Tip": "Hay una nueva versión lista: reinicia para instalar"
 }

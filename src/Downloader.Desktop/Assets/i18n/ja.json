@@ -203,5 +203,10 @@
   "Shutdown_Canceled_Msg": "コンピューターは起動したままになります。",
   "Shutdown_Notify_Title": "まもなくシャットダウン",
   "Shutdown_Notify_Msg": "ダウンロード完了 — {0}秒後にシャットダウンします。取消すには Downloader を開いてください。",
-  "Action_UrlCopied": "URL をコピーしました！"
+  "Action_UrlCopied": "URL をコピーしました！",
+  "Update_Checking": "確認中…",
+  "Update_Downloading": "更新をダウンロード中…",
+  "Update_Restart": "再起動して更新",
+  "Update_Button": "Downloader を更新",
+  "Update_Ready_Tip": "新しいバージョンの準備ができました — 再起動してインストール"
 }

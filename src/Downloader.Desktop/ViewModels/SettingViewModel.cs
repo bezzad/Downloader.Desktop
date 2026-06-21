@@ -33,8 +33,35 @@ public class SettingViewModel : ViewModelBase
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
-        CheckUpdateCommand = ReactiveCommand.CreateFromTask(() => UpdateFlow.CheckAsync(manual: true));
+        // "Check for updates" while Idle; once ready, the same button restarts to install.
+        CheckUpdateCommand = ReactiveCommand.CreateFromTask(async () =>
+        {
+            if (UpdateFlow.IsReady) UpdateFlow.ApplyAndRestart();
+            else await UpdateFlow.CheckAsync(manual: true);
+        });
+        UpdateFlow.Changed += OnUpdateStateChanged;
     }
+
+    private void OnUpdateStateChanged()
+    {
+        this.RaisePropertyChanged(nameof(UpdateButtonText));
+        this.RaisePropertyChanged(nameof(IsUpdateDownloading));
+        this.RaisePropertyChanged(nameof(UpdateProgress));
+        this.RaisePropertyChanged(nameof(UpdateProgressText));
+    }
+
+    /// <summary>Label for the update button: Check / Checking / Downloading% / Restart to update.</summary>
+    public string UpdateButtonText => UpdateFlow.State switch
+    {
+        UpdateState.Checking => Localizer.Instance["Update_Checking"],
+        UpdateState.Downloading => Localizer.Instance["Update_Downloading"],
+        UpdateState.Ready => Localizer.Instance["Update_Restart"],
+        _ => Localizer.Instance["Btn_CheckUpdate"]
+    };
+
+    public bool IsUpdateDownloading => UpdateFlow.State == UpdateState.Downloading;
+    public double UpdateProgress => UpdateFlow.Progress;
+    public string UpdateProgressText => $"{UpdateFlow.Progress:0}%";
 
     public ICommand SelectSavePathCommand { get; }
     public ICommand SwitchThemeCommand { get; }
