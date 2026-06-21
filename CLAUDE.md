@@ -197,11 +197,23 @@ These rules are permanent and apply to every conversation/task in this repo — 
 
 ## Release routine (publishing a new version)
 These steps are **standing, pre-authorized** — when the author asks to publish/release a new version
-`vX.Y.Z`, do ALL of the following without asking again:
+`vX.Y.Z`, do ALL of the following without asking again.
+
+**`scripts/release.sh` automates this whole routine** (version bump → merge → tag → wait for assets →
+release notes → Homebrew tap + mirror → winget mirror + PR). Prefer running it:
+`./scripts/release.sh X.Y.Z` (prompts for release notes; pass `--notes-file notes.md` to supply them
+non-interactively). The manual steps below are the fallback / what the script does.
+
 1. Bump the version, merge `develop` → `main`, tag `vX.Y.Z`, and push the tag. `.github/workflows/release.yml`
    then builds win/linux/macOS×2 (`Downloader-<rid>.tar.gz`) and attaches them to the GitHub Release. Wait
    for that run to finish so the macOS assets exist.
-2. **Always update the Homebrew tap — this is a mandatory part of every release, not a separate request.**
+2. **Release notes are MANDATORY (high priority) — never ship a noteless release.** Every version must say
+   what changed for end users. `release.sh` captures a human "Highlights" block up front and, once the
+   release exists, sets the body (highlights + GitHub's auto-generated "What's Changed") via
+   `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, `release.yml`/`snap.yml` pass
+   `generate_release_notes: true` so even a bare tag push gets an auto changelog. If you ever release by
+   hand, write the notes — a release with an empty body is not "done".
+3. **Always update the Homebrew tap — this is a mandatory part of every release, not a separate request.**
    In `bezzad/homebrew-tap` → `Casks/downloader.rb`, set `version "X.Y.Z"` and the two `sha256` (arm64 then
    intel) from the released macOS archives, commit, and push to the tap repo. Then sync the in-repo mirror
    `Casks/downloader.rb` on `develop` to match.
@@ -213,5 +225,14 @@ These steps are **standing, pre-authorized** — when the author asks to publish
    X64=$(curl -fsSL "https://github.com/bezzad/Downloader.Desktop/releases/download/v$VER/Downloader-osx-x64.tar.gz"   | shasum -a 256 | awk '{print $1}')
    # edit Casks/downloader.rb: version "$VER", on_arm sha256 "$ARM", on_intel sha256 "$X64"; commit + push the tap
    ```
-3. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
-4. Record the release in `PLAN.md`/`TASKS.md` (version, tag, commit hashes, tap commit) per the workflow above.
+4. **Always keep winget in sync with the latest version — mandatory part of every release.** Bump the
+   in-repo mirror `packaging/winget/*.yaml` (PackageVersion in all three + InstallerUrl/InstallerSha256 of
+   the released `Downloader-win-x64.zip`) on `develop`, then submit a PR to `microsoft/winget-pkgs` under
+   `manifests/b/bezzad/Downloader/X.Y.Z/`. `release.sh` does both via `submit_winget`. The package identifier
+   is `bezzad.Downloader` (Moniker `downloader`); the installer is the portable zip (nested `Downloader.exe`).
+   **Dedup rule (learned the hard way):** before opening a winget PR, check for an existing OPEN one
+   (`gh pr list --repo microsoft/winget-pkgs --author @me`) — close stale/older-version PRs instead of
+   stacking duplicates. winget-pkgs PRs pass automated validation then wait on a community moderator to
+   merge (the CLA is already signed for `bezzad`).
+5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
+6. Record the release in `PLAN.md`/`TASKS.md` (version, tag, commit hashes, tap commit, winget PR #) per the workflow above.

@@ -102,3 +102,6 @@ jobs:
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.tar.gz
           fail_on_unmatched_files: false
+          # Never ship a noteless release: whichever matrix job creates it first stamps an
+          # auto-generated "What's Changed" changelog. scripts/release.sh sets curated notes on top.
+          generate_release_notes: true
