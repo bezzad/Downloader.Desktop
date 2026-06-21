@@ -14,6 +14,9 @@ on:
     tags: [ "v*" ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # let action-gh-release attach the .snap to the release
+
 jobs:
   build:
     runs-on: ubuntu-latest
