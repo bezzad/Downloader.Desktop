@@ -5,10 +5,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 #
-# Uninstall:  rm -rf ~/.local/share/downloader ~/.local/bin/downloader \
-#                    ~/.local/share/applications/downloader.desktop \
-#                    ~/.local/share/pixmaps/downloader.png \
-#                    ~/.local/share/icons/hicolor/*/apps/downloader.png
+# Uninstall:  scripts/uninstall.sh   (or: curl -fsSL .../scripts/uninstall.sh | bash)
 set -euo pipefail
 
 REPO="bezzad/Downloader.Desktop"
