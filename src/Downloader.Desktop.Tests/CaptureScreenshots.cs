@@ -151,6 +151,21 @@ public class CaptureScreenshots
         Save(window, "settings-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
+        // Settings scrolled to the new Language(flag) + Theme + Accent controls so the accent picker and
+        // the country flag are actually visible in docs (they sit below the fold in the top-of-page shot).
+        Pump();
+        var settingsView = window.GetVisualDescendants().OfType<Downloader.Desktop.Views.SettingView>().FirstOrDefault();
+        var sv = settingsView?.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>().FirstOrDefault();
+        if (sv != null)
+        {
+            sv.Offset = new Avalonia.Vector(0, 215);
+            Save(window, "settings-accent-dark.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+            Save(window, "settings-accent-light.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            sv.Offset = default;
+        }
+
         // Queues page (real queue manager: aggregate stats + per-item progress/actions).
         vm.ShowQueuesCommand.Execute(null);
         Save(window, "queues-dark.png");
