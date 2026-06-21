@@ -30,6 +30,13 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Commit policy — superseded by "Workflow & progress tracking" below**: that section's "commit frequently and push to `develop`" is the current standing rule for routine work (code steps, PLAN.md/TASKS.md updates, skill-file notes). The old default of waiting for explicit per-commit approval no longer applies on `develop`; it still applies to anything outside that scope (e.g. force-pushes, branch/history changes, releases/tags).
 - The author steers and gives feedback; fold it in and keep this file current.
 
+### Standing operating rules (the author asked for these — always apply, never wait to be told again)
+- **Ask all questions BEFORE starting.** The author typically hands over a batch of tasks and then leaves the machine. Front-load every clarifying question (ambiguous scope, design choices, mappings, trade-offs) in one go *before* writing any code, using `AskUserQuestion`, so the work can run unattended afterward. Don't start, hit an ambiguity, and stall waiting for an answer that won't come.
+- **Use the available skills.** Invoke the repo's `downloader-desktop` skill first (build/run/test + gotchas), and use any other relevant available skill rather than re-deriving from scratch. Skills are the first source of truth for how to do things here.
+- **Cache recurring patterns into the skill automatically.** When a non-obvious pattern, gotcha, or decision comes up that a future session would otherwise re-derive, append a concise note to the relevant skill file (usually `.claude/skills/downloader-desktop/SKILL.md`) and commit it on `develop` — no confirmation needed. Goal: steadily fewer tokens per session.
+- **Minimal, targeted changes — don't disturb working scenarios.** Change only what the task needs. Do not refactor, "improve", or alter unrelated code paths that already work; touching them risks new bugs. When a recent change looks odd, assume it may have had a reason — review its history before overriding it. (Reinforces the Clean Code/KISS rule below.)
+- **Tests passing = done; then push.** A task is complete when the build is clean and `dotnet test` is green (add/adjust tests for the change). When everything for the session is done and green, commit and push to `develop`. If a view's UI changed, also refresh screenshots (see "Workflow & progress tracking").
+
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
