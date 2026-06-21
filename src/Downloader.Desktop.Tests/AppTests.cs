@@ -484,4 +484,52 @@ public class AppTests
         manager.MovePriority(b, -1); // move b up past a
         Assert.True(manager.Items.IndexOf(b) < manager.Items.IndexOf(a));
     }
+
+    [AvaloniaTheory]
+    [InlineData(DownloadStatus.Running)]
+    [InlineData(DownloadStatus.Paused)]
+    public void Interrupted_downloads_load_as_stopped(DownloadStatus saved)
+    {
+        // A Running/Paused state can't survive a restart (no live connection), so both must come back
+        // as Stopped — never a misleading "Paused" row.
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Downloads.Add(new DownloadItem { Url = "https://host/x.zip", Status = saved });
+        manager.Initialize(config);
+        Assert.Equal(DownloadStatus.Stopped, manager.Items[0].Status);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(DownloadStatus.Completed)]
+    [InlineData(DownloadStatus.Stopped)]
+    [InlineData(DownloadStatus.Failed)]
+    public void Terminal_states_survive_load(DownloadStatus saved)
+    {
+        // Only Running/Paused are normalized; finished/stopped/failed rows keep their saved state.
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Downloads.Add(new DownloadItem { Url = "https://host/x.zip", Status = saved });
+        manager.Initialize(config);
+        Assert.Equal(saved, manager.Items[0].Status);
+    }
+
+    [AvaloniaFact]
+    public void Accent_applies_color_and_selection_resources()
+    {
+        ThemeService.ApplyAccent("Blue");
+        var res = Avalonia.Application.Current!.Resources;
+        Assert.Equal(ThemeService.Find("Blue").Color, res["SystemAccentColor"]);
+        Assert.True(res.ContainsKey("RowSelectionBrush"));
+        Assert.IsAssignableFrom<IBrush>(res["RowSelectionBrush"]);
+        // Unknown key falls back to the first accent (Teal) rather than throwing.
+        Assert.Equal(ThemeService.Accents[0], ThemeService.Find("does-not-exist"));
+        ThemeService.ApplyAccent("Teal"); // restore default for other tests
+    }
+
+    [AvaloniaFact]
+    public void Every_language_has_a_loadable_flag()
+    {
+        foreach (var lang in Localizer.Languages)
+            Assert.NotNull(lang.Flag); // Assets/flags/{code}.png must be embedded for each language
+    }
 }

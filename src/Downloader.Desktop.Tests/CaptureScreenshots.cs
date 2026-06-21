@@ -7,6 +7,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Downloader;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -107,7 +108,7 @@ public class CaptureScreenshots
         var vm = new MainViewModel(new SampleFileService(SampleConfig()), manager);
         Pump();
 
-        // Loaded items are normalized to Paused; show the first two as actively downloading.
+        // Loaded items are normalized to Stopped; show the first two as actively downloading.
         foreach (var row in manager.Items.Take(2))
         {
             row.Status = DownloadStatus.Running;
@@ -119,6 +120,20 @@ public class CaptureScreenshots
 
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         Save(window, "home-dark.png");
+
+        // VERIFY (#row-select): programmatically select a row and capture it so the selected-row text
+        // contrast can be eyeballed in both themes (a headless click only reads as hover, not selection).
+        Pump();
+        var grid = window.GetVisualDescendants().OfType<Avalonia.Controls.DataGrid>().FirstOrDefault();
+        if (grid != null)
+        {
+            grid.SelectedIndex = 1;
+            Save(window, "home-selected-dark.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+            Save(window, "home-selected-light.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            grid.SelectedIndex = -1;
+        }
 
         // VERIFY: click a cell and confirm no per-cell focus/current border appears (#3/#8).
         Avalonia.Headless.HeadlessWindowExtensions.MouseDown(window, new Avalonia.Point(360, 240), Avalonia.Input.MouseButton.Left);

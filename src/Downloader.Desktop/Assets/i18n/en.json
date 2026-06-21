@@ -86,6 +86,8 @@
   "Set_MaxConcurrent": "Max concurrent downloads",
   "Set_PerQueue_Hint": "Per queue.",
   "Set_DarkTheme": "Dark theme",
+  "Set_Accent": "Accent color",
+  "Set_Accent_Hint": "Highlight color used across the app.",
   "Set_Notifications": "Desktop notifications",
   "Set_Notifications_Hint": "Master switch for the alerts below.",
   "Set_Language": "App language",

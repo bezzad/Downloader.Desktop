@@ -1,5 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:Downloader.Desktop.Behaviors"
              x:Class="Downloader.Desktop.App"
              RequestedThemeVariant="Default">
     <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
@@ -11,6 +12,9 @@
             <SolidColorBrush x:Key="DangerColor" Color="#E5594F" />
             <SolidColorBrush x:Key="SuccessColor" Color="#1FA971" />
             <SolidColorBrush x:Key="WarningColor" Color="#E0922F" />
+            <!-- Selected-row tint fallback (translucent teal). ThemeService overrides this with the
+                 chosen accent at the same low alpha so selection follows the accent. -->
+            <SolidColorBrush x:Key="RowSelectionBrush" Color="#2DBED6" Opacity="0.28" />
         </ResourceDictionary>
     </Application.Resources>
 
@@ -186,6 +190,9 @@
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumLowColor}" />
+            <!-- Clearing the box would set Value=null and break binding to non-nullable settings (a
+                 "value cannot be null" error in the view); snap an empty box back to its Minimum. -->
+            <Setter Property="behaviors:NumericCoerce.EmptyToMinimum" Value="True" />
         </Style>
         <!-- Give the control one clean, visible rounded outer border (the inner ButtonSpinner draws it) -->
         <Style Selector="NumericUpDown /template/ ButtonSpinner">
@@ -236,10 +243,17 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <!-- Selected row: tint every cell so the whole row reads as selected (not a single cell). -->
+        <!-- Selected row: tint every cell with a soft translucent accent so the WHOLE row reads as
+             selected while the text underneath stays readable in every theme. The Fluent default fills
+             the row with the solid accent, which made the dark row text almost invisible (#row-select).
+             RowSelectionBrush is a translucent accent kept in sync with the chosen accent by ThemeService;
+             the fallback here covers first paint before any accent is applied. Foreground is pinned to the
+             normal high-contrast text color so inherited (filename) text never goes white-on-light. -->
         <Style Selector="DataGridCell:selected">
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseHighColor}" />
         </Style>
         <!-- The current/focus outline is drawn on unnamed template elements; neutralize any Border
              outline and any Rectangle stroke (grid lines use Fill, so they're unaffected). -->

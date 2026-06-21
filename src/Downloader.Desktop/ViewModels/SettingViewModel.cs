@@ -135,8 +135,7 @@ public class SettingViewModel : ViewModelBase
         if (S.EnableSystemTray) TrayService.Enable(); else TrayService.Disable();
         StartupService.Apply(S.RunAtStartup);
         if (S.EnableBrowserIntegration) BrowserIntegrationService.Start(); else BrowserIntegrationService.Stop();
-        if (Application.Current?.Styles[0] is FluentTheme)
-            Application.Current.RequestedThemeVariant = _config.ThemeMode;
+        ThemeService.Apply(_config); // reset theme variant + accent together
 
         // Empty name tells the bindings every property changed, refreshing the whole page
         // (and triggering the debounced save wired to SettingViewModel.PropertyChanged).
@@ -255,6 +254,21 @@ public class SettingViewModel : ViewModelBase
         set
         {
             _config.ThemeMode = value ? ThemeVariant.Dark : ThemeVariant.Light;
+            this.RaisePropertyChanged();
+        }
+    }
+
+    // ---- Accent ----
+    public System.Collections.Generic.IReadOnlyList<AccentOption> Accents => ThemeService.Accents;
+
+    public AccentOption SelectedAccent
+    {
+        get => ThemeService.Find(S.AccentColor);
+        set
+        {
+            if (value == null) return;
+            S.AccentColor = value.Key;
+            ThemeService.ApplyAccent(value.Key); // live recolor across the app
             this.RaisePropertyChanged();
         }
     }

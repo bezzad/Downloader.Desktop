@@ -149,9 +149,12 @@ public class DownloadManager : IDownloadManager
         Items.Clear();
         foreach (var item in _config.Downloads ?? new List<DownloadItem>())
         {
-            // Nothing is actually running on a fresh launch — show in-progress items as resumable.
-            if (item.Status == DownloadStatus.Running)
-                item.Status = DownloadStatus.Paused;
+            // Nothing is actually running on a fresh launch. A saved Running OR Paused state can't
+            // survive a restart — "Paused" means the live server connection is held open with the stream
+            // reader paused, which is impossible once the process exited. So normalize both to Stopped
+            // (resumable from disk) rather than showing a misleading "Paused" row.
+            if (item.Status is DownloadStatus.Running or DownloadStatus.Paused)
+                item.Status = DownloadStatus.Stopped;
             // Backfill the queue for items saved without one (older configs) so they always belong to a
             // queue and show up on the Queues page.
             if (string.IsNullOrWhiteSpace(item.QueueId))

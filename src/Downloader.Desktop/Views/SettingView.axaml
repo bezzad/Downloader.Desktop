@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+             xmlns:services="clr-namespace:Downloader.Desktop.Services"
              xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
              mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="640"
              x:Class="Downloader.Desktop.Views.SettingView"
@@ -94,7 +95,16 @@
                             <TextBlock Classes="hint" Text="{i18n:Tr Set_Language_Hint}" />
                         </StackPanel>
                         <ComboBox Grid.Column="1" Classes="ctrl" ItemsSource="{Binding Languages}"
-                                  SelectedItem="{Binding SelectedLanguage}" />
+                                  SelectedItem="{Binding SelectedLanguage}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="services:LanguageOption">
+                                    <StackPanel Orientation="Horizontal" Spacing="9">
+                                        <Image Source="{Binding Flag}" Width="22" Height="15" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </Grid>
 
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
@@ -142,6 +152,26 @@
                         <TextBlock Grid.Column="0" Text="{i18n:Tr Set_DarkTheme}" />
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
                                       Command="{Binding SwitchThemeCommand}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_Accent}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_Accent_Hint}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" Classes="ctrl" ItemsSource="{Binding Accents}"
+                                  SelectedItem="{Binding SelectedAccent}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="services:AccentOption">
+                                    <StackPanel Orientation="Horizontal" Spacing="9">
+                                        <Ellipse Width="15" Height="15" Fill="{Binding Brush}"
+                                                 Stroke="{DynamicResource SystemBaseMediumLowColor}" StrokeThickness="1"
+                                                 VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </Grid>
 
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
