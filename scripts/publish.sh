@@ -17,10 +17,12 @@ for RID in "${RIDS[@]}"; do
   echo ">> Publishing $RID ..."
   OUT="dist/$RID"
   rm -rf "$OUT"
+  # macOS must NOT be single-file/compressed: the compressed bundle crashes on Apple Silicon when a
+  # managed assembly is first inflated (SIGABRT on download start). Ship loose files in the .app.
+  PKG_ARGS=(-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true)
+  [[ "$RID" == osx-* ]] && PKG_ARGS=()
   dotnet publish "$PROJ" -c Release -r "$RID" --self-contained true \
-    -p:PublishSingleFile=true \
-    -p:IncludeNativeLibrariesForSelfExtract=true \
-    -p:EnableCompressionInSingleFile=true \
+    "${PKG_ARGS[@]}" \
     -p:DebugType=None -p:DebugSymbols=false \
     -o "$OUT"
 
