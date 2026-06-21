@@ -532,4 +532,42 @@ public class AppTests
         foreach (var lang in Localizer.Languages)
             Assert.NotNull(lang.Flag); // Assets/flags/{code}.png must be embedded for each language
     }
+
+    [AvaloniaFact]
+    public void Start_runs_item_even_when_its_queue_was_paused()
+    {
+        // Regression (1.3.2/1.3.3): a persisted queue.IsRunning=false made every per-item Start silently
+        // no-op — the item stuck as "Queued", only rescued later by the scheduler/StartQueue. An explicit
+        // Start (row button / bulk) must un-pause the queue and actually run the item.
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var vm = manager.Add(new DownloadItem { Url = "https://10.255.255.1/f.zip", SaveFolder = "/tmp" }, autoStart: false);
+        vm.Status = DownloadStatus.Stopped;
+        config.DefaultQueue.IsRunning = false; // the stuck precondition (a saved "stopped" queue)
+
+        manager.Resume(vm); // user clicks Start on the row
+
+        Assert.True(config.DefaultQueue.IsRunning);      // explicit Start un-pauses the queue
+        Assert.Equal(DownloadStatus.Running, vm.Status); // item actually started (not stuck as Queued)
+    }
+
+    [AvaloniaFact]
+    public void Removing_a_queue_deactivates_its_schedules()
+    {
+        // Deleting a queue must disable + unbind any schedules pointing at it, so the scheduler can't
+        // act on a now-deleted target (orphaned-schedule bug).
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var q2 = manager.AddQueue("Nightly");
+        var sch = new DownloadSchedule { Name = "nightly", TargetQueueId = q2.Id, Enabled = true };
+        config.Schedules.Add(sch);
+
+        manager.RemoveQueue(q2);
+
+        Assert.DoesNotContain(q2, config.Queues);
+        Assert.False(sch.Enabled);
+        Assert.Null(sch.TargetQueueId);
+    }
 }

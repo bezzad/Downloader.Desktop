@@ -195,5 +195,13 @@ public class CaptureScreenshots
         var det = new DownloadDetailsView { DataContext = new DownloadDetailsViewModel(detItem) };
         det.Show();
         Save(det, "details-dark.png");
+
+        // In-app "update available" dialog (Download / Later) — the new user-initiated update prompt.
+        var upd = new UpdatePromptView
+        {
+            DataContext = new UpdatePromptViewModel("1.4.0", "https://github.com/bezzad/Downloader.Desktop/releases")
+        };
+        upd.Show();
+        Save(upd, "update-dialog-dark.png");
     }
 }

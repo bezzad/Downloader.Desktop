@@ -127,6 +127,11 @@
   "Update_Restart": "Restart to update",
   "Update_Button": "Update Downloader",
   "Update_Ready_Tip": "A new version is ready — restart to install",
+  "Update_Available_Title": "Update available",
+  "Update_Available_Msg": "{0} is available. Download it now?",
+  "Update_ViewChanges": "What's new",
+  "Update_DownloadBtn": "Download update",
+  "Update_LaterBtn": "Later",
 
   "Sec_Logging": "LOGGING",
   "Set_WriteLog": "Write a log file",

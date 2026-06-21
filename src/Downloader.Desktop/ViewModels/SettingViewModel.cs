@@ -33,10 +33,12 @@ public class SettingViewModel : ViewModelBase
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
-        // "Check for updates" while Idle; once ready, the same button restarts to install.
+        // "Check for updates" while Idle → "Download update" once a version is available → "Restart to
+        // update" once it's downloaded. The same button drives the whole flow from Settings.
         CheckUpdateCommand = ReactiveCommand.CreateFromTask(async () =>
         {
             if (UpdateFlow.IsReady) UpdateFlow.ApplyAndRestart();
+            else if (UpdateFlow.State == UpdateState.Available) await UpdateFlow.StartDownloadAsync();
             else await UpdateFlow.CheckAsync(manual: true);
         });
         UpdateFlow.Changed += OnUpdateStateChanged;
@@ -54,6 +56,7 @@ public class SettingViewModel : ViewModelBase
     public string UpdateButtonText => UpdateFlow.State switch
     {
         UpdateState.Checking => Localizer.Instance["Update_Checking"],
+        UpdateState.Available => Localizer.Instance["Update_DownloadBtn"],
         UpdateState.Downloading => Localizer.Instance["Update_Downloading"],
         UpdateState.Ready => Localizer.Instance["Update_Restart"],
         _ => Localizer.Instance["Btn_CheckUpdate"]

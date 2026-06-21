@@ -5,7 +5,7 @@ using Avalonia.Threading;
 
 namespace Downloader.Desktop.Services;
 
-public enum UpdateState { Idle, Checking, Downloading, Ready }
+public enum UpdateState { Idle, Checking, Available, Downloading, Ready }
 
 /// <summary>
 /// Telegram-style update coordinator. Checks GitHub, silently downloads the new build in the
@@ -25,12 +25,19 @@ public static class UpdateFlow
 
     private static string _archivePath;
     private static bool _busy;
+    private static UpdateInfo _pending;
 
     /// <summary>Raised (on the UI thread) whenever State/Progress changes.</summary>
     public static event Action Changed;
 
     /// <summary>Set by the app to perform a real quit (bypassing close-to-tray).</summary>
     public static Action RequestQuit;
+
+    /// <summary>Set by the app: shows the in-app "update available" dialog (Download / Later).</summary>
+    public static Action<UpdateInfo> PromptUpdate;
+
+    public static string AvailableTag => _pending?.Tag;
+    public static string AvailableReleaseUrl => _pending?.ReleaseUrl;
 
     public static bool IsReady => State == UpdateState.Ready;
 
@@ -49,7 +56,8 @@ public static class UpdateFlow
     /// <summary>Checks GitHub; if a newer version exists, downloads it in the background automatically.</summary>
     public static async Task CheckAsync(bool manual)
     {
-        if (IsManagedExternally || _busy || State == UpdateState.Ready)
+        if (IsManagedExternally || _busy ||
+            State is UpdateState.Available or UpdateState.Downloading or UpdateState.Ready)
         {
             if (manual && IsManagedExternally)
                 NotificationService.Notify("Updates managed by your package manager",
@@ -81,7 +89,16 @@ public static class UpdateFlow
                 return;
             }
 
-            await DownloadAsync(info).ConfigureAwait(false);
+            // Don't auto-download — ASK the user first (in-app dialog with Download / Later). The
+            // download only starts when they click Download (so the Settings progress bar is actually
+            // seen, and nothing downloads behind their back).
+            _pending = info;
+            Raise(UpdateState.Available, 0);
+            if (PromptUpdate is { } prompt)
+                Dispatcher.UIThread.Post(() => prompt(info));
+            else
+                NotificationService.Notify("Update available",
+                    $"Downloader {info.Tag} is available.", isError: false);
         }
         catch (Exception ex)
         {
@@ -124,6 +141,29 @@ public static class UpdateFlow
         NotificationService.Notify("Update ready",
             $"Downloader {info.Tag} downloaded. Click \"Update Downloader\" or just close the app to install.",
             isError: false);
+    }
+
+    /// <summary>Start downloading the pending update (called by the in-app dialog's "Download" button).</summary>
+    public static async Task StartDownloadAsync()
+    {
+        if (_pending == null || State is UpdateState.Downloading or UpdateState.Ready)
+            return;
+        try
+        {
+            await DownloadAsync(_pending).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Update download failed", ex);
+            Raise(UpdateState.Idle, 0);
+        }
+    }
+
+    /// <summary>User dismissed the update prompt ("Later"). Resets so a later check can prompt again.</summary>
+    public static void Dismiss()
+    {
+        if (State == UpdateState.Available)
+            Raise(UpdateState.Idle, 0);
     }
 
     /// <summary>Triggers a real app quit; the staged update is applied on exit (see ApplyPendingOnExit).</summary>

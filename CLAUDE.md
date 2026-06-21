@@ -213,6 +213,13 @@ non-interactively). The manual steps below are the fallback / what the script do
    `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, `release.yml`/`snap.yml` pass
    `generate_release_notes: true` so even a bare tag push gets an auto changelog. If you ever release by
    hand, write the notes — a release with an empty body is not "done".
+   **FORMAT — notes MUST be GitHub-flavored Markdown, pretty and human-friendly (NOT plain text):**
+   - Start with a one-line summary sentence, then short grouped sections with emoji headers, e.g.
+     `### ✨ New` / `### 🐛 Fixes` / `### 🔧 Under the hood`, each a few concise bullets.
+   - **Simple and summary — keep it short** (a handful of bullets, end-user wording, no commit hashes /
+     internal jargon). Reference good examples already on GitHub: **v1.0.0 / v1.1.0 / v1.2.0**.
+   - End with a thin divider + an install hint line if useful. The auto-generated "What's Changed" list
+     may follow under its own heading, but the curated Markdown highlights come first.
 3. **Always update the Homebrew tap — this is a mandatory part of every release, not a separate request.**
    In `bezzad/homebrew-tap` → `Casks/downloader.rb`, set `version "X.Y.Z"` and the two `sha256` (arm64 then
    intel) from the released macOS archives, commit, and push to the tap repo. Then sync the in-repo mirror

@@ -199,6 +199,7 @@ public class MainViewModel : ViewModelBase
             SaveSoon();
         };
         UpdateFlow.RequestQuit = Quit;
+        UpdateFlow.PromptUpdate = info => DialogHelper.ShowUpdatePrompt(info); // in-app Download/Later dialog
 
         if (_config.Settings.EnableSystemTray)
             TrayService.Enable();
