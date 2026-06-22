@@ -323,6 +323,9 @@ public class DownloadManager : IDownloadManager
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
         vm.AlreadyExisted = false;
+        // Capture the known size before progress events overwrite it — only meaningful when resuming
+        // (we already had bytes + a real size). Used to spot an expired link returning a tiny file.
+        vm.PreAttemptSize = item.Downloaded > 0 ? item.Size : null;
         vm.Status = DownloadStatus.Running;
         _allCompleteFired = false; // a new run means "all complete" can fire again when it drains
         EnsureUiPump();
@@ -771,6 +774,19 @@ public class DownloadManager : IDownloadManager
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
+            else if (IsExpiredLinkResult(vm, e, out var finalBytes))
+            {
+                // Resumed, but "completed" at a size far below the known total → the link expired and the
+                // server returned a stub/error body. That's a failure needing a FRESH link, not success.
+                vm.Size = vm.PreAttemptSize; // restore the real size for display
+                vm.ErrorMessage =
+                    "The download link appears to have expired — the server returned a much smaller file " +
+                    "than before. Re-add this item with a fresh link.";
+                vm.Status = DownloadStatus.Failed;
+                AppLog.Error($"Expired link suspected: {vm.FileName} got {finalBytes} of expected {vm.PreAttemptSize}");
+                if (NotifyFailedEnabled)
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+            }
             else
             {
                 vm.Progress = 100;
@@ -783,6 +799,20 @@ public class DownloadManager : IDownloadManager
             FinishTerminal(vm);
         });
     }
+
+    private static bool IsExpiredLinkResult(DownloadItemViewModel vm,
+        System.ComponentModel.AsyncCompletedEventArgs e, out long finalBytes)
+    {
+        finalBytes = (e.UserState as DownloadPackage)?.ReceivedBytesSize
+                     ?? vm.Download?.Package?.ReceivedBytesSize
+                     ?? 0;
+        return ExpiredLinkHeuristic(vm.PreAttemptSize, finalBytes);
+    }
+
+    /// <summary>Pure heuristic (testable): a RESUME that "completed" at under half the size we already knew
+    /// means the link expired and the server returned a tiny stub/error body — treat as a failure.</summary>
+    public static bool ExpiredLinkHeuristic(long? knownSizeBeforeAttempt, long finalBytes) =>
+        knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value / 2;
 
     /// <summary>
     /// Shared post-terminal bookkeeping for a row that just reached an end state: free its queue slot,

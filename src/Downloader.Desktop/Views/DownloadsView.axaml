@@ -83,7 +83,7 @@
                 <!-- Stop every item, regardless of queue or selection (#4) -->
                 <Button Classes="tool" Command="{Binding StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
                     <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
+                        <PathIcon Data="{DynamicResource StopAllRegular}" HorizontalAlignment="Center" />
                         <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>

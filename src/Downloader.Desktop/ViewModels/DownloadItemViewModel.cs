@@ -243,6 +243,10 @@ public class DownloadItemViewModel : ViewModelBase
         }
     }
 
+    /// <summary>The known total size captured at the START of the current attempt (transient, not
+    /// persisted). Used to detect an expired link that returns a much smaller file when resuming.</summary>
+    public long? PreAttemptSize { get; set; }
+
     public long Downloaded
     {
         get => _item.Downloaded;

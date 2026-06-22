@@ -141,6 +141,8 @@
   "Update_ViewChanges": "What's new",
   "Update_DownloadBtn": "Download update",
   "Update_LaterBtn": "Later",
+  "Update_VersionAvailable": "{0} available",
+  "Update_CancelTip": "Cancel download",
 
   "Sec_Logging": "LOGGING",
   "Set_WriteLog": "Write a log file",

@@ -263,19 +263,29 @@
 
                     <!-- Check for updates → (downloading: progress) → Restart to update. The label
                          reflects UpdateFlow state; a progress bar shows during the background download. -->
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0 6 0 0" VerticalAlignment="Center">
-                        <Button Padding="12 6" Command="{Binding CheckUpdateCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
-                                <TextBlock Text="{Binding UpdateButtonText}" VerticalAlignment="Center" />
+                    <StackPanel Spacing="6" Margin="0 6 0 0">
+                        <!-- Shows WHICH version is available (#update). -->
+                        <TextBlock Text="{Binding AvailableVersionText}" IsVisible="{Binding HasAvailableVersion}"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource SystemAccentColor}" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <Button Padding="12 6" Command="{Binding CheckUpdateCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
+                                    <TextBlock Text="{Binding UpdateButtonText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <!-- Download progress + a × to cancel it (#update). -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsUpdateDownloading}">
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
+                                             Width="150" Height="6" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding UpdateProgressText}" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                <Button Classes="icon" Padding="4" Command="{Binding CancelUpdateDownloadCommand}"
+                                        ToolTip.Tip="{i18n:Tr Update_CancelTip}">
+                                    <PathIcon Data="{StaticResource DismissRegular}" Height="12" Width="12" />
+                                </Button>
                             </StackPanel>
-                        </Button>
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                                    IsVisible="{Binding IsUpdateDownloading}">
-                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
-                                         Width="160" Height="6" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding UpdateProgressText}" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

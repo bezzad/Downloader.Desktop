@@ -41,6 +41,7 @@ public class SettingViewModel : ViewModelBase
             else if (UpdateFlow.State == UpdateState.Available) await UpdateFlow.StartDownloadAsync();
             else await UpdateFlow.CheckAsync(manual: true);
         });
+        CancelUpdateDownloadCommand = ReactiveCommand.Create(UpdateFlow.CancelDownload);
         UpdateFlow.Changed += OnUpdateStateChanged;
     }
 
@@ -50,7 +51,21 @@ public class SettingViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsUpdateDownloading));
         this.RaisePropertyChanged(nameof(UpdateProgress));
         this.RaisePropertyChanged(nameof(UpdateProgressText));
+        this.RaisePropertyChanged(nameof(AvailableVersionText));
+        this.RaisePropertyChanged(nameof(HasAvailableVersion));
     }
+
+    public ICommand CancelUpdateDownloadCommand { get; }
+
+    /// <summary>"v1.4.0 available" once a newer version is detected (so the user sees WHICH version).</summary>
+    public string AvailableVersionText =>
+        string.IsNullOrWhiteSpace(UpdateFlow.AvailableTag)
+            ? string.Empty
+            : string.Format(Localizer.Instance["Update_VersionAvailable"], UpdateFlow.AvailableTag);
+
+    public bool HasAvailableVersion =>
+        UpdateFlow.State is UpdateState.Available or UpdateState.Downloading or UpdateState.Ready
+        && !string.IsNullOrWhiteSpace(UpdateFlow.AvailableTag);
 
     /// <summary>Label for the update button: Check / Checking / Downloading% / Restart to update.</summary>
     public string UpdateButtonText => UpdateFlow.State switch
