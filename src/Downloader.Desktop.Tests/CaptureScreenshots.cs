@@ -10,12 +10,24 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Downloader;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 using Xunit;
 
 namespace Downloader.Desktop.Tests;
+
+/// <summary>A no-op plugin used only to populate the Plugins-page screenshot.</summary>
+internal sealed class DemoPlugin(string name, string description) : IDownloaderPlugin
+{
+    public string Id => "demo." + name.GetHashCode();
+    public string Name => name;
+    public string Version => "1.0.0";
+    public string Author => "bezzad";
+    public string Description => description;
+    public void Initialize(IPluginContext context) { }
+}
 
 /// <summary>
 /// Renders the app with sample data and saves PNG screenshots for the README.
@@ -105,7 +117,10 @@ public class CaptureScreenshots
             return;
 
         var manager = new DownloadManager();
-        var vm = new MainViewModel(new SampleFileService(SampleConfig()), manager);
+        var plugins = new Services.PluginManager();
+        plugins.RegisterPlugin(new DemoPlugin("HLS / Video sites", "Download from YouTube, Instagram, TikTok and any HLS (.m3u8) stream."));
+        plugins.RegisterPlugin(new DemoPlugin("Torrents", "Add magnet links and .torrent files."));
+        var vm = new MainViewModel(new SampleFileService(SampleConfig()), manager, plugins);
         Pump();
 
         // Loaded items are normalized to Stopped; show the first two as actively downloading.
@@ -178,6 +193,13 @@ public class CaptureScreenshots
         Save(window, "scheduler-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "scheduler-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // Plugins page (add-ons that extend the app — HLS/video, torrents, …).
+        vm.ShowPluginsCommand.Execute(null);
+        Save(window, "plugins-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "plugins-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
         vm.ShowSettingViewCommand.Execute(null); // leave a known page before the RTL capture

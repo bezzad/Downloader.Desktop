@@ -18,5 +18,19 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Downloader.Desktop\Downloader.Desktop.csproj" />
+        <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
+        <!-- Build the sample plugin (but DON'T reference it for compilation) so the loader integration
+             test can load it from disk as a real external DLL. -->
+        <ProjectReference Include="..\..\samples\Downloader.Desktop.SamplePlugin\Downloader.Desktop.SamplePlugin.csproj"
+                          ReferenceOutputAssembly="false" Private="false" />
     </ItemGroup>
+
+    <!-- Stage the built sample plugin DLL into <testout>/plugins-sample so the integration test can load it. -->
+    <Target Name="StageSamplePlugin" AfterTargets="Build">
+        <ItemGroup>
+            <SamplePluginDll Include="$(MSBuildThisFileDirectory)..\..\samples\Downloader.Desktop.SamplePlugin\bin\$(Configuration)\net10.0\Downloader.Desktop.SamplePlugin.dll" />
+        </ItemGroup>
+        <Copy SourceFiles="@(SamplePluginDll)" DestinationFolder="$(OutDir)plugins-sample"
+              SkipUnchangedFiles="true" Condition="Exists('@(SamplePluginDll)')" />
+    </Target>
 </Project>

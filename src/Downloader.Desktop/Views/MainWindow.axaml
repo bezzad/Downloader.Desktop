@@ -29,6 +29,7 @@
         <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
         <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
         <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
+        <DataTemplate DataType="vm:PluginsViewModel"><v:PluginsView /></DataTemplate>
         <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
     </Window.DataTemplates>
 
@@ -205,6 +206,13 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <PathIcon Data="{StaticResource ClockRegular}" />
                             <TextBlock Text="{i18n:Tr Nav_Scheduler}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="nav" Classes.selected="{Binding IsPluginsSelected}" Command="{Binding ShowPluginsCommand}"
+                            ToolTip.Tip="{i18n:Tr Nav_Plugins}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Data="{StaticResource AppsListRegular}" />
+                            <TextBlock Text="{i18n:Tr Nav_Plugins}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav" Classes.selected="{Binding IsSettingsSelected}" Command="{Binding ShowSettingViewCommand}"

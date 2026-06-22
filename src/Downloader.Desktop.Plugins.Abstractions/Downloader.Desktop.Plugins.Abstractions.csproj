@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The plugin SDK: ONLY interfaces + POCO types. External plugins reference this small, stable
+       assembly (never the whole app). Keep it dependency-free so plugin authors have a tiny surface. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Downloader.Desktop.Plugins.Abstractions</AssemblyName>
+    <RootNamespace>Downloader.Desktop.Plugins</RootNamespace>
+  </PropertyGroup>
+</Project>

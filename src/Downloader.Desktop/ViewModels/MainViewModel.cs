@@ -19,6 +19,7 @@ public class MainViewModel : ViewModelBase
 {
     private readonly IFileService _fileService;
     private readonly IDownloadManager _downloadManager;
+    private readonly PluginManager _pluginManager;
     private Config _config;
 
     private string _downloadUrl;
@@ -30,10 +31,11 @@ public class MainViewModel : ViewModelBase
     private DateTime _lastSaveUtc;
     private bool _isSidebarExpanded = true;
 
-    public MainViewModel(IFileService fileService, IDownloadManager downloadManager)
+    public MainViewModel(IFileService fileService, IDownloadManager downloadManager, PluginManager pluginManager = null)
     {
         _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         _downloadManager = downloadManager ?? throw new ArgumentNullException(nameof(downloadManager));
+        _pluginManager = pluginManager ?? new PluginManager();
 
         AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
         StartAllCommand = ReactiveCommand.Create(() => _downloadManager.StartAll());
@@ -46,6 +48,7 @@ public class MainViewModel : ViewModelBase
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
         ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
         ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
+        ShowPluginsCommand = ReactiveCommand.Create(() => Navigate(NavSection.Plugins));
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
@@ -68,6 +71,7 @@ public class MainViewModel : ViewModelBase
     public DownloadsViewModel Downloads { get; private set; }
     public QueuesViewModel Queues { get; private set; }
     public SchedulerViewModel Scheduler { get; private set; }
+    public PluginsViewModel Plugins { get; private set; }
     public SettingViewModel Settings { get; private set; }
 
     public object CurrentPage
@@ -87,6 +91,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowFailedCommand { get; }
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
+    public ICommand ShowPluginsCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
     public ICommand ToggleSidebarCommand { get; }
     public ICommand ShowAboutCommand { get; }
@@ -135,6 +140,7 @@ public class MainViewModel : ViewModelBase
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
     public bool IsQueuesSelected => _section == NavSection.Queues;
     public bool IsSchedulerSelected => _section == NavSection.Scheduler;
+    public bool IsPluginsSelected => _section == NavSection.Plugins;
     public bool IsSettingsSelected => _section == NavSection.Settings;
 
     // ---- Status bar ----
@@ -160,9 +166,16 @@ public class MainViewModel : ViewModelBase
         ThemeService.Apply(_config); // theme variant + chosen accent
 
         _downloadManager.Initialize(_config);
+
+        // Load external plugins (~/.config/Downloader/plugins) and apply the user's disabled list.
+        _pluginManager.LoadFromDirectory(Services.PluginManager.PluginsRoot);
+        foreach (var id in _config.DisabledPlugins ?? new System.Collections.Generic.List<string>())
+            _pluginManager.SetEnabled(id, false);
+
         Downloads = new DownloadsViewModel(_downloadManager);
         Queues = new QueuesViewModel(_config, _downloadManager);
         Scheduler = new SchedulerViewModel(_config, _downloadManager);
+        Plugins = new PluginsViewModel(_pluginManager, _config);
         Settings = new SettingViewModel(_config, _downloadManager);
 
         // Persist settings to disk as soon as the user changes one (#24), debounced so spinning a
@@ -356,6 +369,7 @@ public class MainViewModel : ViewModelBase
         {
             NavSection.Queues => Queues,
             NavSection.Scheduler => Scheduler,
+            NavSection.Plugins => Plugins,
             NavSection.Settings => Settings,
             _ => (object)Downloads
         };
@@ -378,6 +392,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsFailedSelected));
         this.RaisePropertyChanged(nameof(IsQueuesSelected));
         this.RaisePropertyChanged(nameof(IsSchedulerSelected));
+        this.RaisePropertyChanged(nameof(IsPluginsSelected));
         this.RaisePropertyChanged(nameof(IsSettingsSelected));
     }
 

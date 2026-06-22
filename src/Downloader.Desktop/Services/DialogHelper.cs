@@ -84,6 +84,25 @@ public static class DialogHelper
         view.Activate();
     }
 
+    /// <summary>Asks the user to pick an existing file (filtered by extension); returns its path or null.</summary>
+    public static async Task<Uri> OpenFilePicker(string title, string filterName, string extension)
+    {
+        if (MainWindow == null)
+            return null;
+
+        var result = await MainWindow.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType(filterName) { Patterns = new[] { "*." + extension } }
+            }
+        });
+
+        return result.Count > 0 ? result[0].Path : null;
+    }
+
     /// <summary>Asks the user where to save a file; returns the chosen path or null.</summary>
     public static async Task<Uri> SaveFilePicker(string title, string suggestedName)
     {

@@ -68,15 +68,15 @@
     </ItemGroup>
     
     <ItemGroup>
-        <AvaloniaResource Include="Assets\**"/>
+        <AvaloniaResource Include="Assets\**" />
     </ItemGroup>
 
     <ItemGroup>
-        <AvaloniaXaml Remove="Assets\Icons.axaml"/>
+        <AvaloniaXaml Remove="Assets\Icons.axaml" />
     </ItemGroup>
 
     <ItemGroup>
-        <None Remove="Assets\downloads.json"/>
+        <None Remove="Assets\downloads.json" />
     </ItemGroup>
 
     <ItemGroup>
@@ -108,5 +108,9 @@
         <Compile Update="Views\DownloadsView.axaml.cs">
             <DependentUpon>DownloadsView.axaml</DependentUpon>
         </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
     </ItemGroup>
 </Project>

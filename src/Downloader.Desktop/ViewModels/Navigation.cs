@@ -6,6 +6,7 @@ public enum NavSection
     Downloads,
     Queues,
     Scheduler,
+    Plugins,
     Settings
 }
 
