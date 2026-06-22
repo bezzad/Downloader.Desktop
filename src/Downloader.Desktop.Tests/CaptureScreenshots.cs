@@ -158,56 +158,48 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "home-light.png");
 
-        // Settings page (dark + light, so the README can be theme-aware)
-        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
-        vm.ShowSettingViewCommand.Execute(null);
-        Save(window, "settings-dark.png");
-        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-        Save(window, "settings-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
-        // Settings scrolled to the new Language(flag) + Theme + Accent controls so the accent picker and
-        // the country flag are actually visible in docs (they sit below the fold in the top-of-page shot).
+        // Management pages now open as DIALOGS over the always-downloads list (the left rail was removed).
+        // Render each via the PageDialogView host (Show, not ShowDialog, so the capture doesn't block).
+        var settingsDlg = new PageDialogView(vm.Settings, "Settings");
+        settingsDlg.Show();
+        Save(settingsDlg, "settings-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(settingsDlg, "settings-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        // Scroll to the Theme/Accent/Language(flag) controls so the accent picker + flag are visible.
         Pump();
-        var settingsView = window.GetVisualDescendants().OfType<Downloader.Desktop.Views.SettingView>().FirstOrDefault();
-        var sv = settingsView?.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>().FirstOrDefault();
+        var sv = settingsDlg.GetVisualDescendants().OfType<Downloader.Desktop.Views.SettingView>().FirstOrDefault()
+            ?.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>().FirstOrDefault();
         if (sv != null)
         {
             sv.Offset = new Avalonia.Vector(0, 215);
-            Save(window, "settings-accent-dark.png");
+            Save(settingsDlg, "settings-accent-dark.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-            Save(window, "settings-accent-light.png");
+            Save(settingsDlg, "settings-accent-light.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
-            sv.Offset = default;
         }
+        settingsDlg.Close();
 
-        // Queues page (real queue manager: aggregate stats + per-item progress/actions).
-        vm.ShowQueuesCommand.Execute(null);
-        Save(window, "queues-dark.png");
+        var queuesDlg = new PageDialogView(vm.Queues, "Queues");
+        queuesDlg.Show();
+        Save(queuesDlg, "queues-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-        Save(window, "queues-light.png");
+        Save(queuesDlg, "queues-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        queuesDlg.Close();
 
-        // Scheduler page (daily start/stop rules per queue).
-        vm.ShowSchedulerCommand.Execute(null);
-        Save(window, "scheduler-dark.png");
+        var schedulerDlg = new PageDialogView(vm.Scheduler, "Scheduler");
+        schedulerDlg.Show();
+        Save(schedulerDlg, "scheduler-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-        Save(window, "scheduler-light.png");
+        Save(schedulerDlg, "scheduler-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
-
-        // Plugins page (add-ons that extend the app — HLS/video, torrents, …).
-        vm.ShowPluginsCommand.Execute(null);
-        Save(window, "plugins-dark.png");
-        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-        Save(window, "plugins-light.png");
-        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
-
-        vm.ShowSettingViewCommand.Execute(null); // leave a known page before the RTL capture
-        vm.ShowAllCommand.Execute(null);
+        schedulerDlg.Close();
 
         // Persian (RTL) home to verify translation + right-to-left mirroring.
         Localizer.Instance.Load("fa");
-        vm.ShowAllCommand.Execute(null);
         Save(window, "home-fa-dark.png");
         Localizer.Instance.Load("en");
 

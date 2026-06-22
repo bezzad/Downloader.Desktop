@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
              xmlns:services="clr-namespace:Downloader.Desktop.Services"
+             xmlns:v="clr-namespace:Downloader.Desktop.Views"
              xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
              mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="640"
              x:Class="Downloader.Desktop.Views.SettingView"
@@ -289,6 +290,13 @@
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
+            </Border>
+
+            <!-- ===== Plugins (advanced, collapsed by default) ===== -->
+            <Border Classes="card" Padding="6 2">
+                <Expander HorizontalAlignment="Stretch" Header="{i18n:Tr Sec_Plugins}">
+                    <v:PluginsView DataContext="{Binding Plugins}" Margin="2 6 2 8" />
+                </Expander>
             </Border>
 
             <!-- ===== Logging ===== -->

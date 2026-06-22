@@ -144,6 +144,7 @@
   "Update_VersionAvailable": "{0} available",
   "Update_CancelTip": "Cancel download",
 
+  "Sec_Plugins": "Plugins (add-ons)",
   "Sec_Logging": "LOGGING",
   "Set_WriteLog": "Write a log file",
   "Set_WriteLog_Hint": "Records app and download-engine activity for diagnosing problems. Off by default.",

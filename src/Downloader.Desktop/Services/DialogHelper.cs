@@ -84,6 +84,16 @@ public static class DialogHelper
         view.Activate();
     }
 
+    /// <summary>Opens a management page (Queues / Scheduler / Settings) as a modal dialog over the
+    /// downloads list — the main view is always the list (the left nav rail was removed).</summary>
+    public static async Task ShowPage(object pageViewModel, string title)
+    {
+        if (MainWindow == null || pageViewModel == null)
+            return;
+        var view = new PageDialogView(pageViewModel, title);
+        await view.ShowDialog(MainWindow);
+    }
+
     /// <summary>Asks the user to pick an existing file (filtered by extension); returns its path or null.</summary>
     public static async Task<Uri> OpenFilePicker(string title, string filterName, string extension)
     {

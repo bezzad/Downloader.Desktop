@@ -87,6 +87,32 @@
                         <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
+
+                <!-- Open the Queues manager (dialog). Nav lives here now (the left rail was removed). -->
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Queues}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowQueuesCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource TabsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Queues}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
+
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Scheduler}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSchedulerCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ClockRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Scheduler}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Settings}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSettingViewCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource SettingsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Settings}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
 

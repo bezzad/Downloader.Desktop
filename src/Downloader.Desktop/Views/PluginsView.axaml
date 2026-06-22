@@ -8,11 +8,10 @@
              x:Class="Downloader.Desktop.Views.PluginsView"
              x:DataType="vm:PluginsViewModel">
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="14" Margin="28 22">
+    <!-- Embeddable (no outer ScrollViewer) — hosted inside the Settings page's collapsible Plugins section. -->
+    <StackPanel Spacing="14">
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="{i18n:Tr Plugins_Title}" FontSize="22" FontWeight="SemiBold" />
                     <TextBlock Text="{i18n:Tr Plugins_Desc}" TextWrapping="Wrap" MaxWidth="520"
                                HorizontalAlignment="Left"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
@@ -65,6 +64,5 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </StackPanel>
-    </ScrollViewer>
+    </StackPanel>
 </UserControl>

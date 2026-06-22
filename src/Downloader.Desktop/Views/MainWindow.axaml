@@ -27,10 +27,6 @@
 
     <Window.DataTemplates>
         <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
-        <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
-        <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
-        <DataTemplate DataType="vm:PluginsViewModel"><v:PluginsView /></DataTemplate>
-        <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
     </Window.DataTemplates>
 
     <Panel>
@@ -81,6 +77,15 @@
                                       Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </TextBox.InnerLeftContent>
                     </TextBox>
+                    <!-- "Update Downloader" appears once a new version is downloaded and ready (#update). -->
+                    <Button Classes="accent" IsVisible="{Binding IsUpdateReady}" Command="{Binding ApplyUpdateCommand}"
+                            CornerRadius="8" Height="34" Padding="12 0" Cursor="Hand"
+                            ToolTip.Tip="{i18n:Tr Update_Ready_Tip}">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="13" />
+                            <TextBlock Text="{i18n:Tr Update_Button}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <Button Classes="icon" Command="{Binding DonateCommand}" ToolTip.Tip="{i18n:Tr About_Donate}">
                         <PathIcon Data="{StaticResource HeartRegular}" Foreground="#E5594F" />
                     </Button>
@@ -119,114 +124,7 @@
             </Grid>
         </Border>
 
-        <!-- ===== Left nav rail ===== -->
-        <Border DockPanel.Dock="Left" Width="{Binding SidebarWidth}"
-                Background="{DynamicResource SystemRegionColor}"
-                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
-                Padding="8 12">
-            <DockPanel>
-                <Button DockPanel.Dock="Top" Classes="icon" Command="{Binding ToggleSidebarCommand}"
-                        HorizontalAlignment="Left" Margin="4 0 0 8" ToolTip.Tip="{i18n:Tr Nav_ToggleMenu}">
-                    <PathIcon Data="{StaticResource MenuRegular}" />
-                </Button>
-
-                <!-- Telegram-style "Update Downloader" button, pinned to the bottom of the rail. Only
-                     visible once a new version has been downloaded and is ready to install. -->
-                <Button DockPanel.Dock="Bottom" Classes="accent" IsVisible="{Binding IsUpdateReady}"
-                        Command="{Binding ApplyUpdateCommand}" Margin="2 8 2 0" Padding="10 8"
-                        CornerRadius="8" Cursor="Hand" HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center" ToolTip.Tip="{i18n:Tr Update_Ready_Tip}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                        <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
-                        <TextBlock Text="{i18n:Tr Update_Button}" VerticalAlignment="Center"
-                                   IsVisible="{Binding IsSidebarExpanded}" />
-                    </StackPanel>
-                </Button>
-
-                <StackPanel Spacing="1">
-                    <TextBlock Classes="section" Text="{i18n:Tr Nav_Status}" IsVisible="{Binding IsSidebarExpanded}" />
-
-                    <Button Classes="nav" Classes.selected="{Binding IsAllSelected}" Command="{Binding ShowAllCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_AllDownloads}">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <PathIcon Grid.Column="0" Data="{StaticResource AppsListRegular}" />
-                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_AllDownloads}" VerticalAlignment="Center" Margin="10 0 0 0"
-                                       IsVisible="{Binding IsSidebarExpanded}" />
-                            <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
-                                <TextBlock Text="{Binding AllCount}" FontSize="11" />
-                            </Border>
-                        </Grid>
-                    </Button>
-                    <Button Classes="nav" Classes.selected="{Binding IsActiveSelected}" Command="{Binding ShowActiveCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Active}">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <PathIcon Grid.Column="0" Data="{StaticResource ArrowDownloadRegular}" />
-                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_Active}" VerticalAlignment="Center" Margin="10 0 0 0"
-                                       IsVisible="{Binding IsSidebarExpanded}" />
-                            <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
-                                <TextBlock Text="{Binding ActiveFilterCount}" FontSize="11" />
-                            </Border>
-                        </Grid>
-                    </Button>
-                    <Button Classes="nav" Classes.selected="{Binding IsCompletedSelected}" Command="{Binding ShowCompletedCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Completed}">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <PathIcon Grid.Column="0" Data="{StaticResource CheckmarkRegular}" />
-                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_Completed}" VerticalAlignment="Center" Margin="10 0 0 0"
-                                       IsVisible="{Binding IsSidebarExpanded}" />
-                            <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
-                                <TextBlock Text="{Binding CompletedFilterCount}" FontSize="11" />
-                            </Border>
-                        </Grid>
-                    </Button>
-                    <Button Classes="nav" Classes.selected="{Binding IsFailedSelected}" Command="{Binding ShowFailedCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Failed}">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <PathIcon Grid.Column="0" Data="{StaticResource WarningRegular}" />
-                            <TextBlock Grid.Column="1" Text="{i18n:Tr Nav_Failed}" VerticalAlignment="Center" Margin="10 0 0 0"
-                                       IsVisible="{Binding IsSidebarExpanded}" />
-                            <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsSidebarExpanded}">
-                                <TextBlock Text="{Binding FailedFilterCount}" FontSize="11" />
-                            </Border>
-                        </Grid>
-                    </Button>
-
-                    <TextBlock Classes="section" Text="{i18n:Tr Nav_Manage}" Margin="4 16 0 2" IsVisible="{Binding IsSidebarExpanded}" />
-                    <Separator Margin="6 10" IsVisible="{Binding !IsSidebarExpanded}" />
-
-                    <Button Classes="nav" Classes.selected="{Binding IsQueuesSelected}" Command="{Binding ShowQueuesCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Queues}">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <PathIcon Data="{StaticResource TabsRegular}" />
-                            <TextBlock Text="{i18n:Tr Nav_Queues}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
-                        </StackPanel>
-                    </Button>
-                    <Button Classes="nav" Classes.selected="{Binding IsSchedulerSelected}" Command="{Binding ShowSchedulerCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Scheduler}">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <PathIcon Data="{StaticResource ClockRegular}" />
-                            <TextBlock Text="{i18n:Tr Nav_Scheduler}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
-                        </StackPanel>
-                    </Button>
-                    <Button Classes="nav" Classes.selected="{Binding IsPluginsSelected}" Command="{Binding ShowPluginsCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Plugins}">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <PathIcon Data="{StaticResource AppsListRegular}" />
-                            <TextBlock Text="{i18n:Tr Nav_Plugins}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
-                        </StackPanel>
-                    </Button>
-                    <Button Classes="nav" Classes.selected="{Binding IsSettingsSelected}" Command="{Binding ShowSettingViewCommand}"
-                            ToolTip.Tip="{i18n:Tr Nav_Settings}">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <PathIcon Data="{StaticResource SettingsRegular}" />
-                            <TextBlock Text="{i18n:Tr Nav_Settings}" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </DockPanel>
-        </Border>
-
-        <!-- ===== Central content ===== -->
+        <!-- ===== Central content (always the downloads list; Queues/Scheduler/Settings open as dialogs) ===== -->
         <ContentControl Content="{Binding CurrentPage}" />
     </DockPanel>
     </Border>

@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="640"
+        Width="900" Height="640" MinWidth="560" MinHeight="420"
+        CanResize="True"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Icon="/Assets/downloader.png"
+        x:Class="Downloader.Desktop.Views.PageDialogView"
+        x:Name="Root"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="Downloader">
+
+    <!-- Hosts a management page (Queues / Scheduler / Settings) as a dialog over the downloads list. -->
+    <Window.DataTemplates>
+        <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
+        <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
+        <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
+    </Window.DataTemplates>
+
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+        <DockPanel>
+            <v:TitleBar DockPanel.Dock="Top" Title="{Binding #Root.PageTitle}" ShowMinMax="True" />
+            <ContentControl Content="{Binding #Root.Page}" />
+        </DockPanel>
+    </Border>
+</Window>
