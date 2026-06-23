@@ -25,6 +25,31 @@
         <KeyBinding Gesture="Ctrl+N" Command="{Binding AddDownloadItemCommand, Mode=OneTime}" />
     </Window.KeyBindings>
 
+    <Window.Styles>
+        <!-- Footer status pills double as the downloads filter: click one to filter the list to that
+             state, "all" clears it. The active filter is highlighted (.active). -->
+        <Style Selector="Button.filterpill">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="9 4" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+        </Style>
+        <Style Selector="Button.filterpill:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="Button.filterpill.active">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.filterpill.active /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <Style Selector="Button.filterpill.active TextBlock">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
+
     <Window.DataTemplates>
         <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
     </Window.DataTemplates>
@@ -107,19 +132,42 @@
                     <TextBlock Text="{Binding TotalSpeedText}" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <TextBlock Text="{Binding ActiveCount}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                        <TextBlock Text="{i18n:Tr Status_Downloading}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <TextBlock Text="{Binding QueuedCount}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                        <TextBlock Text="{i18n:Tr Status_Queued}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <TextBlock Text="{Binding CompletedCount}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                        <TextBlock Text="{i18n:Tr Status_Done}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button Classes="filterpill" Classes.active="{Binding IsAllSelected}"
+                            Command="{Binding ShowAllCommand}" ToolTip.Tip="{i18n:Tr Status_All}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding AllCount}" />
+                            <TextBlock Text="{i18n:Tr Status_All}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="filterpill" Classes.active="{Binding IsActiveSelected}"
+                            Command="{Binding ShowActiveCommand}" ToolTip.Tip="{i18n:Tr Status_Downloading}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding ActiveFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Downloading}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="filterpill" Classes.active="{Binding IsQueuedSelected}"
+                            Command="{Binding ShowQueuedCommand}" ToolTip.Tip="{i18n:Tr Status_Queued}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding QueuedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Queued}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="filterpill" Classes.active="{Binding IsCompletedSelected}"
+                            Command="{Binding ShowCompletedCommand}" ToolTip.Tip="{i18n:Tr Status_Done}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding CompletedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Done}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="filterpill" Classes.active="{Binding IsFailedSelected}"
+                            Command="{Binding ShowFailedCommand}" ToolTip.Tip="{i18n:Tr Status_Failed}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding FailedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Failed}" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

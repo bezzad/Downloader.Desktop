@@ -205,7 +205,8 @@ public class DownloadsViewModel : ViewModelBase
 
         return _filter switch
         {
-            StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused or DownloadStatus.Created,
+            StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused,
+            StatusFilter.Queued => vm.Status is DownloadStatus.Created or DownloadStatus.None,
             StatusFilter.Completed => vm.Status == DownloadStatus.Completed,
             StatusFilter.Failed => vm.Status is DownloadStatus.Failed or DownloadStatus.Stopped,
             _ => true

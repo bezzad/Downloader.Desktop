@@ -78,18 +78,39 @@ public class PluginsViewModel : ViewModelBase
             Localizer.Instance["Plugins_PickTitle"], "Plugin", "dll");
         if (picked == null)
             return;
+
+        var before = _manager.Plugins.Select(p => p.Id).ToHashSet();
         try
         {
             Directory.CreateDirectory(PluginManager.PluginsRoot);
             var src = picked.LocalPath;
             var dest = Path.Combine(PluginManager.PluginsRoot, Path.GetFileName(src));
             File.Copy(src, dest, overwrite: true);
+            // Carry the sidecar deps.json (emitted by EnableDynamicLoading) so a plugin with its own
+            // dependencies still resolves them; without it AssemblyDependencyResolver finds nothing.
+            var deps = Path.ChangeExtension(src, ".deps.json");
+            if (File.Exists(deps))
+                File.Copy(deps, Path.ChangeExtension(dest, ".deps.json"), overwrite: true);
+
             _manager.LoadFromDirectory(PluginManager.PluginsRoot);
             Refresh();
+
+            var added = _manager.Plugins.Where(p => !before.Contains(p.Id)).ToList();
+            if (added.Count > 0)
+                NotificationService.Inform(
+                    Localizer.Instance["Plugins_Installed"],
+                    string.Join(", ", added.Select(a => a.Name)), false);
+            else
+                // The file copied but exposed no IDownloaderPlugin (wrong DLL, or a stale build compiled
+                // against an older SDK) — tell the user instead of failing silently ("nothing happened").
+                NotificationService.Inform(
+                    Localizer.Instance["Plugins_Install"],
+                    Localizer.Instance["Plugins_NoneFound"], true);
         }
         catch (Exception ex)
         {
             AppLog.Error("Failed to install plugin", ex);
+            NotificationService.Inform(Localizer.Instance["Plugins_Install"], ex.Message, true);
         }
     }
 }

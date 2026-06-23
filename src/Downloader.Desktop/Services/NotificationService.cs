@@ -62,6 +62,10 @@ public static class NotificationService
             Dispatcher.UIThread.Post(Show);
     }
 
+    /// <summary>Always-shown in-app toast for direct user feedback (e.g. "Plugin installed"), independent of
+    /// the notifications on/off switch — the user just performed an action and needs to see its result.</summary>
+    public static void Inform(string title, string message, bool isError) => ShowInApp(title, message, isError);
+
     private static bool TryNative(string title, string message, bool isError)
     {
         try

@@ -216,14 +216,15 @@ public class LogicTests
     }
 
     [Theory]
-    [InlineData(401_000_000L, 2_000_000L, true)]    // resumed 382MB file "completed" at 2MB -> expired link
-    [InlineData(401_000_000L, 400_000_000L, false)] // genuine completion (~full size)
+    [InlineData(401_000_000L, 2_000_000L, true)]    // resumed 382MB file "completed" at 2MB -> corrupted
+    [InlineData(401_000_000L, 400_000_000L, true)]  // resumed but finished smaller than known -> corrupted
+    [InlineData(100L, 60L, true)]                   // resumed, finished smaller than known -> corrupted
+    [InlineData(401_000_000L, 401_000_000L, false)] // genuine full completion at the known size
     [InlineData(0L, 1_000L, false)]                 // fresh download (no known size) -> never flagged
-    [InlineData(401_000_000L, 0L, false)]           // nothing received -> not "expired"
-    [InlineData(100L, 60L, false)]                  // >half -> not flagged (avoids false positives)
-    public void Expired_link_heuristic(long known, long final, bool expected)
+    [InlineData(401_000_000L, 0L, false)]           // nothing received -> not flagged
+    public void Corrupted_after_resume_heuristic(long known, long final, bool expected)
     {
         long? knownSize = known == 0 ? null : known;
-        Assert.Equal(expected, DownloadManager.ExpiredLinkHeuristic(knownSize, final));
+        Assert.Equal(expected, DownloadManager.LooksCorruptedAfterResume(knownSize, final));
     }
 }

@@ -15,6 +15,7 @@ public enum StatusFilter
 {
     All,
     Active,
+    Queued,
     Completed,
     Failed
 }
