@@ -161,4 +161,42 @@ public class PluginTests
         Assert.NotNull(pm.FindTransferProvider("file:///tmp/x"));                        // file:// transfer
         Assert.Null(pm.FindResolver("https://example.com/file.zip"));
     }
+
+    [Fact]
+    public void GitHub_resolver_claims_only_owner_repo_links()
+    {
+        // CanResolve gating for the real sample resolver (pure, no network): owner/repo on github.com only.
+        var dir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins-sample");
+        Assert.True(System.IO.Directory.Exists(dir), "sample plugin was not staged — check the test csproj target");
+        var pm = new PluginManager();
+        pm.LoadFromDirectory(dir);
+
+        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop"));
+        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop/releases")); // extra path ok
+        Assert.Null(pm.FindResolver("https://github.com/bezzad"));        // owner only -> not claimed
+        Assert.Null(pm.FindResolver("https://gitlab.com/bezzad/repo"));   // wrong host -> not claimed
+        Assert.Null(pm.FindResolver("not a url"));
+    }
+
+    [Fact]
+    public async Task Resolves_a_real_github_repo_to_a_release_asset()
+    {
+        // LIVE network test (hits api.github.com) — gated so CI/offline runs skip it. Run locally with
+        // DLDESKTOP_NET=1 to verify the exact reported scenario end-to-end: a github.com/owner/repo link
+        // resolves to a real release asset URL + name for this OS.
+        if (System.Environment.GetEnvironmentVariable("DLDESKTOP_NET") != "1")
+            return;
+
+        var dir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins-sample");
+        var pm = new PluginManager();
+        pm.LoadFromDirectory(dir);
+        var resolver = pm.FindResolver("https://github.com/bezzad/Downloader.Desktop");
+        Assert.NotNull(resolver);
+
+        var plan = await resolver.ResolveAsync("https://github.com/bezzad/Downloader.Desktop", default);
+        Assert.NotNull(plan);
+        Assert.NotEmpty(plan.Parts);
+        Assert.StartsWith("https://", plan.Parts[0].Url);
+        Assert.False(string.IsNullOrWhiteSpace(plan.SuggestedFileName));
+    }
 }

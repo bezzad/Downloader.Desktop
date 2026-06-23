@@ -20,6 +20,14 @@ public class DownloadManager : IDownloadManager
 {
     private Config _config;
 
+    // Optional: lets a pasted link an enabled plugin claims (e.g. github.com/owner/repo) be resolved to a
+    // real downloadable asset URL before the engine runs. Null in tests that don't need plugins.
+    private readonly PluginManager _plugins;
+
+    public DownloadManager() { }
+
+    public DownloadManager(PluginManager plugins) => _plugins = plugins;
+
     public ObservableCollection<DownloadItemViewModel> Items { get; } = new();
 
     public event Action StatsChanged;
@@ -342,6 +350,10 @@ public class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
+                // If an enabled plugin claims this link (e.g. github.com/owner/repo -> the latest release
+                // asset for this OS), resolve it to a real downloadable URL before the engine runs.
+                (urls[0], fileName) = await ResolveViaPluginsAsync(urls[0], fileName, default).ConfigureAwait(false);
+
                 // Follow redirects up-front for the primary URL (handles 307/308, signed links, etc.).
                 // The engine also follows redirects, so this is a best-effort optimization only.
                 var resolved = await UrlResolver.ResolveAsync(urls[0], configuration).ConfigureAwait(false);
@@ -375,6 +387,46 @@ public class DownloadManager : IDownloadManager
                 NotifyList();
             });
         }
+    }
+
+    /// <summary>
+    /// If an enabled plugin resolver claims <paramref name="url"/>, resolve it to a real downloadable URL
+    /// (and a suggested file name). Returns the input unchanged when no plugin claims it, when there is no
+    /// plugin manager, or when resolving fails. Only the first part is used here — multi-part / transfer /
+    /// post-process plans (HLS, torrent) need the not-yet-built job coordinator and are downloaded as their
+    /// first part for now (logged).
+    /// </summary>
+    public async Task<(string Url, string FileName)> ResolveViaPluginsAsync(
+        string url, string currentFileName, System.Threading.CancellationToken cancellationToken)
+    {
+        if (_plugins == null)
+            return (url, currentFileName);
+
+        Plugins.DownloadPlan plan;
+        try
+        {
+            plan = await _plugins.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Plugin resolve failed for {url} — using the link as-is", ex);
+            return (url, currentFileName);
+        }
+
+        if (plan?.Parts == null || plan.Parts.Count == 0)
+            return (url, currentFileName);
+
+        var part = plan.Parts[0];
+        if (string.IsNullOrWhiteSpace(part.Url))
+            return (url, currentFileName);
+
+        if (plan.Parts.Count > 1 || plan.PostProcess.Kind != Plugins.PostProcessKind.None)
+            AppLog.Info($"Plugin returned a {plan.Parts.Count}-part/{plan.PostProcess.Kind} plan for {url}; " +
+                        "downloading the first part only (multi-part assembly is not wired yet).");
+
+        var name = string.IsNullOrWhiteSpace(currentFileName) ? plan.SuggestedFileName : currentFileName;
+        AppLog.Info($"Plugin resolved {url} -> {part.Url}");
+        return (part.Url, name);
     }
 
     /// <summary>Turns an exception into a short, user-friendly root cause.</summary>

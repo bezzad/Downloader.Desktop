@@ -5,8 +5,11 @@ using Avalonia.Media;
 using Downloader;
 using Downloader.Desktop.Converters;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Downloader.Desktop.Tests;
@@ -692,5 +695,60 @@ public class AppTests
         Assert.DoesNotContain(q2, config.Queues);
         Assert.False(sch.Enabled);
         Assert.Null(sch.TargetQueueId);
+    }
+
+    // ---- plugin resolver is actually consumed by the download flow (the github.com/owner/repo bug) ----
+
+    private sealed class FakeRepoResolver : ILinkResolver
+    {
+        public bool CanResolve(string url) => url.StartsWith("repo://");
+        public Task<DownloadPlan> ResolveAsync(string url, CancellationToken ct) =>
+            Task.FromResult(new DownloadPlan
+            {
+                SuggestedFileName = "app-linux-x64.tar.gz",
+                Parts = new[] { new DownloadPart { Url = "https://cdn.example/app-linux-x64.tar.gz" } },
+            });
+    }
+
+    private sealed class FakeRepoPlugin : IDownloaderPlugin
+    {
+        public string Id => "test.repo";
+        public string Name => "Repo";
+        public string Version => "1.0.0";
+        public string Author => "tester";
+        public string Description => "fake repo resolver";
+        public void Initialize(IPluginContext context) => context.RegisterResolver(new FakeRepoResolver());
+    }
+
+    [AvaloniaFact]
+    public async Task Download_flow_resolves_a_link_via_an_enabled_plugin()
+    {
+        var pm = new PluginManager();
+        pm.RegisterPlugin(new FakeRepoPlugin());
+        var manager = new DownloadManager(pm);
+
+        // A link the plugin claims is rewritten to the real asset URL + suggested name (the actual fix:
+        // before, DownloadManager never consulted any plugin, so a github.com/owner/repo link was handed
+        // straight to the engine and downloaded the HTML page instead of the release asset).
+        var (url, name) = await manager.ResolveViaPluginsAsync("repo://owner/app", null, default);
+        Assert.Equal("https://cdn.example/app-linux-x64.tar.gz", url);
+        Assert.Equal("app-linux-x64.tar.gz", name);
+
+        // A user-typed name is preserved (plugin only fills it when empty).
+        var (_, keep) = await manager.ResolveViaPluginsAsync("repo://owner/app", "my-name.bin", default);
+        Assert.Equal("my-name.bin", keep);
+
+        // A link no plugin claims passes through untouched.
+        var (plain, _) = await manager.ResolveViaPluginsAsync("https://example.com/file.zip", null, default);
+        Assert.Equal("https://example.com/file.zip", plain);
+    }
+
+    [AvaloniaFact]
+    public async Task Download_flow_without_a_plugin_manager_passes_links_through()
+    {
+        var manager = new DownloadManager(); // no plugins
+        var (url, name) = await manager.ResolveViaPluginsAsync("repo://owner/app", "n.bin", default);
+        Assert.Equal("repo://owner/app", url);
+        Assert.Equal("n.bin", name);
     }
 }
