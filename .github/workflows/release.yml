@@ -102,6 +102,31 @@ jobs:
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.tar.gz
           fail_on_unmatched_files: false
-          # Never ship a noteless release: whichever matrix job creates it first stamps an
-          # auto-generated "What's Changed" changelog. scripts/release.sh sets curated notes on top.
-          generate_release_notes: true
+          # NOTE: do NOT set generate_release_notes here. With 4 matrix jobs each creating the release
+          # concurrently, that made creation non-idempotent → "tag_name already_exists" and one job
+          # (osx-x64) failed to upload its asset. Notes are stamped once by the separate `notes` job below
+          # (and scripts/release.sh sets curated notes on top).
+
+  # Single post-matrix job that guarantees notes WITHOUT the create-race above: it runs once after all
+  # builds and only fills in GitHub's auto "What's Changed" if the body is still empty — so it never
+  # clobbers the curated notes that scripts/release.sh sets.
+  notes:
+    name: Ensure release notes
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Fill notes if empty
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' 2>/dev/null || true)
+          if [ -z "$body" ]; then
+            notes=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq '.body')
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes "$notes"
+            echo "Filled auto-generated notes."
+          else
+            echo "Release already has notes — leaving them as-is."
+          fi

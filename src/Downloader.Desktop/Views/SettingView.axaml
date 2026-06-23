@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
              xmlns:services="clr-namespace:Downloader.Desktop.Services"
+             xmlns:v="clr-namespace:Downloader.Desktop.Views"
              xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
              mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="640"
              x:Class="Downloader.Desktop.Views.SettingView"
@@ -25,8 +26,12 @@
             <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
             <Setter Property="Margin" Value="0 1 0 0" />
         </Style>
+        <!-- Match the NumericUpDown stepper exactly (148 wide, 34 tall) so every right-hand control —
+             combo boxes (Language, Accent, File-exists) and text boxes — lines up at one size. -->
         <Style Selector="ComboBox.ctrl, TextBox.ctrl">
-            <Setter Property="Width" Value="180" />
+            <Setter Property="Width" Value="148" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Height" Value="34" />
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
         <!-- Compact numeric stepper matching the download-details window (value + arrows, no wide gap) -->
@@ -263,23 +268,39 @@
 
                     <!-- Check for updates → (downloading: progress) → Restart to update. The label
                          reflects UpdateFlow state; a progress bar shows during the background download. -->
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0 6 0 0" VerticalAlignment="Center">
-                        <Button Padding="12 6" Command="{Binding CheckUpdateCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
-                                <TextBlock Text="{Binding UpdateButtonText}" VerticalAlignment="Center" />
+                    <StackPanel Spacing="6" Margin="0 6 0 0">
+                        <!-- Shows WHICH version is available (#update). -->
+                        <TextBlock Text="{Binding AvailableVersionText}" IsVisible="{Binding HasAvailableVersion}"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource SystemAccentColor}" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <Button Padding="12 6" Command="{Binding CheckUpdateCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14" />
+                                    <TextBlock Text="{Binding UpdateButtonText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <!-- Download progress + a × to cancel it (#update). -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsUpdateDownloading}">
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
+                                             Width="150" Height="6" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding UpdateProgressText}" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                <Button Classes="icon" Padding="4" Command="{Binding CancelUpdateDownloadCommand}"
+                                        ToolTip.Tip="{i18n:Tr Update_CancelTip}">
+                                    <PathIcon Data="{StaticResource DismissRegular}" Height="12" Width="12" />
+                                </Button>
                             </StackPanel>
-                        </Button>
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                                    IsVisible="{Binding IsUpdateDownloading}">
-                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
-                                         Width="160" Height="6" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding UpdateProgressText}" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>
+
+            <!-- ===== Plugins (advanced, collapsed by default) — bare Expander to match the Advanced
+                 section below (no surrounding card, which produced a double border). ===== -->
+            <Expander HorizontalAlignment="Stretch" Header="{i18n:Tr Sec_Plugins}">
+                <v:PluginsView DataContext="{Binding Plugins}" Margin="2 6" />
+            </Expander>
 
             <!-- ===== Logging ===== -->
             <Border Classes="card">
@@ -406,10 +427,13 @@
                                 <TextBlock Grid.Column="0" Text="{i18n:Tr Set_KeepAlive}" />
                                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepAlive}" />
                             </Grid>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{i18n:Tr Set_Proxy}" />
-                                <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="{i18n:Tr Set_ProxyPlaceholder}" />
-                            </StackPanel>
+                            <!-- Proxy on a single line: label left, box fills the rest (it was a full-width
+                                 box stacked under its label, which looked oversized). -->
+                            <Grid Classes="field" ColumnDefinitions="Auto,*">
+                                <TextBlock Grid.Column="0" Text="{i18n:Tr Set_Proxy}" Margin="0 0 12 0" />
+                                <TextBox Grid.Column="1" Text="{Binding ProxyAddress}" CornerRadius="6"
+                                         VerticalAlignment="Center" PlaceholderText="{i18n:Tr Set_ProxyPlaceholder}" />
+                            </Grid>
                         </StackPanel>
                         </Border>
                     </StackPanel>

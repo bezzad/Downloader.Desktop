@@ -1,5 +1,6 @@
 ﻿using Avalonia.Platform.Storage;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -18,6 +19,12 @@ public static class DialogHelper
         Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
     
     public static Window MainWindow => AppLifetime?.MainWindow;
+
+    /// <summary>The window the user is currently looking at — the front-most open dialog if one is up,
+    /// else the main window. File pickers must parent to this; opening one from the (background) MainWindow
+    /// while a modal dialog is in front opens behind it / fails on some Linux WMs.</summary>
+    public static Window ActiveWindow =>
+        AppLifetime?.Windows?.LastOrDefault(w => w.IsActive) ?? MainWindow;
 
     /// <summary>Copies text to the system clipboard (best-effort).</summary>
     public static async Task CopyTextAsync(string text)
@@ -82,6 +89,36 @@ public static class DialogHelper
         vm.CloseRequested += () => { try { view.Close(); } catch { /* already closed */ } };
         view.Show();
         view.Activate();
+    }
+
+    /// <summary>Opens a management page (Queues / Scheduler / Settings) as a modal dialog over the
+    /// downloads list — the main view is always the list (the left nav rail was removed).</summary>
+    public static async Task ShowPage(object pageViewModel, string title)
+    {
+        if (MainWindow == null || pageViewModel == null)
+            return;
+        var view = new PageDialogView(pageViewModel, title);
+        await view.ShowDialog(MainWindow);
+    }
+
+    /// <summary>Asks the user to pick an existing file (filtered by extension); returns its path or null.</summary>
+    public static async Task<Uri> OpenFilePicker(string title, string filterName, string extension)
+    {
+        var owner = ActiveWindow;
+        if (owner == null)
+            return null;
+
+        var result = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType(filterName) { Patterns = new[] { "*." + extension } }
+            }
+        });
+
+        return result.Count > 0 ? result[0].Path : null;
     }
 
     /// <summary>Asks the user where to save a file; returns the chosen path or null.</summary>

@@ -1,9 +1,11 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using Avalonia.Collections;
 using Avalonia.Controls;
+using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using ReactiveUI;
 using System.Collections.ObjectModel;
@@ -56,6 +58,46 @@ public class DownloadsViewModel : ViewModelBase
         foreach (var item in manager.Items)
             item.PropertyChanged += OnItemPropertyChanged;
         manager.Items.CollectionChanged += OnItemsCollectionChanged;
+
+        // The "Start/Stop queue" toolbar menus are bound to ObservableCollections; rebuild them in place when
+        // a queue is added/removed so a new queue shows up without restarting the app. (A MenuFlyout caches
+        // its ItemsSource and does NOT re-read a computed property on PropertyChanged, so in-place
+        // CollectionChanged is what actually refreshes the realized menu items.)
+        RebuildQueueTargets();
+        manager.QueuesChanged += OnQueuesChanged;
+    }
+
+    private void OnQueuesChanged()
+    {
+        void Apply()
+        {
+            RebuildQueueTargets();
+            this.RaisePropertyChanged(nameof(ShowQueue));
+        }
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Avalonia.Threading.Dispatcher.UIThread.Post(Apply);
+    }
+
+    private void RebuildQueueTargets()
+    {
+        StartQueueTargets.Clear();
+        StopQueueTargets.Clear();
+        foreach (var q in (IEnumerable<DownloadQueue>)_manager?.Queues ?? Enumerable.Empty<DownloadQueue>())
+        {
+            var queue = q;
+            StartQueueTargets.Add(new QueueActionTarget
+            {
+                Name = queue.Name,
+                Command = ReactiveCommand.Create(() => _manager.StartQueue(queue))
+            });
+            StopQueueTargets.Add(new QueueActionTarget
+            {
+                Name = queue.Name,
+                Command = ReactiveCommand.Create(() => _manager.StopQueue(queue))
+            });
+        }
     }
 
     private void OnItemsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -91,21 +133,12 @@ public class DownloadsViewModel : ViewModelBase
     public ICommand RemoveSelectedCommand { get; }
     public ICommand StopAllCommand { get; }
 
-    /// <summary>Menu entries for "Start queue ▾" — one per queue, each starting that queue's items.</summary>
-    public System.Collections.Generic.IEnumerable<QueueActionTarget> StartQueueTargets =>
-        _manager?.Queues.Select(q => new QueueActionTarget
-        {
-            Name = q.Name,
-            Command = ReactiveCommand.Create(() => _manager.StartQueue(q))
-        }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
+    /// <summary>Menu entries for "Start queue ▾" — one per queue, each starting that queue's items. Mutated in
+    /// place by <see cref="RebuildQueueTargets"/> so the bound MenuFlyout refreshes live on queue add/remove.</summary>
+    public ObservableCollection<QueueActionTarget> StartQueueTargets { get; } = new();
 
     /// <summary>Menu entries for "Stop queue ▾" — one per queue, each stopping all its items.</summary>
-    public System.Collections.Generic.IEnumerable<QueueActionTarget> StopQueueTargets =>
-        _manager?.Queues.Select(q => new QueueActionTarget
-        {
-            Name = q.Name,
-            Command = ReactiveCommand.Create(() => _manager.StopQueue(q))
-        }).ToList() ?? Enumerable.Empty<QueueActionTarget>();
+    public ObservableCollection<QueueActionTarget> StopQueueTargets { get; } = new();
 
     // Rows highlighted in the DataGrid (independent of the checkboxes). Pushed in from the view's
     // SelectionChanged so that simply selecting a row also counts as "selected" for the toolbar.
@@ -161,6 +194,13 @@ public class DownloadsViewModel : ViewModelBase
 
     public bool IsEmpty => ItemsView is null || ItemsView.Count == 0;
 
+    /// <summary>Show the per-row Queue name column only when more than one queue exists.</summary>
+    public bool ShowQueue => _manager?.Queues != null && _manager.Queues.Count > 1;
+
+    /// <summary>Drag-reorder forwarder used by the grid's drag handle (code-behind).</summary>
+    public void Reorder(DownloadItemViewModel vm, DownloadItemViewModel target, bool placeAfter)
+        => _manager?.ReorderTo(vm, target, placeAfter);
+
     public StatusFilter Filter
     {
         get => _filter;
@@ -186,6 +226,7 @@ public class DownloadsViewModel : ViewModelBase
     {
         ItemsView?.Refresh();
         this.RaisePropertyChanged(nameof(IsEmpty));
+        this.RaisePropertyChanged(nameof(ShowQueue));
         RaiseSelectionChanged();
     }
 
@@ -205,9 +246,11 @@ public class DownloadsViewModel : ViewModelBase
 
         return _filter switch
         {
-            StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused or DownloadStatus.Created,
+            StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused,
+            StatusFilter.Queued => vm.Status is DownloadStatus.Created or DownloadStatus.None,
             StatusFilter.Completed => vm.Status == DownloadStatus.Completed,
-            StatusFilter.Failed => vm.Status is DownloadStatus.Failed or DownloadStatus.Stopped,
+            // Failed = real failures only. User-Stopped items are NOT failures — they show under All.
+            StatusFilter.Failed => vm.Status is DownloadStatus.Failed,
             _ => true
         };
     }

@@ -83,8 +83,34 @@
                 <!-- Stop every item, regardless of queue or selection (#4) -->
                 <Button Classes="tool" Command="{Binding StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
                     <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
+                        <PathIcon Data="{DynamicResource StopAllRegular}" HorizontalAlignment="Center" />
                         <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Open the Queues manager (dialog). Nav lives here now (the left rail was removed). -->
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Queues}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowQueuesCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource TabsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Queues}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
+
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Scheduler}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSchedulerCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ClockRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Scheduler}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Settings}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSettingViewCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource SettingsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Settings}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -124,8 +150,35 @@
                 <Style Selector="DataGridCell">
                     <Setter Property="BorderThickness" Value="0" />
                 </Style>
+                <!-- Drag-to-reorder feedback: the row under the pointer is highlighted as the pointer
+                     moves over it, and the dragged source row is dimmed. -->
+                <Style Selector="DataGridRow.droptarget">
+                    <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+                </Style>
+                <Style Selector="DataGridRow.dragging">
+                    <Setter Property="Opacity" Value="0.45" />
+                </Style>
             </DataGrid.Styles>
             <DataGrid.Columns>
+                <!-- Drag handle (6-dot grip): drag a row up/down to reorder (= queue pump priority).
+                     Dropping onto a row in another queue moves this item into that queue. -->
+                <DataGridTemplateColumn Width="28" CanUserSort="False" CanUserResize="False" CanUserReorder="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <Border Background="Transparent" Cursor="SizeNorthSouth"
+                                    PointerPressed="OnGripPointerPressed"
+                                    PointerMoved="OnGripPointerMoved"
+                                    PointerReleased="OnGripPointerReleased"
+                                    PointerCaptureLost="OnGripCaptureLost"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    ToolTip.Tip="{i18n:Tr Action_Reorder}">
+                                <PathIcon Data="{DynamicResource GripDotsRegular}" Width="14" Height="14"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <!-- Tri-state "select all" lives in the header now (left of Name), not in the toolbar (#5) -->
                 <!-- Header hosts the tri-state "select all" — but this DataGrid won't render a *control*
                      in a column header (only string headers show), so the checkbox is overlaid over this
@@ -158,8 +211,17 @@
                                      progress bar color + status text below it reflect the state. -->
                                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"
-                                           ToolTip.Tip="{Binding ErrorMessage}" />
+                                           ToolTip.Tip="{Binding NameTooltip}" />
                             </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Queue}" Width="120" SortMemberPath="QueueName">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <TextBlock Text="{Binding QueueName}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -239,7 +301,7 @@
              render a control inside a column header, so it lives here, aligned to that column). -->
         <CheckBox IsChecked="{Binding SelectAllState, Mode=TwoWay}" IsThreeState="True"
                   IsVisible="{Binding !IsEmpty}"
-                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14 9 0 0"
+                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="42 9 0 0"
                   ToolTip.Tip="{i18n:Tr Grid_SelectAll}" />
 
         <!-- Empty state -->
@@ -252,6 +314,10 @@
             <TextBlock Text="{i18n:Tr Empty_Hint}"
                        Foreground="{DynamicResource SystemBaseMediumColor}" HorizontalAlignment="Center" />
         </StackPanel>
+
+        <!-- Drag overlay: hosts the floating "ghost" snapshot of the row being dragged so it visibly
+             sticks under the cursor (the OS DragDrop session shows no moving visual on X11). -->
+        <Canvas x:Name="DragOverlay" IsHitTestVisible="False" ClipToBounds="False" />
         </Panel>
     </DockPanel>
 </UserControl>

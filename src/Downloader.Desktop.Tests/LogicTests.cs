@@ -214,4 +214,66 @@ public class LogicTests
         var noName = new DownloadItem { SaveFolder = "/tmp/dl" };
         Assert.Equal("/tmp/dl", noName.FilePath);
     }
+
+    [Theory]
+    [InlineData(401_000_000L, 2_000_000L, true)]    // resumed 382MB file "completed" at 2MB -> corrupted
+    [InlineData(401_000_000L, 400_000_000L, true)]  // resumed but finished smaller than known -> corrupted
+    [InlineData(100L, 60L, true)]                   // resumed, finished smaller than known -> corrupted
+    [InlineData(401_000_000L, 401_000_000L, false)] // genuine full completion at the known size
+    [InlineData(0L, 1_000L, false)]                 // fresh download (no known size) -> never flagged
+    [InlineData(401_000_000L, 0L, false)]           // nothing received -> not flagged
+    public void Corrupted_after_resume_heuristic(long known, long final, bool expected)
+    {
+        long? knownSize = known == 0 ? null : known;
+        Assert.Equal(expected, DownloadManager.LooksCorruptedAfterResume(knownSize, final));
+    }
+
+    [Theory]
+    [InlineData("<!DOCTYPE html><html><head><title>403</title></head>", 1_200L, true)]   // expired -> HTML error page
+    [InlineData("  <html><body>Access denied</body></html>", 800L, true)]                 // anti-bot HTML
+    [InlineData("<?xml version=\"1.0\"?><error/>", 500L, true)]                            // XML error body
+    [InlineData("PK binary zip content here", 2_000L, false)]                  // genuine small binary
+    [InlineData("just a normal small text note", 3_000L, false)]                           // genuine small text (no markup)
+    [InlineData("<!DOCTYPE html>...", 5_000_000L, false)]                                  // too big to be an error page
+    [InlineData("", 1_000L, false)]                                                        // empty sample
+    [InlineData("<html>...", 0L, false)]                                                   // nothing received
+    public void Expired_or_invalid_link_heuristic(string head, long totalBytes, bool expected)
+    {
+        Assert.Equal(expected, DownloadManager.LooksExpiredOrInvalid(head, totalBytes));
+    }
+
+    [Fact]
+    public void NotificationService_focus_state_tracks_SetFocused()
+    {
+        // Focus drives channel selection (focused -> in-app, unfocused -> OS). With no toast host attached,
+        // the focus-gain flush is a no-op, so this only exercises the state transition.
+        NotificationService.SetFocused(true);
+        Assert.True(NotificationService.AppFocused);
+        NotificationService.SetFocused(false);
+        Assert.False(NotificationService.AppFocused);
+        NotificationService.SetFocused(true);
+        Assert.True(NotificationService.AppFocused);
+    }
+
+    [Theory]
+    // focused + a visible window => in-app toast (OS channel NOT preferred)
+    [InlineData(true, true, false)]
+    // focused but hidden to the tray => OS notification. This is the macOS bug: hiding to the tray there
+    // doesn't fire Deactivated, so focus stayed true and it wrongly used in-app; visibility now forces OS.
+    [InlineData(true, false, true)]
+    // unfocused (another app on top) => OS notification regardless of visibility
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    public void Notification_channel_prefers_OS_when_unfocused_or_hidden(bool focused, bool visible, bool expectOs)
+    {
+        Assert.Equal(expectOs, NotificationService.PreferOsChannel(focused, visible));
+    }
+
+    [Fact]
+    public void Notification_channel_treats_unknown_visibility_as_visible()
+    {
+        // null visibility (no window handle) falls back to focus alone.
+        Assert.False(NotificationService.PreferOsChannel(true, null));   // focused => in-app
+        Assert.True(NotificationService.PreferOsChannel(false, null));   // unfocused => OS
+    }
 }

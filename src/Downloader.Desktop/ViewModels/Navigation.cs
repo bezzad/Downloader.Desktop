@@ -6,6 +6,7 @@ public enum NavSection
     Downloads,
     Queues,
     Scheduler,
+    Plugins,
     Settings
 }
 
@@ -14,6 +15,7 @@ public enum StatusFilter
 {
     All,
     Active,
+    Queued,
     Completed,
     Failed
 }

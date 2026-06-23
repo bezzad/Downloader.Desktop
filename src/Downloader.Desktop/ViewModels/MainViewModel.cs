@@ -19,6 +19,7 @@ public class MainViewModel : ViewModelBase
 {
     private readonly IFileService _fileService;
     private readonly IDownloadManager _downloadManager;
+    private readonly PluginManager _pluginManager;
     private Config _config;
 
     private string _downloadUrl;
@@ -30,10 +31,11 @@ public class MainViewModel : ViewModelBase
     private DateTime _lastSaveUtc;
     private bool _isSidebarExpanded = true;
 
-    public MainViewModel(IFileService fileService, IDownloadManager downloadManager)
+    public MainViewModel(IFileService fileService, IDownloadManager downloadManager, PluginManager pluginManager = null)
     {
         _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         _downloadManager = downloadManager ?? throw new ArgumentNullException(nameof(downloadManager));
+        _pluginManager = pluginManager ?? new PluginManager();
 
         AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
         StartAllCommand = ReactiveCommand.Create(() => _downloadManager.StartAll());
@@ -42,11 +44,13 @@ public class MainViewModel : ViewModelBase
 
         ShowAllCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.All));
         ShowActiveCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Active));
+        ShowQueuedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Queued));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
-        ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
-        ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
-        ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
+        // Management pages open as dialogs over the always-downloads main view (the left rail was removed).
+        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"]));
+        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"]));
+        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"]));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         DonateCommand = ReactiveCommand.Create(() =>
@@ -83,6 +87,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ClearAllCommand { get; }
     public ICommand ShowAllCommand { get; }
     public ICommand ShowActiveCommand { get; }
+    public ICommand ShowQueuedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
     public ICommand ShowQueuesCommand { get; }
@@ -131,6 +136,7 @@ public class MainViewModel : ViewModelBase
     // ---- Nav selection flags (for highlighting) ----
     public bool IsAllSelected => _section == NavSection.Downloads && _filter == StatusFilter.All;
     public bool IsActiveSelected => _section == NavSection.Downloads && _filter == StatusFilter.Active;
+    public bool IsQueuedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Queued;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
     public bool IsQueuesSelected => _section == NavSection.Queues;
@@ -143,13 +149,15 @@ public class MainViewModel : ViewModelBase
     public int QueuedCount => _downloadManager.QueuedCount;
     public int CompletedCount => _downloadManager.CompletedCount;
 
-    // ---- Nav count pills (match each filter) ----
+    // ---- Footer filter counts (each matches its StatusFilter bucket exactly, so the buttons are disjoint) ----
     public int AllCount => _downloadManager.Items.Count;
     public int ActiveFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Running or DownloadStatus.Paused or DownloadStatus.Created);
+        i.Status is DownloadStatus.Running or DownloadStatus.Paused);
+    public int QueuedFilterCount => _downloadManager.Items.Count(i =>
+        i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedFilterCount => _downloadManager.Items.Count(i => i.Status == DownloadStatus.Completed);
     public int FailedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Failed or DownloadStatus.Stopped);
+        i.Status is DownloadStatus.Failed);
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
     {
@@ -160,10 +168,16 @@ public class MainViewModel : ViewModelBase
         ThemeService.Apply(_config); // theme variant + chosen accent
 
         _downloadManager.Initialize(_config);
+
+        // Load external plugins (~/.config/Downloader/plugins) and apply the user's disabled list.
+        _pluginManager.LoadFromDirectory(Services.PluginManager.PluginsRoot);
+        foreach (var id in _config.DisabledPlugins ?? new System.Collections.Generic.List<string>())
+            _pluginManager.SetEnabled(id, false);
+
         Downloads = new DownloadsViewModel(_downloadManager);
         Queues = new QueuesViewModel(_config, _downloadManager);
         Scheduler = new SchedulerViewModel(_config, _downloadManager);
-        Settings = new SettingViewModel(_config, _downloadManager);
+        Settings = new SettingViewModel(_config, _downloadManager, _pluginManager); // Plugins live in Settings now
 
         // Persist settings to disk as soon as the user changes one (#24), debounced so spinning a
         // NumericUpDown doesn't hammer the file.
@@ -192,6 +206,11 @@ public class MainViewModel : ViewModelBase
         if (View is not Window window)
             return;
 
+        // Focus-aware notification routing: any window active ⇒ in-app toasts; unfocused/tray ⇒ OS.
+        NotificationService.SetFocused(window.IsActive);
+        window.Activated += (_, _) => NotificationService.SetFocused(true);
+        window.Deactivated += (_, _) => NotificationService.SetFocused(false);
+
         TrayService.Init(window, Quit);
         TrayService.NotificationsToggled = enabled =>
         {
@@ -215,6 +234,9 @@ public class MainViewModel : ViewModelBase
             {
                 e.Cancel = true;
                 window.Hide();
+                // Hidden to tray: route notifications to the OS. macOS doesn't fire Deactivated on Hide,
+                // so set this explicitly (the visibility check in NotificationService backs it up).
+                NotificationService.SetFocused(false);
             }
         };
 
@@ -240,7 +262,10 @@ public class MainViewModel : ViewModelBase
         // Launched at OS startup with --minimized → start hidden in the tray.
         if (_config.Settings.EnableSystemTray &&
             Environment.GetCommandLineArgs().Contains("--minimized"))
+        {
             window.Hide();
+            NotificationService.SetFocused(false); // started hidden in tray ⇒ OS notifications
+        }
 
         if (_config.Settings.AutoUpdate)
             _ = UpdateFlow.CheckAsync(manual: false);
@@ -336,6 +361,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(CompletedCount));
         this.RaisePropertyChanged(nameof(AllCount));
         this.RaisePropertyChanged(nameof(ActiveFilterCount));
+        this.RaisePropertyChanged(nameof(QueuedFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
     }
@@ -374,6 +400,7 @@ public class MainViewModel : ViewModelBase
     {
         this.RaisePropertyChanged(nameof(IsAllSelected));
         this.RaisePropertyChanged(nameof(IsActiveSelected));
+        this.RaisePropertyChanged(nameof(IsQueuedSelected));
         this.RaisePropertyChanged(nameof(IsCompletedSelected));
         this.RaisePropertyChanged(nameof(IsFailedSelected));
         this.RaisePropertyChanged(nameof(IsQueuesSelected));

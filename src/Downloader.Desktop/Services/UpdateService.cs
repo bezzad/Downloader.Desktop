@@ -148,6 +148,18 @@ public static class UpdateService
             if (OperatingSystem.IsWindows())
                 return RunDetached("cmd.exe", $"/c \"{WriteWindowsScript(archivePath, appDir, exe, pid)}\"");
 
+            // macOS ships a .app BUNDLE (the archive contains "Downloader.app"). appDir is
+            // <Bundle>.app/Contents/MacOS, so extracting into it would nest a new app inside the old one
+            // and relaunch the OLD binary → re-detects the update → infinite loop. Replace the whole
+            // bundle instead.
+            if (OperatingSystem.IsMacOS())
+            {
+                var contents = Path.GetDirectoryName(appDir);          // …/Contents
+                var bundle = Path.GetDirectoryName(contents);          // …/Downloader.app
+                if (bundle != null && bundle.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+                    return RunDetached("/bin/bash", WriteMacScript(archivePath, bundle, pid));
+            }
+
             return RunDetached("/bin/bash", WriteUnixScript(archivePath, appDir, exe, pid));
         }
         catch
@@ -179,6 +191,29 @@ public static class UpdateService
             $"chmod +x \"{exe}\" 2>/dev/null\n" +
             $"rm -f \"{archive}\"\n" +
             $"if command -v setsid >/dev/null 2>&1; then setsid \"{exe}\" >/dev/null 2>&1 & else nohup \"{exe}\" >/dev/null 2>&1 & fi\n");
+        return script;
+    }
+
+    /// <summary>macOS: replace the whole <c>.app</c> bundle (the archive contains <c>Downloader.app</c>),
+    /// then relaunch with <c>open</c>. Fixes the "restart reopens the OLD version → re-downloads → loop".</summary>
+    private static string WriteMacScript(string archive, string bundle, int pid)
+    {
+        var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.sh");
+        var tmp = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}");
+        var parent = Path.GetDirectoryName(bundle); // e.g. /Applications
+        File.WriteAllText(script,
+            "#!/bin/bash\n" +
+            "trap '' HUP\n" +
+            $"while kill -0 {pid} 2>/dev/null; do sleep 0.5; done\n" +
+            $"rm -rf \"{tmp}\"; mkdir -p \"{tmp}\"\n" +
+            $"tar -xzf \"{archive}\" -C \"{tmp}\"\n" +
+            $"if [ -d \"{tmp}/Downloader.app\" ]; then\n" +
+            $"  rm -rf \"{bundle}\"\n" +
+            $"  mv \"{tmp}/Downloader.app\" \"{parent}/\"\n" +
+            $"  xattr -dr com.apple.quarantine \"{bundle}\" 2>/dev/null\n" +
+            "fi\n" +
+            $"rm -rf \"{tmp}\" \"{archive}\"\n" +
+            $"open \"{bundle}\"\n");
         return script;
     }
 

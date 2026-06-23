@@ -23,10 +23,15 @@ public class SettingViewModel : ViewModelBase
     private readonly IDownloadManager _manager;
     private DownloadSettings S => _config.Settings;
 
-    public SettingViewModel(Config config, IDownloadManager manager = null)
+    /// <summary>Plugin management, embedded as a collapsible section in Settings (advanced — most users
+    /// never need it, so it's tucked away here rather than a top-level menu).</summary>
+    public PluginsViewModel Plugins { get; }
+
+    public SettingViewModel(Config config, IDownloadManager manager = null, PluginManager pluginManager = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _manager = manager;
+        Plugins = new PluginsViewModel(pluginManager ?? new PluginManager(), _config);
         SelectSavePathCommand = ReactiveCommand.CreateFromTask(SelectSavePath);
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
         OpenLogsFolderCommand = ReactiveCommand.Create(OpenLogsFolder);
@@ -41,6 +46,7 @@ public class SettingViewModel : ViewModelBase
             else if (UpdateFlow.State == UpdateState.Available) await UpdateFlow.StartDownloadAsync();
             else await UpdateFlow.CheckAsync(manual: true);
         });
+        CancelUpdateDownloadCommand = ReactiveCommand.Create(UpdateFlow.CancelDownload);
         UpdateFlow.Changed += OnUpdateStateChanged;
     }
 
@@ -50,7 +56,21 @@ public class SettingViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsUpdateDownloading));
         this.RaisePropertyChanged(nameof(UpdateProgress));
         this.RaisePropertyChanged(nameof(UpdateProgressText));
+        this.RaisePropertyChanged(nameof(AvailableVersionText));
+        this.RaisePropertyChanged(nameof(HasAvailableVersion));
     }
+
+    public ICommand CancelUpdateDownloadCommand { get; }
+
+    /// <summary>"v1.4.0 available" once a newer version is detected (so the user sees WHICH version).</summary>
+    public string AvailableVersionText =>
+        string.IsNullOrWhiteSpace(UpdateFlow.AvailableTag)
+            ? string.Empty
+            : string.Format(Localizer.Instance["Update_VersionAvailable"], UpdateFlow.AvailableTag);
+
+    public bool HasAvailableVersion =>
+        UpdateFlow.State is UpdateState.Available or UpdateState.Downloading or UpdateState.Ready
+        && !string.IsNullOrWhiteSpace(UpdateFlow.AvailableTag);
 
     /// <summary>Label for the update button: Check / Checking / Downloading% / Restart to update.</summary>
     public string UpdateButtonText => UpdateFlow.State switch

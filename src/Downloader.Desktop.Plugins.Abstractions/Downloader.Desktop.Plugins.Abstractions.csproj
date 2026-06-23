@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The plugin SDK: interfaces + POCO types. External plugins reference this small, stable assembly
+       (never the whole app). Its only dependency is the standard .NET logging contract. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Downloader.Desktop.Plugins.Abstractions</AssemblyName>
+    <RootNamespace>Downloader.Desktop.Plugins</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The standard .NET logging contract (ILogger). Matches the Downloader engine + the app. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+</Project>

@@ -26,6 +26,7 @@ public static class UpdateFlow
     private static string _archivePath;
     private static bool _busy;
     private static UpdateInfo _pending;
+    private static System.Threading.CancellationTokenSource _downloadCts;
 
     /// <summary>Raised (on the UI thread) whenever State/Progress changes.</summary>
     public static event Action Changed;
@@ -116,15 +117,29 @@ public static class UpdateFlow
         Raise(UpdateState.Downloading, 0);
         var temp = Path.Combine(Path.GetTempPath(), info.AssetName);
 
-        using (var dl = new DownloadService(new DownloadConfiguration()))
+        var cts = new System.Threading.CancellationTokenSource();
+        _downloadCts = cts;
+        try
         {
+            using var dl = new DownloadService(new DownloadConfiguration());
             dl.DownloadProgressChanged += (_, e) =>
             {
                 // Throttle UI churn: only bump on whole-percent changes.
                 if (e.ProgressPercentage - Progress >= 1 || e.ProgressPercentage >= 100)
                     Raise(UpdateState.Downloading, e.ProgressPercentage);
             };
-            await dl.DownloadFileTaskAsync(info.AssetUrl, temp).ConfigureAwait(false);
+            await dl.DownloadFileTaskAsync(info.AssetUrl, temp, cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            TryDelete(temp);
+            Raise(UpdateState.Available, 0); // user cancelled — back to "Download update"
+            return;
+        }
+        finally
+        {
+            _downloadCts = null;
+            cts.Dispose();
         }
 
         if (!File.Exists(temp))
@@ -164,6 +179,17 @@ public static class UpdateFlow
     {
         if (State == UpdateState.Available)
             Raise(UpdateState.Idle, 0);
+    }
+
+    /// <summary>Cancel an in-progress update download (the × button on the Settings progress bar).</summary>
+    public static void CancelDownload()
+    {
+        try { _downloadCts?.Cancel(); } catch { /* already disposed */ }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort */ }
     }
 
     /// <summary>Triggers a real app quit; the staged update is applied on exit (see ApplyPendingOnExit).</summary>

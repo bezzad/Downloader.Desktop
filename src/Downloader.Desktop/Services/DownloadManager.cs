@@ -20,11 +20,20 @@ public class DownloadManager : IDownloadManager
 {
     private Config _config;
 
+    // Optional: lets a pasted link an enabled plugin claims (e.g. github.com/owner/repo) be resolved to a
+    // real downloadable asset URL before the engine runs. Null in tests that don't need plugins.
+    private readonly PluginManager _plugins;
+
+    public DownloadManager() { }
+
+    public DownloadManager(PluginManager plugins) => _plugins = plugins;
+
     public ObservableCollection<DownloadItemViewModel> Items { get; } = new();
 
     public event Action StatsChanged;
     public event Action ListChanged;
     public event Action AllDownloadsCompleted;
+    public event Action QueuesChanged;
 
     public IReadOnlyList<DownloadQueue> Queues => _config?.Queues ?? new List<DownloadQueue>();
 
@@ -323,6 +332,9 @@ public class DownloadManager : IDownloadManager
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
         vm.AlreadyExisted = false;
+        // Capture the known size before progress events overwrite it — only meaningful when resuming
+        // (we already had bytes + a real size). Used to spot an expired link returning a tiny file.
+        vm.PreAttemptSize = item.Downloaded > 0 ? item.Size : null;
         vm.Status = DownloadStatus.Running;
         _allCompleteFired = false; // a new run means "all complete" can fire again when it drains
         EnsureUiPump();
@@ -338,6 +350,10 @@ public class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
+                // If an enabled plugin claims this link (e.g. github.com/owner/repo -> the latest release
+                // asset for this OS), resolve it to a real downloadable URL before the engine runs.
+                (urls[0], fileName) = await ResolveViaPluginsAsync(urls[0], fileName, default).ConfigureAwait(false);
+
                 // Follow redirects up-front for the primary URL (handles 307/308, signed links, etc.).
                 // The engine also follows redirects, so this is a best-effort optimization only.
                 var resolved = await UrlResolver.ResolveAsync(urls[0], configuration).ConfigureAwait(false);
@@ -371,6 +387,46 @@ public class DownloadManager : IDownloadManager
                 NotifyList();
             });
         }
+    }
+
+    /// <summary>
+    /// If an enabled plugin resolver claims <paramref name="url"/>, resolve it to a real downloadable URL
+    /// (and a suggested file name). Returns the input unchanged when no plugin claims it, when there is no
+    /// plugin manager, or when resolving fails. Only the first part is used here — multi-part / transfer /
+    /// post-process plans (HLS, torrent) need the not-yet-built job coordinator and are downloaded as their
+    /// first part for now (logged).
+    /// </summary>
+    public async Task<(string Url, string FileName)> ResolveViaPluginsAsync(
+        string url, string currentFileName, System.Threading.CancellationToken cancellationToken)
+    {
+        if (_plugins == null)
+            return (url, currentFileName);
+
+        Plugins.DownloadPlan plan;
+        try
+        {
+            plan = await _plugins.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Plugin resolve failed for {url} — using the link as-is", ex);
+            return (url, currentFileName);
+        }
+
+        if (plan?.Parts == null || plan.Parts.Count == 0)
+            return (url, currentFileName);
+
+        var part = plan.Parts[0];
+        if (string.IsNullOrWhiteSpace(part.Url))
+            return (url, currentFileName);
+
+        if (plan.Parts.Count > 1 || plan.PostProcess.Kind != Plugins.PostProcessKind.None)
+            AppLog.Info($"Plugin returned a {plan.Parts.Count}-part/{plan.PostProcess.Kind} plan for {url}; " +
+                        "downloading the first part only (multi-part assembly is not wired yet).");
+
+        var name = string.IsNullOrWhiteSpace(currentFileName) ? plan.SuggestedFileName : currentFileName;
+        AppLog.Info($"Plugin resolved {url} -> {part.Url}");
+        return (part.Url, name);
     }
 
     /// <summary>Turns an exception into a short, user-friendly root cause.</summary>
@@ -637,6 +693,8 @@ public class DownloadManager : IDownloadManager
             MaxConcurrent = _config?.Settings?.MaxConcurrentDownloads ?? 3
         };
         _config?.Queues?.Add(queue);
+        NotifyList();
+        QueuesChanged?.Invoke();
         return queue;
     }
 
@@ -660,6 +718,7 @@ public class DownloadManager : IDownloadManager
 
         _config.Queues.Remove(queue);
         NotifyList();
+        QueuesChanged?.Invoke();
     }
 
     public void MoveToQueue(DownloadItemViewModel vm, string queueId)
@@ -696,6 +755,42 @@ public class DownloadManager : IDownloadManager
         Items.Move(Items.IndexOf(vm), Items.IndexOf(neighbour));
         NotifyList();
         PumpQueue(queueId);
+    }
+
+    public void ReorderTo(DownloadItemViewModel vm, DownloadItemViewModel target, bool placeAfter)
+    {
+        if (vm == null || target == null || ReferenceEquals(vm, target))
+            return;
+
+        var from = Items.IndexOf(vm);
+        var targetIndex = Items.IndexOf(target);
+        if (from < 0 || targetIndex < 0)
+            return;
+
+        // The drop position: just after the target row when dropped on its lower half, else just before.
+        // Account for the source being removed first when it currently sits above the target.
+        var insertIndex = placeAfter ? targetIndex + 1 : targetIndex;
+        if (from < insertIndex)
+            insertIndex--;
+        insertIndex = Math.Max(0, Math.Min(insertIndex, Items.Count - 1));
+
+        // Dragging across queues adopts the queue of the row it lands next to (the target's queue).
+        var oldQueueId = vm.GetItem().QueueId;
+        var newQueueId = target.GetItem().QueueId;
+
+        if (insertIndex != from)
+            Items.Move(from, insertIndex);
+        if (!string.IsNullOrEmpty(newQueueId) && newQueueId != oldQueueId)
+        {
+            vm.GetItem().QueueId = newQueueId;
+            vm.RaiseQueueNameChanged();
+        }
+
+        NotifyList();
+        if (!string.IsNullOrEmpty(oldQueueId) && oldQueueId != newQueueId)
+            PumpQueue(oldQueueId);   // a freed slot in the old queue may let its next item start
+        if (!string.IsNullOrEmpty(newQueueId))
+            PumpQueue(newQueueId);
     }
 
     private void Attach(DownloadItemViewModel vm, DownloadService download)
@@ -771,6 +866,33 @@ public class DownloadManager : IDownloadManager
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
+            else if (IsCorruptedAfterResume(vm, e, out var finalBytes))
+            {
+                // It had a known size from a previous attempt, was resumed, and "completed" at a SMALLER
+                // size than before → bytes are missing (e.g. the link expired and the server returned a
+                // stub, or the source file changed). The saved file is corrupted/unhealthy, not a success.
+                vm.Size = vm.PreAttemptSize; // restore the real size for display
+                vm.ErrorMessage =
+                    "This file looks corrupted — it finished smaller than its known size " +
+                    $"({DownloadItemViewModel.FormatBytes(finalBytes)} of " +
+                    $"{DownloadItemViewModel.FormatBytes(vm.PreAttemptSize ?? 0)}), so it is incomplete and " +
+                    "may not open. Re-download it (with a fresh link if the old one expired).";
+                vm.Status = DownloadStatus.Failed;
+                AppLog.Error($"Corrupted resume: {vm.FileName} finished at {finalBytes} of expected {vm.PreAttemptSize}");
+                if (NotifyFailedEnabled)
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+            }
+            else if (IsExpiredOrInvalidLink(vm, e))
+            {
+                // The engine "completed", but the payload is a small web page (HTML), not the requested
+                // file — the classic expired / anti-bot link that returns an error page with HTTP 200.
+                // Treat it as a failure with a clear message instead of a confusing "complete" stub.
+                vm.ErrorMessage = Localizer.Instance["Error_LinkExpired"];
+                vm.Status = DownloadStatus.Failed;
+                AppLog.Error($"Link expired/invalid (server returned a page, not the file): {vm.FileName ?? vm.Url}");
+                if (NotifyFailedEnabled)
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+            }
             else
             {
                 vm.Progress = 100;
@@ -782,6 +904,71 @@ public class DownloadManager : IDownloadManager
 
             FinishTerminal(vm);
         });
+    }
+
+    private static bool IsCorruptedAfterResume(DownloadItemViewModel vm,
+        System.ComponentModel.AsyncCompletedEventArgs e, out long finalBytes)
+    {
+        finalBytes = (e.UserState as DownloadPackage)?.ReceivedBytesSize
+                     ?? vm.Download?.Package?.ReceivedBytesSize
+                     ?? 0;
+        return LooksCorruptedAfterResume(vm.PreAttemptSize, finalBytes);
+    }
+
+    /// <summary>Pure heuristic (testable): a download that was RESUMED (we already knew its size from a prior
+    /// attempt) but then "completed" SMALLER than that known size is missing bytes — the saved file is
+    /// corrupted/incomplete (e.g. an expired link returned a stub). A FIRST-time download finishing small is
+    /// fine and never flagged (knownSizeBeforeAttempt is null). A healthy resume finishes at the full size.</summary>
+    public static bool LooksCorruptedAfterResume(long? knownSizeBeforeAttempt, long finalBytes) =>
+        knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value;
+
+    /// <summary>An expired/anti-bot link often returns a small HTML error page with HTTP 200 instead of the
+    /// file. Above this size we trust it's real content (real media files dwarf an error page).</summary>
+    private const long ExpiredSuspectMaxBytes = 512 * 1024;
+
+    /// <summary>Pure heuristic (testable): a "completed" download whose payload is small AND looks like a web
+    /// page / markup (HTML/XML) rather than the requested file — typically an expired or anti-bot link. A
+    /// genuine small file (non-markup content) is NOT flagged, nor is anything above the suspect size.</summary>
+    public static bool LooksExpiredOrInvalid(string contentHead, long totalBytes)
+    {
+        if (totalBytes <= 0 || totalBytes > ExpiredSuspectMaxBytes)
+            return false;
+        if (string.IsNullOrWhiteSpace(contentHead))
+            return false;
+
+        var s = contentHead.TrimStart().ToLowerInvariant();
+        return s.StartsWith("<!doctype html")
+               || s.StartsWith("<html")
+               || s.StartsWith("<?xml")
+               || s.Contains("<head")
+               || s.Contains("<body")
+               || s.Contains("<title");
+    }
+
+    /// <summary>Reads the head of the just-completed file and applies <see cref="LooksExpiredOrInvalid"/>.</summary>
+    private bool IsExpiredOrInvalidLink(DownloadItemViewModel vm, System.ComponentModel.AsyncCompletedEventArgs e)
+    {
+        var path = (e.UserState as DownloadPackage)?.FileName ?? vm.Download?.Package?.FileName;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return false;
+
+        long len;
+        try { len = new FileInfo(path).Length; }
+        catch { return false; }
+        if (len <= 0 || len > ExpiredSuspectMaxBytes)
+            return false;
+
+        try
+        {
+            var buffer = new byte[(int)Math.Min(len, 1024)];
+            using var fs = File.OpenRead(path);
+            var n = fs.Read(buffer, 0, buffer.Length);
+            return LooksExpiredOrInvalid(System.Text.Encoding.UTF8.GetString(buffer, 0, n), len);
+        }
+        catch
+        {
+            return false; // unreadable — let it complete normally
+        }
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
 namespace Downloader.Desktop.Services;
@@ -76,8 +77,10 @@ public static class TrayService
         menu.Items.Add(quit);
         _tray.Menu = menu;
 
-        _tray.Clicked += (_, _) => ShowWindow();
-
+        // NOTE: do NOT subscribe TrayIcon.Clicked here. On Linux SNI/AppIndicator (Ubuntu GNOME) the
+        // icon has no separate "activate" — the *primary click itself* is what opens the context menu,
+        // so a Clicked→ShowWindow handler swallows the click and the menu never appears (the reported
+        // "no right-click menu" bug). The menu's "Open Downloader" item is the way back from the tray.
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
     }
 
@@ -120,7 +123,12 @@ public static class TrayService
 
     private static WindowIcon LoadIcon()
     {
-        using var stream = AssetLoader.Open(new Uri("avares://Downloader.Desktop/Assets/downloader.png"));
-        return new WindowIcon(stream);
+        // Tray icons must be SMALL. The full 1080x1080 app PNG is a ~4.6 MB RGBA pixmap; pushing that to
+        // the StatusNotifierItem host over DBus can make the item render but its menu fail to attach
+        // (part of the "no tray menu" bug on Linux). Downscale to 64x64 for the tray.
+        using var stream = AssetLoader.Open(new Uri("avares://Downloader.Desktop/Assets/downloader512.png"));
+        using var bmp = new Bitmap(stream);
+        var scaled = bmp.CreateScaledBitmap(new PixelSize(64, 64), BitmapInterpolationMode.HighQuality);
+        return new WindowIcon(scaled);
     }
 }

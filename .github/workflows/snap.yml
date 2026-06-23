@@ -57,7 +57,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: "*.snap"
-          generate_release_notes: true   # ensure notes exist even if snap creates the release first
+          # No generate_release_notes here: it races release.yml's create ("tag_name already_exists").
+          # The release.yml `notes` job fills notes once; scripts/release.sh sets curated notes.
 
       - name: Publish to the Snap Store
         if: ${{ always() && startsWith(github.ref, 'refs/tags/') && env.SNAPCRAFT_STORE_CREDENTIALS != '' }}

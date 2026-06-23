@@ -14,6 +14,8 @@ public class Config
     public List<DownloadItem> Downloads { get; set; }
     public List<DownloadQueue> Queues { get; set; }
     public List<DownloadSchedule> Schedules { get; set; }
+    /// <summary>Ids of plugins the user turned OFF (so they stay disabled across restarts).</summary>
+    public List<string> DisabledPlugins { get; set; }
     public bool IsThemeDarkMode { get; set; }
 
     [JsonIgnore]

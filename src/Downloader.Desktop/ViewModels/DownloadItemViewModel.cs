@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -112,6 +113,7 @@ public class DownloadItemViewModel : ViewModelBase
     {
         this.RaisePropertyChanged(nameof(StatusText));
         this.RaisePropertyChanged(nameof(DisplayName));
+        this.RaisePropertyChanged(nameof(NameTooltip));
         this.RaisePropertyChanged(nameof(Group));
     }
 
@@ -137,6 +139,7 @@ public class DownloadItemViewModel : ViewModelBase
                 _item.FileName = value;
                 this.RaisePropertyChanged();
                 this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(NameTooltip));
                 this.RaisePropertyChanged(nameof(IsNamePending));
                 this.RaisePropertyChanged(nameof(FileKind));
             }
@@ -145,6 +148,14 @@ public class DownloadItemViewModel : ViewModelBase
 
     /// <summary>Grouping label for the list. Batched (multi-URL) adds share one; others group under "Downloads".</summary>
     public string Group => string.IsNullOrWhiteSpace(_item.Group) ? L("Group_Downloads") : _item.Group;
+
+    /// <summary>Name of the queue this download belongs to (shown in the list only when more than one
+    /// queue exists). Resolved live from the manager so a drag across queues updates it.</summary>
+    public string QueueName =>
+        _manager?.Queues?.FirstOrDefault(q => q.Id == _item.QueueId)?.Name ?? string.Empty;
+
+    /// <summary>Re-raises <see cref="QueueName"/> after the item is moved to another queue.</summary>
+    public void RaiseQueueNameChanged() => this.RaisePropertyChanged(nameof(QueueName));
 
     /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
     public string FileKind => GetFileKind(!string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName : _previewName);
@@ -184,6 +195,7 @@ public class DownloadItemViewModel : ViewModelBase
                 _item.PreviewName = value; // cache so the name survives a restart
                 this.RaisePropertyChanged();
                 this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(NameTooltip));
                 this.RaisePropertyChanged(nameof(IsNamePending));
                 this.RaisePropertyChanged(nameof(FileKind));
             }
@@ -196,6 +208,13 @@ public class DownloadItemViewModel : ViewModelBase
         : !string.IsNullOrWhiteSpace(_previewName) ? _previewName
         : IsNamePending ? L("Name_Fetching")
         : L("Name_Unnamed");
+
+    /// <summary>Tooltip for the Name cell: the full file name (so a column-trimmed long name is readable on
+    /// hover), plus the failure reason on a second line when the download has failed.</summary>
+    public string NameTooltip =>
+        HasError && !string.IsNullOrWhiteSpace(ErrorMessage)
+            ? $"{DisplayName}\n{ErrorMessage}"
+            : DisplayName;
 
     /// <summary>True while we are still waiting for any name (engine or preview).</summary>
     public bool IsNamePending =>
@@ -211,6 +230,7 @@ public class DownloadItemViewModel : ViewModelBase
             _item.LastError = value;
             this.RaisePropertyChanged();
             this.RaisePropertyChanged(nameof(HasError));
+            this.RaisePropertyChanged(nameof(NameTooltip));
         }
     }
 
@@ -242,6 +262,10 @@ public class DownloadItemViewModel : ViewModelBase
             }
         }
     }
+
+    /// <summary>The known total size captured at the START of the current attempt (transient, not
+    /// persisted). Used to detect an expired link that returns a much smaller file when resuming.</summary>
+    public long? PreAttemptSize { get; set; }
 
     public long Downloaded
     {
@@ -299,6 +323,7 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(IsCompleted));
             this.RaisePropertyChanged(nameof(HasError));
             this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(NameTooltip));
             this.RaisePropertyChanged(nameof(IsNamePending));
             this.RaisePropertyChanged(nameof(ShowStatusBadge));
             this.RaisePropertyChanged(nameof(TimeLeftText));

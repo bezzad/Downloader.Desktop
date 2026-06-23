@@ -5,8 +5,11 @@ using Avalonia.Media;
 using Downloader;
 using Downloader.Desktop.Converters;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Downloader.Desktop.Tests;
@@ -67,6 +70,25 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Stopped_items_show_under_All_but_not_under_Failed()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        var stopped = manager.Add(new DownloadItem { Url = "https://host/a.zip", FileName = "a.zip" }, autoStart: false);
+        var failed = manager.Add(new DownloadItem { Url = "https://host/b.zip", FileName = "b.zip" }, autoStart: false);
+        stopped.Status = DownloadStatus.Stopped;
+        failed.Status = DownloadStatus.Failed;
+
+        var view = new DownloadsViewModel(manager) { Filter = StatusFilter.Failed };
+        Assert.Single(view.ItemsView);                       // only the real failure
+        Assert.DoesNotContain(view.ItemsView.Cast<DownloadItemViewModel>(), i => i.Status == DownloadStatus.Stopped);
+
+        view.Filter = StatusFilter.All;
+        Assert.Equal(2, view.ItemsView.Count);               // stopped is visible under All
+    }
+
+    [AvaloniaFact]
     public void Removing_a_queue_reassigns_its_items()
     {
         var manager = new DownloadManager();
@@ -79,6 +101,110 @@ public class AppTests
 
         manager.RemoveQueue(queue);
         Assert.Equal(config.DefaultQueue.Id, vm.GetItem().QueueId);
+    }
+
+    [AvaloniaFact]
+    public void QueuesChanged_fires_on_add_and_remove()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        int fired = 0;
+        manager.QueuesChanged += () => fired++;
+
+        var queue = manager.AddQueue("Second");
+        Assert.Equal(1, fired); // adding a queue notifies so the start/stop menus refresh
+
+        manager.RemoveQueue(queue);
+        Assert.Equal(2, fired); // removing a queue notifies too
+    }
+
+    [AvaloniaFact]
+    public void Start_stop_queue_menus_update_live_on_add_and_remove()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+
+        Assert.Single(view.StartQueueTargets); // default queue only
+        Assert.Single(view.StopQueueTargets);
+
+        var queue = manager.AddQueue("Second"); // no view.Refresh() — must update live (the reported bug)
+        Assert.Equal(2, view.StartQueueTargets.Count);
+        Assert.Contains(view.StartQueueTargets, t => t.Name == "Second");
+        Assert.Contains(view.StopQueueTargets, t => t.Name == "Second");
+
+        manager.RemoveQueue(queue);
+        Assert.Single(view.StartQueueTargets);
+        Assert.DoesNotContain(view.StartQueueTargets, t => t.Name == "Second");
+    }
+
+    [AvaloniaFact]
+    public void Adding_a_queue_shows_the_queue_column()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+        manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        var view = new DownloadsViewModel(manager);
+        Assert.False(view.ShowQueue); // only the default queue
+
+        manager.AddQueue("Second");
+        view.Refresh();
+        Assert.True(view.ShowQueue); // a 2nd queue → Queue column shown
+    }
+
+    [AvaloniaFact]
+    public void Details_exposes_the_queue_name()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+        var vm = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        var details = new DownloadDetailsViewModel(vm);
+        Assert.True(details.HasQueue);
+        Assert.Equal(config.DefaultQueue.Name, vm.QueueName);
+    }
+
+    [AvaloniaFact]
+    public void ReorderTo_moves_item_in_master_list()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false; // don't auto-pump network starts
+        manager.Initialize(config);
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip" }, autoStart: false);
+        var c = manager.Add(new DownloadItem { Url = "https://host/c.zip" }, autoStart: false);
+        Assert.Equal(new[] { a, b, c }, manager.Items);
+
+        // Drag a below c → a moves to the end.
+        manager.ReorderTo(a, c, placeAfter: true);
+        Assert.Equal(new[] { b, c, a }, manager.Items);
+    }
+
+    [AvaloniaFact]
+    public void Dragging_into_another_queue_changes_its_queue()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+
+        var second = manager.AddQueue("Second");
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip", QueueId = second.Id }, autoStart: false);
+        Assert.NotEqual(second.Id, a.GetItem().QueueId);
+
+        // Drop a onto b (which lives in the second queue) → a adopts the second queue.
+        manager.ReorderTo(a, b, placeAfter: false);
+        Assert.Equal(second.Id, a.GetItem().QueueId);
+        Assert.Equal("Second", a.QueueName);
     }
 
     [AvaloniaFact]
@@ -569,5 +695,60 @@ public class AppTests
         Assert.DoesNotContain(q2, config.Queues);
         Assert.False(sch.Enabled);
         Assert.Null(sch.TargetQueueId);
+    }
+
+    // ---- plugin resolver is actually consumed by the download flow (the github.com/owner/repo bug) ----
+
+    private sealed class FakeRepoResolver : ILinkResolver
+    {
+        public bool CanResolve(string url) => url.StartsWith("repo://");
+        public Task<DownloadPlan> ResolveAsync(string url, CancellationToken ct) =>
+            Task.FromResult(new DownloadPlan
+            {
+                SuggestedFileName = "app-linux-x64.tar.gz",
+                Parts = new[] { new DownloadPart { Url = "https://cdn.example/app-linux-x64.tar.gz" } },
+            });
+    }
+
+    private sealed class FakeRepoPlugin : IDownloaderPlugin
+    {
+        public string Id => "test.repo";
+        public string Name => "Repo";
+        public string Version => "1.0.0";
+        public string Author => "tester";
+        public string Description => "fake repo resolver";
+        public void Initialize(IPluginContext context) => context.RegisterResolver(new FakeRepoResolver());
+    }
+
+    [AvaloniaFact]
+    public async Task Download_flow_resolves_a_link_via_an_enabled_plugin()
+    {
+        var pm = new PluginManager();
+        pm.RegisterPlugin(new FakeRepoPlugin());
+        var manager = new DownloadManager(pm);
+
+        // A link the plugin claims is rewritten to the real asset URL + suggested name (the actual fix:
+        // before, DownloadManager never consulted any plugin, so a github.com/owner/repo link was handed
+        // straight to the engine and downloaded the HTML page instead of the release asset).
+        var (url, name) = await manager.ResolveViaPluginsAsync("repo://owner/app", null, default);
+        Assert.Equal("https://cdn.example/app-linux-x64.tar.gz", url);
+        Assert.Equal("app-linux-x64.tar.gz", name);
+
+        // A user-typed name is preserved (plugin only fills it when empty).
+        var (_, keep) = await manager.ResolveViaPluginsAsync("repo://owner/app", "my-name.bin", default);
+        Assert.Equal("my-name.bin", keep);
+
+        // A link no plugin claims passes through untouched.
+        var (plain, _) = await manager.ResolveViaPluginsAsync("https://example.com/file.zip", null, default);
+        Assert.Equal("https://example.com/file.zip", plain);
+    }
+
+    [AvaloniaFact]
+    public async Task Download_flow_without_a_plugin_manager_passes_links_through()
+    {
+        var manager = new DownloadManager(); // no plugins
+        var (url, name) = await manager.ResolveViaPluginsAsync("repo://owner/app", "n.bin", default);
+        Assert.Equal("repo://owner/app", url);
+        Assert.Equal("n.bin", name);
     }
 }

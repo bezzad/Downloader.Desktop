@@ -27,7 +27,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Describe before building**: state what I'll add (files/structure/behavior) and why, before/as I write it.
 - **Small, reviewable increments** following the roadmap below; get something working early so the author can give feedback.
 - **UI = mockup first**: show a layout/structure proposal and let the author pick before committing detailed work.
-- **Commit policy — superseded by "Workflow & progress tracking" below**: that section's "commit frequently and push to `develop`" is the current standing rule for routine work (code steps, PLAN.md/TASKS.md updates, skill-file notes). The old default of waiting for explicit per-commit approval no longer applies on `develop`; it still applies to anything outside that scope (e.g. force-pushes, branch/history changes, releases/tags).
+- **Commit policy — superseded by "Workflow & progress tracking" below**: that section's "commit frequently and push to `develop`" is the current standing rule for routine work (code steps, OpenSpec change artifacts, skill-file notes). The old default of waiting for explicit per-commit approval no longer applies on `develop`; it still applies to anything outside that scope (e.g. force-pushes, branch/history changes, releases/tags).
 - The author steers and gives feedback; fold it in and keep this file current.
 
 ### Standing operating rules (the author asked for these — always apply, never wait to be told again)
@@ -48,6 +48,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ## Layout (`src/`)
 - `Downloader.Desktop.sln` — solution.
 - `Directory.Build.props` — shared props.
+- `Downloader.Desktop.Plugins.Abstractions/` — the **plugin SDK** (interfaces + POCOs only): `IDownloaderPlugin`, `IMediaResolver`, `ITransferProvider`/`ITransfer`, `IPostProcessor`. External plugins reference this. Example: `samples/Downloader.Desktop.SamplePlugin` (GitHub Releases). Loaded at runtime by `Services/PluginManager` (collectible `AssemblyLoadContext`). Docs: `docs/plugins-architecture.md` + `docs/writing-plugins.md`. **UI nav model:** no left rail — the main view is always the downloads list; Queues/Scheduler/Settings open as dialogs (`Views/PageDialogView` via `DialogHelper.ShowPage`); Plugins live in a collapsible Settings section.
 - `Downloader.Desktop/`
   - `Program.cs` — Avalonia entrypoint (`BuildAvaloniaApp`, classic desktop lifetime).
   - `App.axaml(.cs)` — app bootstrap, **DI registration in `ConfigureServices()`**, platform guard (desktop-only), shutdown-save hook (`DesktopOnShutdownRequested`, currently commented out).
@@ -172,6 +173,7 @@ Keep this list current as items land.
 - Git user: `bezzad`. Main branch: `main`.
 - C#: `LangVersion=latest`, file-scoped namespaces, `Avalonia`/`ReactiveUI` idioms (`RaiseAndSetIfChanged`, `ReactiveCommand.CreateFromTask`).
 - **Code style — Clean Code, KISS, as simple as possible**: smallest change that solves the actual problem, no speculative abstractions/layers/config knobs, no dead code, prefer readability over cleverness. Standing rule, applies to every task without being repeated.
+- **Logging — ALWAYS use the standard `Microsoft.Extensions.Logging.ILogger`** (`LogInformation`/`LogWarning`/`LogError`), never a custom `Log(string)` API or `Console.WriteLine`. This is the .NET standard and what the `Downloader` engine, `Downloader.Desktop`, and the plugin SDK all use, so everything flows into one log. The app bridges `ILogger` → the app log file via `AppLog.Factory` (`ILoggerFactory`); pass that factory to anything that takes one (e.g. `new DownloadService(cfg, AppLog.Factory)`), and the plugin SDK exposes `IPluginContext.Logger` (an `ILogger`). Standing rule.
 - Keep this file updated when structure changes to minimize re-exploration.
 
 ## Workflow & progress tracking
@@ -180,16 +182,13 @@ These rules are permanent and apply to every conversation/task in this repo — 
 - Do ALL work directly on `develop`. Never create feature branches.
 - Commit frequently — one commit per logical step, with clear messages — and push to `develop` so any machine can pull the latest state.
 - If work is unfinished at the end of a session, commit the WIP to `develop` anyway, using a `wip:` message prefix, so nothing is stranded on one machine.
-- Maintain `PLAN.md` at all times as the source of truth:
-  - When given tasks, write them into Todo first, then start.
-  - Move to Active and mark `[~]` when starting.
-  - Mark `[x]` and move to Done with a one-line note and commit hash when finished.
-  - **Mark `[!]` and move to Blocked/Failed with the reason if it fails — do this immediately, before ending the session, even if no code change resulted.** Commit and push that update too. This is how the next machine/AI session learns the true last state instead of repeating or losing the failed attempt.
-  - Update "Last updated" and "Now working on" every time.
-- Commit `PLAN.md` together with the code change it describes, on `develop`.
-- For large backlogs, also keep `TASKS.md` updated as the full board.
-- At the START of every session, read `PLAN.md` (and `TASKS.md`) and continue from there. Never rely on in-session memory surviving across machines — if it matters, it must be in `PLAN.md` and committed.
-- **Refresh view screenshots when the UI changes (standing routine, like updating `PLAN.md`).** At the END of all tasks in a session, if any task changed a view's UI (a `Views/*.axaml`, `App.axaml` styles/theme, icons, or anything that alters how a page looks), regenerate the `docs/screenshots/` images and commit them on `develop`:
+- **Progress tracking lives in OpenSpec, not `PLAN.md`/`TASKS.md`** (those root files were retired 2026-06-23 — the OpenSpec change/archive system is now the single source of truth). Use the `/opsx:*` skills:
+  - For any non-trivial batch, open a change with `/opsx:propose` (creates `openspec/changes/<name>/` with proposal/design/specs/tasks). Mark `- [x]` in that change's `tasks.md` as steps land; commit the change artifacts together with the code they describe, on `develop`.
+  - When the work is done and green, `/opsx:sync` the delta specs into `openspec/specs/` (the living capability baseline), then `/opsx:archive` the change → it moves to `openspec/changes/archive/YYYY-MM-DD-<name>/`.
+  - If a task fails or is abandoned, leave its `tasks.md` box unchecked and note the reason in the change's `proposal.md`/`design.md` before ending the session; commit and push so the next machine/AI session learns the true last state.
+  - At the START of every session, run `openspec list` (active changes) and read any in-progress change's artifacts to continue from there. Never rely on in-session memory surviving across machines — if it matters, it must be in an OpenSpec change/spec and committed.
+  - Small one-off fixes that don't warrant a full change can still go straight to `develop` with a clear commit; reserve OpenSpec changes for multi-step or spec-affecting work.
+- **Refresh view screenshots when the UI changes (standing routine).** At the END of all tasks in a session, if any task changed a view's UI (a `Views/*.axaml`, `App.axaml` styles/theme, icons, or anything that alters how a page looks), regenerate the `docs/screenshots/` images and commit them on `develop`:
   - Run the gated capture test: `DLDESKTOP_CAPTURE=1 dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj --filter FullyQualifiedName~CaptureScreenshots` (from `src/`).
   - **Verify the regenerated PNGs by viewing them** (don't commit blind) — confirm the change actually shows and nothing regressed. If a new/changed control sits below the fold, add a capture that scrolls to it (see how `CaptureScreenshots` does the settings-accent shot) so the change is actually visible.
   - The captures are deterministic, so an unchanged UI re-renders byte-identical (no diff = nothing to commit). Commit only what changed.
@@ -210,8 +209,11 @@ non-interactively). The manual steps below are the fallback / what the script do
 2. **Release notes are MANDATORY (high priority) — never ship a noteless release.** Every version must say
    what changed for end users. `release.sh` captures a human "Highlights" block up front and, once the
    release exists, sets the body (highlights + GitHub's auto-generated "What's Changed") via
-   `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, `release.yml`/`snap.yml` pass
-   `generate_release_notes: true` so even a bare tag push gets an auto changelog. If you ever release by
+   `gh release edit "vX.Y.Z" --notes-file …`. As a safety net, a single post-build `notes` job in
+   `release.yml` fills GitHub's auto "What's Changed" **only if the body is still empty** (so it never
+   clobbers curated notes) — even a bare tag push then gets a changelog. (Do NOT put
+   `generate_release_notes: true` on the matrix `action-gh-release` steps — 4 concurrent creates race into
+   `tag_name already_exists` and an asset upload fails; this bit v1.4.0's osx-x64.) If you ever release by
    hand, write the notes — a release with an empty body is not "done".
    **FORMAT — notes MUST be GitHub-flavored Markdown, pretty and human-friendly (NOT plain text):**
    - Start with a one-line summary sentence, then short grouped sections with emoji headers, e.g.
@@ -242,4 +244,4 @@ non-interactively). The manual steps below are the fallback / what the script do
    stacking duplicates. winget-pkgs PRs pass automated validation then wait on a community moderator to
    merge (the CLA is already signed for `bezzad`).
 5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
-6. Record the release in `PLAN.md`/`TASKS.md` (version, tag, commit hashes, tap commit, winget PR #) per the workflow above.
+6. Record the release in the relevant OpenSpec change (or a short release note in the archive) — version, tag, commit hashes, tap commit, winget PR # — per the workflow above.

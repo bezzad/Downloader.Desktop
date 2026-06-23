@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+             xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="520"
+             x:Class="Downloader.Desktop.Views.PluginsView"
+             x:DataType="vm:PluginsViewModel">
+
+    <!-- Embeddable (no outer ScrollViewer) — hosted inside the Settings page's collapsible Plugins section. -->
+    <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{i18n:Tr Plugins_Desc}" TextWrapping="Wrap" MaxWidth="520"
+                               HorizontalAlignment="Left"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="{i18n:Tr Plugins_OpenFolder}" Padding="12 8"
+                        VerticalAlignment="Center" Margin="0 0 8 0" Command="{Binding OpenFolderCommand}" />
+                <Button Grid.Column="2" Classes="accent" Content="{i18n:Tr Plugins_Install}" Padding="14 8"
+                        VerticalAlignment="Center" Command="{Binding InstallCommand}" />
+            </Grid>
+
+            <!-- Empty state -->
+            <Border Classes="card" IsVisible="{Binding IsEmpty}" Padding="22">
+                <StackPanel Spacing="6" HorizontalAlignment="Center">
+                    <PathIcon Data="{DynamicResource AppsListRegular}" Height="28" Width="28"
+                              HorizontalAlignment="Center" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <TextBlock Text="{i18n:Tr Plugins_Empty}" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <TextBlock Text="{i18n:Tr Plugins_Empty_Hint}" HorizontalAlignment="Center" TextWrapping="Wrap"
+                               MaxWidth="420" TextAlignment="Center" FontSize="12"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Plugins}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PluginRowViewModel">
+                        <Border Classes="card">
+                            <Grid ColumnDefinitions="*,Auto,Auto">
+                                <StackPanel Grid.Column="0" Spacing="3">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                                        <Border Background="{DynamicResource SystemListMediumColor}" CornerRadius="6" Padding="6 1"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding VersionText}" FontSize="11"
+                                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                    <TextBlock Text="{Binding Author}" FontSize="11"
+                                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                              IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                <Button Grid.Column="2" Classes="icon" VerticalAlignment="Center" Margin="6 0 0 0"
+                                        Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Plugins_Remove}">
+                                    <PathIcon Data="{DynamicResource DeleteRegular}" Width="16" Height="16"
+                                              Foreground="{DynamicResource SystemErrorTextColor}" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+    </StackPanel>
+</UserControl>
