@@ -16,13 +16,13 @@ MonoTorrent client) is verified **without a running host**. Treat Phase-2 wiring
 ## The SDK contracts (what plugins implement)
 From `Downloader.Desktop.Plugins.Abstractions` (net10.0, nullable on):
 - `IDownloaderPlugin { Id; Name; Version; Author; Description; Initialize(IPluginContext ctx) }`
-- `IPluginContext { RegisterResolver/RegisterTransferProvider/RegisterPostProcessor; string DataDirectory; void Log(string) }`
-- `IMediaResolver { bool CanResolve(url); Task<DownloadPlan> ResolveAsync(url, ct) }`
+- `IPluginContext { RegisterResolver/RegisterTransferProvider/RegisterPostProcessor; string DataDirectory; ILogger Logger }` (standard `Microsoft.Extensions.Logging.ILogger`)
+- `ILinkResolver { bool CanResolve(url); Task<DownloadPlan> ResolveAsync(url, ct) }`
 - `ITransferProvider { bool CanHandle(url); ITransfer Create(url, targetFolder) }`
 - `ITransfer { event ProgressChanged(TransferProgress); Task<string> StartAsync(ct); void Pause(); void Resume() }`
 - `IPostProcessor { bool CanProcess(PostProcess); Task<string> ProcessAsync(inputFiles, plan, outputPath, IProgress<double>, ct) }`
-- POCOs: `DownloadPlan { SuggestedFileName; IReadOnlyList<MediaPart> Parts; PostProcess PostProcess }`,
-  `MediaPart { string Url; PartKind Kind; IReadOnlyDictionary<string,string>? Headers; long? ExpectedSize }`,
+- POCOs: `DownloadPlan { SuggestedFileName; IReadOnlyList<DownloadPart> Parts; PostProcess PostProcess }`,
+  `DownloadPart { string Url; PartKind Kind; IReadOnlyDictionary<string,string>? Headers; long? ExpectedSize }`,
   `PartKind { Combined, Video, Audio, Segment, Subtitle }`,
   `PostProcess { PostProcessKind Kind; string? Recipe }`, `PostProcessKind { None, Mux, Concat, Decrypt }`,
   `TransferProgress { Percentage; BytesReceived; TotalBytes; BytesPerSecond }`.
@@ -62,7 +62,7 @@ Releases). Guides: `docs/writing-plugins.md`, `docs/plugins-architecture.md`.
 **Goal:** download an HLS stream (`.m3u8`) to a single playable file. Direct `.m3u8` only here (site
 extraction like YouTube/Instagram = a separate yt-dlp "video-sites" plugin, future).
 
-**Interfaces:** `IDownloaderPlugin` + `IMediaResolver` + `IPostProcessor`. (Keep the engine as the
+**Interfaces:** `IDownloaderPlugin` + `ILinkResolver` + `IPostProcessor`. (Keep the engine as the
 downloader: the resolver expands the playlist into segment parts; the host downloads them; the
 post-processor concats+decrypts. If Phase-2 multi-part isn't available when wiring, fall back to an
 `ITransfer` that downloads the segments itself.)
@@ -75,7 +75,7 @@ post-processor concats+decrypts. If Phase-2 multi-part isn't available when wiri
      highest BANDWIDTH, or honor a quality hint), GET its **media** playlist.
    - Parse the media playlist → ordered list of segment URIs (resolve relative → absolute), plus
      `#EXT-X-KEY` (AES-128 `METHOD`, `URI`, `IV`) if encrypted, and `#EXT-X-MAP` init segment if present.
-   - Return a `DownloadPlan` with one `MediaPart{ Kind=Segment }` per segment (carry per-segment
+   - Return a `DownloadPlan` with one `DownloadPart{ Kind=Segment }` per segment (carry per-segment
      `Headers` incl. the key URL/IV in the recipe), `PostProcess{ Kind=Concat, Recipe=<json: keys/iv/order> }`,
      `SuggestedFileName` from the URL (default `.ts`/`.mp4`).
 3. `IPostProcessor.ProcessAsync` (Concat):

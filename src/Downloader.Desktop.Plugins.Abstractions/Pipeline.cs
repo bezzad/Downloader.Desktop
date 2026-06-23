@@ -3,12 +3,13 @@ namespace Downloader.Desktop.Plugins;
 // ── Phase 1: RESOLVE ───────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// Turns a pasted input (a page/URL the core engine can't download directly) into a concrete
-/// <see cref="DownloadPlan"/>. yt-dlp / HLS live here. The resolver does NOT download — it only resolves.
+/// Turns a pasted link the core engine can't download directly (a web page, a redirect, a github repo, an
+/// HLS playlist, …) into a concrete <see cref="DownloadPlan"/> of real file URLs. The resolver does NOT
+/// download — it only resolves the link; the engine downloads the resulting parts.
 /// </summary>
-public interface IMediaResolver
+public interface ILinkResolver
 {
-    /// <summary>Fast, cheap check: does this resolver claim the input? (e.g. host == instagram.com)</summary>
+    /// <summary>Fast, cheap check: does this resolver claim the link? (e.g. host == github.com)</summary>
     bool CanResolve(string url);
 
     /// <summary>Resolve the input into real downloadable parts + a post-process recipe.</summary>
@@ -19,12 +20,12 @@ public interface IMediaResolver
 public sealed class DownloadPlan
 {
     public string? SuggestedFileName { get; init; }
-    public IReadOnlyList<MediaPart> Parts { get; init; } = Array.Empty<MediaPart>();
+    public IReadOnlyList<DownloadPart> Parts { get; init; } = Array.Empty<DownloadPart>();
     public PostProcess PostProcess { get; init; } = PostProcess.None;
 }
 
 /// <summary>One real, downloadable stream/segment. The core engine downloads each part into a temp file.</summary>
-public sealed class MediaPart
+public sealed class DownloadPart
 {
     public string Url { get; init; } = string.Empty;
     public PartKind Kind { get; init; } = PartKind.Combined;

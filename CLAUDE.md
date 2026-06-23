@@ -173,6 +173,7 @@ Keep this list current as items land.
 - Git user: `bezzad`. Main branch: `main`.
 - C#: `LangVersion=latest`, file-scoped namespaces, `Avalonia`/`ReactiveUI` idioms (`RaiseAndSetIfChanged`, `ReactiveCommand.CreateFromTask`).
 - **Code style — Clean Code, KISS, as simple as possible**: smallest change that solves the actual problem, no speculative abstractions/layers/config knobs, no dead code, prefer readability over cleverness. Standing rule, applies to every task without being repeated.
+- **Logging — ALWAYS use the standard `Microsoft.Extensions.Logging.ILogger`** (`LogInformation`/`LogWarning`/`LogError`), never a custom `Log(string)` API or `Console.WriteLine`. This is the .NET standard and what the `Downloader` engine, `Downloader.Desktop`, and the plugin SDK all use, so everything flows into one log. The app bridges `ILogger` → the app log file via `AppLog.Factory` (`ILoggerFactory`); pass that factory to anything that takes one (e.g. `new DownloadService(cfg, AppLog.Factory)`), and the plugin SDK exposes `IPluginContext.Logger` (an `ILogger`). Standing rule.
 - Keep this file updated when structure changes to minimize re-exploration.
 
 ## Workflow & progress tracking

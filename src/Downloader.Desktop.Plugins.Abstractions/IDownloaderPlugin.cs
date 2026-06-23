@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Downloader.Desktop.Plugins;
 
 /// <summary>
@@ -22,13 +24,15 @@ public interface IDownloaderPlugin
 /// <summary>What a plugin is given on <see cref="IDownloaderPlugin.Initialize"/> to register its parts.</summary>
 public interface IPluginContext
 {
-    void RegisterResolver(IMediaResolver resolver);
+    void RegisterResolver(ILinkResolver resolver);
     void RegisterTransferProvider(ITransferProvider provider);
     void RegisterPostProcessor(IPostProcessor processor);
 
     /// <summary>A per-plugin writable directory (e.g. for a plugin to download yt-dlp/ffmpeg into).</summary>
     string DataDirectory { get; }
 
-    /// <summary>Write a line to the app log (prefixed with the plugin name).</summary>
-    void Log(string message);
+    /// <summary>The standard .NET logger for this plugin — writes into the app's log. Use
+    /// <c>Logger.LogInformation/LogWarning/LogError(...)</c> (Microsoft.Extensions.Logging), the same
+    /// logging contract the Downloader engine and the app use.</summary>
+    ILogger Logger { get; }
 }

@@ -11,9 +11,9 @@ A download flows through three phases; your plugin hooks whichever it needs:
 
 ```
 user input ──▶ RESOLVE ──▶ TRANSFER ──▶ POST-PROCESS ──▶ final file
-              IMediaResolver  ITransfer    IPostProcessor
+              ILinkResolver  ITransfer    IPostProcessor
 ```
-- **Resolve** (`IMediaResolver`) — turn a pasted input (a page/short-link/`github.com/...`) into a
+- **Resolve** (`ILinkResolver`) — turn a pasted input (a page/short-link/`github.com/...`) into a
   `DownloadPlan` of real URLs. **You don't download here** — the core engine does, keeping its
   multipart/pause/resume. *This is what most plugins need.*
 - **Transfer** (`ITransferProvider`/`ITransfer`) — only if the bytes can't come over plain HTTP (e.g. a
@@ -61,26 +61,26 @@ public sealed class MyPlugin : IDownloaderPlugin
         // ctx.RegisterTransferProvider(new MyTransfer()); // own a protocol (torrent…)
         // ctx.RegisterPostProcessor(new MyPostProc());    // combine/transform after download
         // ctx.DataDirectory  → a per-plugin writable folder (download yt-dlp/ffmpeg here on first use)
-        // ctx.Log("…")       → writes to the app log
+        // ctx.Logger.LogInformation("…") → standard ILogger (Microsoft.Extensions.Logging) → app log
     }
 }
 ```
 
 ### A resolver (the common case)
 ```csharp
-internal sealed class MyResolver : IMediaResolver
+internal sealed class MyResolver : ILinkResolver
 {
     public bool CanResolve(string url) => url.Contains("example.com");   // fast, no network
 
     public async Task<DownloadPlan> ResolveAsync(string url, CancellationToken ct)
         => new DownloadPlan {
             SuggestedFileName = "video.mp4",
-            Parts = new[] { new MediaPart { Url = "https://cdn/real.mp4", Kind = PartKind.Combined } },
+            Parts = new[] { new DownloadPart { Url = "https://cdn/real.mp4", Kind = PartKind.Combined } },
             PostProcess = PostProcess.None,
         };
 }
 ```
-For a video that comes as **separate streams**, return two `MediaPart`s (`Video` + `Audio`) and set
+For a video that comes as **separate streams**, return two `DownloadPart`s (`Video` + `Audio`) and set
 `PostProcess.Kind = Mux`; for **HLS**, return the segment parts and `Concat`. The engine downloads every
 part; your `IPostProcessor` combines them.
 
@@ -107,11 +107,11 @@ type the app expects.
 | Interface | Purpose | Implement when |
 |---|---|---|
 | `IDownloaderPlugin` | Entry point; registers contributions in `Initialize`. | Always. |
-| `IMediaResolver` | input → `DownloadPlan` (real URLs + recipe). | You turn pages/links into downloads. |
+| `ILinkResolver` | input → `DownloadPlan` (real URLs + recipe). | You turn pages/links into downloads. |
 | `ITransferProvider` / `ITransfer` | Own a non-HTTP download (torrent…). | The engine can't fetch it over HTTP. |
 | `IPostProcessor` | Combine/transform downloaded files. | You need mux/concat/decrypt/checksum. |
-| `IPluginContext` | Given to `Initialize`: register*, `DataDirectory`, `Log`. | — |
+| `IPluginContext` | Given to `Initialize`: register*, `DataDirectory`, `Logger` (`ILogger`). | — |
 
-Types: `DownloadPlan { SuggestedFileName, Parts[], PostProcess }`, `MediaPart { Url, Kind, Headers, ExpectedSize }`,
+Types: `DownloadPlan { SuggestedFileName, Parts[], PostProcess }`, `DownloadPart { Url, Kind, Headers, ExpectedSize }`,
 `PostProcess { Kind, Recipe }`, `TransferProgress { Percentage, BytesReceived, TotalBytes, BytesPerSecond }`.
 Full architecture: [`docs/plugins-architecture.md`](plugins-architecture.md).

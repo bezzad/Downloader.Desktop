@@ -16,7 +16,7 @@ namespace Downloader.Desktop.Tests;
 public class PluginTests
 {
     // ---- fakes ------------------------------------------------------------
-    private sealed class FakeResolver(string scheme) : IMediaResolver
+    private sealed class FakeResolver(string scheme) : ILinkResolver
     {
         public bool CanResolve(string url) => url.StartsWith(scheme);
         public Task<DownloadPlan> ResolveAsync(string url, CancellationToken ct) =>
@@ -25,8 +25,8 @@ public class PluginTests
                 SuggestedFileName = "out.mp4",
                 Parts = new[]
                 {
-                    new MediaPart { Url = "https://cdn/v.mp4", Kind = PartKind.Video },
-                    new MediaPart { Url = "https://cdn/a.m4a", Kind = PartKind.Audio },
+                    new DownloadPart { Url = "https://cdn/v.mp4", Kind = PartKind.Video },
+                    new DownloadPart { Url = "https://cdn/a.m4a", Kind = PartKind.Audio },
                 },
                 PostProcess = new PostProcess { Kind = PostProcessKind.Mux },
             });

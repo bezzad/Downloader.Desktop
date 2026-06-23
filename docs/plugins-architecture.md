@@ -10,7 +10,7 @@ rather than a single "media extractor".
 user input ──▶ [1] RESOLVE ──▶ [2] TRANSFER ──▶ [3] POST-PROCESS ──▶ final file
               (input→plan)    (fetch bytes)    (combine/decode)
 ```
-- **Resolve** (`IMediaResolver`) — turn a pasted input into a `DownloadPlan`: one or more real URLs
+- **Resolve** (`ILinkResolver`) — turn a pasted input into a `DownloadPlan`: one or more real URLs
   (parts) + a post-process recipe. yt-dlp/HLS live here. A plain `http://….zip` skips resolve.
 - **Transfer** (`ITransferProvider`/`ITransfer`) — how bytes are fetched. **Core ships the default HTTP
   multipart engine.** A plugin can register an *alternative* transfer (torrent owns the whole download).

@@ -94,7 +94,7 @@ public sealed class PluginManager
         }
     }
 
-    public IMediaResolver FindResolver(string url) =>
+    public ILinkResolver FindResolver(string url) =>
         Enabled().SelectMany(p => p.Resolvers).FirstOrDefault(r => Safe(() => r.CanResolve(url)));
 
     public IPostProcessor FindPostProcessor(PostProcess plan) =>
@@ -142,7 +142,7 @@ public sealed class PluginManager
     private sealed class LoadedPlugin
     {
         public PluginDescriptor Descriptor { get; }
-        public List<IMediaResolver> Resolvers { get; } = new();
+        public List<ILinkResolver> Resolvers { get; } = new();
         public List<ITransferProvider> TransferProviders { get; } = new();
         public List<IPostProcessor> PostProcessors { get; } = new();
         public IPluginContext Context { get; }
@@ -168,7 +168,7 @@ public sealed class PluginManager
         private readonly IDownloaderPlugin _plugin;
         public PluginContext(LoadedPlugin owner, IDownloaderPlugin plugin) { _owner = owner; _plugin = plugin; }
 
-        public void RegisterResolver(IMediaResolver resolver) { if (resolver != null) _owner.Resolvers.Add(resolver); }
+        public void RegisterResolver(ILinkResolver resolver) { if (resolver != null) _owner.Resolvers.Add(resolver); }
         public void RegisterTransferProvider(ITransferProvider provider) { if (provider != null) _owner.TransferProviders.Add(provider); }
         public void RegisterPostProcessor(IPostProcessor processor) { if (processor != null) _owner.PostProcessors.Add(processor); }
 
@@ -182,12 +182,14 @@ public sealed class PluginManager
             }
         }
 
-        public void Log(string message) => AppLog.Info($"[plugin:{_plugin.Name}] {message}");
+        private Microsoft.Extensions.Logging.ILogger _logger;
+        public Microsoft.Extensions.Logging.ILogger Logger =>
+            _logger ??= AppLog.Factory.CreateLogger($"plugin:{_plugin.Id}");
     }
 
     /// <summary>
     /// Per-plugin load context. The Abstractions SDK is ALWAYS resolved from the host (return null →
-    /// Default context) so a plugin's `IDownloaderPlugin`/`IMediaResolver` types are the SAME types as the
+    /// Default context) so a plugin's `IDownloaderPlugin`/`ILinkResolver` types are the SAME types as the
     /// host's — otherwise `IsAssignableFrom` would fail. Private plugin deps resolve via the ADR.
     /// </summary>
     private sealed class PluginLoadContext : AssemblyLoadContext

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Downloader.Desktop.Plugins;
 
 namespace Downloader.Desktop.SamplePlugin;
@@ -11,7 +12,7 @@ namespace Downloader.Desktop.SamplePlugin;
 /// THE TEMPLATE PLUGIN — copy this to start your own. It implements ALL plugin interfaces so you can see
 /// each one in a real (small) context:
 ///   * IDownloaderPlugin  — the entry point (id/name/version + Initialize).
-///   * IMediaResolver     — "GitHub Releases": paste github.com/owner/repo and it resolves the latest
+///   * ILinkResolver     — "GitHub Releases": paste github.com/owner/repo and it resolves the latest
 ///                          release's download URL for your OS (the headline, genuinely-useful feature).
 ///   * IPostProcessor     — writes a ".sha256" checksum sidecar after a download (demo).
 ///   * ITransferProvider  — a tiny "file://" copier that OWNS its transfer (demo, like a torrent plugin).
@@ -27,7 +28,7 @@ public sealed class GitHubReleasesPlugin : IDownloaderPlugin
 
     public void Initialize(IPluginContext context)
     {
-        context.Log("GitHub Releases plugin initialized");
+        context.Logger.LogInformation("GitHub Releases plugin initialized");
         context.RegisterResolver(new GitHubReleasesResolver());
         context.RegisterPostProcessor(new Sha256SidecarPostProcessor());
         context.RegisterTransferProvider(new LocalFileTransferProvider());
@@ -35,7 +36,7 @@ public sealed class GitHubReleasesPlugin : IDownloaderPlugin
 }
 
 // -- RESOLVE: github.com/owner/repo  ->  the latest release asset URL ---------------------------------
-internal sealed class GitHubReleasesResolver : IMediaResolver
+internal sealed class GitHubReleasesResolver : ILinkResolver
 {
     private static readonly HttpClient Http = CreateClient();
 
@@ -77,7 +78,7 @@ internal sealed class GitHubReleasesResolver : IMediaResolver
             SuggestedFileName = asset.GetProperty("name").GetString(),
             Parts = new[]
             {
-                new MediaPart
+                new DownloadPart
                 {
                     Url = asset.GetProperty("browser_download_url").GetString()!,
                     Kind = PartKind.Combined,
