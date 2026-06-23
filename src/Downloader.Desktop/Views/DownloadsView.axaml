@@ -121,6 +121,7 @@
                   ItemsSource="{Binding ItemsView}"
                   DoubleTapped="OnRowDoubleTapped"
                   SelectionChanged="OnSelectionChanged"
+                  DragDrop.AllowDrop="True"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   GridLinesVisibility="Horizontal"
                   CanUserReorderColumns="True"
@@ -152,6 +153,22 @@
                 </Style>
             </DataGrid.Styles>
             <DataGrid.Columns>
+                <!-- Drag handle (6-dot grip): drag a row up/down to reorder (= queue pump priority).
+                     Dropping onto a row in another queue moves this item into that queue. -->
+                <DataGridTemplateColumn Width="28" CanUserSort="False" CanUserResize="False" CanUserReorder="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <Border Background="Transparent" Cursor="SizeAll"
+                                    PointerPressed="OnGripPointerPressed"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    ToolTip.Tip="{i18n:Tr Action_Reorder}">
+                                <PathIcon Data="{DynamicResource GripDotsRegular}" Width="14" Height="14"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <!-- Tri-state "select all" lives in the header now (left of Name), not in the toolbar (#5) -->
                 <!-- Header hosts the tri-state "select all" — but this DataGrid won't render a *control*
                      in a column header (only string headers show), so the checkbox is overlaid over this
@@ -186,6 +203,15 @@
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding ErrorMessage}" />
                             </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Queue}" Width="120" SortMemberPath="QueueName">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <TextBlock Text="{Binding QueueName}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -265,7 +291,7 @@
              render a control inside a column header, so it lives here, aligned to that column). -->
         <CheckBox IsChecked="{Binding SelectAllState, Mode=TwoWay}" IsThreeState="True"
                   IsVisible="{Binding !IsEmpty}"
-                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14 9 0 0"
+                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="42 9 0 0"
                   ToolTip.Tip="{i18n:Tr Grid_SelectAll}" />
 
         <!-- Empty state -->

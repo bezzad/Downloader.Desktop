@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -145,6 +146,14 @@ public class DownloadItemViewModel : ViewModelBase
 
     /// <summary>Grouping label for the list. Batched (multi-URL) adds share one; others group under "Downloads".</summary>
     public string Group => string.IsNullOrWhiteSpace(_item.Group) ? L("Group_Downloads") : _item.Group;
+
+    /// <summary>Name of the queue this download belongs to (shown in the list only when more than one
+    /// queue exists). Resolved live from the manager so a drag across queues updates it.</summary>
+    public string QueueName =>
+        _manager?.Queues?.FirstOrDefault(q => q.Id == _item.QueueId)?.Name ?? string.Empty;
+
+    /// <summary>Re-raises <see cref="QueueName"/> after the item is moved to another queue.</summary>
+    public void RaiseQueueNameChanged() => this.RaisePropertyChanged(nameof(QueueName));
 
     /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
     public string FileKind => GetFileKind(!string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName : _previewName);

@@ -161,6 +161,13 @@ public class DownloadsViewModel : ViewModelBase
 
     public bool IsEmpty => ItemsView is null || ItemsView.Count == 0;
 
+    /// <summary>Show the per-row Queue name column only when more than one queue exists.</summary>
+    public bool ShowQueue => _manager?.Queues != null && _manager.Queues.Count > 1;
+
+    /// <summary>Drag-reorder forwarder used by the grid's drag handle (code-behind).</summary>
+    public void Reorder(DownloadItemViewModel vm, DownloadItemViewModel target, bool placeAfter)
+        => _manager?.ReorderTo(vm, target, placeAfter);
+
     public StatusFilter Filter
     {
         get => _filter;
@@ -186,6 +193,7 @@ public class DownloadsViewModel : ViewModelBase
     {
         ItemsView?.Refresh();
         this.RaisePropertyChanged(nameof(IsEmpty));
+        this.RaisePropertyChanged(nameof(ShowQueue));
         RaiseSelectionChanged();
     }
 

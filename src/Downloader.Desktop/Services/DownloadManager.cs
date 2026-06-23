@@ -701,6 +701,42 @@ public class DownloadManager : IDownloadManager
         PumpQueue(queueId);
     }
 
+    public void ReorderTo(DownloadItemViewModel vm, DownloadItemViewModel target, bool placeAfter)
+    {
+        if (vm == null || target == null || ReferenceEquals(vm, target))
+            return;
+
+        var from = Items.IndexOf(vm);
+        var targetIndex = Items.IndexOf(target);
+        if (from < 0 || targetIndex < 0)
+            return;
+
+        // The drop position: just after the target row when dropped on its lower half, else just before.
+        // Account for the source being removed first when it currently sits above the target.
+        var insertIndex = placeAfter ? targetIndex + 1 : targetIndex;
+        if (from < insertIndex)
+            insertIndex--;
+        insertIndex = Math.Max(0, Math.Min(insertIndex, Items.Count - 1));
+
+        // Dragging across queues adopts the queue of the row it lands next to (the target's queue).
+        var oldQueueId = vm.GetItem().QueueId;
+        var newQueueId = target.GetItem().QueueId;
+
+        if (insertIndex != from)
+            Items.Move(from, insertIndex);
+        if (!string.IsNullOrEmpty(newQueueId) && newQueueId != oldQueueId)
+        {
+            vm.GetItem().QueueId = newQueueId;
+            vm.RaiseQueueNameChanged();
+        }
+
+        NotifyList();
+        if (!string.IsNullOrEmpty(oldQueueId) && oldQueueId != newQueueId)
+            PumpQueue(oldQueueId);   // a freed slot in the old queue may let its next item start
+        if (!string.IsNullOrEmpty(newQueueId))
+            PumpQueue(newQueueId);
+    }
+
     private void Attach(DownloadItemViewModel vm, DownloadService download)
     {
         vm.Download = download;

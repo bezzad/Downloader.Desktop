@@ -82,6 +82,43 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void ReorderTo_moves_item_in_master_list()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false; // don't auto-pump network starts
+        manager.Initialize(config);
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip" }, autoStart: false);
+        var c = manager.Add(new DownloadItem { Url = "https://host/c.zip" }, autoStart: false);
+        Assert.Equal(new[] { a, b, c }, manager.Items);
+
+        // Drag a below c → a moves to the end.
+        manager.ReorderTo(a, c, placeAfter: true);
+        Assert.Equal(new[] { b, c, a }, manager.Items);
+    }
+
+    [AvaloniaFact]
+    public void Dragging_into_another_queue_changes_its_queue()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+
+        var second = manager.AddQueue("Second");
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.zip", QueueId = second.Id }, autoStart: false);
+        Assert.NotEqual(second.Id, a.GetItem().QueueId);
+
+        // Drop a onto b (which lives in the second queue) → a adopts the second queue.
+        manager.ReorderTo(a, b, placeAfter: false);
+        Assert.Equal(second.Id, a.GetItem().QueueId);
+        Assert.Equal("Second", a.QueueName);
+    }
+
+    [AvaloniaFact]
     public void Add_dialog_parses_multiple_urls()
     {
         var config = Config.New();

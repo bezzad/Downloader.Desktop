@@ -49,8 +49,10 @@
   "Action_PathCopied": "Path copied!",
   "Action_CopyError": "Copy error message",
   "Action_ErrorCopied": "Error copied!",
+  "Action_Reorder": "Drag to reorder",
 
   "Col_Name": "Name",
+  "Col_Queue": "Queue",
   "Col_Size": "Size",
   "Col_Progress": "Progress",
   "Col_Speed": "Speed",

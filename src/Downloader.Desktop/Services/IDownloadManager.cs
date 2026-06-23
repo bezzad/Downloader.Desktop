@@ -85,4 +85,9 @@ public interface IDownloadManager
     /// <summary>Changes a download's priority within its queue by shifting it earlier/later in the
     /// list (<paramref name="direction"/> -1 = up/sooner, +1 = down/later); pump order follows list order.</summary>
     void MovePriority(DownloadItemViewModel vm, int direction);
+
+    /// <summary>Drag-reorders <paramref name="vm"/> to sit before/after <paramref name="target"/> in the
+    /// master list (= pump priority). If the target is in a different queue, the dragged item adopts that
+    /// queue and both queues are re-pumped.</summary>
+    void ReorderTo(DownloadItemViewModel vm, DownloadItemViewModel target, bool placeAfter);
 }

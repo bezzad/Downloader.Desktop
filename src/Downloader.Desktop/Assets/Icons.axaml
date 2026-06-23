@@ -16,6 +16,8 @@
 			<StreamGeometry x:Key="LinkRegular">M9.25 7a.75.75 0 0 1 0 1.5H7A3.5 3.5 0 0 0 7 15.5h2.25a.75.75 0 0 1 0 1.5H7a5 5 0 0 1 0-10h2.25ZM14.75 7a5 5 0 0 1 0 10H12.5a.75.75 0 0 1 0-1.5h2.25a3.5 3.5 0 1 0 0-7H12.5a.75.75 0 0 1 0-1.5h2.25ZM8 11.25h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1 0-1.5Z</StreamGeometry>
 			<!-- "All downloads" – a 2x2 grid, distinct from the hamburger menu toggle (#20) -->
 			<StreamGeometry x:Key="AppsListRegular">M3,3 L11,3 L11,11 L3,11 Z M13,3 L21,3 L21,11 L13,11 Z M3,13 L11,13 L11,21 L3,21 Z M13,13 L21,13 L21,21 L13,21 Z</StreamGeometry>
+			<!-- Drag handle: six dots (2 columns x 3 rows) for reordering rows by dragging -->
+			<StreamGeometry x:Key="GripDotsRegular">M9,5 A1.5,1.5 0 1,1 9,8 A1.5,1.5 0 1,1 9,5 Z M15,5 A1.5,1.5 0 1,1 15,8 A1.5,1.5 0 1,1 15,5 Z M9,10.5 A1.5,1.5 0 1,1 9,13.5 A1.5,1.5 0 1,1 9,10.5 Z M15,10.5 A1.5,1.5 0 1,1 15,13.5 A1.5,1.5 0 1,1 15,10.5 Z M9,16 A1.5,1.5 0 1,1 9,19 A1.5,1.5 0 1,1 9,16 Z M15,16 A1.5,1.5 0 1,1 15,19 A1.5,1.5 0 1,1 15,16 Z</StreamGeometry>
 			<!-- Reorder priority up/down in the Queues page -->
 			<StreamGeometry x:Key="ChevronUpRegular">M12,7 L19,15 L17.5,16.5 L12,10.5 L6.5,16.5 L5,15 Z</StreamGeometry>
 			<StreamGeometry x:Key="ChevronDownRegular">M12,17 L19,9 L17.5,7.5 L12,13.5 L6.5,7.5 L5,9 Z</StreamGeometry>
