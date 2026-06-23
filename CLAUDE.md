@@ -48,6 +48,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ## Layout (`src/`)
 - `Downloader.Desktop.sln` — solution.
 - `Directory.Build.props` — shared props.
+- `Downloader.Desktop.Plugins.Abstractions/` — the **plugin SDK** (interfaces + POCOs only): `IDownloaderPlugin`, `IMediaResolver`, `ITransferProvider`/`ITransfer`, `IPostProcessor`. External plugins reference this. Example: `samples/Downloader.Desktop.SamplePlugin` (GitHub Releases). Loaded at runtime by `Services/PluginManager` (collectible `AssemblyLoadContext`). Docs: `docs/plugins-architecture.md` + `docs/writing-plugins.md`. **UI nav model:** no left rail — the main view is always the downloads list; Queues/Scheduler/Settings open as dialogs (`Views/PageDialogView` via `DialogHelper.ShowPage`); Plugins live in a collapsible Settings section.
 - `Downloader.Desktop/`
   - `Program.cs` — Avalonia entrypoint (`BuildAvaloniaApp`, classic desktop lifetime).
   - `App.axaml(.cs)` — app bootstrap, **DI registration in `ConfigureServices()`**, platform guard (desktop-only), shutdown-save hook (`DesktopOnShutdownRequested`, currently commented out).

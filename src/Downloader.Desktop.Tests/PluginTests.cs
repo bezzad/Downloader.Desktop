@@ -156,8 +156,9 @@ public class PluginTests
         var pm = new PluginManager();
         pm.LoadFromDirectory(dir);
 
-        Assert.Contains(pm.Plugins, p => p.Id == "com.bezzad.sample");
-        Assert.NotNull(pm.FindResolver("sample://video/1")); // its resolver claims sample:// links
-        Assert.Null(pm.FindResolver("https://plain/file.zip"));
+        Assert.Contains(pm.Plugins, p => p.Id == "com.bezzad.github-releases");
+        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop")); // GitHub resolver
+        Assert.NotNull(pm.FindTransferProvider("file:///tmp/x"));                        // file:// transfer
+        Assert.Null(pm.FindResolver("https://example.com/file.zip"));
     }
 }
