@@ -82,6 +82,37 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Adding_a_queue_shows_the_queue_column()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+        manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        var view = new DownloadsViewModel(manager);
+        Assert.False(view.ShowQueue); // only the default queue
+
+        manager.AddQueue("Second");
+        view.Refresh();
+        Assert.True(view.ShowQueue); // a 2nd queue → Queue column shown
+    }
+
+    [AvaloniaFact]
+    public void Details_exposes_the_queue_name()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+        var vm = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
+
+        var details = new DownloadDetailsViewModel(vm);
+        Assert.True(details.HasQueue);
+        Assert.Equal(config.DefaultQueue.Name, vm.QueueName);
+    }
+
+    [AvaloniaFact]
     public void ReorderTo_moves_item_in_master_list()
     {
         var manager = new DownloadManager();

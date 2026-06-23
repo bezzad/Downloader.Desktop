@@ -640,6 +640,7 @@ public class DownloadManager : IDownloadManager
             MaxConcurrent = _config?.Settings?.MaxConcurrentDownloads ?? 3
         };
         _config?.Queues?.Add(queue);
+        NotifyList();
         return queue;
     }
 

@@ -57,9 +57,14 @@ public class CaptureScreenshots
     {
         var config = Config.New();
         config.Settings.DefaultSavePath = "/home/user/Downloads";
+
+        // A second queue so the per-row Queue column renders (it only shows with 2+ queues).
+        var media = new DownloadQueue { Name = "Media", MaxConcurrent = 2 };
+        config.Queues.Add(media);
+
         config.Downloads.Add(Item("ubuntu-24.04.2-desktop.iso", 5_100_000_000, 3_162_000_000, DownloadStatus.Running));
-        config.Downloads.Add(Item("interstellar-trailer.mp4", 240_000_000, 74_400_000, DownloadStatus.Running));
-        config.Downloads.Add(Item("the-daily-podcast-ep12.mp3", 52_000_000, 18_200_000, DownloadStatus.Paused));
+        config.Downloads.Add(Item("interstellar-trailer.mp4", 240_000_000, 74_400_000, DownloadStatus.Running, media.Id));
+        config.Downloads.Add(Item("the-daily-podcast-ep12.mp3", 52_000_000, 18_200_000, DownloadStatus.Paused, media.Id));
         config.Downloads.Add(Item("annual-report-2025.pdf", 12_400_000, 12_400_000, DownloadStatus.Completed));
         var failed = Item("project-photos.zip", 340_000_000, 41_000_000, DownloadStatus.Failed);
         failed.LastError = "Network error: the remote host could not be reached.";
@@ -85,7 +90,7 @@ public class CaptureScreenshots
         return config;
     }
 
-    private static DownloadItem Item(string name, long size, long got, DownloadStatus status) => new()
+    private static DownloadItem Item(string name, long size, long got, DownloadStatus status, string queueId = null) => new()
     {
         Url = "https://example.com/files/" + name,
         SaveFolder = "/home/user/Downloads",
@@ -93,6 +98,7 @@ public class CaptureScreenshots
         Size = size,
         Downloaded = got,
         Status = status,
+        QueueId = queueId,
         LastTry = DateTime.Now
     };
 

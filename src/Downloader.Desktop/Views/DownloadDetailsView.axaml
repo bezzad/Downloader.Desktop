@@ -107,6 +107,13 @@
                     <TextBlock Grid.Column="3" Text="{Binding Item.SpeedText}" />
                 </Grid>
 
+                <!-- Which queue this download belongs to -->
+                <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasQueue}">
+                    <TextBlock Grid.Column="0" Text="{i18n:Tr Det_Queue}" Margin="0 0 10 0"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Item.QueueName}" />
+                </Grid>
+
                 <!-- Single, merged progress: a fragmented per-connection bar with the overall % below it.
                      Before any connection exists we show a plain bar so there's always an indicator. (#5) -->
                 <Border Height="22" CornerRadius="5" ClipToBounds="True"

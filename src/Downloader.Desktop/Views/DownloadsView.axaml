@@ -151,6 +151,14 @@
                 <Style Selector="DataGridCell">
                     <Setter Property="BorderThickness" Value="0" />
                 </Style>
+                <!-- Drag-to-reorder feedback: the row under the pointer is highlighted as the pointer
+                     moves over it, and the dragged source row is dimmed. -->
+                <Style Selector="DataGridRow.droptarget">
+                    <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+                </Style>
+                <Style Selector="DataGridRow.dragging">
+                    <Setter Property="Opacity" Value="0.45" />
+                </Style>
             </DataGrid.Styles>
             <DataGrid.Columns>
                 <!-- Drag handle (6-dot grip): drag a row up/down to reorder (= queue pump priority).
@@ -158,7 +166,7 @@
                 <DataGridTemplateColumn Width="28" CanUserSort="False" CanUserResize="False" CanUserReorder="False">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                            <Border Background="Transparent" Cursor="SizeAll"
+                            <Border Background="Transparent" Cursor="SizeNorthSouth"
                                     PointerPressed="OnGripPointerPressed"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                     ToolTip.Tip="{i18n:Tr Action_Reorder}">

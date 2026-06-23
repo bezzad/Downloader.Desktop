@@ -29,6 +29,7 @@ public class DownloadDetailsViewModel : ViewModelBase
 
     public bool HasParts => Parts.Count > 0;
     public string PartsSummary => Parts.Count > 0 ? string.Format(L("Det_ConnCount"), Parts.Count) : string.Empty;
+    public bool HasQueue => !string.IsNullOrWhiteSpace(Item?.QueueName);
     public bool HasConfig => Item?.Configuration != null;
     public int Connections => Item?.Configuration?.ChunkCount ?? 0;
 

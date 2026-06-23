@@ -13,12 +13,15 @@ public partial class DownloadsView : UserControl
 {
     private DataGridColumn _queueColumn;
     private DownloadItemViewModel _dragRow;
+    private DataGridRow _sourceRow;
+    private DataGridRow _dropRow;
 
     public DownloadsView()
     {
         InitializeComponent();
         _queueColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "QueueName");
         Root.AddHandler(DragDrop.DragOverEvent, OnRowDragOver);
+        Root.AddHandler(DragDrop.DragLeaveEvent, OnRowDragLeave);
         Root.AddHandler(DragDrop.DropEvent, OnRowDrop);
         DataContextChanged += (_, _) => HookQueueColumn();
     }
@@ -54,6 +57,8 @@ public partial class DownloadsView : UserControl
             return;
 
         _dragRow = vm;
+        _sourceRow = c.FindAncestorOfType<DataGridRow>();
+        _sourceRow?.Classes.Add("dragging");
         e.Handled = true;
         var data = new DataTransfer();
         data.Add(DataTransferItem.CreateText("downloader-row"));
@@ -63,14 +68,45 @@ public partial class DownloadsView : UserControl
         }
         finally
         {
+            ClearDragVisuals();
             _dragRow = null;
         }
     }
 
     private void OnRowDragOver(object sender, DragEventArgs e)
     {
-        e.DragEffects = _dragRow != null ? DragDropEffects.Move : DragDropEffects.None;
+        if (_dragRow == null)
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+        e.DragEffects = DragDropEffects.Move;
+
+        // Highlight the row currently under the pointer so the drop target is obvious as it moves.
+        var row = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>(includeSelf: true);
+        if (!ReferenceEquals(row, _dropRow))
+        {
+            _dropRow?.Classes.Remove("droptarget");
+            _dropRow = row;
+            if (_dropRow != null && _dropRow.DataContext is DownloadItemViewModel t && !ReferenceEquals(t, _dragRow))
+                _dropRow.Classes.Add("droptarget");
+        }
         e.Handled = true;
+    }
+
+    private void OnRowDragLeave(object sender, DragEventArgs e)
+    {
+        _dropRow?.Classes.Remove("droptarget");
+        _dropRow = null;
+    }
+
+    private void ClearDragVisuals()
+    {
+        _sourceRow?.Classes.Remove("dragging");
+        _dropRow?.Classes.Remove("droptarget");
+        _sourceRow = null;
+        _dropRow = null;
     }
 
     private void OnRowDrop(object sender, DragEventArgs e)
