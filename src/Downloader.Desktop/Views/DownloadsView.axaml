@@ -121,7 +121,6 @@
                   ItemsSource="{Binding ItemsView}"
                   DoubleTapped="OnRowDoubleTapped"
                   SelectionChanged="OnSelectionChanged"
-                  DragDrop.AllowDrop="True"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   GridLinesVisibility="Horizontal"
                   CanUserReorderColumns="True"
@@ -168,6 +167,9 @@
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <Border Background="Transparent" Cursor="SizeNorthSouth"
                                     PointerPressed="OnGripPointerPressed"
+                                    PointerMoved="OnGripPointerMoved"
+                                    PointerReleased="OnGripPointerReleased"
+                                    PointerCaptureLost="OnGripCaptureLost"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                     ToolTip.Tip="{i18n:Tr Action_Reorder}">
                                 <PathIcon Data="{DynamicResource GripDotsRegular}" Width="14" Height="14"
@@ -312,6 +314,10 @@
             <TextBlock Text="{i18n:Tr Empty_Hint}"
                        Foreground="{DynamicResource SystemBaseMediumColor}" HorizontalAlignment="Center" />
         </StackPanel>
+
+        <!-- Drag overlay: hosts the floating "ghost" snapshot of the row being dragged so it visibly
+             sticks under the cursor (the OS DragDrop session shows no moving visual on X11). -->
+        <Canvas x:Name="DragOverlay" IsHitTestVisible="False" ClipToBounds="False" />
         </Panel>
     </DockPanel>
 </UserControl>

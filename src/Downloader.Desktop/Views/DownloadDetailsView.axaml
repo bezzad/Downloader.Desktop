@@ -98,20 +98,22 @@
         <!-- Summary + actions + live speed limit -->
         <Border Grid.Row="2" Classes="card" Margin="0 12 0 0">
             <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <!-- Status and queue share one line: "Status 62% · Stopped | Queue main". The queue
+                     part (separator + label + name) only shows when the item belongs to a queue. -->
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto">
                     <TextBlock Grid.Column="0" Text="{i18n:Tr Det_Status}" Margin="0 0 10 0"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
                     <TextBlock Grid.Column="1" Text="{Binding Item.StatusText}" />
-                    <TextBlock Grid.Column="2" Text="{Binding Item.SizeText}" Margin="0 0 10 0"
+                    <Border Grid.Column="2" Width="1" Margin="14 2" VerticalAlignment="Stretch"
+                            Background="{DynamicResource SystemBaseLowColor}"
+                            IsVisible="{Binding HasQueue}" />
+                    <TextBlock Grid.Column="3" Text="{i18n:Tr Det_Queue}" Margin="0 0 10 0"
+                               IsVisible="{Binding HasQueue}"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    <TextBlock Grid.Column="3" Text="{Binding Item.SpeedText}" />
-                </Grid>
-
-                <!-- Which queue this download belongs to -->
-                <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasQueue}">
-                    <TextBlock Grid.Column="0" Text="{i18n:Tr Det_Queue}" Margin="0 0 10 0"
+                    <TextBlock Grid.Column="4" Text="{Binding Item.QueueName}" IsVisible="{Binding HasQueue}" />
+                    <TextBlock Grid.Column="6" Text="{Binding Item.SizeText}" Margin="0 0 10 0"
                                Foreground="{DynamicResource SystemBaseMediumColor}" />
-                    <TextBlock Grid.Column="1" Text="{Binding Item.QueueName}" />
+                    <TextBlock Grid.Column="7" Text="{Binding Item.SpeedText}" />
                 </Grid>
 
                 <!-- Single, merged progress: a fragmented per-connection bar with the overall % below it.
