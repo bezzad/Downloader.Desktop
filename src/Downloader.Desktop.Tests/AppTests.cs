@@ -117,6 +117,26 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Start_stop_queue_menus_update_live_on_add_and_remove()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var view = new DownloadsViewModel(manager);
+
+        Assert.Single(view.StartQueueTargets); // default queue only
+        Assert.Single(view.StopQueueTargets);
+
+        var queue = manager.AddQueue("Second"); // no view.Refresh() — must update live (the reported bug)
+        Assert.Equal(2, view.StartQueueTargets.Count);
+        Assert.Contains(view.StartQueueTargets, t => t.Name == "Second");
+        Assert.Contains(view.StopQueueTargets, t => t.Name == "Second");
+
+        manager.RemoveQueue(queue);
+        Assert.Single(view.StartQueueTargets);
+        Assert.DoesNotContain(view.StartQueueTargets, t => t.Name == "Second");
+    }
+
+    [AvaloniaFact]
     public void Adding_a_queue_shows_the_queue_column()
     {
         var manager = new DownloadManager();
