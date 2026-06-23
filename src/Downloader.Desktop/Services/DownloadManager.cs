@@ -774,16 +774,19 @@ public class DownloadManager : IDownloadManager
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
-            else if (IsExpiredLinkResult(vm, e, out var finalBytes))
+            else if (IsCorruptedAfterResume(vm, e, out var finalBytes))
             {
-                // Resumed, but "completed" at a size far below the known total → the link expired and the
-                // server returned a stub/error body. That's a failure needing a FRESH link, not success.
+                // It had a known size from a previous attempt, was resumed, and "completed" at a SMALLER
+                // size than before → bytes are missing (e.g. the link expired and the server returned a
+                // stub, or the source file changed). The saved file is corrupted/unhealthy, not a success.
                 vm.Size = vm.PreAttemptSize; // restore the real size for display
                 vm.ErrorMessage =
-                    "The download link appears to have expired — the server returned a much smaller file " +
-                    "than before. Re-add this item with a fresh link.";
+                    "This file looks corrupted — it finished smaller than its known size " +
+                    $"({DownloadItemViewModel.FormatBytes(finalBytes)} of " +
+                    $"{DownloadItemViewModel.FormatBytes(vm.PreAttemptSize ?? 0)}), so it is incomplete and " +
+                    "may not open. Re-download it (with a fresh link if the old one expired).";
                 vm.Status = DownloadStatus.Failed;
-                AppLog.Error($"Expired link suspected: {vm.FileName} got {finalBytes} of expected {vm.PreAttemptSize}");
+                AppLog.Error($"Corrupted resume: {vm.FileName} finished at {finalBytes} of expected {vm.PreAttemptSize}");
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
@@ -800,19 +803,21 @@ public class DownloadManager : IDownloadManager
         });
     }
 
-    private static bool IsExpiredLinkResult(DownloadItemViewModel vm,
+    private static bool IsCorruptedAfterResume(DownloadItemViewModel vm,
         System.ComponentModel.AsyncCompletedEventArgs e, out long finalBytes)
     {
         finalBytes = (e.UserState as DownloadPackage)?.ReceivedBytesSize
                      ?? vm.Download?.Package?.ReceivedBytesSize
                      ?? 0;
-        return ExpiredLinkHeuristic(vm.PreAttemptSize, finalBytes);
+        return LooksCorruptedAfterResume(vm.PreAttemptSize, finalBytes);
     }
 
-    /// <summary>Pure heuristic (testable): a RESUME that "completed" at under half the size we already knew
-    /// means the link expired and the server returned a tiny stub/error body — treat as a failure.</summary>
-    public static bool ExpiredLinkHeuristic(long? knownSizeBeforeAttempt, long finalBytes) =>
-        knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value / 2;
+    /// <summary>Pure heuristic (testable): a download that was RESUMED (we already knew its size from a prior
+    /// attempt) but then "completed" SMALLER than that known size is missing bytes — the saved file is
+    /// corrupted/incomplete (e.g. an expired link returned a stub). A FIRST-time download finishing small is
+    /// fine and never flagged (knownSizeBeforeAttempt is null). A healthy resume finishes at the full size.</summary>
+    public static bool LooksCorruptedAfterResume(long? knownSizeBeforeAttempt, long finalBytes) =>
+        knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value;
 
     /// <summary>
     /// Shared post-terminal bookkeeping for a row that just reached an end state: free its queue slot,

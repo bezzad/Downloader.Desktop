@@ -26,8 +26,12 @@
             <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
             <Setter Property="Margin" Value="0 1 0 0" />
         </Style>
+        <!-- Match the NumericUpDown stepper exactly (148 wide, 34 tall) so every right-hand control —
+             combo boxes (Language, Accent, File-exists) and text boxes — lines up at one size. -->
         <Style Selector="ComboBox.ctrl, TextBox.ctrl">
-            <Setter Property="Width" Value="180" />
+            <Setter Property="Width" Value="148" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Height" Value="34" />
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
         <!-- Compact numeric stepper matching the download-details window (value + arrows, no wide gap) -->
@@ -292,12 +296,11 @@
                 </StackPanel>
             </Border>
 
-            <!-- ===== Plugins (advanced, collapsed by default) ===== -->
-            <Border Classes="card" Padding="6 2">
-                <Expander HorizontalAlignment="Stretch" Header="{i18n:Tr Sec_Plugins}">
-                    <v:PluginsView DataContext="{Binding Plugins}" Margin="2 6 2 8" />
-                </Expander>
-            </Border>
+            <!-- ===== Plugins (advanced, collapsed by default) — bare Expander to match the Advanced
+                 section below (no surrounding card, which produced a double border). ===== -->
+            <Expander HorizontalAlignment="Stretch" Header="{i18n:Tr Sec_Plugins}">
+                <v:PluginsView DataContext="{Binding Plugins}" Margin="2 6" />
+            </Expander>
 
             <!-- ===== Logging ===== -->
             <Border Classes="card">
@@ -424,10 +427,13 @@
                                 <TextBlock Grid.Column="0" Text="{i18n:Tr Set_KeepAlive}" />
                                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepAlive}" />
                             </Grid>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{i18n:Tr Set_Proxy}" />
-                                <TextBox Text="{Binding ProxyAddress}" CornerRadius="6" PlaceholderText="{i18n:Tr Set_ProxyPlaceholder}" />
-                            </StackPanel>
+                            <!-- Proxy on a single line: label left, box fills the rest (it was a full-width
+                                 box stacked under its label, which looked oversized). -->
+                            <Grid Classes="field" ColumnDefinitions="Auto,*">
+                                <TextBlock Grid.Column="0" Text="{i18n:Tr Set_Proxy}" Margin="0 0 12 0" />
+                                <TextBox Grid.Column="1" Text="{Binding ProxyAddress}" CornerRadius="6"
+                                         VerticalAlignment="Center" PlaceholderText="{i18n:Tr Set_ProxyPlaceholder}" />
+                            </Grid>
                         </StackPanel>
                         </Border>
                     </StackPanel>

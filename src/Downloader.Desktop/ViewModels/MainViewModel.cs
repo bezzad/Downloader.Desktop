@@ -44,6 +44,7 @@ public class MainViewModel : ViewModelBase
 
         ShowAllCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.All));
         ShowActiveCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Active));
+        ShowQueuedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Queued));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
         // Management pages open as dialogs over the always-downloads main view (the left rail was removed).
@@ -86,6 +87,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ClearAllCommand { get; }
     public ICommand ShowAllCommand { get; }
     public ICommand ShowActiveCommand { get; }
+    public ICommand ShowQueuedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
     public ICommand ShowQueuesCommand { get; }
@@ -134,6 +136,7 @@ public class MainViewModel : ViewModelBase
     // ---- Nav selection flags (for highlighting) ----
     public bool IsAllSelected => _section == NavSection.Downloads && _filter == StatusFilter.All;
     public bool IsActiveSelected => _section == NavSection.Downloads && _filter == StatusFilter.Active;
+    public bool IsQueuedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Queued;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
     public bool IsQueuesSelected => _section == NavSection.Queues;
@@ -146,10 +149,12 @@ public class MainViewModel : ViewModelBase
     public int QueuedCount => _downloadManager.QueuedCount;
     public int CompletedCount => _downloadManager.CompletedCount;
 
-    // ---- Nav count pills (match each filter) ----
+    // ---- Footer filter counts (each matches its StatusFilter bucket exactly, so the buttons are disjoint) ----
     public int AllCount => _downloadManager.Items.Count;
     public int ActiveFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Running or DownloadStatus.Paused or DownloadStatus.Created);
+        i.Status is DownloadStatus.Running or DownloadStatus.Paused);
+    public int QueuedFilterCount => _downloadManager.Items.Count(i =>
+        i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedFilterCount => _downloadManager.Items.Count(i => i.Status == DownloadStatus.Completed);
     public int FailedFilterCount => _downloadManager.Items.Count(i =>
         i.Status is DownloadStatus.Failed or DownloadStatus.Stopped);
@@ -345,6 +350,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(CompletedCount));
         this.RaisePropertyChanged(nameof(AllCount));
         this.RaisePropertyChanged(nameof(ActiveFilterCount));
+        this.RaisePropertyChanged(nameof(QueuedFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
     }
@@ -383,6 +389,7 @@ public class MainViewModel : ViewModelBase
     {
         this.RaisePropertyChanged(nameof(IsAllSelected));
         this.RaisePropertyChanged(nameof(IsActiveSelected));
+        this.RaisePropertyChanged(nameof(IsQueuedSelected));
         this.RaisePropertyChanged(nameof(IsCompletedSelected));
         this.RaisePropertyChanged(nameof(IsFailedSelected));
         this.RaisePropertyChanged(nameof(IsQueuesSelected));
