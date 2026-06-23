@@ -34,6 +34,19 @@ public static class NotificationService
     private static WindowNotificationManager _inApp;
     private static TopLevel _topLevel;
 
+    /// <summary>
+    /// Channel decision: use the OS channel when the app is NOT the visible, focused foreground — i.e. it's
+    /// unfocused OR hidden to the tray. Use the in-app toast only when a window is actually on screen and
+    /// focused. <paramref name="windowVisible"/> null = unknown ⇒ treat as visible (fall back to focus).
+    /// This is why macOS showed in-app toasts from the tray: hiding to the tray there does not reliably fire
+    /// the window's Deactivated event, so <see cref="AppFocused"/> stayed true — the visibility check fixes it.
+    /// </summary>
+    public static bool PreferOsChannel(bool appFocused, bool? windowVisible)
+        => !appFocused || windowVisible == false;
+
+    // True only when a window is on screen AND focused; an in-app toast can't be seen otherwise.
+    private static bool InAppVisible => !PreferOsChannel(AppFocused, (_topLevel as Window)?.IsVisible);
+
     // Actionable prompts (e.g. "Update available") raised while unfocused are re-shown in-app on focus-gain
     // so their action is never lost.
     private static readonly List<(string title, string message, Action onClick)> _pendingActions = new();
@@ -84,7 +97,7 @@ public static class NotificationService
         if (!Enabled)
             return;
 
-        if (AppFocused)
+        if (InAppVisible)
         {
             ShowInApp(title, message, isError);
             return;
@@ -102,7 +115,7 @@ public static class NotificationService
     /// </summary>
     public static void ShowAction(string title, string message, Action onClick)
     {
-        if (AppFocused)
+        if (InAppVisible)
         {
             ShowActionInApp(title, message, onClick);
             return;

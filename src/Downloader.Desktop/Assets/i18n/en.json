@@ -23,6 +23,8 @@
   "Plugins_Empty": "No plugins installed",
   "Plugins_Empty_Hint": "Click \"Install Plugins\" to add a plugin (.dll), or drop one into the plugins folder.",
   "Plugins_PickTitle": "Select a plugin (.dll)",
+  "Plugins_Remove": "Remove plugin",
+  "Plugins_Removed": "Plugin removed",
   "Nav_ToggleMenu": "Collapse / expand menu",
 
   "Status_All": "all",

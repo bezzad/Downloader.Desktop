@@ -43,7 +43,7 @@ public sealed class PluginManager
     }
 
     /// <summary>Register an already-instantiated plugin (used by the loader and by tests). Idempotent by Id.</summary>
-    public void RegisterPlugin(IDownloaderPlugin plugin, AssemblyLoadContext context = null)
+    public void RegisterPlugin(IDownloaderPlugin plugin, AssemblyLoadContext context = null, string sourcePath = null)
     {
         if (plugin == null || string.IsNullOrWhiteSpace(plugin.Id))
             return;
@@ -51,7 +51,7 @@ public sealed class PluginManager
         {
             if (_plugins.Any(p => p.Descriptor.Id == plugin.Id))
                 return; // already loaded
-            var loaded = new LoadedPlugin(plugin, context);
+            var loaded = new LoadedPlugin(plugin, context, sourcePath);
             try
             {
                 plugin.Initialize(loaded.Context);
@@ -85,7 +85,7 @@ public sealed class PluginManager
                     continue; // just a dependency DLL, not an entry plugin
                 foreach (var type in pluginTypes)
                     if (Activator.CreateInstance(type) is IDownloaderPlugin plugin)
-                        RegisterPlugin(plugin, alc);
+                        RegisterPlugin(plugin, alc, dll);
             }
             catch (Exception ex)
             {
@@ -122,6 +122,49 @@ public sealed class PluginManager
         }
     }
 
+    /// <summary>
+    /// Uninstall a plugin: drop it from the registry (so it stops contributing immediately), unload its
+    /// collectible load context, and delete its DLL (+ sidecar deps.json) from disk so it doesn't reload on
+    /// next launch. Returns true if the plugin was found. File deletion is best-effort: a still-mapped file
+    /// (mostly Windows) is retried after a GC; if it still can't be deleted it's left for the next launch.
+    /// </summary>
+    public bool RemovePlugin(string pluginId)
+    {
+        LoadedPlugin p;
+        lock (_gate)
+        {
+            p = _plugins.FirstOrDefault(x => x.Descriptor.Id == pluginId);
+            if (p == null)
+                return false;
+            _plugins.Remove(p);
+        }
+
+        try { p.Context = null; p.Alc?.Unload(); }
+        catch (Exception ex) { AppLog.Error($"Unloading plugin '{pluginId}' failed", ex); }
+
+        if (!string.IsNullOrWhiteSpace(p.SourcePath))
+        {
+            TryDeleteFile(p.SourcePath);
+            TryDeleteFile(Path.ChangeExtension(p.SourcePath, ".deps.json"));
+        }
+        return true;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try { File.Delete(path); return; }
+            catch (Exception ex)
+            {
+                if (attempt == 0) { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
+                else AppLog.Error($"Could not delete plugin file '{path}' (will retry next launch)", ex);
+            }
+        }
+    }
+
     private List<LoadedPlugin> Enabled()
     {
         lock (_gate) return _plugins.Where(p => p.Descriptor.IsEnabled).ToList();
@@ -145,10 +188,14 @@ public sealed class PluginManager
         public List<ILinkResolver> Resolvers { get; } = new();
         public List<ITransferProvider> TransferProviders { get; } = new();
         public List<IPostProcessor> PostProcessors { get; } = new();
-        public IPluginContext Context { get; }
+        public IPluginContext Context { get; set; }
+        public AssemblyLoadContext Alc { get; }
+        public string SourcePath { get; }
 
-        public LoadedPlugin(IDownloaderPlugin plugin, AssemblyLoadContext _)
+        public LoadedPlugin(IDownloaderPlugin plugin, AssemblyLoadContext alc, string sourcePath = null)
         {
+            Alc = alc;
+            SourcePath = sourcePath;
             Descriptor = new PluginDescriptor
             {
                 Id = plugin.Id,

@@ -42,7 +42,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:PluginRowViewModel">
                         <Border Classes="card">
-                            <Grid ColumnDefinitions="*,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto">
                                 <StackPanel Grid.Column="0" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
@@ -59,6 +59,11 @@
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                               IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                <Button Grid.Column="2" Classes="icon" VerticalAlignment="Center" Margin="6 0 0 0"
+                                        Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Plugins_Remove}">
+                                    <PathIcon Data="{DynamicResource DeleteRegular}" Width="16" Height="16"
+                                              Foreground="{DynamicResource SystemErrorTextColor}" />
+                                </Button>
                             </Grid>
                         </Border>
                     </DataTemplate>

@@ -234,6 +234,9 @@ public class MainViewModel : ViewModelBase
             {
                 e.Cancel = true;
                 window.Hide();
+                // Hidden to tray: route notifications to the OS. macOS doesn't fire Deactivated on Hide,
+                // so set this explicitly (the visibility check in NotificationService backs it up).
+                NotificationService.SetFocused(false);
             }
         };
 
@@ -259,7 +262,10 @@ public class MainViewModel : ViewModelBase
         // Launched at OS startup with --minimized → start hidden in the tray.
         if (_config.Settings.EnableSystemTray &&
             Environment.GetCommandLineArgs().Contains("--minimized"))
+        {
             window.Hide();
+            NotificationService.SetFocused(false); // started hidden in tray ⇒ OS notifications
+        }
 
         if (_config.Settings.AutoUpdate)
             _ = UpdateFlow.CheckAsync(manual: false);

@@ -75,6 +75,20 @@ public class PluginTests
     }
 
     [Fact]
+    public void Removing_a_plugin_drops_it_and_its_contributions()
+    {
+        var pm = new PluginManager();
+        pm.RegisterPlugin(new FakePlugin());
+        Assert.Single(pm.Plugins);
+        Assert.NotNull(pm.FindResolver("fake://reel/123"));
+
+        Assert.True(pm.RemovePlugin("test.plugin"));   // found + removed
+        Assert.Empty(pm.Plugins);                      // gone from the list
+        Assert.Null(pm.FindResolver("fake://reel/123")); // no longer contributes a resolver
+        Assert.False(pm.RemovePlugin("test.plugin"));  // removing again is a no-op (not found)
+    }
+
+    [Fact]
     public async Task ResolveAsync_routes_to_the_matching_resolver()
     {
         var pm = new PluginManager();

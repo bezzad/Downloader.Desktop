@@ -45,8 +45,20 @@ public class PluginsViewModel : ViewModelBase
     {
         Plugins.Clear();
         foreach (var d in _manager?.Plugins ?? new List<PluginDescriptor>())
-            Plugins.Add(new PluginRowViewModel(d, _manager, _config));
+            Plugins.Add(new PluginRowViewModel(d, _manager, _config, RemoveRow));
         this.RaisePropertyChanged(nameof(IsEmpty));
+    }
+
+    /// <summary>Uninstall a plugin (called by a row's Remove button): drop it from disk + memory and refresh.</summary>
+    private void RemoveRow(PluginRowViewModel row)
+    {
+        if (row == null)
+            return;
+        _manager?.RemovePlugin(row.Id);
+        _config?.DisabledPlugins?.Remove(row.Id);
+        Plugins.Remove(row);
+        this.RaisePropertyChanged(nameof(IsEmpty));
+        NotificationService.Inform(Localizer.Instance["Plugins_Removed"], row.Name, false);
     }
 
     private void Reload()
@@ -122,13 +134,18 @@ public class PluginRowViewModel : ViewModelBase
     private readonly PluginManager _manager;
     private readonly Config _config;
 
-    public PluginRowViewModel(PluginDescriptor descriptor, PluginManager manager, Config config)
+    public PluginRowViewModel(PluginDescriptor descriptor, PluginManager manager, Config config,
+        Action<PluginRowViewModel> onRemove = null)
     {
         _descriptor = descriptor;
         _manager = manager;
         _config = config;
+        RemoveCommand = ReactiveCommand.Create(() => onRemove?.Invoke(this));
     }
 
+    public ICommand RemoveCommand { get; }
+
+    public string Id => _descriptor.Id;
     public string Name => _descriptor.Name;
     public string Author => _descriptor.Author;
     public string Description => _descriptor.Description;

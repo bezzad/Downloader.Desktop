@@ -254,4 +254,26 @@ public class LogicTests
         NotificationService.SetFocused(true);
         Assert.True(NotificationService.AppFocused);
     }
+
+    [Theory]
+    // focused + a visible window => in-app toast (OS channel NOT preferred)
+    [InlineData(true, true, false)]
+    // focused but hidden to the tray => OS notification. This is the macOS bug: hiding to the tray there
+    // doesn't fire Deactivated, so focus stayed true and it wrongly used in-app; visibility now forces OS.
+    [InlineData(true, false, true)]
+    // unfocused (another app on top) => OS notification regardless of visibility
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    public void Notification_channel_prefers_OS_when_unfocused_or_hidden(bool focused, bool visible, bool expectOs)
+    {
+        Assert.Equal(expectOs, NotificationService.PreferOsChannel(focused, visible));
+    }
+
+    [Fact]
+    public void Notification_channel_treats_unknown_visibility_as_visible()
+    {
+        // null visibility (no window handle) falls back to focus alone.
+        Assert.False(NotificationService.PreferOsChannel(true, null));   // focused => in-app
+        Assert.True(NotificationService.PreferOsChannel(false, null));   // unfocused => OS
+    }
 }
