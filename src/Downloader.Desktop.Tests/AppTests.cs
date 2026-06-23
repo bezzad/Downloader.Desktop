@@ -101,6 +101,22 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void QueuesChanged_fires_on_add_and_remove()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        int fired = 0;
+        manager.QueuesChanged += () => fired++;
+
+        var queue = manager.AddQueue("Second");
+        Assert.Equal(1, fired); // adding a queue notifies so the start/stop menus refresh
+
+        manager.RemoveQueue(queue);
+        Assert.Equal(2, fired); // removing a queue notifies too
+    }
+
+    [AvaloniaFact]
     public void Adding_a_queue_shows_the_queue_column()
     {
         var manager = new DownloadManager();

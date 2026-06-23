@@ -113,6 +113,7 @@ public class DownloadItemViewModel : ViewModelBase
     {
         this.RaisePropertyChanged(nameof(StatusText));
         this.RaisePropertyChanged(nameof(DisplayName));
+        this.RaisePropertyChanged(nameof(NameTooltip));
         this.RaisePropertyChanged(nameof(Group));
     }
 
@@ -138,6 +139,7 @@ public class DownloadItemViewModel : ViewModelBase
                 _item.FileName = value;
                 this.RaisePropertyChanged();
                 this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(NameTooltip));
                 this.RaisePropertyChanged(nameof(IsNamePending));
                 this.RaisePropertyChanged(nameof(FileKind));
             }
@@ -193,6 +195,7 @@ public class DownloadItemViewModel : ViewModelBase
                 _item.PreviewName = value; // cache so the name survives a restart
                 this.RaisePropertyChanged();
                 this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(NameTooltip));
                 this.RaisePropertyChanged(nameof(IsNamePending));
                 this.RaisePropertyChanged(nameof(FileKind));
             }
@@ -205,6 +208,13 @@ public class DownloadItemViewModel : ViewModelBase
         : !string.IsNullOrWhiteSpace(_previewName) ? _previewName
         : IsNamePending ? L("Name_Fetching")
         : L("Name_Unnamed");
+
+    /// <summary>Tooltip for the Name cell: the full file name (so a column-trimmed long name is readable on
+    /// hover), plus the failure reason on a second line when the download has failed.</summary>
+    public string NameTooltip =>
+        HasError && !string.IsNullOrWhiteSpace(ErrorMessage)
+            ? $"{DisplayName}\n{ErrorMessage}"
+            : DisplayName;
 
     /// <summary>True while we are still waiting for any name (engine or preview).</summary>
     public bool IsNamePending =>
@@ -220,6 +230,7 @@ public class DownloadItemViewModel : ViewModelBase
             _item.LastError = value;
             this.RaisePropertyChanged();
             this.RaisePropertyChanged(nameof(HasError));
+            this.RaisePropertyChanged(nameof(NameTooltip));
         }
     }
 
@@ -312,6 +323,7 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(IsCompleted));
             this.RaisePropertyChanged(nameof(HasError));
             this.RaisePropertyChanged(nameof(DisplayName));
+            this.RaisePropertyChanged(nameof(NameTooltip));
             this.RaisePropertyChanged(nameof(IsNamePending));
             this.RaisePropertyChanged(nameof(ShowStatusBadge));
             this.RaisePropertyChanged(nameof(TimeLeftText));

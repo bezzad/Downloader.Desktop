@@ -25,6 +25,10 @@ public interface IDownloadManager
     /// queued — used for the "all downloads complete" notification and shutdown-on-completion.</summary>
     event Action AllDownloadsCompleted;
 
+    /// <summary>Raised when the queue set changes (a queue is added or removed) so per-queue menus refresh
+    /// without an app restart.</summary>
+    event Action QueuesChanged;
+
     /// <summary>The configured queues (read-only view for building per-queue menus).</summary>
     System.Collections.Generic.IReadOnlyList<DownloadQueue> Queues { get; }
 

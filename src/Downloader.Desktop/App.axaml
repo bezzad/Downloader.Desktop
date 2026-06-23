@@ -176,7 +176,15 @@
         <Style Selector="ToggleButton"><Setter Property="Cursor" Value="Hand" /></Style>
         <Style Selector="CheckBox"><Setter Property="Cursor" Value="Hand" /></Style>
         <Style Selector="ToggleSwitch"><Setter Property="Cursor" Value="Hand" /></Style>
-        <Style Selector="ComboBox"><Setter Property="Cursor" Value="Hand" /></Style>
+        <!-- ComboBox: hand cursor + inner padding so the selected text isn't flush against the edge. -->
+        <Style Selector="ComboBox">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="10 6" />
+        </Style>
+        <Style Selector="ComboBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="10 6" />
+        </Style>
         <Style Selector="DataGridColumnHeader"><Setter Property="Cursor" Value="Hand" /></Style>
 
         <!-- ===== Numeric stepper (#1): clean, compact, touch-friendly, hand cursor on the arrows =====

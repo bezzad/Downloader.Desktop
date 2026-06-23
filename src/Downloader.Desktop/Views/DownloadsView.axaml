@@ -211,7 +211,7 @@
                                      progress bar color + status text below it reflect the state. -->
                                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"
-                                           ToolTip.Tip="{Binding ErrorMessage}" />
+                                           ToolTip.Tip="{Binding NameTooltip}" />
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

@@ -56,7 +56,18 @@ public class DownloadsViewModel : ViewModelBase
         foreach (var item in manager.Items)
             item.PropertyChanged += OnItemPropertyChanged;
         manager.Items.CollectionChanged += OnItemsCollectionChanged;
+
+        // The "Start/Stop queue" toolbar menus are bound to computed Targets; refresh them when a queue is
+        // added/removed so a new queue shows up without restarting the app.
+        manager.QueuesChanged += OnQueuesChanged;
     }
+
+    private void OnQueuesChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        this.RaisePropertyChanged(nameof(StartQueueTargets));
+        this.RaisePropertyChanged(nameof(StopQueueTargets));
+        this.RaisePropertyChanged(nameof(ShowQueue));
+    });
 
     private void OnItemsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
     {

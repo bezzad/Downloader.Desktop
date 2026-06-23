@@ -25,6 +25,7 @@ public class DownloadManager : IDownloadManager
     public event Action StatsChanged;
     public event Action ListChanged;
     public event Action AllDownloadsCompleted;
+    public event Action QueuesChanged;
 
     public IReadOnlyList<DownloadQueue> Queues => _config?.Queues ?? new List<DownloadQueue>();
 
@@ -641,6 +642,7 @@ public class DownloadManager : IDownloadManager
         };
         _config?.Queues?.Add(queue);
         NotifyList();
+        QueuesChanged?.Invoke();
         return queue;
     }
 
@@ -664,6 +666,7 @@ public class DownloadManager : IDownloadManager
 
         _config.Queues.Remove(queue);
         NotifyList();
+        QueuesChanged?.Invoke();
     }
 
     public void MoveToQueue(DownloadItemViewModel vm, string queueId)
