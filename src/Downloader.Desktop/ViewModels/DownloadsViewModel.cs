@@ -216,7 +216,8 @@ public class DownloadsViewModel : ViewModelBase
             StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused,
             StatusFilter.Queued => vm.Status is DownloadStatus.Created or DownloadStatus.None,
             StatusFilter.Completed => vm.Status == DownloadStatus.Completed,
-            StatusFilter.Failed => vm.Status is DownloadStatus.Failed or DownloadStatus.Stopped,
+            // Failed = real failures only. User-Stopped items are NOT failures — they show under All.
+            StatusFilter.Failed => vm.Status is DownloadStatus.Failed,
             _ => true
         };
     }

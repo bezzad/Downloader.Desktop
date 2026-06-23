@@ -157,7 +157,7 @@ public class MainViewModel : ViewModelBase
         i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int CompletedFilterCount => _downloadManager.Items.Count(i => i.Status == DownloadStatus.Completed);
     public int FailedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Failed or DownloadStatus.Stopped);
+        i.Status is DownloadStatus.Failed);
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
     {
@@ -205,6 +205,11 @@ public class MainViewModel : ViewModelBase
     {
         if (View is not Window window)
             return;
+
+        // Focus-aware notification routing: any window active ⇒ in-app toasts; unfocused/tray ⇒ OS.
+        NotificationService.SetFocused(window.IsActive);
+        window.Activated += (_, _) => NotificationService.SetFocused(true);
+        window.Deactivated += (_, _) => NotificationService.SetFocused(false);
 
         TrayService.Init(window, Quit);
         TrayService.NotificationsToggled = enabled =>

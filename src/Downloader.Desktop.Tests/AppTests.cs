@@ -67,6 +67,25 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Stopped_items_show_under_All_but_not_under_Failed()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        var stopped = manager.Add(new DownloadItem { Url = "https://host/a.zip", FileName = "a.zip" }, autoStart: false);
+        var failed = manager.Add(new DownloadItem { Url = "https://host/b.zip", FileName = "b.zip" }, autoStart: false);
+        stopped.Status = DownloadStatus.Stopped;
+        failed.Status = DownloadStatus.Failed;
+
+        var view = new DownloadsViewModel(manager) { Filter = StatusFilter.Failed };
+        Assert.Single(view.ItemsView);                       // only the real failure
+        Assert.DoesNotContain(view.ItemsView.Cast<DownloadItemViewModel>(), i => i.Status == DownloadStatus.Stopped);
+
+        view.Filter = StatusFilter.All;
+        Assert.Equal(2, view.ItemsView.Count);               // stopped is visible under All
+    }
+
+    [AvaloniaFact]
     public void Removing_a_queue_reassigns_its_items()
     {
         var manager = new DownloadManager();

@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Downloader.Desktop.Tests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Downloader.Desktop.Plugins.Abstractions", "Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj", "{1DB53C8D-18A1-4679-8AE7-B799DE4609FA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Downloader.Desktop.SamplePlugin", "..\samples\Downloader.Desktop.SamplePlugin\Downloader.Desktop.SamplePlugin.csproj", "{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{1DB53C8D-18A1-4679-8AE7-B799DE4609FA}.Release|x64.Build.0 = Release|Any CPU
 		{1DB53C8D-18A1-4679-8AE7-B799DE4609FA}.Release|x86.ActiveCfg = Release|Any CPU
 		{1DB53C8D-18A1-4679-8AE7-B799DE4609FA}.Release|x86.Build.0 = Release|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Debug|x64.Build.0 = Debug|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Debug|x86.Build.0 = Debug|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Release|x64.ActiveCfg = Release|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Release|x64.Build.0 = Release|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Release|x86.ActiveCfg = Release|Any CPU
+		{9DC57FDF-0A72-4412-9AD5-6EF3A04F7BEB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

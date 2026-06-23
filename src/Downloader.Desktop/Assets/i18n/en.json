@@ -70,6 +70,7 @@
   "State_Downloading": "Downloading",
   "State_Pending": "Pending",
   "Name_Fetching": "Fetching name…",
+  "Error_LinkExpired": "This link looks expired or invalid — the server returned a web page instead of the file. Get a fresh link and try again.",
   "Name_Unnamed": "(unnamed)",
 
   "Add_Title": "Add download",
@@ -79,6 +80,7 @@
   "Add_ChooseFolder": "Choose a folder",
   "Add_FileName": "File name (optional)",
   "Add_FileNamePlaceholder": "Leave empty to detect automatically from the link",
+  "Add_Resolving": "Resolving…",
   "Add_Queue": "Queue",
   "Add_Download": "Download",
   "Tooltip_Browse": "Browse",

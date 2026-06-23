@@ -827,6 +827,17 @@ public class DownloadManager : IDownloadManager
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
+            else if (IsExpiredOrInvalidLink(vm, e))
+            {
+                // The engine "completed", but the payload is a small web page (HTML), not the requested
+                // file — the classic expired / anti-bot link that returns an error page with HTTP 200.
+                // Treat it as a failure with a clear message instead of a confusing "complete" stub.
+                vm.ErrorMessage = Localizer.Instance["Error_LinkExpired"];
+                vm.Status = DownloadStatus.Failed;
+                AppLog.Error($"Link expired/invalid (server returned a page, not the file): {vm.FileName ?? vm.Url}");
+                if (NotifyFailedEnabled)
+                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+            }
             else
             {
                 vm.Progress = 100;
@@ -855,6 +866,55 @@ public class DownloadManager : IDownloadManager
     /// fine and never flagged (knownSizeBeforeAttempt is null). A healthy resume finishes at the full size.</summary>
     public static bool LooksCorruptedAfterResume(long? knownSizeBeforeAttempt, long finalBytes) =>
         knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value;
+
+    /// <summary>An expired/anti-bot link often returns a small HTML error page with HTTP 200 instead of the
+    /// file. Above this size we trust it's real content (real media files dwarf an error page).</summary>
+    private const long ExpiredSuspectMaxBytes = 512 * 1024;
+
+    /// <summary>Pure heuristic (testable): a "completed" download whose payload is small AND looks like a web
+    /// page / markup (HTML/XML) rather than the requested file — typically an expired or anti-bot link. A
+    /// genuine small file (non-markup content) is NOT flagged, nor is anything above the suspect size.</summary>
+    public static bool LooksExpiredOrInvalid(string contentHead, long totalBytes)
+    {
+        if (totalBytes <= 0 || totalBytes > ExpiredSuspectMaxBytes)
+            return false;
+        if (string.IsNullOrWhiteSpace(contentHead))
+            return false;
+
+        var s = contentHead.TrimStart().ToLowerInvariant();
+        return s.StartsWith("<!doctype html")
+               || s.StartsWith("<html")
+               || s.StartsWith("<?xml")
+               || s.Contains("<head")
+               || s.Contains("<body")
+               || s.Contains("<title");
+    }
+
+    /// <summary>Reads the head of the just-completed file and applies <see cref="LooksExpiredOrInvalid"/>.</summary>
+    private bool IsExpiredOrInvalidLink(DownloadItemViewModel vm, System.ComponentModel.AsyncCompletedEventArgs e)
+    {
+        var path = (e.UserState as DownloadPackage)?.FileName ?? vm.Download?.Package?.FileName;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return false;
+
+        long len;
+        try { len = new FileInfo(path).Length; }
+        catch { return false; }
+        if (len <= 0 || len > ExpiredSuspectMaxBytes)
+            return false;
+
+        try
+        {
+            var buffer = new byte[(int)Math.Min(len, 1024)];
+            using var fs = File.OpenRead(path);
+            var n = fs.Read(buffer, 0, buffer.Length);
+            return LooksExpiredOrInvalid(System.Text.Encoding.UTF8.GetString(buffer, 0, n), len);
+        }
+        catch
+        {
+            return false; // unreadable — let it complete normally
+        }
+    }
 
     /// <summary>
     /// Shared post-terminal bookkeeping for a row that just reached an end state: free its queue slot,

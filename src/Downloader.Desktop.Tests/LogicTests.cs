@@ -227,4 +227,31 @@ public class LogicTests
         long? knownSize = known == 0 ? null : known;
         Assert.Equal(expected, DownloadManager.LooksCorruptedAfterResume(knownSize, final));
     }
+
+    [Theory]
+    [InlineData("<!DOCTYPE html><html><head><title>403</title></head>", 1_200L, true)]   // expired -> HTML error page
+    [InlineData("  <html><body>Access denied</body></html>", 800L, true)]                 // anti-bot HTML
+    [InlineData("<?xml version=\"1.0\"?><error/>", 500L, true)]                            // XML error body
+    [InlineData("PK binary zip content here", 2_000L, false)]                  // genuine small binary
+    [InlineData("just a normal small text note", 3_000L, false)]                           // genuine small text (no markup)
+    [InlineData("<!DOCTYPE html>...", 5_000_000L, false)]                                  // too big to be an error page
+    [InlineData("", 1_000L, false)]                                                        // empty sample
+    [InlineData("<html>...", 0L, false)]                                                   // nothing received
+    public void Expired_or_invalid_link_heuristic(string head, long totalBytes, bool expected)
+    {
+        Assert.Equal(expected, DownloadManager.LooksExpiredOrInvalid(head, totalBytes));
+    }
+
+    [Fact]
+    public void NotificationService_focus_state_tracks_SetFocused()
+    {
+        // Focus drives channel selection (focused -> in-app, unfocused -> OS). With no toast host attached,
+        // the focus-gain flush is a no-op, so this only exercises the state transition.
+        NotificationService.SetFocused(true);
+        Assert.True(NotificationService.AppFocused);
+        NotificationService.SetFocused(false);
+        Assert.False(NotificationService.AppFocused);
+        NotificationService.SetFocused(true);
+        Assert.True(NotificationService.AppFocused);
+    }
 }

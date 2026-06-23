@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
@@ -21,6 +22,10 @@ public class AddDownloadItemViewModel : ViewModelBase
     private string _fileName;
     private string _storageFolderPath;
     private DownloadQueue _selectedQueue;
+    private string _sizeText;
+    private bool _resolving;
+    private bool _userTypedName;
+    private CancellationTokenSource _resolveCts;
 
     public AddDownloadItemViewModel(Config config, string url)
     {
@@ -48,6 +53,9 @@ public class AddDownloadItemViewModel : ViewModelBase
             this.RaiseAndSetIfChanged(ref _urls, value);
             this.RaisePropertyChanged(nameof(CanDownload));
             this.RaisePropertyChanged(nameof(IsMultiple));
+            this.RaisePropertyChanged(nameof(IsSingleLink));
+            this.RaisePropertyChanged(nameof(IsFilenameEnabled));
+            TriggerResolve();
         }
     }
 
@@ -66,6 +74,96 @@ public class AddDownloadItemViewModel : ViewModelBase
     /// <summary>True when more than one URL is entered (file name field is then ignored).</summary>
     public bool IsMultiple => ParsedUrls.Count > 1;
 
+    /// <summary>True when exactly one URL is entered — enables name/size pre-resolution.</summary>
+    public bool IsSingleLink => ParsedUrls.Count == 1;
+
+    /// <summary>The File name box is disabled for multi-link adds (per-file names don't apply — folder only).</summary>
+    public bool IsFilenameEnabled => !IsMultiple;
+
+    /// <summary>Resolved size for a single link (e.g. "altogether 712 MB"), or null/Unknown when not yet known.</summary>
+    public string SizeText
+    {
+        get => _sizeText;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _sizeText, value);
+            this.RaisePropertyChanged(nameof(HasSizeText));
+        }
+    }
+
+    public bool HasSizeText => !string.IsNullOrEmpty(_sizeText);
+
+    /// <summary>True while a single-link name/size probe is in flight (shows a "Resolving…" hint).</summary>
+    public bool Resolving
+    {
+        get => _resolving;
+        private set => this.RaiseAndSetIfChanged(ref _resolving, value);
+    }
+
+    /// <summary>
+    /// For a single link: debounce, then probe the remote file name + size off the server and prefill the
+    /// dialog (non-blocking). Cancels any in-flight probe on each change; only applies a result if the URL
+    /// is still the same single link and the user hasn't typed their own name.
+    /// </summary>
+    private async void TriggerResolve()
+    {
+        _resolveCts?.Cancel();
+        var urls = ParsedUrls;
+        if (urls.Count != 1)
+        {
+            Resolving = false;
+            SizeText = null;
+            return;
+        }
+
+        var url = urls[0];
+        var cts = new CancellationTokenSource();
+        _resolveCts = cts;
+        try
+        {
+            await Task.Delay(600, cts.Token).ConfigureAwait(true); // debounce keystrokes
+            Resolving = true;
+            var info = await UrlResolver
+                .ResolveFileInfoAsync(url, _config?.Settings?.ToConfiguration())
+                .ConfigureAwait(true);
+
+            if (cts.IsCancellationRequested)
+                return;
+            // Make sure the input still describes this exact single link.
+            var now = ParsedUrls;
+            if (now.Count != 1 || now[0] != url)
+                return;
+
+            if (info != null)
+            {
+                if (!_userTypedName && string.IsNullOrWhiteSpace(_fileName) && !string.IsNullOrWhiteSpace(info.FileName))
+                {
+                    this.RaiseAndSetIfChanged(ref _fileName, info.FileName, nameof(Filename));
+                }
+                SizeText = info.FileSize > 0
+                    ? DownloadItemViewModel.FormatBytes(info.FileSize)
+                    : "Unknown size";
+            }
+            else
+            {
+                SizeText = null;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // superseded by a newer keystroke — ignore
+        }
+        catch
+        {
+            SizeText = null; // best-effort; dialog stays usable
+        }
+        finally
+        {
+            if (_resolveCts == cts)
+                Resolving = false;
+        }
+    }
+
     public string StorageFolderPath
     {
         get => _storageFolderPath;
@@ -76,7 +174,12 @@ public class AddDownloadItemViewModel : ViewModelBase
     public string Filename
     {
         get => _fileName;
-        set => this.RaiseAndSetIfChanged(ref _fileName, value);
+        set
+        {
+            // A non-empty value the user typed wins over a later auto-resolve; clearing it re-enables resolve.
+            _userTypedName = !string.IsNullOrWhiteSpace(value);
+            this.RaiseAndSetIfChanged(ref _fileName, value);
+        }
     }
 
     public List<DownloadQueue> Queues => _config?.Queues;
