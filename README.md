@@ -1,6 +1,16 @@
-<p align="center">
+<p>
   <img src="docs/banner.svg" alt="Downloader — fast multi-connection download manager" width="100%">
 </p>
+
+[![downloader](https://snapcraft.io/downloader/badge.svg)](https://snapcraft.io/downloader)
+[![downloader](https://snapcraft.io/downloader/trending.svg?name=0)](https://snapcraft.io/downloader)
+
+<a href="https://snapcraft.io/downloader">
+   <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://snapcraft.io/en/dark/install.svg">
+      <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" />
+   </picture>
+</a>
 
 A fast, reliable, cross-platform **download manager** with a clean desktop UI for **Windows, macOS and Linux**. It splits each file into multiple connections for maximum speed, lets you pause and resume any time, and organizes your downloads with queues and a scheduler — all in a simple interface anyone can use.
 
