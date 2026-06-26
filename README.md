@@ -2,6 +2,14 @@
   <img src="docs/banner.svg" alt="Downloader — fast multi-connection download manager" width="100%">
 </p>
 
+[![Build (Windows/Linux/macOS)](https://img.shields.io/github/actions/workflow/status/bezzad/Downloader.Desktop/dotnet-desktop.yml?branch=develop&label=build%20(windows%2Flinux%2FmacOS))](https://github.com/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml)
+[![Release Pipeline](https://img.shields.io/github/actions/workflow/status/bezzad/Downloader.Desktop/release.yml?label=release)](https://github.com/bezzad/Downloader.Desktop/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/bezzad/Downloader.Desktop?display_name=tag)](https://github.com/bezzad/Downloader.Desktop/releases)
+[![Downloads](https://img.shields.io/github/downloads/bezzad/Downloader.Desktop/total)](https://github.com/bezzad/Downloader.Desktop/releases)
+[![Coverage (planned)](https://img.shields.io/badge/coverage-coming%20soon-lightgrey)](https://github.com/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml)
+[![License: MIT](https://img.shields.io/github/license/bezzad/Downloader.Desktop)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea44f)](https://github.com/bezzad/Downloader.Desktop/releases)
+
 [![downloader](https://snapcraft.io/downloader/badge.svg)](https://snapcraft.io/downloader)
 [![downloader](https://snapcraft.io/downloader/trending.svg?name=0)](https://snapcraft.io/downloader)
 
