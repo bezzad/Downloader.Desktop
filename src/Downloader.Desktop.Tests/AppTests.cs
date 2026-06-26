@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Avalonia.Headless.XUnit;
@@ -214,6 +216,89 @@ public class AppTests
         var vm = new AddDownloadItemViewModel(config, "https://host/a.zip\nhttps://host/b.zip");
         Assert.True(vm.CanDownload);
         Assert.True(vm.IsMultiple);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_updates_auto_filename_when_single_url_changes()
+    {
+        var config = Config.New();
+        var names = new Dictionary<string, (string FileName, long FileSize)>
+        {
+            ["https://host/a"] = ("alpha.iso", 100),
+            ["https://host/b"] = ("beta.iso", 200)
+        };
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (url, _) => Task.FromResult<(string, long)?>(names.TryGetValue(url, out var info) ? info : null),
+            TimeSpan.Zero);
+
+        vm.Urls = "https://host/a";
+        await Task.Delay(50);
+        Assert.Equal("alpha.iso", vm.Filename);
+
+        vm.Urls = "https://host/b";
+        await Task.Delay(50);
+        Assert.Equal("beta.iso", vm.Filename);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_keeps_manual_filename_until_cleared()
+    {
+        var config = Config.New();
+        var names = new Dictionary<string, (string FileName, long FileSize)>
+        {
+            ["https://host/one"] = ("one.iso", 100),
+            ["https://host/two"] = ("two.iso", 200),
+            ["https://host/three"] = ("three.iso", 300)
+        };
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (url, _) => Task.FromResult<(string, long)?>(names.TryGetValue(url, out var info) ? info : null),
+            TimeSpan.Zero);
+
+        vm.Urls = "https://host/one";
+        await Task.Delay(50);
+        Assert.Equal("one.iso", vm.Filename);
+
+        vm.Filename = "custom-name.iso";
+        vm.Urls = "https://host/two";
+        await Task.Delay(50);
+        Assert.Equal("custom-name.iso", vm.Filename);
+
+        vm.Filename = string.Empty; // clearing re-enables auto-managed filename
+        vm.Urls = "https://host/three";
+        await Task.Delay(50);
+        Assert.Equal("three.iso", vm.Filename);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_constructor_prefilled_url_triggers_resolution()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            "https://host/prefilled",
+            (_, _) => Task.FromResult<(string, long)?>(("prefilled.iso", 100)),
+            TimeSpan.Zero);
+
+        await Task.Delay(50);
+        Assert.Equal("prefilled.iso", vm.Filename);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_uses_url_name_fallback_when_probe_returns_null()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            "https://releases.ubuntu.com/26.04/ubuntu-26.04-desktop-amd64.iso",
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero);
+
+        await Task.Delay(50);
+        Assert.Equal("ubuntu-26.04-desktop-amd64.iso", vm.Filename);
     }
 
     [AvaloniaFact]

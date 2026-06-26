@@ -18,6 +18,8 @@ namespace Downloader.Desktop.ViewModels;
 public class AddDownloadItemViewModel : ViewModelBase
 {
     private readonly Config _config;
+    private readonly Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> _resolveFileInfo;
+    private readonly TimeSpan _resolveDebounce;
     private string _urls;
     private string _fileName;
     private string _storageFolderPath;
@@ -27,9 +29,15 @@ public class AddDownloadItemViewModel : ViewModelBase
     private bool _userTypedName;
     private CancellationTokenSource _resolveCts;
 
-    public AddDownloadItemViewModel(Config config, string url)
+    public AddDownloadItemViewModel(
+        Config config,
+        string url,
+        Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> resolveFileInfo = null,
+        TimeSpan? resolveDebounce = null)
     {
         _config = config;
+        _resolveFileInfo = resolveFileInfo ?? DefaultResolveFileInfoAsync;
+        _resolveDebounce = resolveDebounce ?? TimeSpan.FromMilliseconds(600);
         _urls = url ?? string.Empty;
         _storageFolderPath = !string.IsNullOrWhiteSpace(config?.Settings?.DefaultSavePath)
             ? config.Settings.DefaultSavePath
@@ -39,6 +47,15 @@ public class AddDownloadItemViewModel : ViewModelBase
 
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
+
+        if (!string.IsNullOrWhiteSpace(_urls))
+            TriggerResolve();
+    }
+
+    private static async Task<(string FileName, long FileSize)?> DefaultResolveFileInfoAsync(string url, DownloadConfiguration configuration)
+    {
+        var info = await UrlResolver.ResolveFileInfoAsync(url, configuration).ConfigureAwait(true);
+        return info == null ? null : (info.FileName, info.FileSize);
     }
 
     public ICommand SelectFileStoragePathCommand { get; }
@@ -121,11 +138,16 @@ public class AddDownloadItemViewModel : ViewModelBase
         _resolveCts = cts;
         try
         {
-            await Task.Delay(600, cts.Token).ConfigureAwait(true); // debounce keystrokes
+            if (!_userTypedName)
+            {
+                var fromUrl = UrlResolver.NameFromUrl(url);
+                // Keep the textbox in sync with the current URL immediately; probe result may refine it later.
+                this.RaiseAndSetIfChanged(ref _fileName, fromUrl ?? string.Empty, nameof(Filename));
+            }
+
+            await Task.Delay(_resolveDebounce, cts.Token).ConfigureAwait(true); // debounce keystrokes
             Resolving = true;
-            var info = await UrlResolver
-                .ResolveFileInfoAsync(url, _config?.Settings?.ToConfiguration())
-                .ConfigureAwait(true);
+            var info = await _resolveFileInfo(url, _config?.Settings?.ToConfiguration()).ConfigureAwait(true);
 
             if (cts.IsCancellationRequested)
                 return;
@@ -134,14 +156,14 @@ public class AddDownloadItemViewModel : ViewModelBase
             if (now.Count != 1 || now[0] != url)
                 return;
 
-            if (info != null)
+            if (info.HasValue)
             {
-                if (!_userTypedName && string.IsNullOrWhiteSpace(_fileName) && !string.IsNullOrWhiteSpace(info.FileName))
+                if (!_userTypedName && !string.IsNullOrWhiteSpace(info.Value.FileName))
                 {
-                    this.RaiseAndSetIfChanged(ref _fileName, info.FileName, nameof(Filename));
+                    this.RaiseAndSetIfChanged(ref _fileName, info.Value.FileName, nameof(Filename));
                 }
-                SizeText = info.FileSize > 0
-                    ? DownloadItemViewModel.FormatBytes(info.FileSize)
+                SizeText = info.Value.FileSize > 0
+                    ? DownloadItemViewModel.FormatBytes(info.Value.FileSize)
                     : "Unknown size";
             }
             else
