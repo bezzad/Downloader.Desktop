@@ -3,9 +3,7 @@
 ## Purpose
 
 How user-facing messages (errors, download completion/failure, update availability, plugin events) are routed to a channel (focus-aware: in-app vs OS) and presented (copyable content, actionable re-show on focus).
-
 ## Requirements
-
 ### Requirement: Focus-aware message routing
 The app SHALL route every user-facing message (errors, download completion, download failure, update availability, plugin events) to exactly one channel based on application focus: in-app toasts when the app is focused, OS notifications when it is not.
 
@@ -37,3 +35,20 @@ Every in-app toast SHALL expose a control to copy its text (title and message) t
 #### Scenario: User copies a toast
 - **WHEN** an in-app toast is shown and the user activates its copy control
 - **THEN** the toast's title and message text are placed on the system clipboard
+
+### Requirement: Hidden-to-tray notifications use the OS channel
+
+When the application is hidden in the system tray, user notifications SHALL be delivered as operating-system
+notifications rather than in-app toasts, on every platform — because an in-app toast cannot be seen while no
+window is on screen.
+
+#### Scenario: A download finishes while the app is in the tray
+
+- **WHEN** a download completes while the app is hidden in the system tray
+- **THEN** the completion is shown as an OS notification, not an in-app toast
+
+#### Scenario: Focused foreground still uses in-app toasts
+
+- **WHEN** a notification fires while a window is on screen and focused
+- **THEN** it is shown as an in-app toast
+
