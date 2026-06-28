@@ -6,7 +6,9 @@
 // through the manifest "scripts" array, so importScripts is absent there — guard it.
 if (typeof importScripts === "function") importScripts("common.js");
 
-// tabId -> Map(url -> { url, type })   detected media for the current page
+// tabId -> { items: Map(url -> {url,type,kind,label}), variants: Set(url), seen: Set(url) }
+// `items` are the surfaced candidates; `variants` are HLS variant playlists to suppress (so each video
+// collapses to its single master); `seen` guards against re-classifying the same playlist.
 const tabMedia = new Map();
 
 // ---------------- Context menus ----------------
@@ -64,27 +66,77 @@ function notify(title, message) {
 }
 
 // ---------------- Media sniffing ----------------
+function tabState(tabId) {
+  let st = tabMedia.get(tabId);
+  if (!st) { st = { items: new Map(), variants: new Set(), seen: new Set() }; tabMedia.set(tabId, st); }
+  return st;
+}
+
 api.webRequest.onHeadersReceived.addListener(
   details => {
+    if (details.tabId < 0) return;            // ignore our own (tab-less) classification fetches
+    const url = details.url;
+    if (!isHttp(url)) return;
+    if (isHlsSegment(url)) return;            // drop .ts/.m4s/init fragments — the main source of noise
+
     const ct = (details.responseHeaders || [])
       .find(h => h.name.toLowerCase() === "content-type")?.value;
-    if (details.tabId < 0) return;
-    if (looksLikeMedia(details.url) || isMediaContentType(ct)) {
-      addMedia(details.tabId, details.url, ct);
+    const isHls = isM3u8(url) || (ct || "").toLowerCase().includes("mpegurl");
+
+    if (isHls) {
+      handleHls(details.tabId, url);
+    } else if (looksLikeMedia(url) || isMediaContentType(ct)) {
+      addCandidate(details.tabId, { url, type: ct || extOf(url), kind: "file", label: fileLabel(url, ct) });
     }
   },
   { urls: ["<all_urls>"] },
   ["responseHeaders"]
 );
 
-function addMedia(tabId, url, type) {
-  if (!isHttp(url)) return;
-  // Skip obvious non-downloadable streaming (blob:, DRM) — already filtered by isHttp.
-  let map = tabMedia.get(tabId);
-  if (!map) { map = new Map(); tabMedia.set(tabId, map); }
-  if (map.has(url)) return;
-  map.set(url, { url, type: type || extOf(url) });
-  updateBadge(tabId, map.size);
+// Classify an HLS playlist once. A MASTER becomes a single "video" candidate and its variant playlists are
+// suppressed; a lone MEDIA playlist (a site with no master) is kept until/unless a master claims it.
+async function handleHls(tabId, url) {
+  const st = tabState(tabId);
+  if (st.seen.has(url) || st.variants.has(url)) return;
+  st.seen.add(url);
+
+  const info = await classifyM3u8(url);
+  if (info.kind === "master") {
+    for (const v of info.variants) {
+      st.variants.add(v.url);
+      st.items.delete(v.url);                // remove any variant we already listed
+    }
+    const q = info.variants.length;
+    addCandidate(tabId, {
+      url, type: "application/x-mpegurl", kind: "master",
+      label: q ? `HLS video — ${q} qualit${q === 1 ? "y" : "ies"}` : "HLS video"
+    });
+  } else if (!st.variants.has(url)) {
+    // media or unknown body that still looked like a playlist — low-priority candidate
+    addCandidate(tabId, { url, type: "application/x-mpegurl", kind: "media", label: "HLS stream" });
+  }
+}
+
+function addCandidate(tabId, cand) {
+  const st = tabState(tabId);
+  if (st.variants.has(cand.url) || st.items.has(cand.url)) return;
+  st.items.set(cand.url, cand);
+  updateBadge(tabId, primaryCount(st));
+}
+
+// Surfacing priority: master > direct file > lone media playlist.
+const KIND_RANK = { master: 0, file: 1, media: 2 };
+function prioritized(st) {
+  return [...st.items.values()]
+    .filter(c => !st.variants.has(c.url))
+    .sort((a, b) => (KIND_RANK[a.kind] ?? 9) - (KIND_RANK[b.kind] ?? 9));
+}
+function primaryCount(st) { return prioritized(st).length; }
+
+function fileLabel(url, ct) {
+  const e = extOf(url);
+  if (e) return e.toUpperCase() + " file";
+  return ct || "media";
 }
 
 function updateBadge(tabId, count) {
@@ -107,8 +159,8 @@ api.tabs.onRemoved.addListener(tabId => tabMedia.delete(tabId));
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg.type === "getMedia") {
-      const map = tabMedia.get(msg.tabId);
-      sendResponse({ media: map ? [...map.values()] : [] });
+      const st = tabMedia.get(msg.tabId);
+      sendResponse({ media: st ? prioritized(st) : [] });
     } else if (msg.type === "send") {
       sendResponse({ ok: await sendToApp(msg.url) });
     } else if (msg.type === "ping") {

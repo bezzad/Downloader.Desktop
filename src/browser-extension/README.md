@@ -10,12 +10,21 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 - **Popup** — paste a link, send the **detected media** for the current tab, or **scan the page**
   for downloadable links, then send one or all to the app.
 - **Media capture** — watches network responses and surfaces **video / audio / HLS (`.m3u8`)**
-  streams, with a badge count on the toolbar icon.
+  streams, with a badge count on the toolbar icon. **HLS is de-noised:** segment files (`.ts`/`.m4s`)
+  are ignored, and each playlist is fetched and classified so a **master** playlist (the real video)
+  shows as a single entry while its per-quality **variant** playlists are hidden. On a site like X
+  (Twitter) this turns hundreds of captured URLs into **one ★ "HLS video" candidate** (the master),
+  highlighted at the top of the popup.
 - **Auto-send** — every captured link is forwarded to the app's local listener
   (`http://127.0.0.1:15151/add?url=…`), which opens the Add dialog pre-filled.
 
 > **Not supported:** YouTube and other DRM/encrypted streaming sites — they don't expose a direct,
 > fetchable media URL, so there's nothing the engine can download.
+>
+> **HLS note:** the extension now correctly *identifies and sends* the master `.m3u8`. Turning that
+> playlist into a single playable file (download all segments → decrypt → concat → remux) is the job of
+> the **HLS plugin** plus the app's download pipeline; until that pipeline is wired, sending a master
+> `.m3u8` hands the playlist URL to the app but does not yet assemble the video.
 
 ## Requirements
 

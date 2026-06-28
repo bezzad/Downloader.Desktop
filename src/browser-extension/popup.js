@@ -18,17 +18,20 @@ function send(type, payload) {
 function render() {
   listEl.innerHTML = "";
   emptyEl.style.display = items.length ? "none" : "block";
+  // The first master (top of the prioritized list) is the most likely "main video".
+  const mainUrl = items.find(i => i.kind === "master")?.url;
   for (const it of items) {
     const li = document.createElement("li");
+    if (it.url === mainUrl) li.className = "main";
     const meta = document.createElement("div");
     meta.className = "meta";
     const name = document.createElement("div");
     name.className = "name";
-    name.textContent = fileName(it.url);
+    name.textContent = (it.url === mainUrl ? "★ " : "") + fileName(it.url);
     name.title = it.url;
     const type = document.createElement("div");
     type.className = "type";
-    type.textContent = (it.type || "").toString();
+    type.textContent = (it.label || it.type || "").toString();
     meta.append(name, type);
     const btn = document.createElement("button");
     btn.className = "primary";
@@ -46,9 +49,9 @@ function fileName(url) {
   } catch { return url; }
 }
 
-function addItem(url, type) {
+function addItem(url, type, kind, label) {
   if (!isHttp(url) || items.some(i => i.url === url)) return;
-  items.push({ url, type: type || extOf(url) });
+  items.push({ url, type: type || extOf(url), kind: kind || "file", label });
 }
 
 async function sendOne(url, btn) {
@@ -66,7 +69,7 @@ async function refreshStatus() {
 async function loadDetected() {
   const tab = await activeTab();
   const { media } = await send("getMedia", { tabId: tab.id });
-  for (const m of media || []) addItem(m.url, m.type);
+  for (const m of media || []) addItem(m.url, m.type, m.kind, m.label);
   render();
 }
 

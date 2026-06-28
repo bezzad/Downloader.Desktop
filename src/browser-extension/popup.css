@@ -33,8 +33,11 @@ button.link { background: none; color: #0E8FB3; padding: 2px 4px; }
 .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
 .list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
 .list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,.15); }
+.list li.main { background: rgba(14,143,179,.10); border-radius: 7px; padding: 6px 8px; }
 .list .meta { flex: 1; min-width: 0; }
 .list .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list li.main .name { font-weight: 600; }
 .list .type { color: #888; font-size: 11px; }
+.list li.main .type { color: #0E8FB3; }
 .empty { color: #888; text-align: center; padding: 8px 0; }
 footer { padding: 10px 12px; border-top: 1px solid rgba(128,128,128,.25); }
