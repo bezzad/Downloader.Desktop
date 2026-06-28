@@ -9,8 +9,8 @@ The plugin's `ILinkResolver` SHALL recognize HLS playlist links so the host rout
 - **THEN** it returns `true`
 
 #### Scenario: Content type indicates HLS
-- **WHEN** `CanResolve` is called with a URL that does not end in `.m3u8` but a cheap HEAD request reports `application/vnd.apple.mpegurl` or `application/x-mpegURL`
-- **THEN** it returns `true`
+- **WHEN** `CanResolve` is called with a URL that does not end in `.m3u8`, but the resolver is configured with a content-type probe that reports `application/vnd.apple.mpegurl` / `application/x-mpegURL`
+- **THEN** it returns `true` (the probe is optional and injected, so the default `CanResolve` stays network-free)
 
 #### Scenario: Non-HLS URL is ignored
 - **WHEN** `CanResolve` is called with an ordinary direct-file URL (e.g. `.zip`, `.mp4`) that is not an HLS playlist
