@@ -42,12 +42,49 @@ function isMediaContentType(ct) {
   return MEDIA_CONTENT_TYPES.some(t => v.startsWith(t) || v.includes(t));
 }
 
-// Send a single URL to the desktop app. Returns true on success.
-async function sendToApp(url) {
-  if (!isHttp(url)) return false;
-  const endpoint = `${APP_BASE}/add?url=${encodeURIComponent(url)}`;
+// How captures reach the app: "silent" adds + starts the download with no dialog (the app's
+// /api/add endpoint), "dialog" opens the Add dialog pre-filled (the legacy /add endpoint).
+async function getAddMode() {
+  try {
+    const r = await api.storage.local.get({ addMode: "silent" });
+    return r.addMode === "dialog" ? "dialog" : "silent";
+  } catch {
+    return "silent";
+  }
+}
+
+function setAddMode(mode) {
+  try { api.storage.local.set({ addMode: mode === "dialog" ? "dialog" : "silent" }); } catch { /* optional */ }
+}
+
+// Silent add via the local API. Returns "ok" (added — on a pre-API app the same request opens
+// the Add dialog instead, which still captures the link), "fallback" (endpoint unknown, retry
+// the legacy dialog endpoint) or "fail".
+async function sendToAppSilently(url, filename) {
+  let endpoint = `${APP_BASE}/api/add?url=${encodeURIComponent(url)}`;
+  if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
   try {
     const res = await fetch(endpoint, { method: "GET" });
+    if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
+    if (res.status === 404) return "fallback";
+    return "fail";
+  } catch {
+    return "fail";
+  }
+}
+
+// Send a single URL to the desktop app, honoring the user's silent-vs-dialog choice.
+// Returns true on success.
+async function sendToApp(url, filename) {
+  if (!isHttp(url)) return false;
+  if (await getAddMode() === "silent") {
+    const silent = await sendToAppSilently(url, filename);
+    if (silent === "ok") return true;
+    if (silent === "fail") return false;
+    // "fallback": retry through the dialog endpoint below so older apps still capture the link.
+  }
+  try {
+    const res = await fetch(`${APP_BASE}/add?url=${encodeURIComponent(url)}`, { method: "GET" });
     return res.ok;
   } catch {
     return false;

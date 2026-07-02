@@ -1,6 +1,24 @@
-<p align="center">
+<p>
   <img src="docs/banner.svg" alt="Downloader — fast multi-connection download manager" width="100%">
 </p>
+
+[![Build (Windows/Linux/macOS)](https://img.shields.io/github/actions/workflow/status/bezzad/Downloader.Desktop/dotnet-desktop.yml?branch=develop&label=build%20(windows%2Flinux%2FmacOS))](https://github.com/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml)
+[![Release Pipeline](https://img.shields.io/github/actions/workflow/status/bezzad/Downloader.Desktop/release.yml?label=release)](https://github.com/bezzad/Downloader.Desktop/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/bezzad/Downloader.Desktop?display_name=tag)](https://github.com/bezzad/Downloader.Desktop/releases)
+[![Downloads](https://img.shields.io/github/downloads/bezzad/Downloader.Desktop/total)](https://github.com/bezzad/Downloader.Desktop/releases)
+[![Coverage (planned)](https://img.shields.io/badge/coverage-coming%20soon-lightgrey)](https://github.com/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea44f)](https://github.com/bezzad/Downloader.Desktop/releases)
+
+[![downloader](https://snapcraft.io/downloader/badge.svg)](https://snapcraft.io/downloader)
+[![downloader](https://snapcraft.io/downloader/trending.svg?name=0)](https://snapcraft.io/downloader)
+
+<a href="https://snapcraft.io/downloader">
+   <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://snapcraft.io/en/dark/install.svg">
+      <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" />
+   </picture>
+</a>
 
 A fast, reliable, cross-platform **download manager** with a clean desktop UI for **Windows, macOS and Linux**. It splits each file into multiple connections for maximum speed, lets you pause and resume any time, and organizes your downloads with queues and a scheduler — all in a simple interface anyone can use.
 
@@ -25,6 +43,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
 - **System tray** — closing the window keeps downloads running in the background; reopen, mute notifications, or quit from the tray menu. Optionally **launch at startup** (hidden in the tray).
 - **Automatic update check** — get an in-app prompt when a new version ships, and update with one click.
+- **Automation-friendly** — add and manage downloads from scripts or the terminal via a local API and CLI (see [Automation](#automation-local-api--command-line)).
 - **Multi-language UI** — English, فارسی (Persian), Español, Français, العربية (Arabic), Esperanto — with full right-to-left layout for Persian/Arabic. Switch under **Settings → App language**.
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
 - **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
@@ -58,9 +77,12 @@ sudo snap install downloader
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
 
-**Windows** — no package-manager listing yet (see note below); use [Manual download](#manual-download).
-
-> **winget is pending review.** `winget install downloader` doesn't work yet: the package has been [submitted to microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/pulls?q=bezzad.Downloader) and is waiting on Microsoft's validation/review. Once that PR is merged, the command will work; until then use the [Manual download](#manual-download).
+**Windows** ([winget](https://learn.microsoft.com/windows/package-manager/winget/)):
+```powershell
+winget install bezzad.Downloader
+```
+This installs the portable app and puts `Downloader` on your PATH — launch it from the Start menu or a terminal. Update later with `winget upgrade bezzad.Downloader`.
+> The short form `winget install downloader` also resolves to this package via its moniker (if another package matches first, use the full id above).
 
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
@@ -91,11 +113,31 @@ A companion **browser extension** (Chrome, Edge, Firefox) sends links straight t
 
 - Right-click a link/image/video/audio → **“Download with Downloader.”**
 - A popup to paste a link, scan the page for links, or grab detected **video / audio / HLS (`.m3u8`)** media.
-- Captured links are sent only to the desktop app on your machine — enable **Settings → Browser integration** in the app first. (DRM/encrypted sites like YouTube aren’t supported.)
+- Captured links go straight into the app and **start downloading — no dialog**. Prefer to review each link first? Untick **Add silently** in the extension popup.
+- Links are sent only to the desktop app on your own machine (**Settings → Browser extension & local API**, on by default). DRM/encrypted sites like YouTube aren’t supported.
 
 **Install** (store listings pending review — see [`src/browser-extension`](src/browser-extension)):
 - _Chrome Web Store / Edge Add-ons / Firefox AMO_ — links added here once published.
 - **Load it now (developer mode):** see [`src/browser-extension/README.md`](src/browser-extension/README.md) to load the unpacked extension.
+
+## Automation: local API & command line
+
+Other programs on your computer can add and manage downloads — handy for batch jobs and scripts
+(the most-requested developer feature, [#2](https://github.com/bezzad/Downloader.Desktop/issues/2)):
+
+```bash
+# From a terminal / script: add a download (starts the app if it isn't running)
+Downloader add --url https://example.com/file.zip --path ~/Downloads
+
+# Or over the local HTTP API from any language (Node.js, Bun, Python, curl, …)
+curl -X POST http://127.0.0.1:15151/api/add -d '{"url":"https://example.com/file.zip"}'
+```
+
+You can also `list` all downloads (with progress and status) and `pause / resume / cancel / retry /
+remove` each one. Everything is **local-only** (loopback, never exposed to the network) and gated by
+the same **Settings → Browser extension & local API** toggle, on by default.
+
+📖 **Full reference with examples:** [`docs/local-api.md`](docs/local-api.md)
 
 ---
 

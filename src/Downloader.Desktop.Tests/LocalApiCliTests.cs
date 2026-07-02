@@ -1,0 +1,287 @@
+using System;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
+using Downloader.Desktop.Models;
+using Downloader.Desktop.Services;
+using Xunit;
+
+namespace Downloader.Desktop.Tests;
+
+/// <summary>Pure tests for the local API request models, the CLI parser and the config migration.</summary>
+public class LocalApiCliLogicTests
+{
+    // ---------------- ApiAddRequest ----------------
+
+    [Fact]
+    public void AddRequest_parses_full_json_body()
+    {
+        var req = ApiAddRequest.FromJson(
+            """{"url":"https://host/file.zip","filename":"a.zip","path":"/tmp","queue":"Main queue","mirrors":["https://m1/f.zip"],"start":false}""");
+
+        Assert.Null(req.Error);
+        Assert.Equal("https://host/file.zip", req.Url);
+        Assert.Equal("a.zip", req.Filename);
+        Assert.Equal("/tmp", req.Path);
+        Assert.Equal("Main queue", req.Queue);
+        Assert.Single(req.Mirrors);
+        Assert.False(req.Start);
+    }
+
+    [Theory]
+    [InlineData("""{"filename":"a.zip"}""")]                 // no url
+    [InlineData("""{"url":"ftp://host/file.zip"}""")]        // non-http scheme
+    [InlineData("""{"url":"not a url"}""")]
+    [InlineData("not json at all")]
+    public void AddRequest_rejects_invalid_input(string json)
+    {
+        Assert.NotNull(ApiAddRequest.FromJson(json).Error);
+    }
+
+    [Fact]
+    public void AddRequest_rejects_relative_path()
+    {
+        var req = ApiAddRequest.FromJson("""{"url":"https://host/f.zip","path":"downloads/sub"}""");
+        Assert.Contains("path", req.Error);
+    }
+
+    [Fact]
+    public void AddRequest_parses_query_form_and_start_flag()
+    {
+        var req = ApiAddRequest.FromQuery(new Uri(
+            "http://127.0.0.1:15151/api/add?url=https%3A%2F%2Fhost%2Ff.zip&filename=f.zip&start=false"));
+
+        Assert.Null(req.Error);
+        Assert.Equal("https://host/f.zip", req.Url);
+        Assert.Equal("f.zip", req.Filename);
+        Assert.False(req.Start);
+
+        Assert.True(ApiAddRequest.FromQuery(new Uri(
+            "http://127.0.0.1:15151/api/add?url=https%3A%2F%2Fhost%2Ff.zip")).Start); // default
+    }
+
+    [Fact]
+    public void AddRequest_json_round_trips()
+    {
+        var src = new ApiAddRequest { Url = "https://host/f.zip", Filename = "f.zip", Start = false };
+        var round = ApiAddRequest.FromJson(src.ToJson());
+        Assert.Null(round.Error);
+        Assert.Equal(src.Url, round.Url);
+        Assert.Equal(src.Filename, round.Filename);
+        Assert.False(round.Start);
+    }
+
+    [Fact]
+    public void ExtractIdFromJson_reads_id_and_tolerates_garbage()
+    {
+        Assert.Equal("abc", LocalApiService.ExtractIdFromJson("""{"id":"abc"}"""));
+        Assert.Null(LocalApiService.ExtractIdFromJson("""{"other":1}"""));
+        Assert.Null(LocalApiService.ExtractIdFromJson("not json"));
+    }
+
+    // ---------------- BuildItem ----------------
+
+    [Fact]
+    public void BuildItem_fills_defaults_and_resolves_queue_by_name()
+    {
+        var config = Config.New();
+        config.Queues.Add(new DownloadQueue { Name = "Night" });
+
+        var req = ApiAddRequest.FromJson("""{"url":"https://host/f.zip","queue":"night","mirrors":["https://m/f.zip"]}""");
+        var item = LocalApiService.BuildItem(req, config);
+
+        Assert.Equal(config.Settings.DefaultSavePath, item.SaveFolder); // no path given
+        Assert.Equal(config.Queues[1].Id, item.QueueId);                // matched case-insensitively
+        Assert.Equal(2, item.Urls.Count);                               // url + mirror
+        Assert.Null(item.FileName);
+    }
+
+    [Fact]
+    public void BuildItem_unknown_queue_falls_back_to_default()
+    {
+        var config = Config.New();
+        var req = ApiAddRequest.FromJson("""{"url":"https://host/f.zip","queue":"nope"}""");
+        Assert.Equal(config.DefaultQueue.Id, LocalApiService.BuildItem(req, config).QueueId);
+    }
+
+    // ---------------- CliParser ----------------
+
+    [Fact]
+    public void Cli_add_parses_all_options()
+    {
+        Assert.True(CliParser.TryParse(
+            new[] { "add", "--url", "https://host/f.zip", "--filename", "f.zip", "--path", "/tmp", "--queue", "Main", "--no-start" },
+            out var cmd));
+        Assert.Null(cmd.Error);
+        Assert.Equal("add", cmd.Verb);
+        Assert.Equal("https://host/f.zip", cmd.Add.Url);
+        Assert.Equal("/tmp", cmd.Add.Path);
+        Assert.False(cmd.Add.Start);
+    }
+
+    [Fact]
+    public void Cli_usage_errors_are_reported()
+    {
+        var badInvocations = new[]
+        {
+            new[] { "add" },                          // missing --url
+            new[] { "add", "--bogus", "x" },          // unknown option
+            new[] { "add", "--url", "not-a-url" },    // invalid url
+            new[] { "list", "extra" },                // list takes no args
+            new[] { "pause" },                        // missing id
+            new[] { "pause", "not-a-guid" }           // bad id
+        };
+        foreach (var args in badInvocations)
+        {
+            Assert.True(CliParser.TryParse(args, out var cmd));
+            Assert.NotNull(cmd.Error);
+        }
+    }
+
+    [Fact]
+    public void Cli_control_verbs_take_a_guid()
+    {
+        var id = Guid.NewGuid().ToString();
+        foreach (var verb in new[] { "pause", "resume", "cancel", "retry", "remove" })
+        {
+            Assert.True(CliParser.TryParse(new[] { verb, id }, out var cmd));
+            Assert.Null(cmd.Error);
+            Assert.Equal(id, cmd.Id);
+        }
+    }
+
+    [Fact]
+    public void Cli_non_verbs_fall_through_to_gui()
+    {
+        var guiLaunches = new[]
+        {
+            Array.Empty<string>(),
+            new[] { "https://host/file.zip" },   // bare URL launch
+            new[] { "--minimized" },             // OS autostart launch
+            new[] { "--cli-add", "{}" }          // spawned add payload launch
+        };
+        foreach (var args in guiLaunches)
+            Assert.False(CliParser.TryParse(args, out _));
+    }
+
+    // ---------------- Config migration ----------------
+
+    [Fact]
+    public void Integration_toggle_defaults_on_for_new_configs()
+    {
+        Assert.True(Config.New().Settings.EnableBrowserIntegration);
+        Assert.Equal(Config.CurrentSchemaVersion, Config.New().SchemaVersion);
+    }
+
+    [Fact]
+    public void Old_config_is_migrated_to_enabled_once()
+    {
+        var old = new Config { Settings = DownloadSettings.New() };
+        old.Settings.EnableBrowserIntegration = false; // persisted before the field's default flipped
+        old.SchemaVersion = 0;
+
+        old.EnsureValid();
+        Assert.True(old.Settings.EnableBrowserIntegration);
+        Assert.Equal(Config.CurrentSchemaVersion, old.SchemaVersion);
+    }
+
+    [Fact]
+    public void User_choice_after_migration_is_respected()
+    {
+        var cfg = Config.New();
+        cfg.Settings.EnableBrowserIntegration = false; // the user turned it off post-migration
+
+        cfg.EnsureValid();
+        Assert.False(cfg.Settings.EnableBrowserIntegration);
+    }
+}
+
+/// <summary>End-to-end local API test: real listener, real manager, loopback HTTP.</summary>
+public class LocalApiEndToEndTests
+{
+    /// <summary>Runs an HTTP task off-thread while pumping the dispatcher so /api handlers (which
+    /// marshal onto the UI thread) can complete without deadlocking the test thread.</summary>
+    private static T Pump<T>(Task<T> task)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (!task.IsCompleted)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(10);
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("local API request did not finish");
+        }
+        return task.GetAwaiter().GetResult();
+    }
+
+    private static Task<HttpResponseMessage> Get(HttpClient client, string pathAndQuery) =>
+        Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.Port}{pathAndQuery}"));
+
+    [AvaloniaFact]
+    public void Api_add_list_control_and_legacy_endpoints_work()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false; // nothing must hit the network in this test
+        manager.Initialize(config);
+
+        LocalApiService.Manager = manager;
+        LocalApiService.Config = config;
+        LocalApiService.Start();
+        Assert.True(LocalApiService.IsRunning); // port free (no app running on this box)
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+            // Legacy endpoints unchanged: /ping is 200 + CORS, /add without url is 400.
+            var ping = Pump(Get(client, "/ping"));
+            Assert.Equal(HttpStatusCode.OK, ping.StatusCode);
+            Assert.Equal("*", ping.Headers.GetValues("Access-Control-Allow-Origin").Single());
+            Assert.Equal(HttpStatusCode.BadRequest, Pump(Get(client, "/add")).StatusCode);
+
+            // Silent add (start=false so no engine/network work) → 201 + id, item lands in the manager.
+            var add = Pump(Get(client, "/api/add?url=https%3A%2F%2Fhost%2Ffile.zip&filename=file.zip&start=false"));
+            Assert.Equal((HttpStatusCode)201, add.StatusCode);
+            Assert.False(add.Headers.Contains("Access-Control-Allow-Origin")); // no CORS on /api/*
+            var id = JsonDocument.Parse(Pump(Task.Run(() => add.Content.ReadAsStringAsync())))
+                .RootElement.GetProperty("id").GetString();
+            Assert.True(Guid.TryParse(id, out _));
+            Assert.Single(manager.Items);
+            Assert.Equal("file.zip", manager.Items[0].GetItem().FileName);
+
+            // Bad add input → 400.
+            Assert.Equal(HttpStatusCode.BadRequest, Pump(Get(client, "/api/add?url=nope")).StatusCode);
+
+            // List reflects the item.
+            var list = Pump(Get(client, "/api/list"));
+            Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+            var rows = JsonDocument.Parse(Pump(Task.Run(() => list.Content.ReadAsStringAsync()))).RootElement;
+            Assert.Equal(1, rows.GetArrayLength());
+            Assert.Equal(id, rows[0].GetProperty("id").GetString());
+
+            // Control: unknown id → 404; cancel by real id → 200 and the row is Stopped.
+            Assert.Equal(HttpStatusCode.NotFound, Pump(Get(client, $"/api/pause?id={Guid.NewGuid()}")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, Pump(Get(client, $"/api/cancel?id={id}")).StatusCode);
+            Assert.Equal(global::Downloader.DownloadStatus.Stopped, manager.Items[0].Status);
+
+            // POST body form works too (control by JSON id) and is idempotent on a stopped row.
+            var post = Task.Run(() => client.PostAsync(
+                $"http://127.0.0.1:{LocalApiService.Port}/api/pause",
+                new StringContent($$"""{"id":"{{id}}"}""", Encoding.UTF8, "application/json")));
+            Assert.Equal(HttpStatusCode.OK, Pump(post).StatusCode);
+        }
+        finally
+        {
+            LocalApiService.Stop();
+            LocalApiService.Manager = null;
+            LocalApiService.Config = null;
+        }
+    }
+}

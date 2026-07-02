@@ -18,8 +18,11 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class SingleInstanceService
 {
-    // Distinct from the browser-integration listener (15151).
+    // Distinct from the local API listener (15151).
     private const int LockPort = 15152;
+
+    /// <summary>Message prefix for a structured CLI add payload: <c>add:{json}</c>.</summary>
+    public const string AddPrefix = "add:";
 
     private static TcpListener _listener;
     private static readonly List<string> _pending = new();
@@ -74,20 +77,35 @@ public static class SingleInstanceService
 
     private static void TryForward(string[] args)
     {
+        // A spawned CLI add can race a just-started instance: hand over the payload instead of
+        // losing it (a bare "add:{json}" arrives at the primary's handler like a forwarded add).
+        var cliAdd = Array.IndexOf(args ?? Array.Empty<string>(), CliParser.CliAddSwitch);
+        var message = cliAdd >= 0 && cliAdd + 1 < args.Length
+            ? AddPrefix + args[cliAdd + 1]
+            // Otherwise send the first URL-looking arg (or empty = "just focus the window").
+            : FirstUrl(args) ?? string.Empty;
+        TrySend(message);
+    }
+
+    /// <summary>Forwards a CLI add payload to a running instance. False when none is running.</summary>
+    public static bool TryForwardAdd(string json) => TrySend(AddPrefix + json);
+
+    private static bool TrySend(string message)
+    {
         try
         {
             using var client = new TcpClient();
             client.Connect(IPAddress.Loopback, LockPort);
             using var stream = client.GetStream();
-            // Send the first URL-looking arg (or empty = "just focus the window").
-            var payload = (FirstUrl(args) ?? string.Empty) + "\n";
-            var bytes = Encoding.UTF8.GetBytes(payload);
+            var bytes = Encoding.UTF8.GetBytes(message + "\n");
             stream.Write(bytes, 0, bytes.Length);
             stream.Flush();
+            return true;
         }
         catch
         {
-            // best-effort — the primary will at least already be visible
+            // best-effort — no instance is listening (or it went away mid-send)
+            return false;
         }
     }
 

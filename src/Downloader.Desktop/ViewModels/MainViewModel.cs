@@ -243,20 +243,34 @@ public class MainViewModel : ViewModelBase
         // Keep the OS autostart entry in sync with the setting on every launch.
         StartupService.Apply(_config.Settings.RunAtStartup);
 
-        // Browser integration: a captured link opens the Add dialog pre-filled, window brought forward.
-        BrowserIntegrationService.OnUrlCaptured = CaptureUrl;
+        // Local API + browser integration: extension links open the Add dialog pre-filled; the
+        // /api routes act on the manager directly (silent adds from scripts and the CLI).
+        LocalApiService.OnUrlCaptured = CaptureUrl;
+        LocalApiService.Manager = _downloadManager;
+        LocalApiService.Config = _config;
         if (_config.Settings.EnableBrowserIntegration)
-            BrowserIntegrationService.Start();
+            LocalApiService.Start();
 
-        // Single instance: a second launch forwards its URL here — surface the window and add the link.
+        // Single instance: a second launch forwards its message here. A structured "add:{json}"
+        // (from the CLI) is added silently — no dialog, no focus steal; a plain URL keeps today's
+        // behavior (surface the window and open Add pre-filled).
         SingleInstanceService.SetMessageHandler(msg =>
         {
+            if (msg != null && msg.StartsWith(SingleInstanceService.AddPrefix, StringComparison.Ordinal))
+            {
+                SilentAdd(msg[SingleInstanceService.AddPrefix.Length..]);
+                return;
+            }
             BringToFront();
             if (!string.IsNullOrWhiteSpace(msg))
                 CaptureUrl(msg);
         });
-        // Handle a URL passed to this (the first) instance too.
-        if (SingleInstanceService.FirstUrl(Environment.GetCommandLineArgs()) is { } startupUrl)
+        // Handle args passed to this (the first) instance too: a CLI add payload or a bare URL.
+        var startupArgs = Environment.GetCommandLineArgs();
+        var cliAdd = Array.IndexOf(startupArgs, CliParser.CliAddSwitch);
+        if (cliAdd >= 0 && cliAdd + 1 < startupArgs.Length)
+            SilentAdd(startupArgs[cliAdd + 1]);
+        else if (SingleInstanceService.FirstUrl(startupArgs) is { } startupUrl)
             CaptureUrl(startupUrl);
 
         // Launched at OS startup with --minimized → start hidden in the tray.
@@ -269,6 +283,18 @@ public class MainViewModel : ViewModelBase
 
         if (_config.Settings.AutoUpdate)
             _ = UpdateFlow.CheckAsync(manual: false);
+    }
+
+    /// <summary>A CLI "add" payload arrived (forwarded or via --cli-add) — add it with no UI.</summary>
+    private void SilentAdd(string json)
+    {
+        var req = ApiAddRequest.FromJson(json ?? string.Empty);
+        if (req.Error != null)
+        {
+            AppLog.Info($"Ignored invalid CLI add payload: {req.Error}");
+            return;
+        }
+        _downloadManager.Add(LocalApiService.BuildItem(req, _config), autoStart: req.Start);
     }
 
     /// <summary>A link arrived from the browser extension — surface the window and open Add pre-filled.</summary>

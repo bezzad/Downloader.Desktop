@@ -196,7 +196,11 @@ These rules are permanent and apply to every conversation/task in this repo — 
 
 ## Release routine (publishing a new version)
 These steps are **standing, pre-authorized** — when the author asks to publish/release a new version
-`vX.Y.Z`, do ALL of the following without asking again.
+`vX.Y.Z` (even just "go next version X.Y.0"), do ALL of the following without asking again.
+
+**The routine is packaged as the `release` skill (`.claude/skills/release/SKILL.md`) — invoke that
+first**; it carries the full playbook (notes format, unattended/background pattern, per-channel
+verification checklist, gotchas) so any AI session/model can run a release end-to-end.
 
 **`scripts/release.sh` automates this whole routine** (version bump → merge → tag → wait for assets →
 release notes → Homebrew tap + mirror → winget mirror + PR). Prefer running it:

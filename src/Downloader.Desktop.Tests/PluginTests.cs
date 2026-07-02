@@ -207,7 +207,7 @@ public class PluginTests
         var resolver = pm.FindResolver("https://github.com/bezzad/Downloader.Desktop");
         Assert.NotNull(resolver);
 
-        var plan = await resolver.ResolveAsync("https://github.com/bezzad/Downloader.Desktop", default);
+        var plan = await resolver.ResolveAsync("https://github.com/bezzad/Downloader.Desktop", CancellationToken.None);
         Assert.NotNull(plan);
         Assert.NotEmpty(plan.Parts);
         Assert.StartsWith("https://", plan.Parts[0].Url);

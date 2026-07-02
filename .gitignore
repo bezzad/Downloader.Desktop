@@ -21,6 +21,8 @@ mono_crash.*
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+# ...but the release *skill* is real content, not build output
+!.claude/skills/release/
 x64/
 x86/
 [Ww][Ii][Nn]32/

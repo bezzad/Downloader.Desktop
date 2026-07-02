@@ -11,8 +11,11 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   for downloadable links, then send one or all to the app.
 - **Media capture** — watches network responses and surfaces **video / audio / HLS (`.m3u8`)**
   streams, with a badge count on the toolbar icon.
-- **Auto-send** — every captured link is forwarded to the app's local listener
-  (`http://127.0.0.1:15151/add?url=…`), which opens the Add dialog pre-filled.
+- **Auto-send** — every captured link is forwarded to the app's local listener. By default it is
+  **added silently and starts downloading** (the app's `/api/add` endpoint); untick
+  **“Add silently (no dialog)”** in the popup to review each link in the app's Add dialog
+  (`/add?url=…`) instead. On an app version without the API the extension falls back to the
+  dialog automatically.
 
 > **Not supported:** YouTube and other DRM/encrypted streaming sites — they don't expose a direct,
 > fetchable media URL, so there's nothing the engine can download.
@@ -20,7 +23,8 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 ## Requirements
 
 1. The **Downloader desktop app** must be running.
-2. Enable **Settings → Browser integration** in the app (it opens the local listener on port `15151`).
+2. **Settings → Browser extension & local API** must be on in the app (it opens the local listener
+   on port `15151`). It is enabled by default.
 
 ## Load it for testing (unpacked)
 
@@ -40,14 +44,16 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 
 ## How it talks to the app
 
-The extension only needs the app's loopback endpoint:
+The extension only needs the app's loopback endpoints:
 
 ```
-GET http://127.0.0.1:15151/add?url=<url-encoded link>
+GET http://127.0.0.1:15151/api/add?url=<url-encoded link>   # silent add (default)
+GET http://127.0.0.1:15151/add?url=<url-encoded link>       # open the Add dialog instead
+GET http://127.0.0.1:15151/ping                              # reachability check
 ```
 
-This is served by `Services/BrowserIntegrationService.cs` in the desktop app. No other ports, servers
-or accounts are involved.
+These are served by `Services/LocalApiService.cs` in the desktop app (see `docs/local-api.md` in the
+main repo for the full API). No other ports, servers or accounts are involved.
 
 ## Files
 

@@ -100,5 +100,10 @@ document.getElementById("sendAll").onclick = async () => {
   for (const it of items) await sendOne(it.url);
 };
 
+// Silent-vs-dialog choice (persisted; the background worker reads it on every send).
+const silentEl = document.getElementById("silentMode");
+getAddMode().then(mode => { silentEl.checked = mode === "silent"; });
+silentEl.onchange = () => setAddMode(silentEl.checked ? "silent" : "dialog");
+
 refreshStatus();
 loadDetected();

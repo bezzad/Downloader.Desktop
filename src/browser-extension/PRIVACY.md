@@ -31,6 +31,7 @@ possible.
 - `contextMenus`, `tabs`, `scripting`, `notifications` — to add the menu, read the active tab's links
   on request, and show local status.
 - `webRequest` + host access — to detect media on the current page locally.
+- `storage` — to remember one local preference (add silently vs open the app's Add dialog).
 - Host access to `127.0.0.1`/`localhost` — to talk to the desktop app.
 
 ## Contact

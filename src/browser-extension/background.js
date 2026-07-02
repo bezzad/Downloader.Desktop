@@ -110,7 +110,7 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const map = tabMedia.get(msg.tabId);
       sendResponse({ media: map ? [...map.values()] : [] });
     } else if (msg.type === "send") {
-      sendResponse({ ok: await sendToApp(msg.url) });
+      sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
     } else if (msg.type === "ping") {
       sendResponse({ ok: await pingApp() });
     } else {

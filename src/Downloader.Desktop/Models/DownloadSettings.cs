@@ -58,9 +58,10 @@ public class DownloadSettings
     /// cancelable notice is shown first so a user at the keyboard can stop it.</summary>
     public bool ShutdownOnCompletion { get; set; } = false;
 
-    /// <summary>Listen on a local loopback port so a browser extension can send links to the app
-    /// (off by default — it opens a localhost socket).</summary>
-    public bool EnableBrowserIntegration { get; set; } = false;
+    /// <summary>Listen on a local loopback port so the browser extension and local scripts/CLI can
+    /// add and control downloads (on by default since the local API shipped — loopback only; older
+    /// configs are migrated once via <see cref="Config.SchemaVersion"/>).</summary>
+    public bool EnableBrowserIntegration { get; set; } = true;
 
     /// <summary>UI language code (en, fa, es, fr, ar, eo). Default English.</summary>
     public string Language { get; set; } = "en";
