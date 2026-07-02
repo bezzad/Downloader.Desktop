@@ -324,7 +324,15 @@ public class MainViewModel : ViewModelBase
     private void Quit()
     {
         _quitting = true;
-        (View as Window)?.Close();
+        if (View is not Window window)
+            return;
+        // Close any open owned dialogs FIRST. Quitting is reachable from inside a modal (Settings →
+        // "Restart to update"), and on macOS closing the owner while its modal's nested native session
+        // is still running swallows the shutdown — the app never exits, so a staged update is never
+        // applied ("clicked restart and nothing happened", v1.5.0 on macOS).
+        foreach (var child in window.OwnedWindows)
+            child.Close();
+        window.Close();
     }
 
     private void RequestSave()

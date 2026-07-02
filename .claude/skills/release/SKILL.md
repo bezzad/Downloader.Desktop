@@ -63,10 +63,16 @@ The asset wait can take ~10–30 min, longer than a foreground Bash timeout. Run
 background and poll:
 
 ```bash
+export GH_TOKEN="$(gh auth token)"   # REQUIRED in background runs — see gotcha below
 ./scripts/release.sh X.Y.Z --yes --notes-file notes.md   # run_in_background
-# poll: gh release view vX.Y.Z --json assets --jq '.assets[].name'   (expect 5 assets)
+# poll: gh release view vX.Y.Z --json assets --jq '.assets[].name'   (expect 4 binary assets)
 # and:  gh run list --limit 3   (release.yml + snap.yml conclusions)
 ```
+
+**macOS keyring gotcha (bit the v1.6.0 run):** `gh` stores its token in the macOS Keychain, which a
+*detached background process cannot read* — `gh auth status` fails there with "not authenticated"
+even though it works interactively. Always `export GH_TOKEN="$(gh auth token)"` (resolved in the
+foreground) as part of the background command.
 
 ## Verification checklist (all channels — release isn't done until these pass)
 
