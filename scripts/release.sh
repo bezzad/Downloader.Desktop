@@ -48,6 +48,14 @@ sha256_of() { # stream a file on stdin -> hex digest
   else shasum -a 256 | awk '{print $1}'; fi
 }
 
+# Portable in-place sed: GNU (Linux) takes -i with no arg, BSD (macOS) needs -i ''.
+sedi() {
+  if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi
+}
+
+# Portable single-line base64 of a file (GNU has -w0; BSD/macOS does not).
+b64_file() { base64 < "$1" | tr -d '\n'; }
+
 # --- args ------------------------------------------------------------------
 # Usage: release.sh [VERSION] [--yes] [--notes-file PATH]
 VERSION=""; ASSUME_YES="no"; NOTES_FILE=""
@@ -74,7 +82,9 @@ gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth 
 ok "tools present, gh authenticated, tree clean"
 
 git fetch origin --tags --quiet
-CUR_VERSION="$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' "$CSPROJ")" || die "cannot read VersionPrefix from $CSPROJ"
+# (portable — grep -P is GNU-only and absent on macOS)
+CUR_VERSION="$(sed -n 's|.*<VersionPrefix>\([^<]*\)</VersionPrefix>.*|\1|p' "$CSPROJ" | head -1)"
+[[ -n "$CUR_VERSION" ]] || die "cannot read VersionPrefix from $CSPROJ"
 ok "current version: $CUR_VERSION"
 
 # Suggest the next patch version.
@@ -136,7 +146,7 @@ fi
 # --- 1. bump the version on develop ----------------------------------------
 step "Bumping version to $VERSION on $DEV_BRANCH"
 if [[ "$CUR_VERSION" != "$VERSION" ]]; then
-  sed -i "s|<VersionPrefix>$CUR_VERSION</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" "$CSPROJ"
+  sedi "s|<VersionPrefix>$CUR_VERSION</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" "$CSPROJ"
   grep -q "<VersionPrefix>$VERSION</VersionPrefix>" "$CSPROJ" || die "failed to bump VersionPrefix in $CSPROJ"
   [[ -f "$SNAP_VERSION_FILE" ]] && printf '%s' "$VERSION" > "$SNAP_VERSION_FILE"
   git add "$CSPROJ" "$SNAP_VERSION_FILE"
@@ -203,7 +213,7 @@ ok "x64   sha256 = $X64_SHA"
 # Rewrite a cask file in place: version + the two sha256 (arm appears before intel).
 rewrite_cask() {
   local f="$1"
-  sed -i -E "s|^(\s*)version \"[^\"]+\"|\1version \"$VERSION\"|" "$f"
+  sedi -E "s|^([[:space:]]*)version \"[^\"]+\"|\1version \"$VERSION\"|" "$f"
   # First sha256 = on_arm, second = on_intel. Replace them positionally with awk.
   awk -v arm="$ARM_SHA" -v x64="$X64_SHA" '
     /sha256 "/ { n++; if (n==1) sub(/sha256 "[^"]*"/, "sha256 \"" arm "\"");
@@ -215,9 +225,9 @@ rewrite_cask() {
 # Rewrite the in-repo winget manifests for the new version (PackageVersion in all three +
 # InstallerUrl/InstallerSha256 in the installer manifest). WIN_URL/WIN_SHA are set by the caller.
 rewrite_winget() {
-  sed -i -E "s|^(PackageVersion:).*|\1 $VERSION|" "$WINGET_DIR"/*.yaml
-  sed -i -E "s|^([[:space:]]*InstallerUrl:).*|\1 $WIN_URL|"       "$WINGET_DIR/bezzad.Downloader.installer.yaml"
-  sed -i -E "s|^([[:space:]]*InstallerSha256:).*|\1 $WIN_SHA|"    "$WINGET_DIR/bezzad.Downloader.installer.yaml"
+  sedi -E "s|^(PackageVersion:).*|\1 $VERSION|" "$WINGET_DIR"/*.yaml
+  sedi -E "s|^([[:space:]]*InstallerUrl:).*|\1 $WIN_URL|"       "$WINGET_DIR/bezzad.Downloader.installer.yaml"
+  sedi -E "s|^([[:space:]]*InstallerSha256:).*|\1 $WIN_SHA|"    "$WINGET_DIR/bezzad.Downloader.installer.yaml"
 }
 
 # Submit the manifests to microsoft/winget-pkgs as a PR (best-effort; never fails the release).
@@ -238,7 +248,7 @@ submit_winget() {
   gh api -X POST "repos/$fork/git/refs" -f ref="refs/heads/$br" -f sha="$base" >/dev/null 2>&1 || true
   dir="manifests/b/bezzad/Downloader/$VERSION"
   for n in bezzad.Downloader.yaml bezzad.Downloader.installer.yaml bezzad.Downloader.locale.en-US.yaml; do
-    b64="$(base64 -w0 "$WINGET_DIR/$n")"
+    b64="$(b64_file "$WINGET_DIR/$n")"
     gh api -X PUT "repos/$fork/contents/$dir/$n" \
       -f message="bezzad.Downloader $VERSION ($n)" -f branch="$br" -f content="$b64" >/dev/null 2>&1 || ok_all=0
   done
