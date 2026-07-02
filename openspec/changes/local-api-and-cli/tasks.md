@@ -23,9 +23,9 @@
 
 ## 4. Browser extension
 
-- [ ] 4.1 `common.js`: add `sendToAppSilently(url, filename?)` → `/api/add`, with graceful fallback to `/add?url=` on 404/unavailable
-- [ ] 4.2 `popup.html`/`popup.js`/`popup.css`: "Add silently / Open dialog" toggle persisted in `api.storage` (default silent); keep the `/ping` reachability dot; forward suggested filename when available
-- [ ] 4.3 Bump `manifest.json` + `manifest.firefox.json` version; refresh extension `README.md` / `PRIVACY.md` / `PUBLISHING.md` for the new behavior
+- [x] 4.1 `common.js`: add `sendToAppSilently(url, filename?)` → `/api/add`, with graceful fallback to `/add?url=` on 404/unavailable
+- [x] 4.2 `popup.html`/`popup.js`/`popup.css`: "Add silently / Open dialog" toggle persisted in `api.storage` (default silent); keep the `/ping` reachability dot; forward suggested filename when available
+- [x] 4.3 Bump `manifest.json` + `manifest.firefox.json` version; refresh extension `README.md` / `PRIVACY.md` / `PUBLISHING.md` for the new behavior
 
 ## 5. Tests
 

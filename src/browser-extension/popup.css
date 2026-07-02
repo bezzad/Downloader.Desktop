@@ -38,3 +38,5 @@ button.link { background: none; color: #0E8FB3; padding: 2px 4px; }
 .list .type { color: #888; font-size: 11px; }
 .empty { color: #888; text-align: center; padding: 8px 0; }
 footer { padding: 10px 12px; border-top: 1px solid rgba(128,128,128,.25); }
+.mode { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #888; cursor: pointer; }
+.mode input { accent-color: #0E8FB3; }
