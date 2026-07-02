@@ -157,7 +157,7 @@ public class SettingViewModel : ViewModelBase
         NotificationService.Enabled = S.EnableNotifications;
         if (S.EnableSystemTray) TrayService.Enable(); else TrayService.Disable();
         StartupService.Apply(S.RunAtStartup);
-        if (S.EnableBrowserIntegration) BrowserIntegrationService.Start(); else BrowserIntegrationService.Stop();
+        if (S.EnableBrowserIntegration) LocalApiService.Start(); else LocalApiService.Stop();
         ThemeService.Apply(_config); // reset theme variant + accent together
 
         // Empty name tells the bindings every property changed, refreshing the whole page
@@ -248,8 +248,8 @@ public class SettingViewModel : ViewModelBase
         {
             if (S.EnableBrowserIntegration == value) return;
             S.EnableBrowserIntegration = value;
-            if (value) BrowserIntegrationService.Start();
-            else BrowserIntegrationService.Stop();
+            if (value) LocalApiService.Start();
+            else LocalApiService.Stop();
             this.RaisePropertyChanged();
         }
     }

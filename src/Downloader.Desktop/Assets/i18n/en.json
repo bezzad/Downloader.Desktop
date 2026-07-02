@@ -130,8 +130,8 @@
   "Set_NotifyShutdown_Hint": "Shows a 30-second notice you can click to cancel the shutdown.",
   "Set_ShutdownOnComplete": "Shut down the computer when all downloads finish",
   "Set_ShutdownOnComplete_Hint": "Powers off 30 seconds after the last download completes (cancelable).",
-  "Set_BrowserIntegration": "Browser integration",
-  "Set_BrowserIntegration_Hint": "Let a browser extension send links to this app over a local connection.",
+  "Set_BrowserIntegration": "Browser extension & local API",
+  "Set_BrowserIntegration_Hint": "Lets the browser extension, scripts and the command line add and control downloads over a local-only connection (nothing is exposed to the network).",
 
   "Sec_AppUpdates": "APP & UPDATES",
   "Set_SystemTray": "Keep running in the system tray",

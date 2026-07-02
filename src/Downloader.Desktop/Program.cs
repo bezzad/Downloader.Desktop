@@ -14,9 +14,18 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Single instance: if one is already running, forward our args (e.g. a URL) to it and exit so
-        // clicking the taskbar/tray icon — or `downloader <url>` from the extension — surfaces the
-        // existing window instead of launching a second copy.
+        // CLI verbs (add/list/pause/…) run headless and exit — no Avalonia, no single-instance
+        // claim (a `list` must not steal the lock or surface the window). Anything that isn't a
+        // recognized verb (bare URL, --minimized, --cli-add) is a normal GUI launch.
+        if (CliParser.TryParse(args, out var cli))
+        {
+            Environment.Exit(CliRunner.Run(cli));
+            return;
+        }
+
+        // Single instance: if one is already running, forward our args (a URL or a --cli-add
+        // payload) to it and exit so clicking the taskbar/tray icon — or `downloader <url>` from
+        // the extension — surfaces the existing window instead of launching a second copy.
         if (!SingleInstanceService.TryClaim(args))
             return;
 

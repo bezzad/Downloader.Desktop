@@ -136,7 +136,7 @@ public class LogicTests
     [InlineData("http://127.0.0.1:15151/add", null)]
     public void BrowserIntegration_extracts_url_param(string requestUri, string expected)
     {
-        Assert.Equal(expected, BrowserIntegrationService.ExtractUrl(new System.Uri(requestUri)));
+        Assert.Equal(expected, LocalApiService.ExtractUrl(new System.Uri(requestUri)));
     }
 
     [Theory]

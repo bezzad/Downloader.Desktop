@@ -10,6 +10,12 @@ namespace Downloader.Desktop.Models;
 /// </summary>
 public class Config
 {
+    /// <summary>Bumped when a load-time migration is added; see <see cref="EnsureValid"/>.</summary>
+    public const int CurrentSchemaVersion = 1;
+
+    /// <summary>Config format version for one-time migrations. 0 = written before the field existed.</summary>
+    public int SchemaVersion { get; set; }
+
     public DownloadSettings Settings { get; set; }
     public List<DownloadItem> Downloads { get; set; }
     public List<DownloadQueue> Queues { get; set; }
@@ -43,6 +49,7 @@ public class Config
         var settings = DownloadSettings.New();
         return new Config
         {
+            SchemaVersion = CurrentSchemaVersion,
             Settings = settings,
             Downloads = new List<DownloadItem>(),
             Queues = new List<DownloadQueue>
@@ -72,6 +79,14 @@ public class Config
         if (Queues.Count == 0)
             Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName, MaxConcurrent = Settings.MaxConcurrentDownloads });
         Schedules ??= new List<DownloadSchedule>();
+
+        // v0 → v1: integration became on-by-default when the local API shipped. Configs written
+        // before then persisted false without ever asking the user, so flip it ONCE; any value the
+        // user sets afterwards is versioned as v1 and never touched again.
+        if (SchemaVersion < 1)
+            Settings.EnableBrowserIntegration = true;
+
+        SchemaVersion = CurrentSchemaVersion;
         return this;
     }
 }
