@@ -35,13 +35,18 @@
           Background="{DynamicResource SystemChromeLowColor}"
           PointerPressed="OnDrag" DoubleTapped="OnToggleMaximize">
 
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10"
-                    Margin="14 0 0 0" VerticalAlignment="Center">
+        <!-- Icon + title live in the star column and the title ellipsizes, so a long title (e.g.
+             a file name in the details window) can never push the caption buttons off-window.
+             A horizontal StackPanel would give the text unbounded width — keep this a Grid. -->
+        <Grid Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*"
+              Margin="14 0 8 0" VerticalAlignment="Center">
             <Image Source="/Assets/downloader.png" Width="26" Height="26" VerticalAlignment="Center"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
-            <TextBlock Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold"
-                       FontSize="15" VerticalAlignment="Center" />
-        </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold"
+                       FontSize="15" VerticalAlignment="Center" Margin="10 0 0 0"
+                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                       ToolTip.Tip="{Binding Title, ElementName=Root}" />
+        </Grid>
 
         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Classes="caption" Click="OnMinimize" IsVisible="{Binding ShowMinMax, ElementName=Root}"
