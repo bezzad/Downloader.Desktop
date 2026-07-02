@@ -77,9 +77,12 @@ sudo snap install downloader
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
 
-**Windows** — no package-manager listing yet (see note below); use [Manual download](#manual-download).
-
-> **winget is pending review.** `winget install downloader` doesn't work yet: the package has been [submitted to microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/pulls?q=bezzad.Downloader) and is waiting on Microsoft's validation/review. Once that PR is merged, the command will work; until then use the [Manual download](#manual-download).
+**Windows** ([winget](https://learn.microsoft.com/windows/package-manager/winget/)):
+```powershell
+winget install bezzad.Downloader
+```
+This installs the portable app and puts `Downloader` on your PATH — launch it from the Start menu or a terminal. Update later with `winget upgrade bezzad.Downloader`.
+> The short form `winget install downloader` also resolves to this package via its moniker (if another package matches first, use the full id above).
 
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
