@@ -43,6 +43,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
 - **System tray** — closing the window keeps downloads running in the background; reopen, mute notifications, or quit from the tray menu. Optionally **launch at startup** (hidden in the tray).
 - **Automatic update check** — get an in-app prompt when a new version ships, and update with one click.
+- **Automation-friendly** — add and manage downloads from scripts or the terminal via a local API and CLI (see [Automation](#automation-local-api--command-line)).
 - **Multi-language UI** — English, فارسی (Persian), Español, Français, العربية (Arabic), Esperanto — with full right-to-left layout for Persian/Arabic. Switch under **Settings → App language**.
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
 - **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
@@ -109,11 +110,31 @@ A companion **browser extension** (Chrome, Edge, Firefox) sends links straight t
 
 - Right-click a link/image/video/audio → **“Download with Downloader.”**
 - A popup to paste a link, scan the page for links, or grab detected **video / audio / HLS (`.m3u8`)** media.
-- Captured links are sent only to the desktop app on your machine — enable **Settings → Browser integration** in the app first. (DRM/encrypted sites like YouTube aren’t supported.)
+- Captured links go straight into the app and **start downloading — no dialog**. Prefer to review each link first? Untick **Add silently** in the extension popup.
+- Links are sent only to the desktop app on your own machine (**Settings → Browser extension & local API**, on by default). DRM/encrypted sites like YouTube aren’t supported.
 
 **Install** (store listings pending review — see [`src/browser-extension`](src/browser-extension)):
 - _Chrome Web Store / Edge Add-ons / Firefox AMO_ — links added here once published.
 - **Load it now (developer mode):** see [`src/browser-extension/README.md`](src/browser-extension/README.md) to load the unpacked extension.
+
+## Automation: local API & command line
+
+Other programs on your computer can add and manage downloads — handy for batch jobs and scripts
+(the most-requested developer feature, [#2](https://github.com/bezzad/Downloader.Desktop/issues/2)):
+
+```bash
+# From a terminal / script: add a download (starts the app if it isn't running)
+Downloader add --url https://example.com/file.zip --path ~/Downloads
+
+# Or over the local HTTP API from any language (Node.js, Bun, Python, curl, …)
+curl -X POST http://127.0.0.1:15151/api/add -d '{"url":"https://example.com/file.zip"}'
+```
+
+You can also `list` all downloads (with progress and status) and `pause / resume / cancel / retry /
+remove` each one. Everything is **local-only** (loopback, never exposed to the network) and gated by
+the same **Settings → Browser extension & local API** toggle, on by default.
+
+📖 **Full reference with examples:** [`docs/local-api.md`](docs/local-api.md)
 
 ---
 

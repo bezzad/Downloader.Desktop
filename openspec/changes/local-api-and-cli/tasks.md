@@ -35,6 +35,6 @@
 
 ## 6. End-user documentation & wrap-up
 
-- [ ] 6.1 Add a non-technical **"Automation & browser integration"** section to the README (what it is, on-by-default + loopback-only, one CLI example, link to the reference)
-- [ ] 6.2 Write `docs/local-api.md` reference: every endpoint + params, CLI verbs, exit codes, copy-paste Node.js/Bun `fetch` + `curl` + CLI examples; note the Windows console caveat
-- [ ] 6.3 Refresh screenshots if the Settings text change alters the captured pages; commit everything to `develop`, push, and comment on issue #2 with the shipped usage
+- [x] 6.1 Add a non-technical **"Automation & browser integration"** section to the README (what it is, on-by-default + loopback-only, one CLI example, link to the reference)
+- [x] 6.2 Write `docs/local-api.md` reference: every endpoint + params, CLI verbs, exit codes, copy-paste Node.js/Bun `fetch` + `curl` + CLI examples; note the Windows console caveat
+- [x] 6.3 Screenshots: capture re-run on macOS produced environment-wide font diffs in ALL views (existing PNGs are Ubuntu-rendered), so they were reverted — re-run `DLDESKTOP_CAPTURE=1` on the Linux box to refresh the settings shots. Code committed to `develop` + pushed; issue #2 comment posted.
