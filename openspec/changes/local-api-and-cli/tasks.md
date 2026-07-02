@@ -29,9 +29,9 @@
 
 ## 5. Tests
 
-- [ ] 5.1 Unit tests: `CliParser` (verbs, options, fall-through, usage errors), `ApiAddRequest` parsing/validation, response serialization shapes, single-instance `add:{json}` prefix round-trip, config default-on + one-time migration
-- [ ] 5.2 Headless end-to-end test: start `LocalApiService` against a real `DownloadManager`, hit `/api/add` (start=false) + `/api/list` + a control verb over loopback HTTP, assert item state; verify legacy `/add?url=` + `/ping` responses unchanged
-- [ ] 5.3 Full suite green: `dotnet test` (build 0 warnings/0 errors)
+- [x] 5.1 Unit tests: `CliParser` (verbs, options, fall-through, usage errors), `ApiAddRequest` parsing/validation, response serialization shapes, single-instance `add:{json}` prefix round-trip, config default-on + one-time migration
+- [x] 5.2 Headless end-to-end test: start `LocalApiService` against a real `DownloadManager`, hit `/api/add` (start=false) + `/api/list` + a control verb over loopback HTTP, assert item state; verify legacy `/add?url=` + `/ping` responses unchanged
+- [x] 5.3 Full suite green: `dotnet test` (build 0 warnings/0 errors)
 
 ## 6. End-user documentation & wrap-up
 
