@@ -14,7 +14,7 @@
 
 ## 3. Author one-time setup (needs the author)
 
-- [ ] 3.1 (author action — cannot be done by AI) Author generates AMO API credentials (addons.mozilla.org/developers → Manage API keys) and adds repo secrets `AMO_JWT_ISSUER` + `AMO_JWT_SECRET`; then re-run `extension.yml` via workflow_dispatch to submit the current 1.1.0
+- [x] 3.1 Author added `AMO_JWT_ISSUER` + `AMO_JWT_SECRET` repo secrets (2026-07-03); manual `workflow_dispatch` run (28668088855) confirmed working end-to-end — `web-ext sign` uploaded and validated extension 1.1.0, submitted for review at https://addons.mozilla.org/en-US/developers/addon/downloader-browser-integration/versions/6336682
 
 ## 4. Docs & wrap-up
 
