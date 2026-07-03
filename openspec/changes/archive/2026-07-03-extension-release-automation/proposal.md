@@ -26,3 +26,10 @@ _None — no existing spec's requirements change._
 - Repo secrets: `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` (author-provided; one-time).
 - `src/browser-extension/PUBLISHING.md`, `.claude/skills/release/SKILL.md`.
 - No app-code changes; no new runtime dependencies (CI uses `web-ext` from npm).
+
+---
+**Archive note (2026-07-03):** implemented and live-tested (version gate + fail-soft verified on the
+workflow's first real run). A bump guard was added during implementation (code change without a
+version bump now fails CI). Two tasks remain externally blocked at archive time: 1.2 self-verifies on
+the next `v*` tag; 3.1 is the author's one-time AMO API-key setup (`AMO_JWT_ISSUER`/`AMO_JWT_SECRET`),
+after which a workflow_dispatch run submits extension 1.1.0 to AMO.

@@ -27,3 +27,14 @@ A workflow SHALL trigger on pushes touching the extension source and submit the 
 #### Scenario: Missing credentials fail soft
 - **WHEN** the AMO API secrets are not configured in the repository
 - **THEN** the workflow completes with a visible "skipped — secrets not configured" notice instead of failing
+
+### Requirement: Code changes without a version bump fail loudly
+When a push changes extension code files (not documentation) while the manifest version is already published on AMO, the workflow SHALL fail with instructions to bump the version in both manifests, so changes cannot silently strand users on an old build.
+
+#### Scenario: Forgotten bump is caught
+- **WHEN** a push modifies extension code but keeps a manifest version that already exists on AMO
+- **THEN** the workflow fails with an error naming the changed files and instructing to bump both manifests
+
+#### Scenario: Doc-only edits stay green
+- **WHEN** a push changes only Markdown documentation under the extension folder
+- **THEN** the workflow completes successfully without failing the bump guard
