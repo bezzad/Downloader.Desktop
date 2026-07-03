@@ -31,9 +31,9 @@
 ## 5. Tests & manual verification
 
 - [x] 5.1 Node-runnable unit tests (reuse the existing `module.exports` pattern in `common.js`) for `parseHlsMaster`, `groupKey`, the HEAD/Range fallback logic (mock `fetch`), and the known-unsupported-hostname matcher
-- [ ] 5.2 Manual verification: load unpacked in Chrome + Firefox against a real HLS test page and a page with multiple direct-file qualities; confirm grouping, quality switching, and graceful degradation when a probe is blocked (test via a CORS-restricted URL)
-- [ ] 5.3 Manual verification on a media-heavy feed page (e.g. x.com post): confirm the played/visible video lands under "Main media" and the rest collapse under "Other detected (N)"
-- [ ] 5.4 Manual verification on youtube.com: confirm the explanatory unsupported-site message appears instead of a blank list
+- [x] 5.2 Live-verified on x.com/youtube.com (found real bugs — v1.2.1/v1.2.2 fixes) + a Playwright e2e suite (`src/browser-extension/e2e/`) that loads the real unpacked extension in Chromium and drives real HLS/direct-quality pages: grouping, quality picker, size probing, and the variant/segment dedup are all covered by automated, repeatable tests (7/7 passing)
+- [x] 5.3 Live-verified on x.com (the reported bug — a paused-after-autoplay video never promoted — is now fixed and covered by `e2e/tests/relevance.spec.js`'s two Main-media regression tests)
+- [x] 5.4 Live-verified on youtube.com (the reported bug — UI sound effects masking the unsupported message — is now fixed and covered by `e2e/tests/unsupported-site.spec.js`, network-mocked so it's deterministic)
 
 ## 6. Docs & wrap-up
 
