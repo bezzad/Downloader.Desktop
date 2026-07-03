@@ -6,8 +6,17 @@
 // through the manifest "scripts" array, so importScripts is absent there — guard it.
 if (typeof importScripts === "function") importScripts("common.js");
 
-// tabId -> Map(url -> { url, type })   detected media for the current page
+// tabId -> Map(url -> { url, type, group, capturedAt })   detected media for the current page
 const tabMedia = new Map();
+
+// tabId -> { atMs } — latest "user is looking at this" signal from content.js. Refreshed
+// continuously while a video plays (content.js re-sends on play/pause/timeupdate, throttled), so
+// its freshness window naturally covers the whole playback, not just the start.
+const activeHint = new Map();
+
+// How close (ms) a sniffed item's capture time must be to the freshest activeHint to count as
+// "Main media" — see design.md Decision 9.
+const MAIN_WINDOW_MS = 3000;
 
 // ---------------- Context menus ----------------
 api.runtime.onInstalled.addListener(() => {
@@ -83,8 +92,31 @@ function addMedia(tabId, url, type) {
   let map = tabMedia.get(tabId);
   if (!map) { map = new Map(); tabMedia.set(tabId, map); }
   if (map.has(url)) return;
-  map.set(url, { url, type: type || extOf(url) });
+  map.set(url, { url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now() });
   updateBadge(tabId, map.size);
+}
+
+// Runs the size/resolution probes for every item currently known for a tab. Kept separate from
+// getMedia so the popup can render the plain list immediately, then request this and upgrade rows
+// in place (see design.md Decision 1/6).
+async function probeMediaForTab(tabId) {
+  const map = tabMedia.get(tabId);
+  if (!map) return [];
+  const items = [...map.values()];
+  const tasks = items.map(item => async signal => {
+    if (extOf(item.url) === "m3u8") {
+      const variants = await parseHlsMaster(item.url, { signal });
+      if (variants.length === 0)
+        return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
+      const sized = await Promise.all(variants.map(async v => ({
+        ...v,
+        size: await estimateHlsSize(v.uri, { signal })
+      })));
+      return { url: item.url, kind: "hls", variants: sized };
+    }
+    return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
+  });
+  return runProbesBounded(tasks, { concurrency: 4, timeoutMs: 2500 });
 }
 
 function updateBadge(tabId, count) {
@@ -98,17 +130,33 @@ function updateBadge(tabId, count) {
 api.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading" && changeInfo.url) {
     tabMedia.delete(tabId);
+    activeHint.delete(tabId);
     updateBadge(tabId, 0);
   }
 });
-api.tabs.onRemoved.addListener(tabId => tabMedia.delete(tabId));
+api.tabs.onRemoved.addListener(tabId => {
+  tabMedia.delete(tabId);
+  activeHint.delete(tabId);
+});
 
-// ---------------- Messages from the popup ----------------
+// ---------------- Messages from the popup + content script ----------------
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg.type === "getMedia") {
       const map = tabMedia.get(msg.tabId);
-      sendResponse({ media: map ? [...map.values()] : [] });
+      const hint = activeHint.get(msg.tabId);
+      const media = map ? [...map.values()].map(item => ({
+        ...item,
+        main: !!hint && Math.abs(item.capturedAt - hint.atMs) <= MAIN_WINDOW_MS
+      })) : [];
+      sendResponse({ media });
+    } else if (msg.type === "probeMedia") {
+      sendResponse({ results: await probeMediaForTab(msg.tabId) });
+    } else if (msg.type === "activeMediaHint") {
+      // Sent by content.js — the tab id comes from the content script's own sender context.
+      const tabId = sender.tab?.id;
+      if (tabId != null) activeHint.set(tabId, { atMs: Date.now() });
+      sendResponse({});
     } else if (msg.type === "send") {
       sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
     } else if (msg.type === "ping") {
