@@ -237,9 +237,12 @@ async function runProbesBounded(tasks, { concurrency = 4, timeoutMs = 2500 } = {
 }
 
 // Hostnames known to stream via MSE/DRM with no stable, single-file downloadable URL (see
-// docs/plugins-architecture.md and this file's MEDIA_EXTENSIONS comment). This list only gates
-// the popup's EXPLANATORY empty-state message — it never blocks detection itself, so an
-// incomplete list just means the generic empty state shows instead of the explained one.
+// docs/plugins-architecture.md and this file's MEDIA_EXTENSIONS comment). On a matching hostname
+// the popup ALWAYS shows the explanatory message and suppresses the detected list, even if
+// unrelated resources were incidentally sniffed (e.g. YouTube's own UI sound effects) — none of
+// what's found there is ever the protected video content the user actually wants (real-world
+// fix: v1.2.0 only suppressed when zero items were found, so YouTube's notification-sound mp3s
+// were shown as if downloadable). An incomplete list just means the generic empty state shows.
 const KNOWN_UNSUPPORTED_HOSTS = ["youtube.com", "netflix.com", "disneyplus.com", "primevideo.com"];
 
 function isKnownUnsupportedHost(hostname) {
@@ -248,11 +251,52 @@ function isKnownUnsupportedHost(hostname) {
   return KNOWN_UNSUPPORTED_HOSTS.some(host => h === host || h.endsWith("." + host));
 }
 
+// Below this size, a "detected" item is almost certainly a tracking beacon, empty init segment,
+// or other non-content response — not something a user would ever want to download. Real-world
+// fix: v1.2.0 listed every sniffed response regardless of size, surfacing sub-1KB junk (897 B,
+// 988 B, 786 B) alongside real media. Only applied AFTER a probe confirms the size — an
+// unprobed item's size is `null`, which always passes (never rejected before it's measured).
+const MIN_MEDIA_BYTES = 8192;
+
+function isPlausibleMediaSize(size) {
+  return size == null || size >= MIN_MEDIA_BYTES;
+}
+
+// Decides which group(s) count as "Main media" for a tab, given its captured items and the
+// latest visibility/playing hint from content.js. Pure and testable — see design.md Decisions 8-9.
+//
+// Blob: URLs mean we can't map a DOM element directly to the network URLs it caused, so this is a
+// best-effort proxy: when the content script confirms something is CURRENTLY visible/loaded on
+// the page (a "fresh" hint), promote whichever group(s) had the most recent network activity —
+// real playback keeps fetching segments close to "now"; a static, already-loaded, possibly PAUSED
+// video (v1.2.0's exact bug: a paused video was never promoted because the old logic required
+// "currently playing" AND matched the item's original, possibly stale, capture time) is still the
+// most recently active group relative to older/unrelated page noise.
+// Shared "how close together counts as the same moment" window for the hint-freshness check and
+// the group-activity-recency check below.
+const MAIN_WINDOW_MS = 3000;
+
+function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
+  const hintFresh = !!hint && (nowMs - hint.atMs) <= windowMs;
+  if (!hintFresh || items.length === 0) return new Set();
+  const lastActivityByGroup = new Map();
+  for (const item of items) {
+    const prior = lastActivityByGroup.get(item.group) ?? 0;
+    if (item.capturedAt > prior) lastActivityByGroup.set(item.group, item.capturedAt);
+  }
+  const latest = Math.max(...lastActivityByGroup.values());
+  const mainGroups = new Set();
+  for (const [group, t] of lastActivityByGroup) if (latest - t <= windowMs) mainGroups.add(group);
+  return mainGroups;
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
     formatBytes, probeSize, parseHlsMaster, estimateHlsSize,
     groupKey, extractQualityToken, runProbesBounded,
-    isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS
+    isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
+    isPlausibleMediaSize, MIN_MEDIA_BYTES,
+    computeMainGroups, MAIN_WINDOW_MS
   };
 }

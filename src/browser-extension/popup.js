@@ -71,7 +71,12 @@ function buildGroups() {
     if (g.kind === "direct" && g.options.length > 1)
       for (const opt of g.options) opt.label = opt.label || qualityLabel(opt.url);
     g.title = fileName(g.kind === "hls" ? g.key : g.options[0]?.url ?? g.key);
+
+    // Drop options a probe confirmed are implausibly tiny for real media (tracking beacons,
+    // empty init segments — e.g. sub-1KB responses seen on X.com) — never before a probe has run.
+    g.options = g.options.filter(opt => isPlausibleMediaSize(opt.size));
   }
+  for (const [key, g] of map) if (g.options.length === 0) map.delete(key);
   return [...map.values()];
 }
 
@@ -125,6 +130,24 @@ function buildCard(group) {
 }
 
 function render() {
+  // Known-unsupported sites (YouTube, Netflix, …) ALWAYS show the explanatory message and
+  // suppress the list — even when something was incidentally sniffed (e.g. YouTube's own UI
+  // sound-effect mp3s), since none of it is ever the protected video content the user wants.
+  // Real-world fix: v1.2.0 only checked this when zero items existed, so those unrelated sounds
+  // were shown as if they were downloadable.
+  if (isUnsupportedHost) {
+    currentGroups = [];
+    selectsByGroup.clear();
+    mainListEl.innerHTML = "";
+    otherListEl.innerHTML = "";
+    mainHeadingEl.style.display = "none";
+    otherSectionEl.style.display = "none";
+    emptyEl.style.display = "block";
+    emptyEl.classList.add("unsupported");
+    emptyEl.textContent = "This site streams video in a format Downloader can't capture directly.";
+    return;
+  }
+
   currentGroups = buildGroups();
   selectsByGroup.clear();
   const mainGroups = currentGroups.filter(g => g.main);
@@ -141,10 +164,8 @@ function render() {
 
   if (currentGroups.length === 0) {
     emptyEl.style.display = "block";
-    emptyEl.classList.toggle("unsupported", isUnsupportedHost);
-    emptyEl.textContent = isUnsupportedHost
-      ? "This site streams video in a format Downloader can't capture directly."
-      : "No media detected on this page yet.";
+    emptyEl.classList.remove("unsupported");
+    emptyEl.textContent = "No media detected on this page yet.";
   } else {
     emptyEl.style.display = "none";
     emptyEl.classList.remove("unsupported");

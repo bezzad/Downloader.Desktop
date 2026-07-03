@@ -10,13 +10,10 @@ if (typeof importScripts === "function") importScripts("common.js");
 const tabMedia = new Map();
 
 // tabId -> { atMs } — latest "user is looking at this" signal from content.js. Refreshed
-// continuously while a video plays (content.js re-sends on play/pause/timeupdate, throttled), so
-// its freshness window naturally covers the whole playback, not just the start.
+// continuously while a video plays or sits paused-but-visible (content.js re-sends on
+// play/pause/timeupdate and a periodic re-check, throttled), so its freshness window naturally
+// covers the whole time the content stays on screen, not just the start.
 const activeHint = new Map();
-
-// How close (ms) a sniffed item's capture time must be to the freshest activeHint to count as
-// "Main media" — see design.md Decision 9.
-const MAIN_WINDOW_MS = 3000;
 
 // ---------------- Context menus ----------------
 api.runtime.onInstalled.addListener(() => {
@@ -144,12 +141,9 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg.type === "getMedia") {
       const map = tabMedia.get(msg.tabId);
-      const hint = activeHint.get(msg.tabId);
-      const media = map ? [...map.values()].map(item => ({
-        ...item,
-        main: !!hint && Math.abs(item.capturedAt - hint.atMs) <= MAIN_WINDOW_MS
-      })) : [];
-      sendResponse({ media });
+      const items = map ? [...map.values()] : [];
+      const mainGroups = computeMainGroups(items, activeHint.get(msg.tabId), Date.now());
+      sendResponse({ media: items.map(item => ({ ...item, main: mainGroups.has(item.group) })) });
     } else if (msg.type === "probeMedia") {
       sendResponse({ results: await probeMediaForTab(msg.tabId) });
     } else if (msg.type === "activeMediaHint") {

@@ -5,7 +5,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
-  runProbesBounded, formatBytes, isKnownUnsupportedHost
+  runProbesBounded, formatBytes, isKnownUnsupportedHost,
+  isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -113,4 +114,52 @@ test("isKnownUnsupportedHost matches known hosts and their subdomains", () => {
   assert.ok(!isKnownUnsupportedHost("example.com"));
   assert.ok(!isKnownUnsupportedHost(""));
   assert.ok(!isKnownUnsupportedHost(null));
+});
+
+test("isPlausibleMediaSize passes unprobed items and rejects only confirmed-tiny ones", () => {
+  assert.ok(isPlausibleMediaSize(null));            // not probed yet — never pre-rejected
+  assert.ok(isPlausibleMediaSize(MIN_MEDIA_BYTES));  // boundary is inclusive
+  assert.ok(isPlausibleMediaSize(20 * 1024 * 1024)); // a real ~20MB stream
+  assert.ok(!isPlausibleMediaSize(897));             // real junk size observed on x.com
+  assert.ok(!isPlausibleMediaSize(0));
+});
+
+test("computeMainGroups promotes nothing without a fresh hint", () => {
+  const items = [{ group: "a", capturedAt: 1000 }];
+  assert.deepEqual(computeMainGroups(items, null, 2000), new Set());
+  const staleHint = { atMs: 0 };
+  assert.deepEqual(computeMainGroups(items, staleHint, 2000 + MAIN_WINDOW_MS + 1), new Set());
+});
+
+test("computeMainGroups promotes the group with the freshest activity", () => {
+  const items = [
+    { group: "old-ad", capturedAt: 1000 },
+    { group: "the-video", capturedAt: 9000 }
+  ];
+  const hint = { atMs: 9200 }; // fresh relative to "now"
+  const result = computeMainGroups(items, hint, 9500);
+  assert.deepEqual(result, new Set(["the-video"]));
+});
+
+test("computeMainGroups promotes a paused-but-recently-loaded video (the x.com regression)", () => {
+  // The video finished autoplaying and sits paused; its own last segment request is still the
+  // most recent activity on the page — must be promoted even though nothing is "playing" right now.
+  const items = [
+    { group: "sidebar-ad.mp4", capturedAt: 500 },
+    { group: "video-master.m3u8", capturedAt: 4800 },
+    { group: "video-master.m3u8", capturedAt: 4950 } // a segment of the same group
+  ];
+  const hint = { atMs: 5100 }; // content.js's periodic re-check keeps this fresh while visible
+  const result = computeMainGroups(items, hint, 5200);
+  assert.deepEqual(result, new Set(["video-master.m3u8"]));
+});
+
+test("computeMainGroups can promote more than one near-simultaneous group", () => {
+  const items = [
+    { group: "a", capturedAt: 9000 },
+    { group: "b", capturedAt: 9100 }
+  ];
+  const hint = { atMs: 9200 };
+  const result = computeMainGroups(items, hint, 9300);
+  assert.deepEqual(result, new Set(["a", "b"]));
 });

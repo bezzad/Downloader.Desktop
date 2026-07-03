@@ -46,6 +46,17 @@ Metadata probing SHALL run with a concurrency cap and a per-request timeout, and
 - **WHEN** one item's probe does not respond within the timeout
 - **THEN** that probe is aborted, the item keeps its unprobed appearance, and other items' probes and the popup remain responsive
 
+### Requirement: Implausibly tiny probed items are excluded
+Once a probe confirms a detected item's size, the extension SHALL exclude it from the popup if that size falls below a small fixed floor, since a response that tiny is not usable media (a tracking beacon or empty init segment); an item whose size is not yet known SHALL NOT be excluded.
+
+#### Scenario: A confirmed-tiny item is dropped
+- **WHEN** a probe confirms a detected item's size is below the minimum media size floor
+- **THEN** the item does not appear in the popup
+
+#### Scenario: An unprobed item is never pre-emptively excluded
+- **WHEN** an item's size has not yet been probed
+- **THEN** the item is shown normally, since its size is unknown, not confirmed tiny
+
 ### Requirement: Download sends the selected quality
 When a grouped card's quality picker has more than one option, the Download action SHALL send the currently selected variant's URL, not a fixed default.
 
