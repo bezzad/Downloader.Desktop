@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the bump guard can diff against the push's 'before' commit.
+          fetch-depth: 0
 
       - name: Read extension version
         id: ver
@@ -45,6 +48,26 @@ jobs:
           else
             echo "submit=yes" >> "$GITHUB_OUTPUT"
           fi
+
+      # The version bump is manual (bump BOTH manifests). This guard catches the mistake that
+      # silently strands users on an old build: extension CODE changed in this push but the manifest
+      # still carries a version that is already published on AMO → fail with instructions.
+      # Doc-only edits (*.md) stay green; manual dispatches skip the diff check (no 'before' SHA).
+      - name: Fail if code changed without a version bump
+        if: github.event_name == 'push' && steps.gate.outputs.submit == 'no'
+        run: |
+          BEFORE="${{ github.event.before }}"
+          # New branch or force-push edge: no usable base — skip the check rather than false-alarm.
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            echo "No diff base available — skipping the bump check."; exit 0
+          fi
+          changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- src/browser-extension | grep -v '\.md$' || true)
+          if [ -n "$changed" ]; then
+            echo "Extension code changed without a version bump:"; echo "$changed" | sed 's/^/  /'
+            echo "::error::src/browser-extension code changed but manifest version ${{ steps.ver.outputs.version }} is already published on AMO — bump \"version\" in BOTH manifest.json and manifest.firefox.json so the change actually ships."
+            exit 1
+          fi
+          echo "Only docs changed — nothing to ship."
 
       - name: Check AMO credentials
         id: creds
