@@ -107,6 +107,32 @@ jobs:
           # (osx-x64) failed to upload its asset. Notes are stamped once by the separate `notes` job below
           # (and scripts/release.sh sets curated notes on top).
 
+  # Attach the browser-extension store zips to the same release so users (and the manual Chrome/Edge
+  # dashboard upload) can grab the build matching this version. Runs AFTER the app matrix so the
+  # release already exists — a concurrent create here would reintroduce the "tag_name already_exists"
+  # race (see the note above). Firefox publishing to AMO is automated separately (extension.yml).
+  extension:
+    name: Attach extension zips
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build extension zips
+        run: ./scripts/build-extension.sh
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/downloader-extension-chrome.zip
+            dist/downloader-extension-firefox.zip
+          fail_on_unmatched_files: true
+          # No generate_release_notes here either — the release exists by now; notes are handled below.
+
   # Single post-matrix job that guarantees notes WITHOUT the create-race above: it runs once after all
   # builds and only fills in GitHub's auto "What's Changed" if the body is still empty — so it never
   # clobbers the curated notes that scripts/release.sh sets.

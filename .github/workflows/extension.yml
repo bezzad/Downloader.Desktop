@@ -1,0 +1,86 @@
+name: Extension
+
+# Publishes the browser extension to Mozilla AMO (listing: downloader-browser-integration)
+# automatically when its manifest version changes — Mozilla ONLY by design; Chrome/Edge stay a
+# manual dashboard upload of the release-page zip. The job is version-gated and idempotent: a push
+# that touches extension files without bumping the version is a green no-op (AMO rejects duplicate
+# versions, so the gate keeps the workflow green instead of red).
+#
+# One-time setup (author): addons.mozilla.org/developers → "Manage API keys", then add the repo
+# secrets AMO_JWT_ISSUER (the JWT issuer) and AMO_JWT_SECRET (the JWT secret). Until they exist the
+# workflow skips with a notice instead of failing.
+#
+# "Automated" = submitted for review automatically; Mozilla review then publishes the version.
+on:
+  push:
+    branches: [ develop, main ]
+    paths: [ 'src/browser-extension/**' ]
+  workflow_dispatch:
+
+jobs:
+  amo:
+    name: Publish to Mozilla AMO
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read extension version
+        id: ver
+        run: |
+          VER=$(python3 -c "import json; print(json.load(open('src/browser-extension/manifest.firefox.json'))['version'])")
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Extension manifest version: $VER"
+
+      - name: Skip if this version is already on AMO
+        id: gate
+        run: |
+          SLUG="downloader-browser-integration"
+          existing=$(curl -fsSL "https://addons.mozilla.org/api/v5/addons/addon/$SLUG/versions/?page_size=50" \
+            | python3 -c "import json,sys; [print(v['version']) for v in json.load(sys.stdin).get('results', [])]" \
+            || true)
+          echo "Versions on AMO:"; echo "$existing" | sed 's/^/  /'
+          if echo "$existing" | grep -qx "${{ steps.ver.outputs.version }}"; then
+            echo "submit=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::Extension ${{ steps.ver.outputs.version }} is already on AMO — nothing to submit."
+          else
+            echo "submit=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check AMO credentials
+        id: creds
+        if: steps.gate.outputs.submit == 'yes'
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -n "$AMO_JWT_ISSUER" ] && [ -n "$AMO_JWT_SECRET" ]; then
+            echo "have=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::AMO secrets not configured (AMO_JWT_ISSUER / AMO_JWT_SECRET) — skipping the Mozilla submission. Create API keys at addons.mozilla.org/developers and add them as repo secrets."
+            echo "## ⚠️ AMO publish skipped — secrets not configured" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Stage Firefox source (manifest.firefox.json → manifest.json)
+        if: steps.gate.outputs.submit == 'yes' && steps.creds.outputs.have == 'yes'
+        run: |
+          SRC=src/browser-extension
+          rm -rf /tmp/ext && mkdir -p /tmp/ext
+          cp "$SRC"/background.js "$SRC"/common.js "$SRC"/popup.html "$SRC"/popup.css "$SRC"/popup.js /tmp/ext/
+          cp -r "$SRC"/icons /tmp/ext/icons
+          cp "$SRC"/manifest.firefox.json /tmp/ext/manifest.json
+
+      - name: Submit to AMO (listed channel)
+        if: steps.gate.outputs.submit == 'yes' && steps.creds.outputs.have == 'yes'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          # --approval-timeout 0: upload + wait for validation only, don't block CI on human review.
+          npx --yes web-ext@8 sign \
+            --source-dir /tmp/ext \
+            --artifacts-dir /tmp/ext-artifacts \
+            --channel listed \
+            --approval-timeout 0
+          echo "## 🦊 Submitted extension ${{ steps.ver.outputs.version }} to AMO for review" >> "$GITHUB_STEP_SUMMARY"
+          echo "Track it at https://addons.mozilla.org/en-US/developers/addon/downloader-browser-integration/versions" >> "$GITHUB_STEP_SUMMARY"
