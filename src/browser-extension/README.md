@@ -11,6 +11,17 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   for downloadable links, then send one or all to the app.
 - **Media capture** — watches network responses and surfaces **video / audio / HLS (`.m3u8`)**
   streams, with a badge count on the toolbar icon.
+- **Size, resolution and quality picker** — each detected item is probed for its file size, and an
+  HLS master playlist expands into a quality dropdown (resolution or bitrate per option) instead of
+  one opaque `.m3u8` row. Probing never blocks the popup: it renders immediately, then upgrades
+  rows in place as results arrive.
+- **Main media vs. Other detected** — on media-heavy pages (a social-media post with dozens of
+  segment/thumbnail requests) the video you're actually viewing is promoted to a **Main media**
+  section; everything else collapses into an expandable **Other detected (N)** — nothing is hidden,
+  just triaged.
+- **Known-unsupported-site message** — on sites that stream via MSE/DRM with no fetchable file URL
+  (YouTube, Netflix, …), the popup explains why nothing was found instead of showing a blank list
+  that looks broken.
 - **Auto-send** — every captured link is forwarded to the app's local listener. By default it is
   **added silently and starts downloading** (the app's `/api/add` endpoint); untick
   **“Add silently (no dialog)”** in the popup to review each link in the app's Add dialog
@@ -61,10 +72,13 @@ main repo for the full API). No other ports, servers or accounts are involved.
 |------|------|
 | `manifest.json` | Chrome/Edge MV3 manifest (service-worker background) |
 | `manifest.firefox.json` | Firefox MV3 manifest (scripts background + gecko id) |
-| `common.js` | Shared helpers: media detection + `sendToApp()` |
-| `background.js` | Context menus, response sniffing, badge, message handler |
-| `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI |
+| `common.js` | Shared helpers: media detection, `sendToApp()`, size/HLS probing, grouping |
+| `background.js` | Context menus, response sniffing, badge, message handler, probing coordinator |
+| `content.js` | Tracks the visible/playing `<video>`/`<audio>` element for Main-vs-Other triage |
+| `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI (grouped cards, quality picker) |
 | `icons/` | Toolbar/store icons (16/48/128) |
+
+Run the unit tests (pure helpers in `common.js`) with `node --test src/browser-extension/common.test.js`.
 
 ## Publishing (later)
 
