@@ -65,7 +65,7 @@ background and poll:
 ```bash
 export GH_TOKEN="$(gh auth token)"   # REQUIRED in background runs — see gotcha below
 ./scripts/release.sh X.Y.Z --yes --notes-file notes.md   # run_in_background
-# poll: gh release view vX.Y.Z --json assets --jq '.assets[].name'   (expect 4 binary assets)
+# poll: gh release view vX.Y.Z --json assets --jq '.assets[].name'   (expect 6 binary assets incl. the two extension zips)
 # and:  gh run list --limit 3   (release.yml + snap.yml conclusions)
 ```
 
@@ -77,8 +77,9 @@ foreground) as part of the background command.
 ## Verification checklist (all channels — release isn't done until these pass)
 
 ```bash
-gh release view vX.Y.Z --repo bezzad/Downloader.Desktop        # body has Highlights; 5 assets:
-#   Downloader-win-x64.zip, Downloader-linux-x64.tar.gz, Downloader-osx-{x64,arm64}.tar.gz (+ sources)
+gh release view vX.Y.Z --repo bezzad/Downloader.Desktop        # body has Highlights; 6 binary assets:
+#   Downloader-win-x64.zip, Downloader-linux-x64.tar.gz, Downloader-osx-{x64,arm64}.tar.gz,
+#   downloader-extension-{chrome,firefox}.zip (attached by release.yml's post-matrix extension job)
 gh run list --repo bezzad/Downloader.Desktop --limit 5         # release.yml + snap.yml green
 gh api repos/bezzad/homebrew-tap/contents/Casks/downloader.rb --jq '.content' | base64 -d | grep version
 gh pr list --repo microsoft/winget-pkgs --author @me           # X.Y.Z PR open (moderator merges later)
@@ -111,3 +112,7 @@ If snap CI failed to publish (check the run log): download its artifact and publ
   exists can fail — the script retries via its wait loop.
 - Script must stay **BSD/macOS-compatible**: use the `sedi`/`b64_file` helpers, never raw
   `sed -i`/`base64 -w0`/`grep -P`.
+
+## Browser extension distribution (automated pieces)
+- Every `v*` release also carries `downloader-extension-chrome.zip` + `downloader-extension-firefox.zip` (release.yml `extension` job, runs post-matrix — never let it create the release or set notes).
+- **Firefox publishes itself**: `extension.yml` fires on pushes touching `src/browser-extension/**`, skips green when the manifest version already exists on AMO, else `web-ext sign --channel listed --approval-timeout 0` with secrets `AMO_JWT_ISSUER`/`AMO_JWT_SECRET`. Bumping the extension version (BOTH manifests) + pushing IS the Firefox release. Chrome/Edge stay manual: upload the chrome zip from the release page in their dashboards.

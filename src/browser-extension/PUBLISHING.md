@@ -1,17 +1,25 @@
 # Publishing the Downloader Browser Integration extension
 
-Everything here is ready to submit — you just need the developer accounts (one-time). Build the
-packages, then upload them in each store's dashboard.
+**Firefox is automated; Chrome/Edge are manual.** Bump `version` in **both** `manifest.json` and
+`manifest.firefox.json`, push to `develop` — and:
 
-## 1. Build the packages
+- **Firefox (AMO)**: `.github/workflows/extension.yml` detects the new version (it checks the
+  listing's existing versions via AMO's public API, so unchanged versions are green no-ops) and
+  submits the build for review automatically via `web-ext sign`. Track submissions at
+  <https://addons.mozilla.org/en-US/developers/addon/downloader-browser-integration/versions>.
+  Requires the one-time repo secrets `AMO_JWT_ISSUER` + `AMO_JWT_SECRET` (create at
+  addons.mozilla.org/developers → *Manage API keys*); without them the workflow skips with a notice.
+- **Chrome Web Store / Edge Add-ons**: still a dashboard upload (steps below). Both extension zips
+  are also attached to every GitHub Release (`release.yml`), so grab
+  `downloader-extension-chrome.zip` from the release page — it's the exact build to upload.
+
+## 1. Build the packages (manual/local fallback)
 
 ```bash
 ./scripts/build-extension.sh
 # → dist/downloader-extension-chrome.zip   (Chrome Web Store + Edge Add-ons)
-# → dist/downloader-extension-firefox.zip  (Firefox AMO)
+# → dist/downloader-extension-firefox.zip  (Firefox AMO — normally submitted by CI)
 ```
-
-Bump `version` in **both** `manifest.json` and `manifest.firefox.json` before each release.
 
 ## 2. Store listing (copy/paste)
 
