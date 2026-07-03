@@ -1,10 +1,19 @@
-// Popup UI: shows media detected on the active tab, lets the user scan page links, paste a URL,
-// and send any/all of them to the desktop app.
-const listEl = document.getElementById("list");
+// Popup UI: shows media detected on the active tab (grouped by video, with a size/quality upgrade
+// pass), lets the user scan page links, paste a URL, and send any/all of them to the desktop app.
+const mainListEl = document.getElementById("mainList");
+const otherListEl = document.getElementById("otherList");
+const mainHeadingEl = document.getElementById("mainHeading");
+const otherSectionEl = document.getElementById("otherSection");
+const otherSummaryEl = document.getElementById("otherSummary");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
 
-let items = []; // { url, type }
+let rawItems = []; // { url, type, group, capturedAt, main }
+const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
+let currentTabId = null;
+let isUnsupportedHost = false;
+let currentGroups = [];
+const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
 async function activeTab() {
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
@@ -15,30 +24,6 @@ function send(type, payload) {
   return new Promise(resolve => api.runtime.sendMessage({ type, ...payload }, resolve));
 }
 
-function render() {
-  listEl.innerHTML = "";
-  emptyEl.style.display = items.length ? "none" : "block";
-  for (const it of items) {
-    const li = document.createElement("li");
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent = fileName(it.url);
-    name.title = it.url;
-    const type = document.createElement("div");
-    type.className = "type";
-    type.textContent = (it.type || "").toString();
-    meta.append(name, type);
-    const btn = document.createElement("button");
-    btn.className = "primary";
-    btn.textContent = "Download";
-    btn.onclick = () => sendOne(it.url, btn);
-    li.append(meta, btn);
-    listEl.append(li);
-  }
-}
-
 function fileName(url) {
   try {
     const p = new URL(url).pathname;
@@ -46,12 +31,133 @@ function fileName(url) {
   } catch { return url; }
 }
 
+// "720p" stays as-is; short word tokens read better upper-cased in a compact dropdown ("HD").
+function qualityLabel(url) {
+  const token = extractQualityToken(url);
+  if (!token) return fileName(url);
+  return /^\d/.test(token) ? token : token.toUpperCase();
+}
+
+// Collapses rawItems into one card per group (see common.js's groupKey / design.md Decision 4),
+// then layers in whatever probeMedia has resolved so far (sizes, and for HLS masters, the real
+// quality variants replacing the single placeholder option).
+function buildGroups() {
+  const map = new Map();
+  for (const item of rawItems) {
+    const key = item.group || groupKey(item.url);
+    let g = map.get(key);
+    if (!g) {
+      g = { key, kind: extOf(item.url) === "m3u8" ? "hls" : "direct", main: false, options: [] };
+      map.set(key, g);
+    }
+    g.main = g.main || !!item.main;
+    if (!g.options.some(o => o.url === item.url))
+      g.options.push({ url: item.url, label: null, size: null, approx: false });
+  }
+
+  for (const g of map.values()) {
+    const probed = probedByUrl.get(g.key);
+    if (g.kind === "hls" && probed?.kind === "hls" && probed.variants.length) {
+      g.options = probed.variants.map(v => ({
+        url: v.uri,
+        label: v.resolution || (v.bandwidth ? `${Math.round(v.bandwidth / 1000)} kbps` : "Variant"),
+        size: v.size,
+        approx: true
+      }));
+    } else if (probed?.kind === "direct") {
+      const opt = g.options.find(o => o.url === probed.url);
+      if (opt) { opt.size = probed.size; opt.approx = false; }
+    }
+    if (g.kind === "direct" && g.options.length > 1)
+      for (const opt of g.options) opt.label = opt.label || qualityLabel(opt.url);
+    g.title = fileName(g.kind === "hls" ? g.key : g.options[0]?.url ?? g.key);
+  }
+  return [...map.values()];
+}
+
+function buildCard(group) {
+  const li = document.createElement("li");
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = group.title;
+  name.title = group.title;
+  meta.appendChild(name);
+
+  let select = null;
+  if (group.options.length > 1) {
+    select = document.createElement("select");
+    select.className = "quality";
+    for (const opt of group.options) {
+      const o = document.createElement("option");
+      o.value = opt.url;
+      o.textContent = opt.label || fileName(opt.url);
+      select.appendChild(o);
+    }
+    meta.appendChild(select);
+  }
+  selectsByGroup.set(group.key, select);
+
+  const sizeEl = document.createElement("div");
+  sizeEl.className = "type size-line";
+  meta.appendChild(sizeEl);
+
+  const currentOption = () => {
+    const url = select ? select.value : group.options[0]?.url;
+    return group.options.find(o => o.url === url) || group.options[0];
+  };
+  const updateSize = () => {
+    const opt = currentOption();
+    const human = opt && formatBytes(opt.size);
+    sizeEl.textContent = human ? (opt.approx ? "~" : "") + human : "";
+  };
+  if (select) select.onchange = updateSize;
+  updateSize();
+
+  const btn = document.createElement("button");
+  btn.className = "primary";
+  btn.textContent = "Download";
+  btn.onclick = () => sendOne(currentOption()?.url, btn);
+
+  li.append(meta, btn);
+  return li;
+}
+
+function render() {
+  currentGroups = buildGroups();
+  selectsByGroup.clear();
+  const mainGroups = currentGroups.filter(g => g.main);
+  const otherGroups = currentGroups.filter(g => !g.main);
+
+  mainListEl.innerHTML = "";
+  otherListEl.innerHTML = "";
+  for (const g of mainGroups) mainListEl.append(buildCard(g));
+  for (const g of otherGroups) otherListEl.append(buildCard(g));
+
+  mainHeadingEl.style.display = currentGroups.length ? "flex" : "none";
+  otherSectionEl.style.display = otherGroups.length ? "block" : "none";
+  otherSummaryEl.textContent = `Other detected (${otherGroups.length})`;
+
+  if (currentGroups.length === 0) {
+    emptyEl.style.display = "block";
+    emptyEl.classList.toggle("unsupported", isUnsupportedHost);
+    emptyEl.textContent = isUnsupportedHost
+      ? "This site streams video in a format Downloader can't capture directly."
+      : "No media detected on this page yet.";
+  } else {
+    emptyEl.style.display = "none";
+    emptyEl.classList.remove("unsupported");
+  }
+}
+
 function addItem(url, type) {
-  if (!isHttp(url) || items.some(i => i.url === url)) return;
-  items.push({ url, type: type || extOf(url) });
+  if (!isHttp(url) || rawItems.some(i => i.url === url)) return;
+  rawItems.push({ url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now(), main: false });
 }
 
 async function sendOne(url, btn) {
+  if (!url) return;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
   const { ok } = await send("send", { url });
   if (btn) { btn.textContent = ok ? "Sent ✓" : "Failed"; }
@@ -63,11 +169,23 @@ async function refreshStatus() {
   statusEl.title = ok ? "Desktop app connected" : "Desktop app not reachable — start it and enable browser integration";
 }
 
+// Renders immediately with whatever's known, then upgrades in place once probes resolve — a slow
+// or blocked probe never delays first paint (design.md Decision 6).
+async function probeAndRender() {
+  if (currentTabId == null) return;
+  const { results } = await send("probeMedia", { tabId: currentTabId });
+  for (const r of results || []) if (r) probedByUrl.set(r.url, r);
+  render();
+}
+
 async function loadDetected() {
   const tab = await activeTab();
+  currentTabId = tab.id;
+  try { isUnsupportedHost = isKnownUnsupportedHost(new URL(tab.url).hostname); } catch { isUnsupportedHost = false; }
   const { media } = await send("getMedia", { tabId: tab.id });
-  for (const m of media || []) addItem(m.url, m.type);
+  for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
   render();
+  probeAndRender();
 }
 
 async function scanPageLinks() {
@@ -85,6 +203,7 @@ async function scanPageLinks() {
     const urls = results?.[0]?.result || [];
     for (const u of urls) if (looksLikeMedia(u)) addItem(u);
     render();
+    probeAndRender();
   } catch {
     // Some pages (e.g. browser internal pages) don't allow injection.
   }
@@ -97,7 +216,11 @@ document.getElementById("sendManual").onclick = () => {
 };
 document.getElementById("scanLinks").onclick = scanPageLinks;
 document.getElementById("sendAll").onclick = async () => {
-  for (const it of items) await sendOne(it.url);
+  for (const g of currentGroups) {
+    const select = selectsByGroup.get(g.key);
+    const url = select ? select.value : g.options[0]?.url;
+    await sendOne(url);
+  }
 };
 
 // Silent-vs-dialog choice (persisted; the background worker reads it on every send).
