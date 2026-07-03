@@ -16,6 +16,12 @@ let currentGroups = [];
 const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
 async function activeTab() {
+  // Test-only override: e2e tests open popup.html as a normal tab (there's no public API to
+  // trigger a real toolbar-popup click), which makes THAT tab "active" instead of the page under
+  // test. A real toolbar popup URL never carries these params, so normal usage is unaffected.
+  const params = new URLSearchParams(location.search);
+  const forcedId = params.get("__testTabId");
+  if (forcedId) return { id: parseInt(forcedId, 10), url: params.get("__testTabUrl") || "" };
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
@@ -77,6 +83,23 @@ function buildGroups() {
     g.options = g.options.filter(opt => isPlausibleMediaSize(opt.size));
   }
   for (const [key, g] of map) if (g.options.length === 0) map.delete(key);
+
+  // A variant playlist AND its individual segments are ALSO independently sniffed as their own
+  // network responses (the browser fetches each one just like any other resource) — without this,
+  // they'd show up as redundant top-level cards instead of being represented by the master's
+  // quality picker. Real-world regression: on x.com this produced several near-duplicate "Main
+  // media" cards (the master, each variant playlist, and/or raw .ts segments) for one video.
+  const childUris = new Set();
+  for (const g of map.values()) {
+    const probed = probedByUrl.get(g.key);
+    if (g.kind === "hls" && probed?.kind === "hls")
+      for (const v of probed.variants) {
+        childUris.add(v.uri);
+        for (const seg of v.segmentUrls || []) childUris.add(seg);
+      }
+  }
+  for (const key of childUris) map.delete(key);
+
   return [...map.values()];
 }
 

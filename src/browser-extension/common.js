@@ -157,23 +157,28 @@ async function parseHlsMaster(url, { signal } = {}) {
 }
 
 // Estimates an HLS variant playlist's total size as (segment count) x (first segment's size) —
-// exact size isn't knowable without fetching every segment. Returns null (never a guess) if the
-// variant playlist or its first segment can't be measured.
+// exact size isn't knowable without fetching every segment. `size` is null (never a guess) if the
+// variant playlist or its first segment can't be measured. Also returns the resolved segment
+// URLs: the browser fetches each one as its own network response, so without excluding them a
+// video's individual .ts segments would show up as separate, redundant top-level items (real-
+// world regression alongside the sibling variant-playlist dedup — see popup.js's buildGroups).
 async function estimateHlsSize(variantUrl, { signal } = {}) {
   let text;
   try {
     const res = await fetch(variantUrl, { signal });
-    if (!res.ok) return null;
+    if (!res.ok) return { size: null, segmentUrls: [] };
     text = await res.text();
   } catch {
-    return null;
+    return { size: null, segmentUrls: [] };
   }
-  const segments = text.split(/\r?\n/).filter(l => l && !l.startsWith("#"));
-  if (segments.length === 0) return null;
-  let firstUrl;
-  try { firstUrl = new URL(segments[0].trim(), variantUrl).href; } catch { return null; }
-  const firstSize = await probeSize(firstUrl, { signal });
-  return firstSize ? firstSize * segments.length : null;
+  const segmentUrls = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || line.startsWith("#")) continue;
+    try { segmentUrls.push(new URL(line.trim(), variantUrl).href); } catch { /* skip a bad line */ }
+  }
+  if (segmentUrls.length === 0) return { size: null, segmentUrls: [] };
+  const firstSize = await probeSize(segmentUrls[0], { signal });
+  return { size: firstSize ? firstSize * segmentUrls.length : null, segmentUrls };
 }
 
 // Conservative "same video, different quality" grouping key: strips ONE trailing quality token

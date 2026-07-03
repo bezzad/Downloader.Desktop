@@ -105,10 +105,10 @@ async function probeMediaForTab(tabId) {
       const variants = await parseHlsMaster(item.url, { signal });
       if (variants.length === 0)
         return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
-      const sized = await Promise.all(variants.map(async v => ({
-        ...v,
-        size: await estimateHlsSize(v.uri, { signal })
-      })));
+      const sized = await Promise.all(variants.map(async v => {
+        const est = await estimateHlsSize(v.uri, { signal });
+        return { ...v, size: est.size, segmentUrls: est.segmentUrls };
+      }));
       return { url: item.url, kind: "hls", variants: sized };
     }
     return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };

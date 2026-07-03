@@ -1,0 +1,10 @@
+<!doctype html>
+<html><body>
+<!-- Reproduces the exact x.com regression: a video that plays briefly then is left PAUSED on a
+     frame — must still be promoted to "Main media" (content.js's paused-but-loaded path). -->
+<video id="v" src="/main_video.mp4" muted playsinline width="320" height="240"></video>
+<script>
+  const v = document.getElementById('v');
+  v.play().then(() => setTimeout(() => v.pause(), 300));
+</script>
+</body></html>
