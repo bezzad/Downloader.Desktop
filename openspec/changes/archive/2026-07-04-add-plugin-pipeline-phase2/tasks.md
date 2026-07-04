@@ -62,10 +62,16 @@
 
 ## 6. End-to-end & docs
 
-- [ ] 6.1 **In-app e2e with the real HLS plugin — needs the author to run it on a machine with the HLS
-  plugin installed + ffmpeg/yt-dlp available and a GUI session** (can't be verified headlessly here): paste a
-  direct `.m3u8` → confirm a playable file lands in the save folder, then the x.com flow. This also closes
-  `add-video-site-extraction` task 7.3 — note the result there before archiving that change.
+- [x] 6.1 **Author ran the in-app e2e (2026-07-05)** with a real 4K HLS stream
+  (`sample.vodobox.net/skate_phantom_flex_4k/skate_phantom_flex_4k.m3u8`): the plan runner worked —
+  resolved 36 segments, downloaded them all sequentially, and reached the assembly step — which proves the
+  Phase-2 pipeline end to end. The run surfaced two NEW issues that are follow-up scope, not this change's
+  (author's call: archive this, fix them separately — see the `fix-hls-segment-perf-and-assembly` proposal):
+  (a) each tiny segment is downloaded with the full N-chunk multipart config (wasteful; segments should be
+  single-chunk), and (b) ffmpeg failed on the output: the temp path `…skate_phantom_flex_4k.m3u8.assembling`
+  has no standard media extension so ffmpeg can't choose a muxer ("Unable to choose an output format"),
+  compounded by the final name itself being `.m3u8` (the playlist's name) instead of `.mp4`.
+  `add-video-site-extraction` 7.3 (the x.com flow) remains open in that change.
 - [x] 6.2 README.md advertises "video/HLS downloads via plugins now work end-to-end" (Features list);
   `docs/plugins-architecture.md` Phase 2 section rewritten to describe the plan runner (download → assemble →
   resume, progress/controls, PersistedPlan). No row-status screenshot refresh needed here (screenshots are
