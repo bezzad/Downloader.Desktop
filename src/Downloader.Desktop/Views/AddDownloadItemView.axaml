@@ -22,6 +22,7 @@
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Add download">
 
+    <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
@@ -113,4 +114,6 @@
     </Grid>
     </DockPanel>
     </Border>
+    <v:ResizeGrips />
+    </Panel>
 </Window>

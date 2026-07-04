@@ -3,6 +3,7 @@
 
 ## 2. Make Add Download resizable
 - [x] 2.1 `AddDownloadItemView.axaml`: flip `CanResize="True"`, add `MinWidth`/`MinHeight` (480×360), keep 560×460 as the shipped default.
+- [x] 2.2 **(reprocess — author-reported bug)** `CanResize="True"` alone does NOT enable edge-drag on these windows: they use `WindowDecorations="None"` (custom transparent rounded chrome), which removes the OS resize border, so only maximize/restore worked. The repo already has a working manual-resize overlay (`Views/ResizeGrips`, uses pointer capture + `Window.Position/Width/Height`, deliberately not `BeginResizeDrag` which is a macOS no-op for borderless windows) — but it was only wired into `MainWindow` and `DownloadDetailsView`. Added `<v:ResizeGrips />` as the last child of a wrapping `<Panel>` in **`AddDownloadItemView`** and **`PageDialogView`** (Settings/Queues/Scheduler), matching the two working windows. Now all resizable dialogs can be edge/corner-dragged.
 
 ## 3. Shared persistence helper
 - [x] 3.1 Add `DialogHelper.ApplyPersistedSize(Window view, string key, Config config)` — reads `config.WindowSizes[key]` if present, clamps to the window's `MinWidth`/`MinHeight` and the window's own screen working area (`view.Screens`, not the main window's — works before the dialog is shown/owned), and sets `view.Width`/`view.Height` before show.
@@ -16,5 +17,5 @@
 - [x] 4.4 Unit test: `PageDialogView` opened for Settings vs Queues restores the same shared size (single key). (`PageDialog_key_is_shared_across_settings_and_queues`) Plus a no-op-when-nothing-saved case. New file `Downloader.Desktop.Tests/DialogHelperTests.cs`, 5 tests, all green (179/179 full suite).
 
 ## 5. Wrap-up
-- [x] 5.1 Full manual GUI resize isn't feasible in this (headless CI-like) environment, so verified the wiring via: (a) the 5 unit tests above covering clamp/save/shared-key behavior directly, (b) a clean `dotnet build` with 0 warnings/errors, and (c) a real headless launch (`dotnet run`, ~8s, manually terminated) with no exceptions in stdout/stderr — same smoke-check pattern the skill documents for verifying a clean startup.
+- [ ] 5.1 **Awaiting author re-test.** First pass shipped without edge-drag working (only maximize/restore) — the author confirmed the bug on their machine. Fixed in 2.2 by wiring the existing `ResizeGrips` overlay into the two dialogs that lacked it. Needs the author to re-drag the edges of Add-link / Settings / Queues / Scheduler and confirm before this change is done. (Headless environment can't exercise real edge-drag; unit tests cover the size persistence, not the OS drag.)
 - [x] 5.2 No existing capture test opens any of these three dialogs at a non-default size — `docs/screenshots/` unaffected, no refresh needed.
