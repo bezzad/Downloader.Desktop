@@ -93,6 +93,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
         <PackageReference Include="Dotnet.Bundle" Version="0.9.13" />
+        <PackageReference Include="Svg.Skia" Version="5.1.1" />
     </ItemGroup>
 
     <ItemGroup>

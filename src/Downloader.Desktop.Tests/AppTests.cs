@@ -817,7 +817,13 @@ public class AppTests
     public void Every_language_has_a_loadable_flag()
     {
         foreach (var lang in Localizer.Languages)
-            Assert.NotNull(lang.Flag); // Assets/flags/{code}.png must be embedded for each language
+        {
+            // Assets/flags/{code}.svg must be embedded and rasterize for each language.
+            Assert.NotNull(lang.Flag);
+            // Rendered at 3x the 15px display height so HiDPI screens get a crisp image.
+            Assert.Equal(45, lang.Flag.PixelSize.Height);
+            Assert.True(lang.Flag.PixelSize.Width > 0);
+        }
     }
 
     [AvaloniaFact]
