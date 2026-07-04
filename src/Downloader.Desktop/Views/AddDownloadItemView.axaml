@@ -41,7 +41,6 @@
                      AcceptsReturn="True" TextWrapping="NoWrap" Height="64"
                      CornerRadius="6"
                      VerticalContentAlignment="Top"
-                     KeyDown="OnUrlBoxKeyDown"
                      PlaceholderText="{Binding LinksPlaceholder}" />
             <!-- Clipboard suggestion: dimmed, non-committed. Enter/Tab (handled in code-behind) accepts it. -->
             <TextBlock IsHitTestVisible="False"

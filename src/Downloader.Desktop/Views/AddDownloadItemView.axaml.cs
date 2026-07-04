@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Downloader.Desktop.ViewModels;
 
 namespace Downloader.Desktop.Views;
@@ -9,6 +10,12 @@ public partial class AddDownloadItemView : Window
     public AddDownloadItemView()
     {
         InitializeComponent();
+
+        // Intercept Enter/Tab in the TUNNEL phase so the clipboard suggestion is accepted BEFORE the
+        // multi-line TextBox handles Enter. The TextBox inserts a newline in its own bubble-phase key
+        // handler and marks the event handled, so a bubble-phase handler here never fires (that was the
+        // "Enter just adds a new line" bug). Tunnel runs root→target, before the TextBox's bubble handler.
+        UrlBox.AddHandler(KeyDownEvent, OnUrlBoxKeyDown, RoutingStrategies.Tunnel);
     }
 
     /// <summary>While the links box is empty and a clipboard suggestion is showing, Enter or Tab accepts it
@@ -23,7 +30,6 @@ public partial class AddDownloadItemView : Window
 
         e.Handled = true;
         vm.AcceptClipboardSuggestion();
-        if (sender is TextBox box)
-            box.CaretIndex = box.Text?.Length ?? 0;
+        UrlBox.CaretIndex = UrlBox.Text?.Length ?? 0;
     }
 }

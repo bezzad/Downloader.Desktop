@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Downloader;
 using Downloader.Desktop.Converters;
 using Downloader.Desktop.Models;
@@ -342,6 +344,37 @@ public class AppTests
         Assert.Contains("a.zip", vm.Urls);
         Assert.Contains("b.zip", vm.Urls);
         Assert.Contains("c.zip", vm.Urls);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_enter_accepts_clipboard_suggestion_not_newline()
+    {
+        // Regression: Enter in the empty multi-line links box used to insert a newline instead of
+        // accepting the clipboard suggestion, because the TextBox's own bubble-phase handler ran first.
+        // The view intercepts Enter in the TUNNEL phase; this drives a real key press to prove it.
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/from-clipboard.zip"));
+        await vm.ClipboardSuggestionReady;
+
+        var view = new Views.AddDownloadItemView { DataContext = vm };
+        vm.View = view;
+        view.Show();
+        var box = view.GetVisualDescendants().OfType<Avalonia.Controls.TextBox>().First(t => t.Name == "UrlBox");
+        box.Focus();
+
+        view.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None,
+            Avalonia.Input.PhysicalKey.Enter, "\r");
+
+        Assert.Equal("https://host/from-clipboard.zip", vm.Urls); // accepted, no leading/trailing newline
+        Assert.DoesNotContain("\n", vm.Urls);
+        Assert.False(vm.ShowClipboardSuggestion);
+        Assert.True(vm.CanDownload);
+        view.Close();
     }
 
     [AvaloniaFact]
