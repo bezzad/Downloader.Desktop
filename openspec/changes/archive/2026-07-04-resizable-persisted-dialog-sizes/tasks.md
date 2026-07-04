@@ -17,5 +17,5 @@
 - [x] 4.4 Unit test: `PageDialogView` opened for Settings vs Queues restores the same shared size (single key). (`PageDialog_key_is_shared_across_settings_and_queues`) Plus a no-op-when-nothing-saved case. New file `Downloader.Desktop.Tests/DialogHelperTests.cs`, 5 tests, all green (179/179 full suite).
 
 ## 5. Wrap-up
-- [ ] 5.1 **Awaiting author re-test.** First pass shipped without edge-drag working (only maximize/restore) — the author confirmed the bug on their machine. Fixed in 2.2 by wiring the existing `ResizeGrips` overlay into the two dialogs that lacked it. Needs the author to re-drag the edges of Add-link / Settings / Queues / Scheduler and confirm before this change is done. (Headless environment can't exercise real edge-drag; unit tests cover the size persistence, not the OS drag.)
+- [x] 5.1 **Author-verified (2026-07-04).** First pass shipped without edge-drag working (only maximize/restore); fixed in 2.2 by wiring the existing `ResizeGrips` overlay into Add-link + PageDialog. The author re-tested edge/corner dragging on Add-link / Settings / Queues / Scheduler and confirmed it works — archived on their explicit `/opsx:archive … done`.
 - [x] 5.2 No existing capture test opens any of these three dialogs at a non-default size — `docs/screenshots/` unaffected, no refresh needed.
