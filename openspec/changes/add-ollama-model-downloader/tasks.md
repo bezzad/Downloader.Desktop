@@ -58,6 +58,10 @@
 
 - [ ] 7.1 Update CLAUDE.md layout section + plugin docs (`docs/plugins-architecture.md`,
   `docs/writing-plugins.md`): built-in plugins home, post-download action contract, samples/ removal.
+- [ ] 7.1b **README.md — advertise the feature (standing rule):** add "Download Ollama models" (paste a
+  link or type `gemma3:12b` → download → one-click Add to Ollama) and the built-in plugins (GitHub
+  Releases + Ollama Models) to the README's user-facing feature highlights, so it's visible at first
+  glance; end-user wording, screenshot if the popup/row UI shows the action.
 - [ ] 7.2 Refresh Settings/Plugins screenshots if the UI changed (standing routine).
 - [ ] 7.3 Manual end-to-end check: type `gemma3:1b` (small!) → downloads → "Add to Ollama" → `ollama list`
   shows it; note the result here before archiving.
