@@ -17,8 +17,9 @@ possible.
 ## What it does with it
 
 - The captured URL is sent **only** to the Downloader desktop app running on your own machine, over a
-  local loopback connection (`http://127.0.0.1:15151`). Nothing is sent to the developer or any
-  third-party server.
+  local loopback connection (`http://127.0.0.1:15151`, or the next port in the small declared
+  `15151`–`15155` range when that one is taken by another program). Nothing is sent to the developer
+  or any third-party server.
 
 ## What it does NOT do
 
@@ -31,8 +32,9 @@ possible.
 - `contextMenus`, `tabs`, `scripting`, `notifications` — to add the menu, read the active tab's links
   on request, and show local status.
 - `webRequest` + host access — to detect media on the current page locally.
-- `storage` — to remember one local preference (add silently vs open the app's Add dialog).
-- Host access to `127.0.0.1`/`localhost` — to talk to the desktop app.
+- `storage` — to remember two local preferences (add silently vs open the app's Add dialog, and the
+  app's last-known listen port).
+- Host access to `127.0.0.1`/`localhost` (ports `15151`–`15155` only) — to talk to the desktop app.
 
 ## Contact
 

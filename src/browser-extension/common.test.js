@@ -6,7 +6,8 @@ const assert = require("node:assert/strict");
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
-  isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS
+  isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
+  candidatePorts, discoverAppPort, APP_PORT_RANGE
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -162,4 +163,45 @@ test("computeMainGroups can promote more than one near-simultaneous group", () =
   const hint = { atMs: 9200 };
   const result = computeMainGroups(items, hint, 9300);
   assert.deepEqual(result, new Set(["a", "b"]));
+});
+
+// ---------------- App port discovery (range fallback) ----------------
+
+test("candidatePorts puts the cached port first, then the rest of the range", () => {
+  assert.deepEqual(candidatePorts(15153), [15153, 15151, 15152, 15154, 15155]);
+});
+
+test("candidatePorts ignores a cached port outside the declared range", () => {
+  assert.deepEqual(candidatePorts(9999), APP_PORT_RANGE);
+  assert.deepEqual(candidatePorts(null), APP_PORT_RANGE);
+});
+
+test("discoverAppPort returns the preferred port when it responds first", async () => {
+  const probed = [];
+  const probe = async port => { probed.push(port); return port === 15151; };
+  const port = await discoverAppPort(probe, 15151);
+  assert.equal(port, 15151);
+  assert.deepEqual(probed, [15151]); // no extra probes once found
+});
+
+test("discoverAppPort finds a fallback port after the preferred fails", async () => {
+  const probe = async port => port === 15153; // app fell back to 15153
+  const port = await discoverAppPort(probe, 15151);
+  assert.equal(port, 15153);
+});
+
+test("discoverAppPort tries the cached last-known-good port first", async () => {
+  const probed = [];
+  const probe = async port => { probed.push(port); return port === 15154; };
+  const port = await discoverAppPort(probe, 15154);
+  assert.equal(port, 15154);
+  assert.deepEqual(probed, [15154]); // cache hit — single probe, no scan
+});
+
+test("discoverAppPort returns null when no port in the range answers", async () => {
+  const probed = [];
+  const probe = async port => { probed.push(port); return false; };
+  const port = await discoverAppPort(probe, 15151);
+  assert.equal(port, null);
+  assert.deepEqual(probed, APP_PORT_RANGE); // scanned the whole declared range
 });

@@ -6,13 +6,18 @@ an HTTP request or run a program) add and manage downloads without touching the 
 
 - Everything is **local-only**: the app listens on `127.0.0.1:15151` (loopback). Nothing is exposed
   to your network or the internet.
+- If another program already holds `15151`, the app automatically falls back to the next free port
+  in the small fixed range `15151`–`15155` and notifies you once. The effective address is shown in
+  **Settings** next to the integration toggle; the browser extension and the CLI rediscover the
+  port automatically, but your own scripts should check Settings (or probe `/ping` across the
+  range) if the default doesn't answer.
 - It is controlled by **Settings → Browser extension & local API** (on by default; turn it off if
   you don't want other local programs adding downloads).
 - There is no authentication token — any program running on your own machine may use it.
 
 ## HTTP API
 
-Base URL: `http://127.0.0.1:15151`
+Base URL: `http://127.0.0.1:15151` (or the fallback port shown in Settings)
 
 ### Add a download — `POST /api/add` (or `GET` with query parameters)
 

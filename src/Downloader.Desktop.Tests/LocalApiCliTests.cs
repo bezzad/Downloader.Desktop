@@ -221,7 +221,7 @@ public class LocalApiEndToEndTests
     }
 
     private static Task<HttpResponseMessage> Get(HttpClient client, string pathAndQuery) =>
-        Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.Port}{pathAndQuery}"));
+        Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.EffectivePort}{pathAndQuery}"));
 
     [AvaloniaFact]
     public void Api_add_list_control_and_legacy_endpoints_work()
@@ -273,7 +273,7 @@ public class LocalApiEndToEndTests
 
             // POST body form works too (control by JSON id) and is idempotent on a stopped row.
             var post = Task.Run(() => client.PostAsync(
-                $"http://127.0.0.1:{LocalApiService.Port}/api/pause",
+                $"http://127.0.0.1:{LocalApiService.EffectivePort}/api/pause",
                 new StringContent($$"""{"id":"{{id}}"}""", Encoding.UTF8, "application/json")));
             Assert.Equal(HttpStatusCode.OK, Pump(post).StatusCode);
         }
@@ -281,6 +281,56 @@ public class LocalApiEndToEndTests
         {
             LocalApiService.Stop();
             LocalApiService.Manager = null;
+            LocalApiService.Config = null;
+        }
+    }
+
+    [AvaloniaFact]
+    public void Start_falls_back_to_next_port_when_preferred_is_taken()
+    {
+        // Occupy the preferred port with a throwaway listener so the service must fall back.
+        var blocker = new HttpListener();
+        blocker.Prefixes.Add($"http://127.0.0.1:{LocalApiService.PreferredPort}/");
+        blocker.Start();
+        try
+        {
+            var config = Config.New();
+            LocalApiService.Config = config;
+            LocalApiService.Start();
+
+            Assert.True(LocalApiService.IsRunning);
+            Assert.NotEqual(LocalApiService.PreferredPort, LocalApiService.EffectivePort);
+            Assert.Contains(LocalApiService.EffectivePort, LocalApiService.PortRange);
+            // The effective port is persisted so the next start / the CLI prefers it.
+            Assert.Equal(LocalApiService.EffectivePort, config.Settings.LocalApiPort);
+        }
+        finally
+        {
+            LocalApiService.Stop();
+            LocalApiService.Config = null;
+            blocker.Stop();
+            blocker.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Start_prefers_the_persisted_effective_port()
+    {
+        // A config that remembers a non-default port from a previous run should bind that one first.
+        const int remembered = 15153;
+        var config = Config.New();
+        config.Settings.LocalApiPort = remembered;
+        LocalApiService.Config = config;
+        try
+        {
+            LocalApiService.Start();
+            Assert.True(LocalApiService.IsRunning);
+            Assert.Equal(remembered, LocalApiService.EffectivePort);
+            Assert.Equal(remembered, config.Settings.LocalApiPort); // round-trips unchanged
+        }
+        finally
+        {
+            LocalApiService.Stop();
             LocalApiService.Config = null;
         }
     }

@@ -35,7 +35,9 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 
 1. The **Downloader desktop app** must be running.
 2. **Settings → Browser extension & local API** must be on in the app (it opens the local listener
-   on port `15151`). It is enabled by default.
+   on port `15151`, falling back to `15152`–`15155` if that port is taken by another program — the
+   extension finds the right one automatically). It is enabled by default; the effective address is
+   shown in the app's Settings.
 
 ## Load it for testing (unpacked)
 
@@ -58,13 +60,16 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 The extension only needs the app's loopback endpoints:
 
 ```
-GET http://127.0.0.1:15151/api/add?url=<url-encoded link>   # silent add (default)
-GET http://127.0.0.1:15151/add?url=<url-encoded link>       # open the Add dialog instead
-GET http://127.0.0.1:15151/ping                              # reachability check
+GET http://127.0.0.1:<port>/api/add?url=<url-encoded link>   # silent add (default)
+GET http://127.0.0.1:<port>/add?url=<url-encoded link>       # open the Add dialog instead
+GET http://127.0.0.1:<port>/ping                              # reachability check
 ```
 
-These are served by `Services/LocalApiService.cs` in the desktop app (see `docs/local-api.md` in the
-main repo for the full API). No other ports, servers or accounts are involved.
+`<port>` is normally `15151`; if another program holds it, the app falls back within the declared
+range `15151`–`15155` and the extension probes `/ping` across that range (last-known-good port
+first) to rediscover it. These are served by `Services/LocalApiService.cs` in the desktop app (see
+`docs/local-api.md` in the main repo for the full API). No other ports, servers or accounts are
+involved.
 
 ## Files
 

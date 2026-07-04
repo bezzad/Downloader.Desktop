@@ -2,9 +2,59 @@
 // `api` resolves to the WebExtensions namespace on every browser.
 const api = globalThis.browser || globalThis.chrome;
 
-// The desktop app's local loopback listener (see Services/BrowserIntegrationService.cs).
-const APP_PORT = 15151;
-const APP_BASE = `http://127.0.0.1:${APP_PORT}`;
+// The desktop app's local loopback listener (see Services/LocalApiService.cs). The app binds the
+// first free port in this declared range (15151 preferred); the manifests' host_permissions cover
+// exactly these origins (MV3 requires them to be static), so discovery must stay inside the range.
+const APP_PORT_RANGE = [15151, 15152, 15153, 15154, 15155];
+const APP_HOST = "http://127.0.0.1";
+
+// Ports to probe, last-known-good first (mirrors the app's own preference order). Pure/testable.
+function candidatePorts(cachedPort, range = APP_PORT_RANGE) {
+  const ports = range.includes(cachedPort) ? [cachedPort] : [];
+  for (const p of range) if (p !== cachedPort) ports.push(p);
+  return ports;
+}
+
+async function getCachedPort() {
+  try {
+    const r = await api.storage.local.get({ appPort: APP_PORT_RANGE[0] });
+    return r.appPort;
+  } catch {
+    return APP_PORT_RANGE[0];
+  }
+}
+
+function setCachedPort(port) {
+  try { api.storage.local.set({ appPort: port }); } catch { /* optional */ }
+}
+
+// Finds the port the app is currently listening on by probing /ping across the declared range,
+// starting from the cached last-known-good port. Returns the port (and refreshes the cache) or
+// null when the app isn't reachable on any of them. `probe` is injectable for tests.
+async function discoverAppPort(probe = pingPort, cachedPort = null) {
+  const cached = cachedPort ?? await getCachedPort();
+  for (const port of candidatePorts(cached)) {
+    if (await probe(port)) {
+      setCachedPort(port);
+      return port;
+    }
+  }
+  return null;
+}
+
+// Does the app answer /ping on this port? Never throws.
+async function pingPort(port) {
+  try {
+    const res = await fetch(`${APP_HOST}:${port}/ping`, { method: "GET" });
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+function appBase(port) {
+  return `${APP_HOST}:${port}`;
+}
 
 // Media we can hand to the engine: direct HTTP(S) files + HLS playlists. (YouTube and other
 // encrypted/DRM streaming sites are NOT supported — they don't expose a direct, fetchable URL.)
@@ -60,8 +110,8 @@ function setAddMode(mode) {
 // Silent add via the local API. Returns "ok" (added — on a pre-API app the same request opens
 // the Add dialog instead, which still captures the link), "fallback" (endpoint unknown, retry
 // the legacy dialog endpoint) or "fail".
-async function sendToAppSilently(url, filename) {
-  let endpoint = `${APP_BASE}/api/add?url=${encodeURIComponent(url)}`;
+async function sendToAppSilently(base, url, filename) {
+  let endpoint = `${base}/api/add?url=${encodeURIComponent(url)}`;
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
   try {
     const res = await fetch(endpoint, { method: "GET" });
@@ -74,31 +124,30 @@ async function sendToAppSilently(url, filename) {
 }
 
 // Send a single URL to the desktop app, honoring the user's silent-vs-dialog choice.
-// Returns true on success.
+// Discovers the app's effective port first (the app may have fallen back within the declared
+// range if 15151 was taken by another process). Returns true on success.
 async function sendToApp(url, filename) {
   if (!isHttp(url)) return false;
+  const port = await discoverAppPort();
+  if (port == null) return false;
+  const base = appBase(port);
   if (await getAddMode() === "silent") {
-    const silent = await sendToAppSilently(url, filename);
+    const silent = await sendToAppSilently(base, url, filename);
     if (silent === "ok") return true;
     if (silent === "fail") return false;
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
   }
   try {
-    const res = await fetch(`${APP_BASE}/add?url=${encodeURIComponent(url)}`, { method: "GET" });
+    const res = await fetch(`${base}/add?url=${encodeURIComponent(url)}`, { method: "GET" });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-// Is the desktop app reachable? (A failed /add with no url returns 400 — still proves it's up.)
+// Is the desktop app reachable on any port in the declared range?
 async function pingApp() {
-  try {
-    const res = await fetch(`${APP_BASE}/ping`, { method: "GET" });
-    return res.status > 0;
-  } catch {
-    return false;
-  }
+  return await discoverAppPort() != null;
 }
 
 // ---------------- Media metadata probing (popup: size/resolution/quality) ----------------
@@ -302,6 +351,7 @@ if (typeof module !== "undefined") {
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
-    computeMainGroups, MAIN_WINDOW_MS
+    computeMainGroups, MAIN_WINDOW_MS,
+    candidatePorts, discoverAppPort, APP_PORT_RANGE
   };
 }

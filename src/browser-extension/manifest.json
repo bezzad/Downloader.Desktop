@@ -7,7 +7,15 @@
   "host_permissions": [
     "<all_urls>",
     "http://127.0.0.1:15151/*",
-    "http://localhost:15151/*"
+    "http://127.0.0.1:15152/*",
+    "http://127.0.0.1:15153/*",
+    "http://127.0.0.1:15154/*",
+    "http://127.0.0.1:15155/*",
+    "http://localhost:15151/*",
+    "http://localhost:15152/*",
+    "http://localhost:15153/*",
+    "http://localhost:15154/*",
+    "http://localhost:15155/*"
   ],
   "background": {
     "service_worker": "background.js"

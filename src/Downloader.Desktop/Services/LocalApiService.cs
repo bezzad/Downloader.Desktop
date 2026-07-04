@@ -23,14 +23,22 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class LocalApiService
 {
-    /// <summary>Fixed loopback port the companion extension and the CLI target.</summary>
-    public const int Port = 15151;
+    /// <summary>Preferred loopback port. If it's taken, the listener falls back within <see cref="PortRange"/>.</summary>
+    public const int PreferredPort = 15151;
+
+    /// <summary>The declared loopback port range the extension's manifest <c>host_permissions</c> cover
+    /// (MV3 requires these to be static/install-time — an arbitrary runtime port would be unreachable).
+    /// Tried in this order when binding.</summary>
+    public static readonly int[] PortRange = { 15151, 15152, 15153, 15154, 15155 };
 
     /// <summary>Requests bigger than this are rejected (nothing legitimate comes close).</summary>
     public const int MaxBodyBytes = 64 * 1024;
 
     private static HttpListener _listener;
     private static CancellationTokenSource _cts;
+
+    /// <summary>The port the listener actually bound to this session, or 0 if it hasn't started / failed.</summary>
+    public static int EffectivePort { get; private set; }
 
     /// <summary>Invoked (on the UI thread) with a captured URL — wired by the app to open the Add flow.</summary>
     public static Action<string> OnUrlCaptured { get; set; }
@@ -43,26 +51,50 @@ public static class LocalApiService
 
     public static bool IsRunning => _listener is { IsListening: true };
 
+    /// <summary>Ordered bind candidates: the last-known-good persisted port first (if it's in the declared
+    /// range), then the whole range in order, without duplicates.</summary>
+    public static IEnumerable<int> CandidatePorts()
+    {
+        var preferred = Config?.Settings?.LocalApiPort ?? 0;
+        if (Array.IndexOf(PortRange, preferred) >= 0)
+            yield return preferred;
+        foreach (var p in PortRange)
+            if (p != preferred)
+                yield return p;
+    }
+
     public static void Start()
     {
         if (IsRunning)
             return;
 
-        try
+        foreach (var port in CandidatePorts())
         {
-            _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
-            _listener.Start();
-            _cts = new CancellationTokenSource();
-            _ = AcceptLoopAsync(_cts.Token);
-            AppLog.Info($"Local API listening on 127.0.0.1:{Port}");
+            try
+            {
+                var listener = new HttpListener();
+                listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+                listener.Start();
+                _listener = listener;
+                EffectivePort = port;
+                _cts = new CancellationTokenSource();
+                _ = AcceptLoopAsync(_cts.Token);
+                // Remember the bound port so the next start prefers it and the CLI can reach us.
+                if (Config?.Settings != null)
+                    Config.Settings.LocalApiPort = port;
+                AppLog.Info($"Local API listening on 127.0.0.1:{port}");
+                return;
+            }
+            catch (Exception ex)
+            {
+                // This port is busy or denied — try the next one in the declared range.
+                AppLog.Error($"Local API could not bind 127.0.0.1:{port}", ex);
+            }
         }
-        catch (Exception ex)
-        {
-            // Port busy or no permission — fail soft, the rest of the app is unaffected.
-            AppLog.Error("Local API could not start", ex);
-            _listener = null;
-        }
+
+        // Every candidate was taken / denied — fail soft, the rest of the app is unaffected.
+        _listener = null;
+        EffectivePort = 0;
     }
 
     public static void Stop()

@@ -133,6 +133,11 @@
   "Set_ShutdownOnComplete_Hint": "Powers off 30 seconds after the last download completes (cancelable).",
   "Set_BrowserIntegration": "Browser extension & local API",
   "Set_BrowserIntegration_Hint": "Lets the browser extension, scripts and the command line add and control downloads over a local-only connection (nothing is exposed to the network).",
+  "Set_LocalApiStatus": "Local API address",
+  "Set_LocalApiConnected": "connected",
+  "Set_LocalApiOffline": "not running",
+  "LocalApi_PortChangedTitle": "Local API port changed",
+  "LocalApi_PortChangedMsg": "Port 15151 was busy, so Downloader is now listening on 127.0.0.1:{0}. The browser extension will reconnect automatically.",
 
   "Sec_AppUpdates": "APP & UPDATES",
   "Set_SystemTray": "Keep running in the system tray",

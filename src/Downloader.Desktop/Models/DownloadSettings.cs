@@ -63,6 +63,12 @@ public class DownloadSettings
     /// configs are migrated once via <see cref="Config.SchemaVersion"/>).</summary>
     public bool EnableBrowserIntegration { get; set; } = true;
 
+    /// <summary>Last local-API port the listener actually bound to (from the declared 15151–15155 range).
+    /// 0 = not yet determined; the app prefers this on the next start before falling back further, and the
+    /// CLI reads it to reach the running instance. Not user-editable (the extension can only reach the
+    /// pre-declared range).</summary>
+    public int LocalApiPort { get; set; } = 0;
+
     /// <summary>UI language code (en, fa, es, fr, ar, eo). Default English.</summary>
     public string Language { get; set; } = "en";
 

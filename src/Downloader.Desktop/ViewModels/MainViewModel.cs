@@ -249,7 +249,16 @@ public class MainViewModel : ViewModelBase
         LocalApiService.Manager = _downloadManager;
         LocalApiService.Config = _config;
         if (_config.Settings.EnableBrowserIntegration)
+        {
             LocalApiService.Start();
+            // If the preferred port was taken and we fell back within the declared range, tell the user
+            // once (this setup runs once per session) so the extension's "not connected" makes sense.
+            if (LocalApiService.IsRunning && LocalApiService.EffectivePort != LocalApiService.PreferredPort)
+                NotificationService.Notify(
+                    Localizer.Instance["LocalApi_PortChangedTitle"],
+                    string.Format(Localizer.Instance["LocalApi_PortChangedMsg"], LocalApiService.EffectivePort),
+                    false);
+        }
 
         // Single instance: a second launch forwards its message here. A structured "add:{json}"
         // (from the CLI) is added silently — no dialog, no focus steal; a plain URL keeps today's

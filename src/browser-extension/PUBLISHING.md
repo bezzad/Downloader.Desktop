@@ -42,7 +42,8 @@
 2. **New item** → upload `dist/downloader-extension-chrome.zip`.
 3. Fill the listing (above), add screenshots, set the privacy policy URL, declare permissions
    (justify `webRequest`/host access: “detect downloadable media on the current page”; host
-   `127.0.0.1` : “send links to the local desktop app”).
+   `127.0.0.1` ports `15151`–`15155`: “send links to the local desktop app; the app falls back
+   within this small fixed port range when the default port is taken by another program”).
 4. Submit for review.
 
 ## 4. Microsoft Edge Add-ons (same package)
