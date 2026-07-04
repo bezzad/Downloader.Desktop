@@ -32,6 +32,9 @@ public interface IDownloadManager
     /// <summary>The configured queues (read-only view for building per-queue menus).</summary>
     System.Collections.Generic.IReadOnlyList<DownloadQueue> Queues { get; }
 
+    /// <summary>The shared config instance loaded at startup (null until <see cref="Initialize"/> runs).</summary>
+    Config Config { get; }
+
     /// <summary>Combined speed of all running downloads, bytes/second.</summary>
     double TotalSpeed { get; }
 

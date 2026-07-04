@@ -48,9 +48,9 @@ public class MainViewModel : ViewModelBase
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
         // Management pages open as dialogs over the always-downloads main view (the left rail was removed).
-        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"]));
-        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"]));
-        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"]));
+        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"], _config));
+        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"], _config));
+        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"], _config));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         DonateCommand = ReactiveCommand.Create(() =>
@@ -446,7 +446,7 @@ public class MainViewModel : ViewModelBase
     {
         // Always open the dialog; URLs can be typed there if the top box was empty.
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
-            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
+            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl), _config);
 
         if (result is { Count: > 0 })
         {

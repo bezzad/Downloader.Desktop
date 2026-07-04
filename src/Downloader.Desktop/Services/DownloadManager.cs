@@ -37,6 +37,8 @@ public class DownloadManager : IDownloadManager
 
     public IReadOnlyList<DownloadQueue> Queues => _config?.Queues ?? new List<DownloadQueue>();
 
+    public Config Config => _config;
+
     // Guards the "all complete" event so it fires once per batch, not on every item after the list
     // has already drained. Re-armed whenever a download (re)starts.
     private bool _allCompleteFired;

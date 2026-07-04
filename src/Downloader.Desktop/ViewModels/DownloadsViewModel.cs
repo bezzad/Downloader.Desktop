@@ -24,6 +24,9 @@ public class DownloadsViewModel : ViewModelBase
     private StatusFilter _filter = StatusFilter.All;
     private string _search;
 
+    /// <summary>The shared config instance, for callers that need it (e.g. the Details dialog's persisted size).</summary>
+    public Models.Config Config => _manager?.Config;
+
     /// <summary>Design-time constructor with sample rows.</summary>
     public DownloadsViewModel()
     {

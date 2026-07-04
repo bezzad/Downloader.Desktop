@@ -24,6 +24,9 @@ public class Config
     public List<string> DisabledPlugins { get; set; }
     public bool IsThemeDarkMode { get; set; }
 
+    /// <summary>Last user-resized dimensions of each modal window type, keyed by a constant name (e.g. "AddDownload").</summary>
+    public Dictionary<string, WindowSize> WindowSizes { get; set; }
+
     [JsonIgnore]
     public ThemeVariant ThemeMode
     {
@@ -57,7 +60,8 @@ public class Config
                 new() { Name = DownloadQueue.DefaultName, MaxConcurrent = settings.MaxConcurrentDownloads }
             },
             Schedules = new List<DownloadSchedule>(),
-            IsThemeDarkMode = false
+            IsThemeDarkMode = false,
+            WindowSizes = new Dictionary<string, WindowSize>()
         };
     }
 
@@ -79,6 +83,7 @@ public class Config
         if (Queues.Count == 0)
             Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName, MaxConcurrent = Settings.MaxConcurrentDownloads });
         Schedules ??= new List<DownloadSchedule>();
+        WindowSizes ??= new Dictionary<string, WindowSize>();
 
         // v0 → v1: integration became on-by-default when the local API shipped. Configs written
         // before then persisted false without ever asking the user, so flip it ONCE; any value the
@@ -89,4 +94,11 @@ public class Config
         SchemaVersion = CurrentSchemaVersion;
         return this;
     }
+}
+
+/// <summary>Persisted width/height of a remembered modal window type.</summary>
+public class WindowSize
+{
+    public double Width { get; set; }
+    public double Height { get; set; }
 }
