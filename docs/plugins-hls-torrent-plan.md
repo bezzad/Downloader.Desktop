@@ -59,8 +59,9 @@ Releases). Guides: `docs/writing-plugins.md`, `docs/plugins-architecture.md`.
 - **C. Vendor:** copy the 2 tiny SDK source files into a local `Abstractions/` project. Avoid drift.
 
 ## Plugin 1 — HLS (`Downloader.Plugins.Hls`)
-**Goal:** download an HLS stream (`.m3u8`) to a single playable file. Direct `.m3u8` only here (site
-extraction like YouTube/Instagram = a separate yt-dlp "video-sites" plugin, future).
+**Goal:** download an HLS stream (`.m3u8`) to a single playable file — from a direct `.m3u8` link **or a
+supported site page URL** (x.com first-class, other yt-dlp hosts best-effort). Site extraction is folded
+into this plugin via yt-dlp (see the `add-video-site-extraction` OpenSpec change), not a separate plugin.
 
 **Interfaces:** `IDownloaderPlugin` + `ILinkResolver` + `IPostProcessor`. (Keep the engine as the
 downloader: the resolver expands the playlist into segment parts; the host downloads them; the
@@ -132,6 +133,7 @@ BitTorrent library. Don't roll your own BitTorrent.
 - Keep commits small; TDD (write the parser/transfer tests first).
 
 ## Out of scope (note in README)
-- Site extraction (yt-dlp) for YouTube/Instagram → a separate future "video-sites" plugin.
+- ~~Site extraction (yt-dlp) → a separate future "video-sites" plugin.~~ **Superseded:** site extraction
+  is now part of the HLS plugin itself (yt-dlp-backed, `add-video-site-extraction` change).
 - The host **Phase-2** integration (JobCoordinator, multi-part download, ITransfer wiring) lives in the
   Downloader.Desktop repo, not here.
