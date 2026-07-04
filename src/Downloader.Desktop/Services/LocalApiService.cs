@@ -28,7 +28,9 @@ public static class LocalApiService
 
     /// <summary>The declared loopback port range the extension's manifest <c>host_permissions</c> cover
     /// (MV3 requires these to be static/install-time — an arbitrary runtime port would be unreachable).
-    /// Tried in this order when binding.</summary>
+    /// Tried in this order when binding. NOTE: this range must NOT overlap
+    /// <see cref="SingleInstanceService"/>'s lock port (15150) — a port held by the single-instance lock
+    /// would be permanently unbindable here and silently skipped in the fallback.</summary>
     public static readonly int[] PortRange = { 15151, 15152, 15153, 15154, 15155 };
 
     /// <summary>Requests bigger than this are rejected (nothing legitimate comes close).</summary>

@@ -324,6 +324,15 @@ public class LocalApiEndToEndTests
         }
     }
 
+    [Fact]
+    public void SingleInstance_lock_port_is_outside_the_api_range()
+    {
+        // The single-instance/CLI lock binds LockPort at startup; if it were inside the API's fallback
+        // range the API could never use that port (verified live: the API skipped 15152 → 15153 when the
+        // lock still sat on 15152). Guard the invariant so nobody moves it back into the range.
+        Assert.DoesNotContain(SingleInstanceService.LockPort, LocalApiService.PortRange);
+    }
+
     [AvaloniaFact]
     public void Start_prefers_the_persisted_effective_port()
     {
