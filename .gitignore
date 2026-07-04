@@ -23,6 +23,9 @@ mono_crash.*
 [Rr]eleases/
 # ...but the release *skill* is real content, not build output
 !.claude/skills/release/
+
+# Local git worktrees created by the agent harness — scratch, never committed
+.claude/worktrees/
 x64/
 x86/
 [Ww][Ii][Nn]32/
