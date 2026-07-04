@@ -339,6 +339,13 @@ public class AppTests
         await vm.ClipboardSuggestionReady;
         Assert.True(vm.ShowClipboardSuggestion);
 
+        // The overlay shows a compact one-line summary for many URLs (so a big clipboard can't flood
+        // the box) while the full text is still what gets committed on accept.
+        Localizer.Instance.Load("en");
+        Assert.Equal("3 links on clipboard", vm.ClipboardSuggestionDisplay);
+        Assert.DoesNotContain("\n", vm.ClipboardSuggestionDisplay);
+        Assert.Contains("a.zip", vm.ClipboardSuggestion); // full text retained for accept
+
         vm.AcceptClipboardSuggestion();
         Assert.True(vm.IsMultiple);
         Assert.Contains("a.zip", vm.Urls);

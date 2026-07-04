@@ -288,10 +288,21 @@ public class LocalApiEndToEndTests
     [AvaloniaFact]
     public void Start_falls_back_to_next_port_when_preferred_is_taken()
     {
-        // Occupy the preferred port with a throwaway listener so the service must fall back.
-        var blocker = new HttpListener();
-        blocker.Prefixes.Add($"http://127.0.0.1:{LocalApiService.PreferredPort}/");
-        blocker.Start();
+        // Occupy the preferred port so the service must fall back. If 15151 is ALREADY taken (e.g. a real
+        // Downloader instance is running on this machine), that satisfies the precondition just as well —
+        // don't fail the test trying to double-bind it.
+        HttpListener blocker = null;
+        try
+        {
+            blocker = new HttpListener();
+            blocker.Prefixes.Add($"http://127.0.0.1:{LocalApiService.PreferredPort}/");
+            blocker.Start();
+        }
+        catch (HttpListenerException)
+        {
+            blocker = null; // preferred port is already held externally — precondition met without us
+        }
+
         try
         {
             var config = Config.New();
@@ -308,8 +319,8 @@ public class LocalApiEndToEndTests
         {
             LocalApiService.Stop();
             LocalApiService.Config = null;
-            blocker.Stop();
-            blocker.Close();
+            blocker?.Stop();
+            blocker?.Close();
         }
     }
 

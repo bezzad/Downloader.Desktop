@@ -35,18 +35,20 @@
 
         <!-- Link(s) -->
         <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="{i18n:Tr Add_Links}" Margin="0 0 0 4" />
-        <Panel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0 0 0 14">
+        <Panel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0 0 0 14" ClipToBounds="True">
             <TextBox x:Name="UrlBox"
                      Text="{Binding Urls, Mode=TwoWay}"
                      AcceptsReturn="True" TextWrapping="NoWrap" Height="64"
                      CornerRadius="6"
                      VerticalContentAlignment="Top"
                      PlaceholderText="{Binding LinksPlaceholder}" />
-            <!-- Clipboard suggestion: dimmed, non-committed. Enter/Tab (handled in code-behind) accepts it. -->
+            <!-- Clipboard suggestion: dimmed, non-committed, always a SINGLE line ("N links" summary for
+                 many) and clipped to the box so a big clipboard can't overflow the dialog. Enter/Tab
+                 (handled in code-behind) accepts the full clipboard content. -->
             <TextBlock IsHitTestVisible="False"
                        IsVisible="{Binding ShowClipboardSuggestion}"
-                       Text="{Binding ClipboardSuggestion}"
-                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                       Text="{Binding ClipboardSuggestionDisplay}"
+                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxLines="1"
                        Margin="12 8 12 0" VerticalAlignment="Top" HorizontalAlignment="Left"
                        Foreground="{DynamicResource SystemAccentColor}" Opacity="0.65" />
             <TextBlock IsHitTestVisible="False"

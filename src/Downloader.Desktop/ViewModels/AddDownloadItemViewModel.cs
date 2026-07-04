@@ -27,6 +27,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     private DownloadQueue _selectedQueue;
     private string _sizeText;
     private string _clipboardSuggestion;
+    private int _clipboardUrlCount;
     private bool _resolving;
     private bool _userTypedName;
     private CancellationTokenSource _resolveCts;
@@ -154,7 +155,8 @@ public class AddDownloadItemViewModel : ViewModelBase
     public Task ClipboardSuggestionReady { get; }
 
     /// <summary>URL(s) found on the clipboard when the dialog opened empty, offered as a non-committed
-    /// suggestion. Never written into <see cref="Urls"/> until the user accepts it (Enter/Tab).</summary>
+    /// suggestion (the FULL text that gets committed on accept). Never written into <see cref="Urls"/>
+    /// until the user accepts it (Enter/Tab). For display use <see cref="ClipboardSuggestionDisplay"/>.</summary>
     public string ClipboardSuggestion
     {
         get => _clipboardSuggestion;
@@ -162,9 +164,17 @@ public class AddDownloadItemViewModel : ViewModelBase
         {
             this.RaiseAndSetIfChanged(ref _clipboardSuggestion, value);
             this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
+            this.RaisePropertyChanged(nameof(ClipboardSuggestionDisplay));
             this.RaisePropertyChanged(nameof(LinksPlaceholder));
         }
     }
+
+    /// <summary>One-line overlay text for the suggestion: the single URL, or an "N links" summary for a
+    /// multi-URL clipboard — so a big clipboard never floods the box (the overlay stays a single line).</summary>
+    public string ClipboardSuggestionDisplay =>
+        _clipboardUrlCount > 1
+            ? string.Format(Localizer.Instance["Add_ClipboardMultiple"], _clipboardUrlCount)
+            : _clipboardSuggestion;
 
     /// <summary>Show the placeholder-style suggestion overlay only while the real box is empty and a suggestion exists.</summary>
     public bool ShowClipboardSuggestion => !string.IsNullOrEmpty(_clipboardSuggestion) && string.IsNullOrEmpty(_urls);
@@ -190,6 +200,7 @@ public class AddDownloadItemViewModel : ViewModelBase
             if (urls.Count == 0)
                 return;
 
+            _clipboardUrlCount = urls.Count;
             ClipboardSuggestion = string.Join(Environment.NewLine, urls);
         }
         catch
@@ -205,6 +216,7 @@ public class AddDownloadItemViewModel : ViewModelBase
         if (string.IsNullOrEmpty(_clipboardSuggestion))
             return;
         Urls = _clipboardSuggestion;
+        _clipboardUrlCount = 0;
         ClipboardSuggestion = null;
     }
 
