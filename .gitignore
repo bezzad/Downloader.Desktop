@@ -26,6 +26,9 @@ mono_crash.*
 
 # Local git worktrees created by the agent harness — scratch, never committed
 .claude/worktrees/
+# Local editor/harness settings (personal plugin toggles etc.) — not shared project config
+.claude/settings.json
+.claude/settings.local.json
 x64/
 x86/
 [Ww][Ii][Nn]32/
