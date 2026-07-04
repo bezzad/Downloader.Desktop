@@ -302,6 +302,82 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public async Task Add_dialog_suggests_single_clipboard_url_and_accepts_it()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/from-clipboard.zip"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.Equal("https://host/from-clipboard.zip", vm.ClipboardSuggestion);
+        Assert.True(vm.ShowClipboardSuggestion);
+        Assert.False(vm.CanDownload); // suggestion is NOT committed yet
+
+        vm.AcceptClipboardSuggestion();
+        Assert.Equal("https://host/from-clipboard.zip", vm.Urls);
+        Assert.True(vm.CanDownload);
+        Assert.False(vm.ShowClipboardSuggestion);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_suggests_multiple_clipboard_urls_mixed_separators()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/a.zip https://host/b.zip,https://host/c.zip"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.True(vm.ShowClipboardSuggestion);
+
+        vm.AcceptClipboardSuggestion();
+        Assert.True(vm.IsMultiple);
+        Assert.Contains("a.zip", vm.Urls);
+        Assert.Contains("b.zip", vm.Urls);
+        Assert.Contains("c.zip", vm.Urls);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_ignores_clipboard_when_seed_url_present()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            "https://host/seed.zip",
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/clipboard.zip"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.Null(vm.ClipboardSuggestion);
+        Assert.False(vm.ShowClipboardSuggestion);
+        Assert.Equal("https://host/seed.zip", vm.Urls);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_no_suggestion_for_non_url_clipboard()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("just some copied prose, not a link"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.Null(vm.ClipboardSuggestion);
+        Assert.False(vm.ShowClipboardSuggestion);
+    }
+
+    [AvaloniaFact]
     public void Pending_name_shows_placeholder()
     {
         var item = new DownloadItem { Url = "https://host/x", Status = DownloadStatus.Running };

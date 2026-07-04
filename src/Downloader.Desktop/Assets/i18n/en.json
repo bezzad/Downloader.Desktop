@@ -78,6 +78,7 @@
   "Add_Title": "Add download",
   "Add_Links": "Link(s) — one per line",
   "Add_LinksPlaceholder": "https://…  (paste multiple links, one per line, to download all into the folder below)",
+  "Add_ClipboardHint": "Press Enter to use clipboard link",
   "Add_SaveTo": "Save to",
   "Add_ChooseFolder": "Choose a folder",
   "Add_FileName": "File name (optional)",

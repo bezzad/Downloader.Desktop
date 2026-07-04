@@ -19,12 +19,14 @@ public class AddDownloadItemViewModel : ViewModelBase
 {
     private readonly Config _config;
     private readonly Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> _resolveFileInfo;
+    private readonly Func<Task<string>> _readClipboard;
     private readonly TimeSpan _resolveDebounce;
     private string _urls;
     private string _fileName;
     private string _storageFolderPath;
     private DownloadQueue _selectedQueue;
     private string _sizeText;
+    private string _clipboardSuggestion;
     private bool _resolving;
     private bool _userTypedName;
     private CancellationTokenSource _resolveCts;
@@ -33,10 +35,12 @@ public class AddDownloadItemViewModel : ViewModelBase
         Config config,
         string url,
         Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> resolveFileInfo = null,
-        TimeSpan? resolveDebounce = null)
+        TimeSpan? resolveDebounce = null,
+        Func<Task<string>> readClipboard = null)
     {
         _config = config;
         _resolveFileInfo = resolveFileInfo ?? DefaultResolveFileInfoAsync;
+        _readClipboard = readClipboard ?? DefaultReadClipboardAsync;
         _resolveDebounce = resolveDebounce ?? TimeSpan.FromMilliseconds(600);
         _urls = url ?? string.Empty;
         _storageFolderPath = !string.IsNullOrWhiteSpace(config?.Settings?.DefaultSavePath)
@@ -50,6 +54,27 @@ public class AddDownloadItemViewModel : ViewModelBase
 
         if (!string.IsNullOrWhiteSpace(_urls))
             TriggerResolve();
+
+        // Only offer a clipboard suggestion when the dialog opens with no seed URL ("user have no any
+        // link added before"). Exposed as a task so tests can await the async probe deterministically.
+        ClipboardSuggestionReady = string.IsNullOrWhiteSpace(_urls)
+            ? LoadClipboardSuggestionAsync()
+            : Task.CompletedTask;
+    }
+
+    private static async Task<string> DefaultReadClipboardAsync()
+    {
+        try
+        {
+            var clipboard = (DialogHelper.MainWindow as Avalonia.Controls.TopLevel)?.Clipboard;
+            if (clipboard == null)
+                return null;
+            return await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(clipboard).ConfigureAwait(true);
+        }
+        catch
+        {
+            return null; // clipboard unavailable / denied — no suggestion, dialog still opens fine
+        }
     }
 
     private static async Task<(string FileName, long FileSize)?> DefaultResolveFileInfoAsync(string url, DownloadConfiguration configuration)
@@ -72,6 +97,8 @@ public class AddDownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(IsMultiple));
             this.RaisePropertyChanged(nameof(IsSingleLink));
             this.RaisePropertyChanged(nameof(IsFilenameEnabled));
+            this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
+            this.RaisePropertyChanged(nameof(LinksPlaceholder));
             TriggerResolve();
         }
     }
@@ -80,11 +107,17 @@ public class AddDownloadItemViewModel : ViewModelBase
     // batch into the single-line top box (which can collapse new lines to spaces) still splits (#19).
     private static readonly char[] UrlSeparators = { '\n', '\r', '\t', ' ', ',', ';' };
 
-    private IReadOnlyList<string> ParsedUrls =>
-        (_urls ?? string.Empty)
+    private static IReadOnlyList<string> SplitUrls(string raw) =>
+        (raw ?? string.Empty)
         .Split(UrlSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Where(u => u.Length > 0)
         .ToList();
+
+    private IReadOnlyList<string> ParsedUrls => SplitUrls(_urls);
+
+    private static bool IsHttpUrl(string s) =>
+        s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        s.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
     public bool CanDownload => ParsedUrls.Count > 0;
 
@@ -115,6 +148,64 @@ public class AddDownloadItemViewModel : ViewModelBase
     {
         get => _resolving;
         private set => this.RaiseAndSetIfChanged(ref _resolving, value);
+    }
+
+    /// <summary>Completes once the initial clipboard-suggestion probe (if any) has finished. For tests/sequencing.</summary>
+    public Task ClipboardSuggestionReady { get; }
+
+    /// <summary>URL(s) found on the clipboard when the dialog opened empty, offered as a non-committed
+    /// suggestion. Never written into <see cref="Urls"/> until the user accepts it (Enter/Tab).</summary>
+    public string ClipboardSuggestion
+    {
+        get => _clipboardSuggestion;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _clipboardSuggestion, value);
+            this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
+            this.RaisePropertyChanged(nameof(LinksPlaceholder));
+        }
+    }
+
+    /// <summary>Show the placeholder-style suggestion overlay only while the real box is empty and a suggestion exists.</summary>
+    public bool ShowClipboardSuggestion => !string.IsNullOrEmpty(_clipboardSuggestion) && string.IsNullOrEmpty(_urls);
+
+    /// <summary>The links box placeholder — blanked while the clipboard suggestion overlay is showing so the two
+    /// don't visually collide (both only render when the box is empty).</summary>
+    public string LinksPlaceholder => ShowClipboardSuggestion ? string.Empty : Localizer.Instance["Add_LinksPlaceholder"];
+
+    /// <summary>Reads the clipboard once and, if it holds ≥1 valid http/https URL, stores it as a suggestion.
+    /// Any failure (no clipboard, denied, non-URL text) leaves the dialog unchanged.</summary>
+    private async Task LoadClipboardSuggestionAsync()
+    {
+        try
+        {
+            var text = await _readClipboard().ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+            // The user may have typed while the async read was in flight — don't suggest over real input.
+            if (!string.IsNullOrEmpty(_urls))
+                return;
+
+            var urls = SplitUrls(text).Where(IsHttpUrl).ToList();
+            if (urls.Count == 0)
+                return;
+
+            ClipboardSuggestion = string.Join(Environment.NewLine, urls);
+        }
+        catch
+        {
+            // fail open — a clipboard hiccup must never break opening the dialog
+        }
+    }
+
+    /// <summary>Commits the clipboard suggestion into <see cref="Urls"/> (reusing the full parse/resolve
+    /// pipeline) and clears the suggestion. No-op if there's nothing to accept.</summary>
+    public void AcceptClipboardSuggestion()
+    {
+        if (string.IsNullOrEmpty(_clipboardSuggestion))
+            return;
+        Urls = _clipboardSuggestion;
+        ClipboardSuggestion = null;
     }
 
     /// <summary>

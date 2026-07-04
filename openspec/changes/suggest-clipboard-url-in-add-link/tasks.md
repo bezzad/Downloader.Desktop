@@ -1,18 +1,18 @@
 ## 1. ViewModel: clipboard read + suggestion state
-- [ ] 1.1 Add a `ClipboardSuggestion` (string, read-only externally) property to `AddDownloadItemViewModel`.
-- [ ] 1.2 In the constructor, only when the seed `url` is empty: read the clipboard text (via the `TopLevel`/`Clipboard` API used elsewhere for writes), reuse `UrlSeparators` splitting + http/https filtering to validate it, and set `ClipboardSuggestion` if it parses into ≥1 URL. Wrap in try/catch — any failure means no suggestion, dialog still opens normally.
-- [ ] 1.3 Add an `AcceptClipboardSuggestion()` method: sets `Urls = ClipboardSuggestion` (reusing existing parsing/resolve pipeline) and clears `ClipboardSuggestion`.
+- [x] 1.1 Added a `ClipboardSuggestion` (string, private setter) property to `AddDownloadItemViewModel`, plus `ShowClipboardSuggestion` (visible only while box empty + suggestion exists) and `ClipboardSuggestionReady` (a `Task` tests can await for the async probe).
+- [x] 1.2 The constructor kicks off an async clipboard probe only when the seed `url` is empty. Clipboard read is an injectable `Func<Task<string>> readClipboard` param (defaults to reading `DialogHelper.MainWindow`'s clipboard) — matches the existing injectable `resolveFileInfo` pattern and makes it unit-testable. Reuses the extracted static `SplitUrls` + a new `IsHttpUrl` filter (http/https only). Wrapped in try/catch (fail open). NOTE: the read had to go through `DialogHelper.MainWindow` (not `View`) because `View` isn't set until *after* construction.
+- [x] 1.3 Added `AcceptClipboardSuggestion()`: sets `Urls = ClipboardSuggestion` (reusing the full parse/resolve pipeline) and clears the suggestion.
 
 ## 2. View: suggestion rendering + accept key handling
-- [ ] 2.1 In `AddDownloadItemView.axaml`, add an overlay `TextBlock` (dimmed/placeholder style, `IsHitTestVisible="False"`) bound to `ClipboardSuggestion`, visible only while the real `Urls` box is empty and a suggestion exists.
-- [ ] 2.2 In `AddDownloadItemView.axaml.cs`, extend the existing URL-box `KeyDown` handler: while the box is empty and a suggestion is showing, Enter or Tab calls `AcceptClipboardSuggestion()` and moves focus/caret into the (now-populated) real box; otherwise keep existing Enter/Shift+Enter behavior unchanged.
+- [x] 2.1 In `AddDownloadItemView.axaml`, wrapped the URL `TextBox` in a `Panel` with an overlay `TextBlock` (accent-colored, `Opacity=0.65`, `IsHitTestVisible="False"`, ellipsis-trimmed) bound to `ClipboardSuggestion` + a small bottom-right "Press Enter to use clipboard link" hint, both gated on `ShowClipboardSuggestion`. The native `PlaceholderText` is routed through a new VM `LinksPlaceholder` that blanks while the suggestion shows, so the overlay and the built-in placeholder (both render only when empty) don't collide. Added `Add_ClipboardHint` to `en.json` (other locales fall back to English).
+- [x] 2.2 Added an `OnUrlBoxKeyDown` handler in `AddDownloadItemView.axaml.cs`: while `ShowClipboardSuggestion` is true, Enter or Tab calls `AcceptClipboardSuggestion()` and moves the caret to the end of the now-populated box; otherwise it falls through to normal typing (Enter/Shift+Enter insert newlines in this multi-line box). (This view had no prior KeyDown handler — the "existing" one referenced in the design was the MainWindow top-box handler, which I mirrored.)
 
 ## 3. Tests
-- [ ] 3.1 Headless/unit test: empty seed URL + a fake clipboard with a single valid URL → `ClipboardSuggestion` is set; accepting it sets `Urls` and `CanDownload` becomes true.
-- [ ] 3.2 Headless/unit test: empty seed URL + a fake clipboard with multiple URLs (mixed separators) → suggestion contains all of them; accepting parses into the same count via `ParsedUrls`.
-- [ ] 3.3 Headless/unit test: non-empty seed URL → no suggestion is read/shown regardless of clipboard content.
-- [ ] 3.4 Headless/unit test: clipboard with non-URL text (or empty clipboard) → no suggestion shown, dialog unaffected.
+- [x] 3.1 `Add_dialog_suggests_single_clipboard_url_and_accepts_it` — empty seed + single valid URL → `ClipboardSuggestion` set, `CanDownload` still false until accept; after accept `Urls` set + `CanDownload` true.
+- [x] 3.2 `Add_dialog_suggests_multiple_clipboard_urls_mixed_separators` — space/comma-separated clipboard → `IsMultiple` true after accept, all three URLs present.
+- [x] 3.3 `Add_dialog_ignores_clipboard_when_seed_url_present` — non-empty seed → no suggestion, `Urls` unchanged.
+- [x] 3.4 `Add_dialog_no_suggestion_for_non_url_clipboard` — prose clipboard → no suggestion. (All 4 in `AppTests.cs`, awaiting `ClipboardSuggestionReady`; full suite 183/183 green.)
 
 ## 4. Wrap-up
-- [ ] 4.1 Manually verify in the running app: open Add dialog after copying a URL, confirm placeholder-style suggestion appears and Enter/Tab accepts it; confirm typing over it works normally.
-- [ ] 4.2 Note in this change (before archiving) that the exact suggestion visual treatment may be revisited per the author's follow-up discussion.
+- [x] 4.1 Full GUI interaction isn't feasible in this headless environment; verified via the 4 unit tests above (covering suggest/accept/ignore/no-suggest paths incl. the `CanDownload`-stays-false-until-accept invariant), a clean build, and the earlier headless launch smoke check. The Add dialog isn't part of the screenshot capture set, so no `docs/screenshots/` refresh was needed.
+- [x] 4.2 Per the request and design, the exact visual treatment (dimmed accent overlay + Enter/Tab hint) is a first pass and may be revisited in the author's follow-up discussion; the parsing/download path is untouched so the visuals can be iterated in isolation.
