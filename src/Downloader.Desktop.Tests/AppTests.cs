@@ -418,6 +418,51 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Plan_stage_shows_part_progress_in_status_text()
+    {
+        Localizer.Instance.Load("en");
+        var vm = new DownloadItemViewModel(new DownloadItem { Status = DownloadStatus.Running }, null)
+        {
+            Status = DownloadStatus.Running,
+            Progress = 40
+        };
+        // No plan stage → plain percent.
+        Assert.Equal("40%", vm.StatusText);
+        // Multi-part plan sets the stage → "Part i/N · %".
+        vm.PlanStage = "Part 3/10";
+        Assert.Equal("Part 3/10 · 40%", vm.StatusText);
+        // Cleared when the plan finishes.
+        vm.PlanStage = null;
+        Assert.Equal("40%", vm.StatusText);
+    }
+
+    [AvaloniaFact]
+    public void Retry_clears_the_persisted_plan_so_it_re_resolves()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false; // don't actually start anything in the test
+        manager.Initialize(config);
+
+        var item = new DownloadItem
+        {
+            Urls = { "http://127.0.0.1:9/never" }, // connection-refused fast if the pump ever starts it
+            SaveFolder = System.IO.Path.GetTempPath(),
+            QueueId = config.DefaultQueue.Id,
+            PlanJson = "{\"Parts\":[{\"Url\":\"http://h/a\"},{\"Url\":\"http://h/b\"}]}"
+        };
+        var vm = manager.Add(item, autoStart: false);
+        vm.Status = DownloadStatus.Failed;
+
+        manager.Retry(vm);
+
+        // Retry drops the saved plan so the next Start re-resolves the (possibly expired) link.
+        Assert.Null(item.PlanJson);
+        Assert.NotEqual(DownloadStatus.Failed, vm.Status); // re-queued (Created) or already picked up (Running)
+        manager.Cancel(vm);
+    }
+
+    [AvaloniaFact]
     public void Pending_name_shows_placeholder()
     {
         var item = new DownloadItem { Url = "https://host/x", Status = DownloadStatus.Running };

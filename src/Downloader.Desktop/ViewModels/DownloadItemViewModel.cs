@@ -22,6 +22,7 @@ public class DownloadItemViewModel : ViewModelBase
     private double _speed;
     private DownloadStatus _status;
     private bool _isChecked;
+    private string _planStage;
 
     private DownloadService _download;
 
@@ -356,9 +357,23 @@ public class DownloadItemViewModel : ViewModelBase
 
     private static string L(string key) => Localizer.Instance[key];
 
+    /// <summary>Set by the multi-part plan runner to show "Part i/N" while downloading segments and
+    /// "Assembling…" during post-processing. Null for a normal single-file download.</summary>
+    public string PlanStage
+    {
+        get => _planStage;
+        set
+        {
+            if (_planStage == value) return;
+            _planStage = value;
+            this.RaisePropertyChanged(nameof(StatusText));
+        }
+    }
+
     public string StatusText => Status switch
     {
         DownloadStatus.None or DownloadStatus.Created => L("State_Queued"),
+        DownloadStatus.Running when !string.IsNullOrEmpty(_planStage) => $"{_planStage} · {Progress:0}%",
         DownloadStatus.Running => $"{Progress:0}%",
         // Keep the percentage visible (and the bar filled) when paused/stopped, not just a state word.
         DownloadStatus.Paused => $"{Progress:0}% · {L("State_Paused")}",

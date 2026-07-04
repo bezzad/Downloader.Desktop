@@ -114,4 +114,8 @@
     <ItemGroup>
       <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+      <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
+    </ItemGroup>
 </Project>

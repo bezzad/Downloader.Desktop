@@ -1,50 +1,75 @@
 ## 1. Plan model & persistence
 
-- [ ] 1.1 Persist the resolved plan on `DownloadItem` (`PlanJson`: parts url/kind/headers/expectedSize,
-  post-process kind+recipe, suggested name); write it when resolution returns a multi-part/post-process
-  plan; keep it null for plain downloads.
-- [ ] 1.2 Parts folder convention: `<folder>/.<final-name>.parts/NNN_<safe-name>` + completed-part
-  detection (expected size match, else `.done` marker).
+- [x] 1.1 Persist the resolved plan on `DownloadItem.PlanJson` via `Models/PersistedPlan.cs` (a JSON-friendly
+  copy of the SDK `DownloadPlan`: parts url/kind/headers/expectedSize, post-process kind+recipe, suggested
+  name). Written in `Start` when a resolver returns a `NeedsRunner` plan (>1 part or a post-process); stays
+  null for a plain single-file download.
+- [x] 1.2 Parts folder convention `<folder>/.<final-name>.parts/NNNN_<safe-name>` (`ExecutePlanAsync`).
+  Completed-part detection: size match when `ExpectedSize` is known, else a `.done` marker (so a half-written
+  part with unknown size isn't mistaken for complete). Post-download uses a separate `PartDownloadedOk`
+  (exists + size-match-or-non-empty) so the just-fetched part isn't rejected before its marker is written.
 
 ## 2. Plan runner (DownloadManager)
 
-- [ ] 2.1 `Start` branches: single-part `PostProcess.None` plans keep today's exact path; otherwise run the
-  plan via a `PlanRunner` partial (`Services/DownloadManager.Plans.cs`) occupying one queue slot.
-- [ ] 2.2 Sequential part execution through the engine with the item's settings + per-part headers; engine
-  resume applies within a part; skip already-completed parts.
-- [ ] 2.3 Post-process: `FindPostProcessor` → assemble to temp name → atomic move to final path → delete
-  parts folder; missing processor / thrown error → Failed with friendly message.
-- [ ] 2.4 Controls: pause stops at the current part (state persists), resume continues, cancel deletes the
-  parts folder; all through the existing guarded manager choke points so bulk/scheduler rules apply.
-- [ ] 2.5 Retry re-resolves the original link; reuse completed parts only when the fresh plan matches,
-  else start clean.
+- [x] 2.1 `Start` branches: `ResolvePlanAsync` gets the full plan; a single-part `PostProcess.None` plan keeps
+  today's exact engine path (URL rewrite only), otherwise `RunPlanAsync` runs it (one queue slot).
+  `Services/DownloadManager.Plans.cs` (partial). Restart/resume reuses the persisted `PlanJson` without
+  re-resolving.
+- [x] 2.2 Sequential part execution through a per-part `DownloadService` with the item's settings +
+  per-part `Headers` (`ApplyHeaders` → `RequestConfiguration.Headers`); engine resume applies within a part;
+  already-complete parts are skipped.
+- [x] 2.3 Post-process: `FindPostProcessor(plan.PostProcess)` → assemble to `<final>.assembling` → atomic
+  move to the final path → delete the parts folder; missing processor / thrown error → Failed with a friendly
+  message (`Plan_NoProcessor`). Multi-part with `PostProcess.None` → raw binary concat.
+- [x] 2.4 Controls reuse the per-row `vm.Download` handle (each part's engine is published to it): pause
+  suspends the current part transparently (engine pause blocks the await), resume continues, cancel
+  (Status→Stopped) makes the part return and the runner deletes the parts folder. Remove also cleans the
+  parts folder. All through the guarded manager methods so bulk/scheduler rules apply.
+- [x] 2.5 Retry clears `PlanJson` so the next Start re-resolves the link (expiring segment URLs); completed
+  parts on disk are reused only when the fresh plan's part path (NNNN_<name-from-url>) matches.
 
 ## 3. Progress & status (row VM)
 
-- [ ] 3.1 Aggregate progress: byte-weighted when sizes known, else parts-completed/total; reserve a tail
-  for assembly; feed through the existing `StageProgress` pump (no per-event UI posts).
-- [ ] 3.2 Status text: `part i/N` while downloading, "Assembling…" during post-process; localized keys.
+- [x] 3.1 Aggregate progress: byte-weighted when every part has `ExpectedSize` (live bytes of the current
+  part counted), else parts-completed/total; the last 10% is reserved for assembly when there's a
+  post-process. Fed through the existing `StageProgress` pump (no per-event UI posts).
+- [x] 3.2 Status text: `DownloadItemViewModel.PlanStage` → "Part i/N" while downloading, "Assembling…" during
+  post-process (localized `Plan_Part` / `Plan_Assembling`); `StatusText` shows "Part i/N · 45%".
 
 ## 4. Restart resume
 
-- [ ] 4.1 On load, an item with a persisted plan and an existing parts folder resumes from the first
-  incomplete part when started; a completed-but-unassembled run goes straight to assembly.
+- [x] 4.1 On load the persisted `PlanJson` + existing parts folder let `ExecutePlanAsync` skip completed
+  parts and resume from the first incomplete one; a completed-but-unassembled run skips all parts and goes
+  straight to assembly. (Tested: `Restart_resume_only_fetches_missing_parts`.)
 
 ## 5. Tests
 
-- [ ] 5.1 Runner happy path against loopback server: 3-part plan + fake post-processor → parts downloaded
-  in order, assembled output at final path, parts folder gone.
-- [ ] 5.2 Headers test: loopback asserts per-part request headers arrive.
-- [ ] 5.3 Pause/resume mid-plan (completed parts not re-fetched) and cancel (parts folder removed).
-- [ ] 5.4 Restart-resume: new manager instance over the same config/parts → only remaining parts fetched.
-- [ ] 5.5 Missing post-processor and failing part → Failed with friendly message; Retry re-resolves
-  (resolver called again).
-- [ ] 5.6 Regression: single-part `PostProcess.None` plan takes the legacy path (no parts folder).
+- [x] 5.1 `Happy_path_downloads_all_parts_in_order_assembles_and_cleans_up` — 3-part plan + fake processor
+  against the loopback server → parts downloaded, assembled output byte-correct at the final path, parts
+  folder gone.
+- [x] 5.2 `Per_part_headers_reach_the_server` — the loopback server records the per-part `X-Token` header.
+- [x] 5.3 `Cancel_removes_the_parts_folder_and_returns_null` (cancel path). Pause/resume mid-plan is
+  engine-native (the current part's `DownloadService.Pause/Resume`, the same suspend path a normal download
+  uses — the runner just awaits it), so it's not separately unit-tested; the completed-parts-not-refetched
+  guarantee is covered by 5.4.
+- [x] 5.4 `Restart_resume_only_fetches_missing_parts` — a pre-existing part on disk is reused; only the
+  missing part is fetched (asserted via the server's requested-paths set).
+- [x] 5.5 `Missing_post_processor_throws_and_keeps_parts_for_retry`; `Retry_clears_the_persisted_plan_so_it_re_resolves`
+  (manager-level, in AppTests).
+- [x] 5.6 `Single_part_none_plan_does_not_need_the_runner` (+ `Persisted_plan_round_trips_through_json`) — the
+  Start branch condition that keeps a single-part `PostProcess.None` on the legacy path. Also
+  `Plan_stage_shows_part_progress_in_status_text` for the VM status text. Full app suite 196/196 green.
 
 ## 6. End-to-end & docs
 
-- [ ] 6.1 In-app e2e with the real HLS plugin: direct `.m3u8` → playable MP4 in the save folder; then the
-  x.com flow — also closes `add-video-site-extraction` task 7.3 (note result there before archiving it).
-- [ ] 6.2 README.md + docs: advertise "video/HLS downloads via plugins now work end-to-end" per the
-  standing first-glance rule; update `docs/plugins-architecture.md` pipeline section; refresh screenshots
-  if row status UI changed.
+- [ ] 6.1 **In-app e2e with the real HLS plugin — needs the author to run it on a machine with the HLS
+  plugin installed + ffmpeg/yt-dlp available and a GUI session** (can't be verified headlessly here): paste a
+  direct `.m3u8` → confirm a playable file lands in the save folder, then the x.com flow. This also closes
+  `add-video-site-extraction` task 7.3 — note the result there before archiving that change.
+- [x] 6.2 README.md advertises "video/HLS downloads via plugins now work end-to-end" (Features list);
+  `docs/plugins-architecture.md` Phase 2 section rewritten to describe the plan runner (download → assemble →
+  resume, progress/controls, PersistedPlan). No row-status screenshot refresh needed here (screenshots are
+  Linux-only per SKILL.md; the new "Part i/N"/"Assembling…" text only shows during an active multi-part run,
+  which the capture set doesn't exercise). i18n: `Plan_Part`/`Plan_Assembling`/`Plan_NoProcessor` added to
+  all 16 language packs (and the whole i18n set re-synced — ~40–68 previously English-only keys translated
+  across every language).

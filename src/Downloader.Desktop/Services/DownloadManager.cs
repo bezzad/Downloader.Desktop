@@ -16,7 +16,7 @@ namespace Downloader.Desktop.Services;
 /// <see cref="DownloadBuilder"/>, marshals engine events onto the UI thread, and updates the
 /// matching <see cref="DownloadItemViewModel"/>. Queue concurrency / scheduling are layered on later.
 /// </summary>
-public class DownloadManager : IDownloadManager
+public partial class DownloadManager : IDownloadManager
 {
     private Config _config;
 
@@ -352,9 +352,36 @@ public class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
-                // If an enabled plugin claims this link (e.g. github.com/owner/repo -> the latest release
-                // asset for this OS), resolve it to a real downloadable URL before the engine runs.
-                (urls[0], fileName) = await ResolveViaPluginsAsync(urls[0], fileName, default).ConfigureAwait(false);
+                // Resolve the plan: reuse a persisted one (restart / resume of a multi-part download) or
+                // ask the plugins fresh. A multi-part / post-process plan is run by the plan runner; a
+                // single-part plan just rewrites the URL + name and falls through to the normal engine path.
+                var persisted = PersistedPlan.FromJson(item.PlanJson);
+                if (persisted == null)
+                {
+                    var plan = await ResolvePlanAsync(urls[0], default).ConfigureAwait(false);
+                    if (plan?.Parts is { Count: > 0 })
+                    {
+                        var pp = PersistedPlan.From(plan);
+                        if (pp.NeedsRunner)
+                        {
+                            item.PlanJson = pp.ToJson();
+                            persisted = pp;
+                        }
+                        else if (!string.IsNullOrWhiteSpace(plan.Parts[0].Url))
+                        {
+                            urls[0] = plan.Parts[0].Url;
+                            if (string.IsNullOrWhiteSpace(fileName))
+                                fileName = plan.SuggestedFileName;
+                            AppLog.Info($"Plugin resolved {item.Url} -> {urls[0]}");
+                        }
+                    }
+                }
+
+                if (persisted != null)
+                {
+                    await RunPlanAsync(vm, persisted, folder, fileName, default).ConfigureAwait(false);
+                    return; // the plan runner owns completion (marks Completed/Failed itself)
+                }
 
                 // Follow redirects up-front for the primary URL (handles 307/308, signed links, etc.).
                 // The engine also follows redirects, so this is a best-effort optimization only.
@@ -398,33 +425,38 @@ public class DownloadManager : IDownloadManager
     /// post-process plans (HLS, torrent) need the not-yet-built job coordinator and are downloaded as their
     /// first part for now (logged).
     /// </summary>
-    public async Task<(string Url, string FileName)> ResolveViaPluginsAsync(
-        string url, string currentFileName, System.Threading.CancellationToken cancellationToken)
+    /// <summary>Asks the enabled plugin resolvers to turn <paramref name="url"/> into a concrete plan
+    /// (real part URLs + post-process recipe). Returns null when no plugin claims it, there's no plugin
+    /// manager, or resolving fails.</summary>
+    public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
+        string url, System.Threading.CancellationToken cancellationToken)
     {
         if (_plugins == null)
-            return (url, currentFileName);
-
-        Plugins.DownloadPlan plan;
+            return null;
         try
         {
-            plan = await _plugins.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
+            return await _plugins.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             AppLog.Error($"Plugin resolve failed for {url} — using the link as-is", ex);
-            return (url, currentFileName);
+            return null;
         }
+    }
 
+    /// <summary>Single-part convenience over <see cref="ResolvePlanAsync"/>: if a resolver claims the link,
+    /// returns its first part's URL + suggested name; otherwise the input unchanged. Multi-part / post-process
+    /// plans are handled by the plan runner (see <c>DownloadManager.Plans.cs</c>), not here.</summary>
+    public async Task<(string Url, string FileName)> ResolveViaPluginsAsync(
+        string url, string currentFileName, System.Threading.CancellationToken cancellationToken)
+    {
+        var plan = await ResolvePlanAsync(url, cancellationToken).ConfigureAwait(false);
         if (plan?.Parts == null || plan.Parts.Count == 0)
             return (url, currentFileName);
 
         var part = plan.Parts[0];
         if (string.IsNullOrWhiteSpace(part.Url))
             return (url, currentFileName);
-
-        if (plan.Parts.Count > 1 || plan.PostProcess.Kind != Plugins.PostProcessKind.None)
-            AppLog.Info($"Plugin returned a {plan.Parts.Count}-part/{plan.PostProcess.Kind} plan for {url}; " +
-                        "downloading the first part only (multi-part assembly is not wired yet).");
 
         var name = string.IsNullOrWhiteSpace(currentFileName) ? plan.SuggestedFileName : currentFileName;
         AppLog.Info($"Plugin resolved {url} -> {part.Url}");
@@ -518,6 +550,10 @@ public class DownloadManager : IDownloadManager
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
+        // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
+        // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
+        // disk are reused only when the fresh plan's part paths match (same url → same part file).
+        vm.GetItem().PlanJson = null;
         vm.Status = DownloadStatus.Created;
         EnsureQueueRunning(vm.GetItem().QueueId); // see Resume: an explicit start un-pauses the queue
         PumpQueue(vm.GetItem().QueueId);
@@ -535,6 +571,7 @@ public class DownloadManager : IDownloadManager
             // best-effort stop before removal
         }
 
+        TryDeletePartsFolder(vm.GetItem()); // clean up any half-downloaded multi-part scratch
         vm.Detach();
         Items.Remove(vm);
         NotifyList();

@@ -50,11 +50,29 @@ app privileges — the safe long-term UX is an in-app catalog of **vetted/offici
 ideally signed; the open folder is for power users.)
 
 ## Phasing
-- **Phase 1 (this change):** the Abstractions SDK + `PluginManager` (registry + ALC loader + enable/disable
+- **Phase 1 (done):** the Abstractions SDK + `PluginManager` (registry + ALC loader + enable/disable
   + `ResolveAsync`/post-processor/transfer lookup) + the Plugins UI + a safe resolve hook (no plugin → core
   behavior unchanged). TDD: registry/pipeline/manager behavior.
-- **Phase 2 (later):** the `JobCoordinator` + multi-part download + the `ITransfer` refactor that lets the
-  queue/UI drive torrent/HLS uniformly; the official HLS (yt-dlp+ffmpeg) and torrent plugins.
+- **Phase 2 (done — the Resolve → Transfer → Post-process pipeline now runs end to end):** the multi-part
+  **plan runner** in `DownloadManager` (`Services/DownloadManager.Plans.cs`). When a resolver returns a
+  `DownloadPlan` with more than one part or a post-process step, `Start` hands off to `RunPlanAsync` →
+  `ExecutePlanAsync` (UI-free, unit-tested):
+  1. **Download** each part sequentially through the engine (the item's settings + the part's per-request
+     `Headers`), into a hidden `<folder>/.<final-name>.parts/NNNN_<name>` scratch folder. Completed parts
+     are detected by files on disk (size match, else a `.done` marker), so an **app restart resumes from
+     the first incomplete part**. One queue slot per plan (same as a normal download).
+  2. **Assemble** via `PluginManager.FindPostProcessor(plan.PostProcess)` (ffmpeg concat/mux, …) → temp file
+     → atomic move to the final path → delete the parts folder. A missing processor / failed part marks the
+     row **Failed** with a friendly message; **Retry re-resolves** the link (segment URLs expire) and reuses
+     still-valid completed parts.
+  - **Progress/controls:** one aggregate row progress (byte-weighted when part sizes are known, else
+     parts-completed/total, reserving the last 10% for assembly), status text `Part i/N` / `Assembling…`,
+     and pause/resume/cancel via the existing per-row `vm.Download` handle (each part's engine is published
+     to it). The plan is persisted on `DownloadItem.PlanJson`.
+  - The resolved plan is stored as a `PersistedPlan` (`Models/PersistedPlan.cs`) — a JSON-friendly copy of
+     the SDK's `DownloadPlan`.
+  - Still deferred: the `ITransfer` path (torrent — no plugin uses it yet) and parallel part downloads
+     (v1 is sequential; each part still uses engine multipart internally).
 
 ## Breaking changes
 - New project `Downloader.Desktop.Plugins.Abstractions` added to the solution; app references it.

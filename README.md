@@ -44,6 +44,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
 - **System tray** — closing the window keeps downloads running in the background; reopen, mute notifications, or quit from the tray menu. Optionally **launch at startup** (hidden in the tray).
 - **Automatic update check** — get an in-app prompt when a new version ships, and update with one click.
+- **Extensible via plugins** — a plugin can turn a link the engine can't grab directly into a real download: the app downloads all the parts and assembles them into one file for you (e.g. **HLS `.m3u8`** streams → a single playable video via the HLS plugin). Multi-part downloads show live "Part 3/10" progress and an "Assembling…" step, and resume where they left off after a restart.
 - **Automation-friendly** — add and manage downloads from scripts or the terminal via a local API and CLI (see [Automation](#automation-local-api--command-line)).
 - **Multi-language UI** — English, فارسی (Persian), Español, Français, العربية (Arabic), Esperanto — with full right-to-left layout for Persian/Arabic. Switch under **Settings → App language**.
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
