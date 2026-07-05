@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Einmal",
   "Sched_OnceOff": "Wiederholen",
   "Sched_Queue": "Warteschlange",
-  "Sched_Remove": "Entfernen"
+  "Sched_Remove": "Entfernen",
+  "Add_AddQueue": "Warteschlange hinzufügen",
+  "Add_QueueNamePlaceholder": "Name der Warteschlange",
+  "Add_QueueConfirm": "Warteschlange erstellen",
+  "Add_QueueCancel": "Abbrechen"
 }

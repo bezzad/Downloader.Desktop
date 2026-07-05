@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Une fois",
   "Sched_OnceOff": "Répéter",
   "Sched_Queue": "File d’attente",
-  "Sched_Remove": "Supprimer"
+  "Sched_Remove": "Supprimer",
+  "Add_AddQueue": "Ajouter une file",
+  "Add_QueueNamePlaceholder": "Nom de la file",
+  "Add_QueueConfirm": "Créer la file",
+  "Add_QueueCancel": "Annuler"
 }

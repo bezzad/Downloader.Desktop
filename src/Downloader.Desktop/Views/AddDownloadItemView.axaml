@@ -103,9 +103,28 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- Actions -->
+        <!-- Actions: [inline new-queue name row when adding] … [Add queue] [Add] -->
         <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0 16 0 0">
+            <!-- Inline queue-name entry (shown by the Add-queue button; Enter confirms). -->
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsAddingQueue}">
+                <TextBox x:Name="QueueNameBox" Width="160" CornerRadius="6" VerticalContentAlignment="Center"
+                         Text="{Binding NewQueueName, Mode=TwoWay}"
+                         PlaceholderText="{i18n:Tr Add_QueueNamePlaceholder}"
+                         KeyDown="OnQueueNameKeyDown" />
+                <Button Classes="icon" Command="{Binding ConfirmAddQueueCommand}" ToolTip.Tip="{i18n:Tr Add_QueueConfirm}">
+                    <PathIcon Data="{DynamicResource CheckmarkRegular}" Height="14" />
+                </Button>
+                <Button Classes="icon" Command="{Binding CancelAddQueueCommand}" ToolTip.Tip="{i18n:Tr Add_QueueCancel}">
+                    <PathIcon Data="{DynamicResource DismissRegular}" Height="14" />
+                </Button>
+            </StackPanel>
+            <!-- Same style as the Add button, to its left (author's spec). -->
+            <Button Content="{i18n:Tr Add_AddQueue}" Padding="20 8" Cursor="Hand"
+                    HorizontalContentAlignment="Center"
+                    Classes="accent"
+                    IsVisible="{Binding CanAddQueue}"
+                    Command="{Binding AddQueueCommand}" />
             <Button Content="{i18n:Tr Add_Download}" Padding="20 8" Cursor="Hand"
                     HorizontalContentAlignment="Center"
                     Classes="accent"

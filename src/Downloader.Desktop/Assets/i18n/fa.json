@@ -249,5 +249,9 @@
   "Sched_OnceOn": "یک‌بار",
   "Sched_OnceOff": "تکرار",
   "Sched_Queue": "صف",
-  "Sched_Remove": "حذف"
+  "Sched_Remove": "حذف",
+  "Add_AddQueue": "افزودن صف",
+  "Add_QueueNamePlaceholder": "نام صف",
+  "Add_QueueConfirm": "ایجاد صف",
+  "Add_QueueCancel": "لغو"
 }

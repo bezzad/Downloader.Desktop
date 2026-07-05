@@ -18,6 +18,23 @@ public partial class AddDownloadItemView : Window
         UrlBox.AddHandler(KeyDownEvent, OnUrlBoxKeyDown, RoutingStrategies.Tunnel);
     }
 
+    /// <summary>Enter in the inline queue-name box confirms the new queue; Esc cancels the row.</summary>
+    private void OnQueueNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not AddDownloadItemViewModel vm)
+            return;
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            vm.ConfirmAddQueue();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            vm.CancelAddQueueCommand.Execute(null);
+        }
+    }
+
     /// <summary>While the links box is empty and a clipboard suggestion is showing, Enter or Tab accepts it
     /// (populating the real box). Otherwise keep normal typing behaviour (Enter/Shift+Enter insert newlines
     /// in this multi-line box).</summary>

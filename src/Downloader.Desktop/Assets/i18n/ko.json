@@ -249,5 +249,9 @@
   "Sched_OnceOn": "한 번",
   "Sched_OnceOff": "반복",
   "Sched_Queue": "대기열",
-  "Sched_Remove": "제거"
+  "Sched_Remove": "제거",
+  "Add_AddQueue": "대기열 추가",
+  "Add_QueueNamePlaceholder": "대기열 이름",
+  "Add_QueueConfirm": "대기열 만들기",
+  "Add_QueueCancel": "취소"
 }

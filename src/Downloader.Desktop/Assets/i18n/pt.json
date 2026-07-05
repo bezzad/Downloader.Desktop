@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Uma vez",
   "Sched_OnceOff": "Repetir",
   "Sched_Queue": "Fila",
-  "Sched_Remove": "Remover"
+  "Sched_Remove": "Remover",
+  "Add_AddQueue": "Adicionar fila",
+  "Add_QueueNamePlaceholder": "Nome da fila",
+  "Add_QueueConfirm": "Criar fila",
+  "Add_QueueCancel": "Cancelar"
 }

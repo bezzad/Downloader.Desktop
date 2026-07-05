@@ -249,5 +249,9 @@
   "Sched_OnceOn": "一度",
   "Sched_OnceOff": "繰り返し",
   "Sched_Queue": "キュー",
-  "Sched_Remove": "削除"
+  "Sched_Remove": "削除",
+  "Add_AddQueue": "キューを追加",
+  "Add_QueueNamePlaceholder": "キュー名",
+  "Add_QueueConfirm": "キューを作成",
+  "Add_QueueCancel": "キャンセル"
 }

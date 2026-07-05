@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Bir dəfə",
   "Sched_OnceOff": "Təkrarla",
   "Sched_Queue": "Növbə",
-  "Sched_Remove": "Sil"
+  "Sched_Remove": "Sil",
+  "Add_AddQueue": "Növbə əlavə et",
+  "Add_QueueNamePlaceholder": "Növbə adı",
+  "Add_QueueConfirm": "Növbəni yarat",
+  "Add_QueueCancel": "Ləğv et"
 }

@@ -18,8 +18,11 @@ namespace Downloader.Desktop.ViewModels;
 public class AddDownloadItemViewModel : ViewModelBase
 {
     private readonly Config _config;
+    private readonly IDownloadManager _manager;
     private readonly Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> _resolveFileInfo;
     private readonly Func<Task<string>> _readClipboard;
+    private bool _isAddingQueue;
+    private string _newQueueName;
     private readonly TimeSpan _resolveDebounce;
     private string _urls;
     private string _fileName;
@@ -37,9 +40,11 @@ public class AddDownloadItemViewModel : ViewModelBase
         string url,
         Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> resolveFileInfo = null,
         TimeSpan? resolveDebounce = null,
-        Func<Task<string>> readClipboard = null)
+        Func<Task<string>> readClipboard = null,
+        IDownloadManager manager = null)
     {
         _config = config;
+        _manager = manager;
         _resolveFileInfo = resolveFileInfo ?? DefaultResolveFileInfoAsync;
         _readClipboard = readClipboard ?? DefaultReadClipboardAsync;
         _resolveDebounce = resolveDebounce ?? TimeSpan.FromMilliseconds(600);
@@ -52,6 +57,9 @@ public class AddDownloadItemViewModel : ViewModelBase
 
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
+        AddQueueCommand = ReactiveCommand.Create(() => { IsAddingQueue = true; });
+        ConfirmAddQueueCommand = ReactiveCommand.Create(ConfirmAddQueue);
+        CancelAddQueueCommand = ReactiveCommand.Create(() => { NewQueueName = string.Empty; IsAddingQueue = false; });
 
         if (!string.IsNullOrWhiteSpace(_urls))
             TriggerResolve();
@@ -307,7 +315,9 @@ public class AddDownloadItemViewModel : ViewModelBase
         }
     }
 
-    public List<DownloadQueue> Queues => _config?.Queues;
+    // A fresh list each read: re-raising PropertyChanged with the SAME list instance would not make the
+    // ComboBox re-enumerate (same lesson as the queue MenuFlyout gotcha).
+    public List<DownloadQueue> Queues => _config?.Queues?.ToList();
 
     public DownloadQueue SelectedQueue
     {
@@ -316,6 +326,45 @@ public class AddDownloadItemViewModel : ViewModelBase
     }
 
     public bool ShowQueuePicker => (_config?.Queues?.Count ?? 0) > 1;
+
+    // ---- Inline queue creation (the "Add queue" button next to Add) ----
+
+    public ICommand AddQueueCommand { get; }
+    public ICommand ConfirmAddQueueCommand { get; }
+    public ICommand CancelAddQueueCommand { get; }
+
+    /// <summary>The button only shows when the dialog has a manager to create queues through
+    /// (design-time / legacy constructions don't).</summary>
+    public bool CanAddQueue => _manager != null;
+
+    /// <summary>True while the inline "name the new queue" row is showing.</summary>
+    public bool IsAddingQueue
+    {
+        get => _isAddingQueue;
+        private set => this.RaiseAndSetIfChanged(ref _isAddingQueue, value);
+    }
+
+    public string NewQueueName
+    {
+        get => _newQueueName;
+        set => this.RaiseAndSetIfChanged(ref _newQueueName, value);
+    }
+
+    /// <summary>Creates the queue through the manager (so QueuesChanged/pump wiring stays consistent),
+    /// refreshes the picker and selects the new queue. Empty/whitespace names are ignored.</summary>
+    public void ConfirmAddQueue()
+    {
+        var name = NewQueueName?.Trim();
+        if (string.IsNullOrEmpty(name) || _manager == null)
+            return;
+
+        var queue = _manager.AddQueue(name);
+        NewQueueName = string.Empty;
+        IsAddingQueue = false;
+        this.RaisePropertyChanged(nameof(Queues));
+        this.RaisePropertyChanged(nameof(ShowQueuePicker));
+        SelectedQueue = queue; // the download(s) being added land in the new queue
+    }
 
     private async Task SelectFileStoragePathAsync()
     {

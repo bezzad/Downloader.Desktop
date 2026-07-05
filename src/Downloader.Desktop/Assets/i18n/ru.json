@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Один раз",
   "Sched_OnceOff": "Повторять",
   "Sched_Queue": "Очередь",
-  "Sched_Remove": "Удалить"
+  "Sched_Remove": "Удалить",
+  "Add_AddQueue": "Добавить очередь",
+  "Add_QueueNamePlaceholder": "Имя очереди",
+  "Add_QueueConfirm": "Создать очередь",
+  "Add_QueueCancel": "Отмена"
 }

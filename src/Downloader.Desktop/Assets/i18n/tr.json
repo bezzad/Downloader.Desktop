@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Bir kez",
   "Sched_OnceOff": "Yinele",
   "Sched_Queue": "Kuyruk",
-  "Sched_Remove": "Kaldır"
+  "Sched_Remove": "Kaldır",
+  "Add_AddQueue": "Kuyruk ekle",
+  "Add_QueueNamePlaceholder": "Kuyruk adı",
+  "Add_QueueConfirm": "Kuyruğu oluştur",
+  "Add_QueueCancel": "İptal"
 }

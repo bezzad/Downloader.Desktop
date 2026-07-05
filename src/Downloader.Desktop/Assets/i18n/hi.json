@@ -249,5 +249,9 @@
   "Sched_OnceOn": "एक बार",
   "Sched_OnceOff": "दोहराएँ",
   "Sched_Queue": "क़तार",
-  "Sched_Remove": "हटाएँ"
+  "Sched_Remove": "हटाएँ",
+  "Add_AddQueue": "कतार जोड़ें",
+  "Add_QueueNamePlaceholder": "कतार नाम",
+  "Add_QueueConfirm": "कतार बनाएँ",
+  "Add_QueueCancel": "रद्द करें"
 }

@@ -249,5 +249,9 @@
   "Sched_OnceOn": "مرة واحدة",
   "Sched_OnceOff": "تكرار",
   "Sched_Queue": "قائمة الانتظار",
-  "Sched_Remove": "إزالة"
+  "Sched_Remove": "إزالة",
+  "Add_AddQueue": "إضافة قائمة انتظار",
+  "Add_QueueNamePlaceholder": "اسم قائمة الانتظار",
+  "Add_QueueConfirm": "إنشاء القائمة",
+  "Add_QueueCancel": "إلغاء"
 }

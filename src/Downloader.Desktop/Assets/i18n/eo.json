@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Unufoje",
   "Sched_OnceOff": "Ripeti",
   "Sched_Queue": "Atendovico",
-  "Sched_Remove": "Forigi"
+  "Sched_Remove": "Forigi",
+  "Add_AddQueue": "Aldoni vicon",
+  "Add_QueueNamePlaceholder": "Nomo de vico",
+  "Add_QueueConfirm": "Krei vicon",
+  "Add_QueueCancel": "Nuligi"
 }

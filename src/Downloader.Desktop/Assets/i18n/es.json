@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Una vez",
   "Sched_OnceOff": "Repetir",
   "Sched_Queue": "Cola",
-  "Sched_Remove": "Eliminar"
+  "Sched_Remove": "Eliminar",
+  "Add_AddQueue": "Añadir cola",
+  "Add_QueueNamePlaceholder": "Nombre de la cola",
+  "Add_QueueConfirm": "Crear cola",
+  "Add_QueueCancel": "Cancelar"
 }

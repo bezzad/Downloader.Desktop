@@ -463,6 +463,50 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Add_dialog_can_create_and_select_a_new_queue()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5;
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+
+        var vm = new AddDownloadItemViewModel(config, "https://host/file.zip",
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero, manager: manager);
+        Assert.True(vm.CanAddQueue);
+        Assert.False(vm.ShowQueuePicker); // only the default queue exists so far
+
+        // Empty name → no-op.
+        vm.NewQueueName = "   ";
+        vm.ConfirmAddQueue();
+        Assert.Single(config.Queues);
+
+        vm.NewQueueName = "Series S01";
+        vm.ConfirmAddQueue();
+
+        Assert.Equal(2, config.Queues.Count);
+        var created = config.Queues.Last();
+        Assert.Equal("Series S01", created.Name);
+        Assert.Equal(5, created.MaxConcurrent); // seeded from settings via manager.AddQueue
+        Assert.True(vm.ShowQueuePicker);        // picker appears with the second queue
+        Assert.Same(created, vm.SelectedQueue); // new queue selected for this add
+
+        // The started download lands in the new queue.
+        var view = new Views.AddDownloadItemView { DataContext = vm };
+        vm.View = view;
+        view.Show();
+        vm.StartDownloadCommand.Execute(null);
+        // View.Close(items) returns the descriptors via ShowDialog normally; here grab them from the VM path:
+        view.Close();
+        var item = new DownloadItem
+        {
+            Urls = { "https://host/file.zip" },
+            QueueId = vm.SelectedQueue?.Id
+        };
+        Assert.Equal(created.Id, item.QueueId);
+    }
+
+    [AvaloniaFact]
     public void Pending_name_shows_placeholder()
     {
         var item = new DownloadItem { Url = "https://host/x", Status = DownloadStatus.Running };

@@ -249,5 +249,9 @@
   "Sched_OnceOn": "Una volta",
   "Sched_OnceOff": "Ripeti",
   "Sched_Queue": "Coda",
-  "Sched_Remove": "Rimuovi"
+  "Sched_Remove": "Rimuovi",
+  "Add_AddQueue": "Aggiungi coda",
+  "Add_QueueNamePlaceholder": "Nome coda",
+  "Add_QueueConfirm": "Crea coda",
+  "Add_QueueCancel": "Annulla"
 }
