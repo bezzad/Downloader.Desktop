@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -11,10 +12,14 @@ namespace Downloader.Desktop.Views;
 /// <summary>
 /// The notch overlay window ("dynamic island"): a slim top-center pill that expands on hover into a
 /// compact live-downloads panel. Never takes focus; clicking it surfaces the main window.
+/// On macOS the NSWindow level is raised above the menu bar so the pill sits AT the physical notch
+/// (the webcam housing) like boring.notch/NotchNook — a normal window would be clamped below the bar.
 /// </summary>
 public partial class NotchView : Window
 {
-    private const double CollapsedWidth = 170, CollapsedHeight = 34;
+    // macOS: the collapsed pill approximates the physical notch width so it visually merges with it.
+    private static double CollapsedWidth => OperatingSystem.IsMacOS() ? 200 : 170;
+    private const double CollapsedHeight = 34;
     private const double ExpandedWidth = 380, ExpandedHeight = 190;
 
     private readonly DispatcherTimer _collapseDelay;
@@ -31,7 +36,44 @@ public partial class NotchView : Window
         PointerExited += (_, _) => _collapseDelay.Start();
         PointerPressed += OnPressed;
 
-        Opened += (_, _) => Reposition();
+        Opened += (_, _) =>
+        {
+            ElevateAboveMenuBarOnMac();
+            Width = CollapsedWidth;
+            Reposition();
+        };
+    }
+
+    // ---- macOS: raise the NSWindow above the menu bar so it can occupy the notch strip ----
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "sel_registerName")]
+    private static extern IntPtr SelRegisterName(string name);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    private static extern void ObjcMsgSendLong(IntPtr receiver, IntPtr selector, long arg);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    private static extern void ObjcMsgSendULong(IntPtr receiver, IntPtr selector, ulong arg);
+
+    private void ElevateAboveMenuBarOnMac()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return;
+        try
+        {
+            var nsWindow = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            if (nsWindow == IntPtr.Zero)
+                return;
+            // NSStatusWindowLevel(25)+1: above the menu bar, so the pill hugs the physical notch.
+            ObjcMsgSendLong(nsWindow, SelRegisterName("setLevel:"), 26);
+            // canJoinAllSpaces(1) | stationary(16) | fullScreenAuxiliary(256): visible on every space,
+            // unaffected by Mission Control, allowed next to fullscreen apps.
+            ObjcMsgSendULong(nsWindow, SelRegisterName("setCollectionBehavior:"), 1UL | 16UL | 256UL);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Notch: could not raise the macOS window level", ex);
+        }
     }
 
     private void OnPressed(object sender, PointerPressedEventArgs e)
@@ -57,9 +99,10 @@ public partial class NotchView : Window
             return;
         var scale = screen.Scaling <= 0 ? 1 : screen.Scaling;
         var widthPx = (int)Math.Round(Width * scale);
-        var x = screen.WorkingArea.X + (screen.WorkingArea.Width - widthPx) / 2;
-        // Y = the top of the SCREEN (not the working area): on macOS the pill tucks under the
-        // menu-bar/notch line; on Win/Linux it hugs the very top edge of the desktop.
+        // Center on the FULL screen bounds (the physical notch/webcam sits at the hardware center),
+        // and Y = the very top of the screen: with the raised macOS window level the pill overlaps the
+        // menu-bar strip and merges with the notch; on Win/Linux it hugs the top edge of the desktop.
+        var x = screen.Bounds.X + (screen.Bounds.Width - widthPx) / 2;
         Position = new PixelPoint(x, screen.Bounds.Y);
     }
 }

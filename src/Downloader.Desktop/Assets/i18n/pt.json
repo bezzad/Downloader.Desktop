@@ -257,5 +257,7 @@
   "Set_Notch": "Sobreposição Dynamic Island (notch)",
   "Set_Notch_Hint": "Uma pequena pílula no centro superior da tela mostrando o relógio; passe o mouse para ver o progresso dos downloads ao vivo.",
   "Notch_More": "e mais {0}…",
-  "Notch_NoDownloads": "Nenhum download ativo"
+  "Notch_NoDownloads": "Nenhum download ativo",
+  "Plan_PartsParallel": "Partes {0}/{1} · ×{2}",
+  "PostAction_OfferMsg": "{0} terminou de baixar — clique para executar «{1}»."
 }

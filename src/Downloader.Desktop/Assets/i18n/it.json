@@ -257,5 +257,7 @@
   "Set_Notch": "Overlay Dynamic Island (notch)",
   "Set_Notch_Hint": "Una piccola pillola in alto al centro dello schermo che mostra l'orologio; passaci sopra per vedere i download in tempo reale.",
   "Notch_More": "e altri {0}…",
-  "Notch_NoDownloads": "Nessun download attivo"
+  "Notch_NoDownloads": "Nessun download attivo",
+  "Plan_PartsParallel": "Parti {0}/{1} · ×{2}",
+  "PostAction_OfferMsg": "{0} è stato scaricato — fai clic per eseguire «{1}»."
 }

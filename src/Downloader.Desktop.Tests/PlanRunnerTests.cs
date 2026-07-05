@@ -242,6 +242,32 @@ public class PlanRunnerTests
     }
 
     [Fact]
+    public async Task Parallel_segments_actually_download_concurrently()
+    {
+        // Author-reported: segments appeared to download serially. Prove the bounded-parallel loop
+        // really overlaps requests: a slow server (250 ms/request) tracks the max in-flight count.
+        var parts = Enumerable.Range(0, 8).ToDictionary(i => $"p{i}.ts", i => Bytes($"P{i}", 2000));
+        using var server = new LoopbackServer(parts) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
+        var dir = TempDir();
+        try
+        {
+            var plan = new PersistedPlan
+            {
+                PostProcessKind = PostProcessKind.None,
+                Parts = Enumerable.Range(0, 8)
+                    .Select(i => new PersistedPart { Url = server.Url + $"p{i}.ts", Kind = PartKind.Segment })
+                    .ToList()
+            };
+            await new DownloadManager().ExecutePlanAsync(plan, dir, "c.bin", null,
+                _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None);
+
+            Assert.True(server.MaxConcurrent >= 3,
+                $"expected >=3 overlapping segment requests, saw {server.MaxConcurrent} — the parallel path is not engaging");
+        }
+        finally { TryDelete(dir); }
+    }
+
+    [Fact]
     public void Persisted_plan_round_trips_through_json()
     {
         var plan = new DownloadPlan
@@ -310,9 +336,17 @@ public class PlanRunnerTests
     {
         private readonly HttpListener _listener;
         private readonly Dictionary<string, byte[]> _files;
+        private int _inFlight;
+        private int _maxConcurrent;
         public ConcurrentBag<string> Requested { get; } = new();
         public ConcurrentDictionary<string, Dictionary<string, string>> LastHeaders { get; } = new();
         public string Url { get; }
+
+        /// <summary>Optional artificial latency per request (lets tests observe request overlap).</summary>
+        public TimeSpan ResponseDelay { get; init; } = TimeSpan.Zero;
+
+        /// <summary>The highest number of simultaneously in-flight requests the server observed.</summary>
+        public int MaxConcurrent => _maxConcurrent;
 
         public LoopbackServer(Dictionary<string, byte[]> files)
         {
@@ -347,6 +381,12 @@ public class PlanRunnerTests
 
         private void Handle(HttpListenerContext ctx)
         {
+            var current = System.Threading.Interlocked.Increment(ref _inFlight);
+            int seen;
+            while (current > (seen = _maxConcurrent) &&
+                   System.Threading.Interlocked.CompareExchange(ref _maxConcurrent, current, seen) != seen) { }
+            if (ResponseDelay > TimeSpan.Zero)
+                System.Threading.Thread.Sleep(ResponseDelay);
             try
             {
                 var name = ctx.Request.Url!.AbsolutePath.TrimStart('/');
@@ -393,6 +433,7 @@ public class PlanRunnerTests
                 resp.OutputStream.Close();
             }
             catch { try { ctx.Response.Abort(); } catch { /* ignore */ } }
+            finally { System.Threading.Interlocked.Decrement(ref _inFlight); }
         }
 
         public void Dispose()

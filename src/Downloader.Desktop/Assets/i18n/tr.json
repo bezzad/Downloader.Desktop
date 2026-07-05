@@ -257,5 +257,7 @@
   "Set_Notch": "Dinamik Ada (çentik) katmanı",
   "Set_Notch_Hint": "Ekranın üst ortasında saati gösteren küçük bir hap; indirme ilerlemesini canlı görmek için üzerine gelin.",
   "Notch_More": "ve {0} tane daha…",
-  "Notch_NoDownloads": "Etkin indirme yok"
+  "Notch_NoDownloads": "Etkin indirme yok",
+  "Plan_PartsParallel": "Parçalar {0}/{1} · ×{2}",
+  "PostAction_OfferMsg": "{0} indirildi — «{1}» çalıştırmak için tıklayın."
 }

@@ -257,5 +257,7 @@
   "Set_Notch": "Dinamik Ada (kəsik) qatı",
   "Set_Notch_Hint": "Ekranın yuxarı mərkəzində saatı göstərən kiçik lövhə; yükləmə irəliləyişini canlı görmək üçün üzərinə gəlin.",
   "Notch_More": "və daha {0}…",
-  "Notch_NoDownloads": "Aktiv yükləmə yoxdur"
+  "Notch_NoDownloads": "Aktiv yükləmə yoxdur",
+  "Plan_PartsParallel": "Hissələr {0}/{1} · ×{2}",
+  "PostAction_OfferMsg": "{0} yükləndi — «{1}» işlətmək üçün klikləyin."
 }

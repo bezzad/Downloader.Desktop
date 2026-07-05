@@ -82,6 +82,9 @@
 - [ ] 7.2 Settings/Plugins screenshots: **deferred to the Linux box** (this session is macOS; per
   SKILL.md the docs screenshots must only be regenerated on Linux). The Plugins list now shows the two
   built-ins without trash buttons — worth a capture refresh there.
-- [ ] 7.3 **Author's manual e2e:** type `gemma3:1b` (small!) → downloads → "Add to Ollama" →
-  `ollama list` shows it. Change stays in-progress until the author confirms (per the author's
-  standing rule, this change is NOT archived automatically).
+- [x] 7.4 **(reprocess — author feedback)** The completion toast's button said a bare "Open", which read
+  as open/unzip the file. `NotificationService.ShowAction` now takes an `actionText`; the offer passes the
+  action's own label so the button literally says **"Add to Ollama"**, and the message explains it:
+  "<file> finished downloading — click to run 'Add to Ollama'." (`PostAction_OfferMsg`, all 16 packs).
+- [ ] 7.3 **Author's manual e2e:** type `gemma3:1b` (small!) → downloads → the toast button now says
+  "Add to Ollama" → click → `ollama list` shows it. Change stays in-progress until the author confirms.

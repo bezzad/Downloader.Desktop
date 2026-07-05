@@ -49,7 +49,7 @@ public static class NotificationService
 
     // Actionable prompts (e.g. "Update available") raised while unfocused are re-shown in-app on focus-gain
     // so their action is never lost.
-    private static readonly List<(string title, string message, Action onClick)> _pendingActions = new();
+    private static readonly List<(string title, string message, Action onClick, string actionText)> _pendingActions = new();
     private static readonly object _gate = new();
 
     /// <summary>Attach the in-app toast host to the main window (called once at startup).</summary>
@@ -70,16 +70,16 @@ public static class NotificationService
         if (!focused)
             return;
 
-        List<(string title, string message, Action onClick)> pending;
+        List<(string title, string message, Action onClick, string actionText)> pending;
         lock (_gate)
         {
             if (_pendingActions.Count == 0)
                 return;
-            pending = new List<(string, string, Action)>(_pendingActions);
+            pending = new List<(string, string, Action, string)>(_pendingActions);
             _pendingActions.Clear();
         }
-        foreach (var (t, m, a) in pending)
-            ShowActionInApp(t, m, a);
+        foreach (var (t, m, a, txt) in pending)
+            ShowActionInApp(t, m, a, txt);
     }
 
     public static void NotifyCompleted(string fileName) =>
@@ -113,27 +113,29 @@ public static class NotificationService
     /// on/off switch (it's a prompt, not a passive alert). Focused ⇒ in-app actionable toast now; unfocused
     /// ⇒ a plain OS notification now, then the actionable toast is re-shown in-app when focus returns.
     /// </summary>
-    public static void ShowAction(string title, string message, Action onClick)
+    public static void ShowAction(string title, string message, Action onClick, string actionText = null)
     {
         if (InAppVisible)
         {
-            ShowActionInApp(title, message, onClick);
+            ShowActionInApp(title, message, onClick, actionText);
             return;
         }
 
         TryNative(title, message, false);
         lock (_gate)
-            _pendingActions.Add((title, message, onClick));
+            _pendingActions.Add((title, message, onClick, actionText));
     }
 
     /// <summary>Always-shown in-app toast for direct feedback to an action the user just performed
     /// (e.g. "Plugin installed"), independent of focus and the on/off switch.</summary>
     public static void Inform(string title, string message, bool isError) => ShowInApp(title, message, isError);
 
-    private static void ShowActionInApp(string title, string message, Action onClick)
+    private static void ShowActionInApp(string title, string message, Action onClick, string actionText = null)
     {
+        // The button carries the ACTION'S name (e.g. "Add to Ollama") — a bare "Open" reads as
+        // open/unzip the file and confused the author on the Ollama flow.
         void Show() => _inApp?.Show(
-            BuildToast(title, message, NotificationType.Information, onClick, "Open"),
+            BuildToast(title, message, NotificationType.Information, onClick, actionText ?? "Open"),
             NotificationType.Information, TimeSpan.FromSeconds(20));
 
         Dispatch(Show);

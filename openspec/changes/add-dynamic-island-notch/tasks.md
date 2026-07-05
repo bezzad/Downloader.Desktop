@@ -31,9 +31,14 @@
 - [x] 4.1 `Notch_vm_lists_top_rows_with_overflow_and_total_speed`, `Notch_vm_is_quiet_when_idle`.
 - [x] 4.2 `Notch_window_builds_and_toggles_expanded_state`, `Notch_service_starts_and_stops_fail_soft`
   (+ the gated mockup capture). Suite 221/221 green.
-- [ ] 4.3 **Author on-device verification:** macOS (pill under the notch/menu-bar line), Windows/Linux
-  (top-center, hover expand, click-to-open); Linux WM variance is best-effort like the tray. Stays
-  in-progress until confirmed.
+- [x] 4.4 **(reprocess — author feedback)** On macOS the pill sat BELOW the menu bar instead of at the
+  physical notch (webcam housing) like boring.notch/NotchNook. Fixed: the NSWindow level is raised above
+  the menu bar via objc interop (`setLevel: 26` = NSStatusWindowLevel+1) with
+  `setCollectionBehavior: canJoinAllSpaces|stationary|fullScreenAuxiliary`, positioning centers on the
+  FULL screen bounds (the hardware notch is at the physical center) with Y = screen top, and the macOS
+  collapsed width is 200 (≈ notch width) so the pill visually merges with it. Win/Linux unchanged.
+- [ ] 4.3 **Author on-device re-verification:** macOS — the pill should now sit AT the notch/webcam area
+  (over the menu-bar strip); Windows/Linux top-center unchanged. Stays in-progress until confirmed.
 
 ## 5. Docs
 

@@ -224,9 +224,18 @@ public partial class DownloadManager
         var parallel = pending.Count > 2 && pending.All(i => parts[i].Kind == PartKind.Segment);
 
         var doneCount = parts.Count - pending.Count;
-        void StagePart() =>
-            onStage?.Invoke(string.Format(Localizer.Instance["Plan_Part"],
-                Math.Min(doneCount + 1, parts.Count), parts.Count));
+        var activeCount = 0;
+        void StagePart()
+        {
+            // In parallel mode say so explicitly ("Parts 12/36 · ×4") — segments finishing one by one
+            // made the concurrent run READ as serial (author feedback).
+            var active = System.Threading.Volatile.Read(ref activeCount);
+            onStage?.Invoke(active > 1
+                ? string.Format(Localizer.Instance["Plan_PartsParallel"],
+                    Math.Min(doneCount + 1, parts.Count), parts.Count, active)
+                : string.Format(Localizer.Instance["Plan_Part"],
+                    Math.Min(doneCount + 1, parts.Count), parts.Count));
+        }
 
         if (parallel)
         {
@@ -240,13 +249,19 @@ public partial class DownloadManager
                 await slots.WaitAsync(ct).ConfigureAwait(false);
                 running.Add(Task.Run(async () =>
                 {
+                    System.Threading.Interlocked.Increment(ref activeCount);
                     try
                     {
+                        StagePart();
                         await DownloadPartAsync(index).ConfigureAwait(false);
                         System.Threading.Interlocked.Increment(ref doneCount);
-                        StagePart();
                     }
-                    finally { slots.Release(); }
+                    finally
+                    {
+                        System.Threading.Interlocked.Decrement(ref activeCount);
+                        StagePart();
+                        slots.Release();
+                    }
                 }, ct));
             }
             try

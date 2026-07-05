@@ -29,9 +29,16 @@
 
 ## 4. Verify & wrap-up
 
-- [ ] 4.1 **Author re-test:** re-run the failing e2e (`skate_phantom_flex_4k.m3u8`) → expect an assembled
-  playable `skate_phantom_flex_4k.mp4` in the save folder, and visibly faster segments (single-chunk +
-  4-way parallel). Change stays in-progress until confirmed.
+- [x] 4.4 **(reprocess — author feedback: "segments look serial")** Verified the parallel path is REAL:
+  a new test (`Parallel_segments_actually_download_concurrently`, slow loopback server tracking in-flight
+  requests) proves ≥3 overlapping segment requests through the real engine. The serial IMPRESSION came
+  from the UI — "Part i/N" ticks one-by-one as parts complete and each segment shows 1 connection. The
+  status now says **"Parts 12/36 · ×4"** while several segments are in flight (`Plan_PartsParallel`, all
+  16 packs). Note: the author's byte-offset idea can't apply — HLS segments are separate server files,
+  not ranges of one file, so parallel whole-segments is the correct equivalent (as they suspected).
+- [ ] 4.1 **Author re-test:** re-run the m3u8 e2e — download + merge already confirmed working; now check
+  the status shows "Parts i/N · ×4" during the run (visible parallelism). Stays in-progress until
+  confirmed.
 - [x] 4.2 i18n: no new user-facing strings were needed.
 - [x] 4.3 `docs/plugins-architecture.md` plan-runner section updated with the segment/naming rules;
   SKILL.md note added.

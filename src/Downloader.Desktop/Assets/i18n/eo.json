@@ -257,5 +257,7 @@
   "Set_Notch": "Dinamika insulo (noĉo)",
   "Set_Notch_Hint": "Malgranda pilolo supre-centre de la ekrano montranta la horloĝon; ŝvebu por vidi vivan elŝutan progreson.",
   "Notch_More": "kaj {0} pliaj…",
-  "Notch_NoDownloads": "Neniuj aktivaj elŝutoj"
+  "Notch_NoDownloads": "Neniuj aktivaj elŝutoj",
+  "Plan_PartsParallel": "Partoj {0}/{1} · ×{2}",
+  "PostAction_OfferMsg": "{0} finis elŝuti — alklaku por ruli «{1}»."
 }
