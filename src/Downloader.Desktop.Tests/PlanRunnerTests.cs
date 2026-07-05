@@ -176,6 +176,71 @@ public class PlanRunnerTests
         Assert.True(post.NeedsRunner);
     }
 
+    // ---- HLS perf + assembly-naming fixes (fix-hls-segment-perf-and-assembly) ----
+
+    [Fact]
+    public void Segment_and_small_parts_are_single_chunk()
+    {
+        // Segments always single-chunk (their size is usually unknown); known-small parts too;
+        // big non-segment parts keep the user's full multipart config.
+        Assert.True(DownloadManager.IsSingleChunkPart(new PersistedPart { Kind = PartKind.Segment }));
+        Assert.True(DownloadManager.IsSingleChunkPart(new PersistedPart { Kind = PartKind.Segment, ExpectedSize = 900_000_000 }));
+        Assert.True(DownloadManager.IsSingleChunkPart(new PersistedPart { Kind = PartKind.Combined, ExpectedSize = 1024 }));
+        Assert.False(DownloadManager.IsSingleChunkPart(new PersistedPart { Kind = PartKind.Video, ExpectedSize = 900_000_000 }));
+        Assert.False(DownloadManager.IsSingleChunkPart(new PersistedPart { Kind = PartKind.Combined })); // unknown size, not a segment
+    }
+
+    [Fact]
+    public void Assembling_path_keeps_the_extension_last()
+    {
+        // ffmpeg picks its muxer from the extension: "x.mp4.assembling" fails, "x.assembling.mp4" works.
+        Assert.Equal(Path.Combine("d", "video.assembling.mp4"), DownloadManager.AssemblingPath(Path.Combine("d", "video.mp4")));
+        Assert.Equal(Path.Combine("d", "noext.assembling"), DownloadManager.AssemblingPath(Path.Combine("d", "noext")));
+    }
+
+    [Fact]
+    public void Playlist_final_names_normalize_to_media_extensions()
+    {
+        var mux = new PersistedPlan { PostProcessKind = PostProcessKind.Mux };
+        // The author-hit case: name auto-derived from the playlist URL.
+        Assert.Equal("skate_phantom_flex_4k.mp4", DownloadManager.NormalizeAssembledName("skate_phantom_flex_4k.m3u8", mux));
+        Assert.Equal("x.mp4", DownloadManager.NormalizeAssembledName("x.m3u", mux));
+        Assert.Equal("x.mp4", DownloadManager.NormalizeAssembledName("x", mux));
+        // A concrete user extension is preserved; the plugin's suggested extension wins over .mp4.
+        Assert.Equal("mine.mkv", DownloadManager.NormalizeAssembledName("mine.mkv", mux));
+        var suggested = new PersistedPlan { PostProcessKind = PostProcessKind.Mux, SuggestedFileName = "out.webm" };
+        Assert.Equal("video.webm", DownloadManager.NormalizeAssembledName("video.m3u8", suggested));
+        // No post-process → playlist names stay untouched (the download IS the playlist).
+        var none = new PersistedPlan { PostProcessKind = PostProcessKind.None };
+        Assert.Equal("list.m3u8", DownloadManager.NormalizeAssembledName("list.m3u8", none));
+    }
+
+    [Fact]
+    public async Task Parallel_segments_assemble_in_order()
+    {
+        // 6 segment parts (parallel mode) with distinct bytes → the concat output must be in index order.
+        var parts = Enumerable.Range(0, 6).ToDictionary(i => $"s{i}.ts", i => Bytes($"SEG{i}-", 3000 + i * 100));
+        using var server = new LoopbackServer(parts);
+        var dir = TempDir();
+        try
+        {
+            var plan = new PersistedPlan
+            {
+                PostProcessKind = PostProcessKind.None,
+                Parts = Enumerable.Range(0, 6)
+                    .Select(i => new PersistedPart { Url = server.Url + $"s{i}.ts", Kind = PartKind.Segment })
+                    .ToList()
+            };
+            var final = await new DownloadManager().ExecutePlanAsync(plan, dir, "joined.bin", null,
+                _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None);
+
+            var expected = Enumerable.Range(0, 6).SelectMany(i => parts[$"s{i}.ts"]).ToArray();
+            var got = await File.ReadAllBytesAsync(final);
+            Assert.True(expected.SequenceEqual(got), "parallel-downloaded segments must assemble in index order");
+        }
+        finally { TryDelete(dir); }
+    }
+
     [Fact]
     public void Persisted_plan_round_trips_through_json()
     {

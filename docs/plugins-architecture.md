@@ -71,8 +71,15 @@ ideally signed; the open folder is for power users.)
      to it). The plan is persisted on `DownloadItem.PlanJson`.
   - The resolved plan is stored as a `PersistedPlan` (`Models/PersistedPlan.cs`) — a JSON-friendly copy of
      the SDK's `DownloadPlan`.
-  - Still deferred: the `ITransfer` path (torrent — no plugin uses it yet) and parallel part downloads
-     (v1 is sequential; each part still uses engine multipart internally).
+  - **Segment efficiency:** `PartKind.Segment` parts (and known-≤8 MB parts) download single-chunk —
+     never N engine chunks per tiny segment — and segment-only plans run up to **4 segments in
+     parallel** (assembly stays index-ordered). Bigger video/audio parts keep full engine multipart
+     and stay sequential.
+  - **Naming rules for ffmpeg:** the post-process temp output keeps its media extension LAST
+     (`video.assembling.mp4`, never `video.mp4.assembling`), and a playlist-derived final name
+     (`.m3u8`/`.m3u`) is normalized to `.mp4` (or the plugin's suggested extension) when the plan has
+     a post-process step — ffmpeg picks its muxer from the output extension.
+  - Still deferred: the `ITransfer` path (torrent — no plugin uses it yet).
 
 ## Breaking changes
 - New project `Downloader.Desktop.Plugins.Abstractions` added to the solution; app references it.
