@@ -20,8 +20,8 @@ public partial class NotchView : Window
     // macOS: the collapsed pill is WIDER than the physical notch so the info wings (logo+speed left,
     // percent+clock right) stay visible beside the webcam housing — content centered under the housing
     // would be hidden behind it (author-reported "empty rectangle").
-    private static double CollapsedWidth => OperatingSystem.IsMacOS() ? 340 : 230;
-    private const double CollapsedHeight = 34;
+    private static double CollapsedWidth => OperatingSystem.IsMacOS() ? 360 : 230;
+    private const double CollapsedHeight = 30;
     private const double ExpandedWidth = 400, ExpandedHeight = 210;
 
     private readonly DispatcherTimer _collapseDelay;

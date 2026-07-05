@@ -130,10 +130,24 @@ public class NotchViewModel : ViewModelBase, IDisposable
         var running = active.Count(i => i.Status == DownloadStatus.Running);
         var speed = _manager?.TotalSpeed ?? 0;
         TotalSpeedText = running > 0 && speed > 0
-            ? "↓ " + DownloadItemViewModel.FormatBytes((long)speed) + "/s"
+            ? "↓ " + FormatSpeedCompact((long)speed)
             : running > 0 ? "↓" : "";
 
         TotalPercentText = active.Count > 0 ? $"{active.Average(i => i.Progress):0}%" : "";
+    }
+
+    /// <summary>Whole-number speed ("776 KB/s") — the notch wing is too narrow for decimals.</summary>
+    internal static string FormatSpeedCompact(long bytesPerSec)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double size = bytesPerSec;
+        int unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+        return $"{size:0} {units[unit]}/s";
     }
 
     public void Dispose()
