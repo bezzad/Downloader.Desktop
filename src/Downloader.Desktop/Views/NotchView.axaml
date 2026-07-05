@@ -21,32 +21,36 @@
         <Panel>
             <!-- Collapsed: info lives on the WINGS beside the physical notch (the center column is a
                  hardware-sized gap on macOS — anything drawn there hides behind the webcam housing). -->
+            <!-- Percent (short) lives on the LEFT wing; the wider speed text gets the roomier RIGHT wing. -->
             <Grid IsVisible="{Binding !IsExpanded}" ColumnDefinitions="*,Auto,*" Margin="12 0">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7"
                             HorizontalAlignment="Left" VerticalAlignment="Center">
                     <Image Source="avares://Downloader.Desktop/Assets/downloader.png" Width="17" Height="17" />
-                    <TextBlock Text="{Binding TotalSpeedText}" IsVisible="{Binding HasActivity}"
-                               Foreground="#7FE3C6" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding TotalPercentText}" IsVisible="{Binding HasPercent}"
+                               Foreground="#4FC3F7" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
                 <Border Grid.Column="1" Width="{Binding NotchGapWidth}" Background="Transparent" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                             HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding TotalPercentText}" IsVisible="{Binding HasPercent}"
-                               Foreground="#4FC3F7" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding TimeText}" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                    <TextBlock Text="{Binding TotalSpeedText}" IsVisible="{Binding HasActivity}"
+                               Foreground="#7FE3C6" FontSize="12" VerticalAlignment="Center" />
+                    <!-- macOS's menu bar already has a clock and the wing is narrow — Win/Linux only. -->
+                    <TextBlock Text="{Binding TimeText}" IsVisible="{Binding ShowCollapsedClock}"
+                               Foreground="White" FontSize="12" FontWeight="SemiBold"
                                VerticalAlignment="Center" />
                 </StackPanel>
             </Grid>
 
             <!-- Expanded: clock + totals header, then the active (running + paused) downloads. -->
             <StackPanel IsVisible="{Binding IsExpanded}" Margin="18 10 18 14" Spacing="10">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <!-- Same order as collapsed: percent on the left (by the logo), speed on the right. -->
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                     <Image Grid.Column="0" Source="avares://Downloader.Desktop/Assets/downloader.png"
                            Width="17" Height="17" Margin="0 0 8 0" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="{Binding TimeText}" Foreground="White"
+                    <TextBlock Grid.Column="1" Text="{Binding TotalPercentText}" Foreground="#4FC3F7"
+                               FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="White" HorizontalAlignment="Center"
                                FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding TotalPercentText}" Foreground="#4FC3F7"
-                               FontSize="13" FontWeight="SemiBold" Margin="0 0 10 0" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="3" Text="{Binding TotalSpeedText}" Foreground="#7FE3C6"
                                FontSize="13" VerticalAlignment="Center" />
                 </Grid>

@@ -43,6 +43,10 @@ public class NotchViewModel : ViewModelBase, IDisposable
     public static bool IsMac => OperatingSystem.IsMacOS();
     public static double NotchGapWidth => IsMac ? 185 : 6;
 
+    /// <summary>The collapsed clock only shows where the notch replaces a system clock (Win/Linux
+    /// desktops) — the macOS menu bar already has one, and the wing is too narrow for speed + time.</summary>
+    public static bool ShowCollapsedClock => !IsMac;
+
     /// <summary>Running first, then paused (top <see cref="MaxRows"/>).</summary>
     public ObservableCollection<DownloadItemViewModel> RunningRows { get; } = new();
 
