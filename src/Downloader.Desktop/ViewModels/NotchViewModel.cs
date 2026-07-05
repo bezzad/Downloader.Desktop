@@ -9,12 +9,12 @@ using ReactiveUI;
 namespace Downloader.Desktop.ViewModels;
 
 /// <summary>
-/// Backs the notch overlay ("dynamic island"): a live clock, the running downloads (top few) and their
-/// aggregate speed. Pure view over <see cref="IDownloadManager"/> — no new download plumbing.
+/// Backs the notch overlay ("dynamic island"): a live clock, the active (running + paused) downloads
+/// and their aggregate speed/percent. Pure view over <see cref="IDownloadManager"/>.
 /// </summary>
 public class NotchViewModel : ViewModelBase, IDisposable
 {
-    /// <summary>How many running rows the expanded island lists before "and N more…".</summary>
+    /// <summary>How many active rows the expanded island lists before "and N more…".</summary>
     public const int MaxRows = 3;
 
     private readonly IDownloadManager _manager;
@@ -22,6 +22,7 @@ public class NotchViewModel : ViewModelBase, IDisposable
     private bool _isExpanded;
     private string _timeText = DateTime.Now.ToString("HH:mm");
     private string _totalSpeedText = "";
+    private string _totalPercentText = "";
     private string _overflowText;
 
     public NotchViewModel(IDownloadManager manager)
@@ -36,6 +37,13 @@ public class NotchViewModel : ViewModelBase, IDisposable
         OnStatsChanged();
     }
 
+    /// <summary>On macOS the pill sits AT the physical notch, so the collapsed content must live on the
+    /// WINGS beside the webcam housing — the center column is a hardware-sized gap. Elsewhere there is
+    /// no cutout and the gap collapses.</summary>
+    public static bool IsMac => OperatingSystem.IsMacOS();
+    public static double NotchGapWidth => IsMac ? 185 : 6;
+
+    /// <summary>Running first, then paused (top <see cref="MaxRows"/>).</summary>
     public ObservableCollection<DownloadItemViewModel> RunningRows { get; } = new();
 
     public string TimeText
@@ -44,7 +52,7 @@ public class NotchViewModel : ViewModelBase, IDisposable
         private set => this.RaiseAndSetIfChanged(ref _timeText, value);
     }
 
-    /// <summary>Aggregate ↓speed shown in the pill while anything is running ("" when idle).</summary>
+    /// <summary>Aggregate ↓speed shown while anything is running ("" when idle).</summary>
     public string TotalSpeedText
     {
         get => _totalSpeedText;
@@ -56,6 +64,19 @@ public class NotchViewModel : ViewModelBase, IDisposable
     }
 
     public bool HasActivity => !string.IsNullOrEmpty(_totalSpeedText);
+
+    /// <summary>Average completion of the active downloads, e.g. "62%" ("" when idle).</summary>
+    public string TotalPercentText
+    {
+        get => _totalPercentText;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _totalPercentText, value);
+            this.RaisePropertyChanged(nameof(HasPercent));
+        }
+    }
+
+    public bool HasPercent => !string.IsNullOrEmpty(_totalPercentText);
 
     /// <summary>"and N more…" under the listed rows, or null when everything fits.</summary>
     public string OverflowText
@@ -81,26 +102,34 @@ public class NotchViewModel : ViewModelBase, IDisposable
 
     private void OnStatsChanged()
     {
-        var running = _manager?.Items?.Where(i => i.Status == DownloadStatus.Running).ToList()
-                      ?? new System.Collections.Generic.List<DownloadItemViewModel>();
+        // Active = running + paused (the author wants paused items visible in the island too).
+        var items = _manager?.Items;
+        var active = items == null
+            ? new System.Collections.Generic.List<DownloadItemViewModel>()
+            : items.Where(i => i.Status is DownloadStatus.Running or DownloadStatus.Paused)
+                   .OrderBy(i => i.Status == DownloadStatus.Running ? 0 : 1)
+                   .ToList();
 
         // Rebuild in place only when membership changed (rows self-update their progress/speed).
-        if (!running.Take(MaxRows).SequenceEqual(RunningRows))
+        if (!active.Take(MaxRows).SequenceEqual(RunningRows))
         {
             RunningRows.Clear();
-            foreach (var vm in running.Take(MaxRows))
+            foreach (var vm in active.Take(MaxRows))
                 RunningRows.Add(vm);
             this.RaisePropertyChanged(nameof(HasRows));
         }
 
-        OverflowText = running.Count > MaxRows
-            ? string.Format(Localizer.Instance["Notch_More"], running.Count - MaxRows)
+        OverflowText = active.Count > MaxRows
+            ? string.Format(Localizer.Instance["Notch_More"], active.Count - MaxRows)
             : null;
 
+        var running = active.Count(i => i.Status == DownloadStatus.Running);
         var speed = _manager?.TotalSpeed ?? 0;
-        TotalSpeedText = running.Count > 0 && speed > 0
+        TotalSpeedText = running > 0 && speed > 0
             ? "↓ " + DownloadItemViewModel.FormatBytes((long)speed) + "/s"
-            : running.Count > 0 ? "↓" : "";
+            : running > 0 ? "↓" : "";
+
+        TotalPercentText = active.Count > 0 ? $"{active.Average(i => i.Progress):0}%" : "";
     }
 
     public void Dispose()

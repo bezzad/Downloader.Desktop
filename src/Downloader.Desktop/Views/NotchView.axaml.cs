@@ -17,10 +17,12 @@ namespace Downloader.Desktop.Views;
 /// </summary>
 public partial class NotchView : Window
 {
-    // macOS: the collapsed pill approximates the physical notch width so it visually merges with it.
-    private static double CollapsedWidth => OperatingSystem.IsMacOS() ? 200 : 170;
+    // macOS: the collapsed pill is WIDER than the physical notch so the info wings (logo+speed left,
+    // percent+clock right) stay visible beside the webcam housing — content centered under the housing
+    // would be hidden behind it (author-reported "empty rectangle").
+    private static double CollapsedWidth => OperatingSystem.IsMacOS() ? 340 : 230;
     private const double CollapsedHeight = 34;
-    private const double ExpandedWidth = 380, ExpandedHeight = 190;
+    private const double ExpandedWidth = 400, ExpandedHeight = 210;
 
     private readonly DispatcherTimer _collapseDelay;
 

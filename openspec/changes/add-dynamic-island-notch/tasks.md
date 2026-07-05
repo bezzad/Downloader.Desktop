@@ -37,8 +37,15 @@
   `setCollectionBehavior: canJoinAllSpaces|stationary|fullScreenAuxiliary`, positioning centers on the
   FULL screen bounds (the hardware notch is at the physical center) with Y = screen top, and the macOS
   collapsed width is 200 (≈ notch width) so the pill visually merges with it. Win/Linux unchanged.
-- [ ] 4.3 **Author on-device re-verification:** macOS — the pill should now sit AT the notch/webcam area
-  (over the menu-bar strip); Windows/Linux top-center unchanged. Stays in-progress until confirmed.
+- [x] 4.5 **(reprocess — author feedback: "empty rectangle when collapsed")** With the pill now AT the
+  physical notch, centered content hid BEHIND the webcam housing. Collapsed layout redesigned as WINGS
+  flanking a hardware-sized center gap (185px on macOS, collapses elsewhere): left = Downloader logo +
+  live ↓speed, right = total percent (average of active downloads) + clock; collapsed width 340 (mac).
+  Expanded now lists **running AND paused** items (paused show "62% · Paused" via StatusText), gets the
+  logo + totals in the header, and roomier line spacing. Mockups regenerated in this folder.
+- [ ] 4.3 **Author on-device re-verification:** macOS — pill at the notch with visible wings (logo+speed
+  left, percent+clock right); hover shows running+paused with more spacing. Stays in-progress until
+  confirmed.
 
 ## 5. Docs
 

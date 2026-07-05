@@ -93,7 +93,8 @@ public class NotchTests
         var a = AddRunning(manager, "skate_phantom_flex_4k.mp4"); a.Speed = 4.2 * 1024 * 1024; a.Progress = 62;
         var b = AddRunning(manager, "gemma3-12b.gguf"); b.Speed = 8.8 * 1024 * 1024; b.Progress = 31;
         var c = AddRunning(manager, "ubuntu-24.04.iso"); c.Speed = 2.1 * 1024 * 1024; c.Progress = 87;
-        AddRunning(manager, "podcast-ep12.mp3").Speed = 300 * 1024;
+        var d = AddRunning(manager, "podcast-ep12.mp3"); d.Speed = 0; d.Progress = 45;
+        d.Status = global::Downloader.DownloadStatus.Paused; // a paused row shows "45% · Paused"
 
         var outDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
             "..", "..", "..", "..", "..", "..", "openspec", "changes", "add-dynamic-island-notch"));
@@ -108,7 +109,7 @@ public class NotchTests
             view.CaptureRenderedFrame()!.Save(Path.Combine(outDir, "mockup-collapsed.png"));
 
             vm.IsExpanded = true;
-            view.Width = 380; view.Height = 190;
+            view.Width = 400; view.Height = 210;
             for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             view.CaptureRenderedFrame()!.Save(Path.Combine(outDir, "mockup-expanded.png"));
         }
