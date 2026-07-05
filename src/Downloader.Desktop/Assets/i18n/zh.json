@@ -68,6 +68,7 @@
   "Plan_Part": "第 {0}/{1} 部分",
   "Plan_Assembling": "正在合并…",
   "Plan_NoProcessor": "没有已安装的插件能合并此下载——所需插件可能被禁用或缺失。",
+  "PostAction_Done": "完成！",
   "Name_Fetching": "正在获取名称…",
   "Error_LinkExpired": "此链接似乎已过期或无效——服务器返回的是网页而非文件。请获取新链接后重试。",
   "Name_Unnamed": "（未命名）",

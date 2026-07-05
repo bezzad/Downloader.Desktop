@@ -6,7 +6,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Downloader.Desktop.Plugins;
 
-namespace Downloader.Desktop.SamplePlugin;
+namespace Downloader.Desktop.Plugins.GitHub;
 
 /// <summary>
 /// THE TEMPLATE PLUGIN — copy this to start your own. It implements ALL plugin interfaces so you can see

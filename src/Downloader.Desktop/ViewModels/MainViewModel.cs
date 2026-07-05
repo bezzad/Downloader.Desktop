@@ -169,10 +169,17 @@ public class MainViewModel : ViewModelBase
 
         _downloadManager.Initialize(_config);
 
-        // Load external plugins (~/.config/Downloader/plugins) and apply the user's disabled list.
+        // Load the bundled built-in plugins (app dir /plugins — disable-only) plus the user's external
+        // plugins (~/.config/Downloader/plugins), then apply the persisted disabled list to both.
+        _pluginManager.LoadBuiltIns();
         _pluginManager.LoadFromDirectory(Services.PluginManager.PluginsRoot);
         foreach (var id in _config.DisabledPlugins ?? new System.Collections.Generic.List<string>())
             _pluginManager.SetEnabled(id, false);
+
+        // Plugins loaded AFTER the download list: re-raise post-download-action offers on completed
+        // items so their row buttons (e.g. "Add to Ollama") appear without needing a status change.
+        foreach (var vm in _downloadManager.Items)
+            vm.RaisePostActionChanged();
 
         Downloads = new DownloadsViewModel(_downloadManager);
         Queues = new QueuesViewModel(_config, _downloadManager);

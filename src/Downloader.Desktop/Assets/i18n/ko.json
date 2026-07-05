@@ -68,6 +68,7 @@
   "Plan_Part": "파트 {0}/{1}",
   "Plan_Assembling": "합치는 중…",
   "Plan_NoProcessor": "이 다운로드를 합칠 수 있는 설치된 플러그인이 없습니다 — 필요한 플러그인이 비활성화되었거나 없을 수 있습니다.",
+  "PostAction_Done": "완료!",
   "Name_Fetching": "이름 가져오는 중…",
   "Error_LinkExpired": "이 링크는 만료되었거나 잘못된 것 같습니다 — 서버가 파일 대신 웹 페이지를 반환했습니다. 새 링크를 받아 다시 시도하세요.",
   "Name_Unnamed": "(이름 없음)",

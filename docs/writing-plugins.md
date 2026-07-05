@@ -3,7 +3,7 @@
 Downloader can be extended with **plugins** (add-ons) so the core app stays small. A plugin is a normal
 .NET DLL that references one tiny package — **`Downloader.Desktop.Plugins.Abstractions`** — and implements
 one or more of the pipeline interfaces. This guide walks you through it using the bundled example,
-[`samples/Downloader.Desktop.SamplePlugin`](../samples/Downloader.Desktop.SamplePlugin) (a **GitHub
+[`src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.GitHub`](../src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.GitHub) (a **GitHub
 Releases** downloader that implements *every* interface).
 
 ## The model in 30 seconds
@@ -110,6 +110,7 @@ type the app expects.
 | `ILinkResolver` | input → `DownloadPlan` (real URLs + recipe). | You turn pages/links into downloads. |
 | `ITransferProvider` / `ITransfer` | Own a non-HTTP download (torrent…). | The engine can't fetch it over HTTP. |
 | `IPostProcessor` | Combine/transform downloaded files. | You need mux/concat/decrypt/checksum. |
+| `IPostDownloadAction` | A user-initiated action offered on a completed download your resolver produced (e.g. "Add to Ollama"): `Label`, `CanOffer(sourceUrl, filePath)`, `ExecuteAsync`. Shown as a button on the completion notification and the finished row; runs only on click; never modify the downloaded file. | You want a one-click follow-up on the finished file. |
 | `IPluginContext` | Given to `Initialize`: register*, `DataDirectory`, `Logger` (`ILogger`). | — |
 
 Types: `DownloadPlan { SuggestedFileName, Parts[], PostProcess }`, `DownloadPart { Url, Kind, Headers, ExpectedSize }`,

@@ -68,6 +68,7 @@
   "Plan_Part": "Parça {0}/{1}",
   "Plan_Assembling": "Birleştiriliyor…",
   "Plan_NoProcessor": "Kurulu hiçbir eklenti bu indirmeyi birleştiremiyor — gerekli eklenti devre dışı veya eksik olabilir.",
+  "PostAction_Done": "Tamamlandı!",
   "Name_Fetching": "Ad alınıyor…",
   "Error_LinkExpired": "Bu bağlantı süresi dolmuş veya geçersiz görünüyor — sunucu dosya yerine bir web sayfası döndürdü. Yeni bir bağlantı alıp tekrar deneyin.",
   "Name_Unnamed": "(adsız)",

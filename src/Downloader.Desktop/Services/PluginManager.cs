@@ -19,6 +19,10 @@ public sealed class PluginDescriptor
     public string Author { get; init; }
     public string Description { get; init; }
     public bool IsEnabled { get; internal set; } = true;
+
+    /// <summary>True for plugins shipped with the app (loaded from the app dir's plugins/ folder).
+    /// Built-ins can be disabled but not removed.</summary>
+    public bool IsBuiltIn { get; init; }
 }
 
 /// <summary>
@@ -34,6 +38,9 @@ public sealed class PluginManager
     public static string PluginsRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Downloader", "plugins");
 
+    /// <summary>Where the plugins bundled with the app live (copied next to the executable at build/publish).</summary>
+    public static string BuiltInPluginsRoot => Path.Combine(AppContext.BaseDirectory, "plugins");
+
     private readonly List<LoadedPlugin> _plugins = new();
     private readonly object _gate = new();
 
@@ -43,7 +50,8 @@ public sealed class PluginManager
     }
 
     /// <summary>Register an already-instantiated plugin (used by the loader and by tests). Idempotent by Id.</summary>
-    public void RegisterPlugin(IDownloaderPlugin plugin, AssemblyLoadContext context = null, string sourcePath = null)
+    public void RegisterPlugin(IDownloaderPlugin plugin, AssemblyLoadContext context = null, string sourcePath = null,
+        bool isBuiltIn = false)
     {
         if (plugin == null || string.IsNullOrWhiteSpace(plugin.Id))
             return;
@@ -51,7 +59,7 @@ public sealed class PluginManager
         {
             if (_plugins.Any(p => p.Descriptor.Id == plugin.Id))
                 return; // already loaded
-            var loaded = new LoadedPlugin(plugin, context, sourcePath);
+            var loaded = new LoadedPlugin(plugin, context, sourcePath, isBuiltIn);
             try
             {
                 plugin.Initialize(loaded.Context);
@@ -65,8 +73,9 @@ public sealed class PluginManager
         }
     }
 
-    /// <summary>Scan a folder for plugin DLLs and load them. Safe on a missing/empty/garbage folder.</summary>
-    public void LoadFromDirectory(string directory)
+    /// <summary>Scan a folder for plugin DLLs and load them. Safe on a missing/empty/garbage folder.
+    /// Pass <paramref name="isBuiltIn"/> for the app-dir plugins folder (disable-only, never removable).</summary>
+    public void LoadFromDirectory(string directory, bool isBuiltIn = false)
     {
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
             return;
@@ -85,7 +94,7 @@ public sealed class PluginManager
                     continue; // just a dependency DLL, not an entry plugin
                 foreach (var type in pluginTypes)
                     if (Activator.CreateInstance(type) is IDownloaderPlugin plugin)
-                        RegisterPlugin(plugin, alc, dll);
+                        RegisterPlugin(plugin, alc, dll, isBuiltIn);
             }
             catch (Exception ex)
             {
@@ -93,6 +102,9 @@ public sealed class PluginManager
             }
         }
     }
+
+    /// <summary>Loads the plugins bundled with the app (app dir /plugins) as built-ins.</summary>
+    public void LoadBuiltIns() => LoadFromDirectory(BuiltInPluginsRoot, isBuiltIn: true);
 
     public ILinkResolver FindResolver(string url) =>
         Enabled().SelectMany(p => p.Resolvers).FirstOrDefault(r => Safe(() => r.CanResolve(url)));
@@ -102,6 +114,28 @@ public sealed class PluginManager
 
     public ITransferProvider FindTransferProvider(string url) =>
         Enabled().SelectMany(p => p.TransferProviders).FirstOrDefault(tp => Safe(() => tp.CanHandle(url)));
+
+    /// <summary>The id of the enabled plugin whose resolver claims <paramref name="url"/>, or null.
+    /// Recorded on the download so post-download actions can be offered by the SAME plugin later.</summary>
+    public string FindResolverPluginId(string url) =>
+        Enabled().FirstOrDefault(p => p.Resolvers.Any(r => Safe(() => r.CanResolve(url))))?.Descriptor.Id;
+
+    /// <summary>The post-download action the given plugin offers for this completed download, or null.
+    /// Only the RESOLVING plugin's actions are consulted (never another plugin's).</summary>
+    public IPostDownloadAction FindPostDownloadAction(string pluginId, string sourceUrl, string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return null;
+        List<IPostDownloadAction> actions;
+        lock (_gate)
+        {
+            var p = _plugins.FirstOrDefault(x => x.Descriptor.Id == pluginId && x.Descriptor.IsEnabled);
+            if (p == null)
+                return null;
+            actions = p.PostDownloadActions.ToList();
+        }
+        return actions.FirstOrDefault(a => Safe(() => a.CanOffer(sourceUrl, filePath)));
+    }
 
     /// <summary>Run the input through the first matching resolver, or null if no plugin claims it.</summary>
     public async Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
@@ -136,6 +170,8 @@ public sealed class PluginManager
             p = _plugins.FirstOrDefault(x => x.Descriptor.Id == pluginId);
             if (p == null)
                 return false;
+            if (p.Descriptor.IsBuiltIn)
+                return false; // built-ins ship with the app — disable them instead of removing
             _plugins.Remove(p);
         }
 
@@ -188,11 +224,13 @@ public sealed class PluginManager
         public List<ILinkResolver> Resolvers { get; } = new();
         public List<ITransferProvider> TransferProviders { get; } = new();
         public List<IPostProcessor> PostProcessors { get; } = new();
+        public List<IPostDownloadAction> PostDownloadActions { get; } = new();
         public IPluginContext Context { get; set; }
         public AssemblyLoadContext Alc { get; }
         public string SourcePath { get; }
 
-        public LoadedPlugin(IDownloaderPlugin plugin, AssemblyLoadContext alc, string sourcePath = null)
+        public LoadedPlugin(IDownloaderPlugin plugin, AssemblyLoadContext alc, string sourcePath = null,
+            bool isBuiltIn = false)
         {
             Alc = alc;
             SourcePath = sourcePath;
@@ -204,6 +242,7 @@ public sealed class PluginManager
                 Author = plugin.Author ?? "",
                 Description = plugin.Description ?? "",
                 IsEnabled = true,
+                IsBuiltIn = isBuiltIn,
             };
             Context = new PluginContext(this, plugin);
         }
@@ -218,6 +257,7 @@ public sealed class PluginManager
         public void RegisterResolver(ILinkResolver resolver) { if (resolver != null) _owner.Resolvers.Add(resolver); }
         public void RegisterTransferProvider(ITransferProvider provider) { if (provider != null) _owner.TransferProviders.Add(provider); }
         public void RegisterPostProcessor(IPostProcessor processor) { if (processor != null) _owner.PostProcessors.Add(processor); }
+        public void RegisterPostDownloadAction(IPostDownloadAction action) { if (action != null) _owner.PostDownloadActions.Add(action); }
 
         public string DataDirectory
         {

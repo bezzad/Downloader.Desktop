@@ -80,6 +80,7 @@ public partial class DownloadManager
                 AppLog.Info($"Completed (plan): {finalName}");
                 if (NotifyCompleteEnabled)
                     NotificationService.NotifyCompleted(finalName);
+                OfferPostDownloadAction(vm);
                 FinishTerminal(vm);
             });
         }

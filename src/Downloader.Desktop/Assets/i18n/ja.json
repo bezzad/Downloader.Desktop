@@ -68,6 +68,7 @@
   "Plan_Part": "パート {0}/{1}",
   "Plan_Assembling": "結合中…",
   "Plan_NoProcessor": "この download を結合できるプラグインがありません。必要なプラグインが無効か未インストールの可能性があります。",
+  "PostAction_Done": "完了！",
   "Name_Fetching": "名前を取得中…",
   "Error_LinkExpired": "このリンクは期限切れか無効のようです。サーバーがファイルではなく Web ページを返しました。新しいリンクを取得して再試行してください。",
   "Name_Unnamed": "（名称未設定）",

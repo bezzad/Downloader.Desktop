@@ -19,30 +19,31 @@
     <ItemGroup>
         <ProjectReference Include="..\Downloader.Desktop\Downloader.Desktop.csproj" />
         <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
-        <!-- Build the sample plugin (but DON'T reference it for compilation) so the loader integration
+        <!-- Build the GitHub plugin (but DON'T reference it for compilation) so the loader integration
              test can load it from disk as a real external DLL. -->
-        <ProjectReference Include="..\..\samples\Downloader.Desktop.SamplePlugin\Downloader.Desktop.SamplePlugin.csproj"
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj"
                           ReferenceOutputAssembly="false" Private="false" />
+        <!-- The Ollama plugin IS compile-referenced: its pure logic (claim parsing, manifest parsing,
+             installer) is unit-tested directly. ALC loading is already covered by the GitHub plugin test. -->
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj" />
     </ItemGroup>
 
-    <!-- Stage the built sample plugin DLL into <testout>/plugins-sample so the integration test can load it.
-         The sample may land in the plain TFM folder (bin/<cfg>/net10.0/) OR a RID subfolder: this test
+    <!-- Stage the built GitHub plugin DLL into <testout>/plugins-sample so the integration test can load it.
+         The plugin may land in the plain TFM folder (bin/<cfg>/net10.0/) OR a RID subfolder: this test
          project is self-contained with a RuntimeIdentifier, and a parallel solution build can propagate that
-         RID to the referenced sample, so its DLL races between those two locations on CI. Glob recursively so
+         RID to the referenced plugin, so its DLL races between those two locations on CI. Glob recursively so
          we stage it wherever it lands; exclude the metadata-only ref/ assemblies (they can't be loaded). The
-         old hardcoded non-RID path silently skipped the copy (Condition Exists) when the sample landed under a
-         RID — a green build but a failing runtime test ("sample plugin was not staged"). The Error now turns
-         any genuine miss into a loud build failure instead of a confusing test failure. -->
+         Error turns any genuine miss into a loud build failure instead of a confusing test failure. -->
     <Target Name="StageSamplePlugin" AfterTargets="Build">
         <PropertyGroup>
-            <SamplePluginBin>$(MSBuildThisFileDirectory)..\..\samples\Downloader.Desktop.SamplePlugin\bin\$(Configuration)\net10.0</SamplePluginBin>
+            <SamplePluginBin>$(MSBuildThisFileDirectory)..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\bin\$(Configuration)\net10.0</SamplePluginBin>
         </PropertyGroup>
         <ItemGroup>
-            <SamplePluginDll Include="$(SamplePluginBin)\**\Downloader.Desktop.SamplePlugin.dll"
+            <SamplePluginDll Include="$(SamplePluginBin)\**\Downloader.Desktop.Plugins.GitHub.dll"
                              Exclude="$(SamplePluginBin)\**\ref\**" />
         </ItemGroup>
         <Error Condition="'@(SamplePluginDll)' == ''"
-               Text="StageSamplePlugin: Downloader.Desktop.SamplePlugin.dll not found under $(SamplePluginBin) (searched recursively, excluding ref/). The plugin loader integration test would fail. Ensure the sample plugin project built for the '$(Configuration)' configuration." />
+               Text="StageSamplePlugin: Downloader.Desktop.Plugins.GitHub.dll not found under $(SamplePluginBin) (searched recursively, excluding ref/). The plugin loader integration test would fail. Ensure the GitHub plugin project built for the '$(Configuration)' configuration." />
         <Copy SourceFiles="@(SamplePluginDll)" DestinationFolder="$(OutDir)plugins-sample"
               SkipUnchangedFiles="true" />
     </Target>

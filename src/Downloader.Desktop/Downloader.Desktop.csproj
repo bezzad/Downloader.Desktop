@@ -113,9 +113,40 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
+      <!-- Bundled plugins: built (ordering only, never compile-referenced) and staged into
+           $(OutDir)/plugins + $(PublishDir)/plugins by the targets below, where PluginManager.LoadBuiltIns
+           picks them up at startup. -->
+      <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj"
+                        ReferenceOutputAssembly="false" Private="false" />
+      <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj"
+                        ReferenceOutputAssembly="false" Private="false" />
     </ItemGroup>
 
     <ItemGroup>
       <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
     </ItemGroup>
+
+    <!-- Stage the bundled plugins' DLL + deps.json into the app output (and the publish output) as
+         plugins/. RID-agnostic recursive glob: a parallel/self-contained build can drop plugin output
+         under a RID subfolder, so never hardcode bin/<cfg>/net10.0 (see the test project's identical
+         gotcha). ref/ assemblies are metadata-only and can't be loaded. -->
+    <Target Name="StageBundledPlugins" AfterTargets="Build">
+        <ItemGroup>
+            <BundledPluginFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.dll"
+                               Exclude="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\ref\**" />
+            <BundledPluginFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.deps.json" />
+        </ItemGroup>
+        <Error Condition="'@(BundledPluginFile)' == ''"
+               Text="StageBundledPlugins: no bundled plugin outputs found — did the plugin projects build for '$(Configuration)'?" />
+        <Copy SourceFiles="@(BundledPluginFile)" DestinationFolder="$(OutDir)plugins" SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="StageBundledPluginsOnPublish" AfterTargets="Publish">
+        <ItemGroup>
+            <BundledPluginPubFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.dll"
+                                  Exclude="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\ref\**" />
+            <BundledPluginPubFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.deps.json" />
+        </ItemGroup>
+        <Copy SourceFiles="@(BundledPluginPubFile)" DestinationFolder="$(PublishDir)plugins" SkipUnchangedFiles="true" />
+    </Target>
 </Project>

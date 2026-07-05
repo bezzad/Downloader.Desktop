@@ -59,7 +59,9 @@
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                               IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                <!-- Built-in plugins ship with the app: disable-only, no Remove. -->
                                 <Button Grid.Column="2" Classes="icon" VerticalAlignment="Center" Margin="6 0 0 0"
+                                        IsVisible="{Binding CanRemove}"
                                         Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Plugins_Remove}">
                                     <PathIcon Data="{DynamicResource DeleteRegular}" Width="16" Height="16"
                                               Foreground="{DynamicResource SystemErrorTextColor}" />

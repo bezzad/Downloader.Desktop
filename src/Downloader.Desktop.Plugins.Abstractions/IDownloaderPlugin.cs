@@ -28,6 +28,10 @@ public interface IPluginContext
     void RegisterTransferProvider(ITransferProvider provider);
     void RegisterPostProcessor(IPostProcessor processor);
 
+    /// <summary>Registers a user-initiated action offered on completed downloads this plugin resolved
+    /// (e.g. "Add to Ollama"). Default no-op so existing hosts/fakes keep compiling (additive API).</summary>
+    void RegisterPostDownloadAction(IPostDownloadAction action) { }
+
     /// <summary>A per-plugin writable directory (e.g. for a plugin to download yt-dlp/ffmpeg into).</summary>
     string DataDirectory { get; }
 

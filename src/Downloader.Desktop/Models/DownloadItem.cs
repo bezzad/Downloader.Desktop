@@ -105,6 +105,10 @@ public class DownloadItem
     /// single-file download. Lets a multi-part download resume from the first incomplete part on restart.</summary>
     public string PlanJson { get; set; }
 
+    /// <summary>Id of the plugin whose resolver claimed this link (persisted), so its post-download
+    /// action (e.g. "Add to Ollama") can be offered on the completed item — even after a restart.</summary>
+    public string ResolverPluginId { get; set; }
+
     [JsonIgnore]
     public string FolderPath => SaveFolder;
 

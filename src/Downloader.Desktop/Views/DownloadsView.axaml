@@ -200,6 +200,9 @@
                                         <MenuItem Header="{i18n:Tr Action_CopyUrl}" Command="{Binding CopyUrlCommand}" />
                                         <MenuItem Header="{i18n:Tr Action_OpenFile}" Command="{Binding OpenFileCommand}" />
                                         <MenuItem Header="{i18n:Tr Action_OpenFolder}" Command="{Binding OpenFolderCommand}" />
+                                        <!-- Plugin-offered action on this completed item (e.g. "Add to Ollama"). -->
+                                        <MenuItem Header="{Binding PostActionLabel}" Command="{Binding PostActionCommand}"
+                                                  IsVisible="{Binding HasPostAction}" />
                                         <Separator />
                                         <MenuItem Header="{i18n:Tr Action_Remove}" Command="{Binding RemoveCommand}" />
                                     </ContextMenu>
@@ -280,6 +283,9 @@
                                 </Button>
                                 <Button Classes="icon" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" ToolTip.Tip="{i18n:Tr Action_Stop}">
                                     <PathIcon Data="{DynamicResource StopRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding PostActionCommand}" IsVisible="{Binding HasPostAction}" ToolTip.Tip="{Binding PostActionLabel}">
+                                    <PathIcon Data="{DynamicResource SendRegular}" Height="14" />
                                 </Button>
                                 <Button Classes="icon" Command="{Binding OpenFileCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="{i18n:Tr Action_OpenFile}">
                                     <PathIcon Data="{DynamicResource DocumentRegular}" />

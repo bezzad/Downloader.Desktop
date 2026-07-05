@@ -68,6 +68,7 @@
   "Plan_Part": "Partie {0}/{1}",
   "Plan_Assembling": "Assemblage…",
   "Plan_NoProcessor": "Aucune extension installée ne peut assembler ce téléchargement — l'extension requise est peut-être désactivée ou absente.",
+  "PostAction_Done": "Terminé !",
   "Name_Fetching": "Récupération du nom…",
   "Error_LinkExpired": "Ce lien semble expiré ou invalide — le serveur a renvoyé une page web au lieu du fichier. Obtenez un nouveau lien et réessayez.",
   "Name_Unnamed": "(sans nom)",

@@ -68,6 +68,7 @@
   "Plan_Part": "Hissə {0}/{1}",
   "Plan_Assembling": "Birləşdirilir…",
   "Plan_NoProcessor": "Quraşdırılmış heç bir plagin bu yükləməni birləşdirə bilmir — lazımi plagin söndürülüb və ya yoxdur.",
+  "PostAction_Done": "Hazırdır!",
   "Name_Fetching": "Ad alınır…",
   "Error_LinkExpired": "Bu keçid vaxtı bitmiş və ya yanlış görünür — server fayl əvəzinə veb səhifə qaytardı. Yeni keçid alıb yenidən cəhd edin.",
   "Name_Unnamed": "(adsız)",

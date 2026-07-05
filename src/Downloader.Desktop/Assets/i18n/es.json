@@ -68,6 +68,7 @@
   "Plan_Part": "Parte {0}/{1}",
   "Plan_Assembling": "Ensamblando…",
   "Plan_NoProcessor": "Ningún plugin instalado puede ensamblar esta descarga: el plugin necesario puede estar desactivado o ausente.",
+  "PostAction_Done": "¡Hecho!",
   "Name_Fetching": "Obteniendo nombre…",
   "Error_LinkExpired": "Este enlace parece caducado o no válido: el servidor devolvió una página web en lugar del archivo. Consigue un enlace nuevo e inténtalo de nuevo.",
   "Name_Unnamed": "(sin nombre)",

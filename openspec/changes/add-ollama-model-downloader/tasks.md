@@ -1,67 +1,87 @@
 ## 1. Restructure bundled plugins (in-repo home)
 
-- [ ] 1.1 Create `src/Downloader.Desktop.Plugins/` and move `samples/Downloader.Desktop.SamplePlugin` →
-  `Downloader.Desktop.Plugins.GitHub` (same plugin id `com.bezzad.github-releases`; rename
-  namespace/assembly; keep behavior). Remove `samples/` from the solution; update solution + docs paths.
-- [ ] 1.2 Build outputs: both plugin projects copy their DLL + `.deps.json` into the app's
-  `$(OutDir)/plugins/` on build, and publish workflows/scripts (`publish.sh`, CI/release yml, macOS bundle)
-  include the `plugins/` folder in every artifact.
+- [x] 1.1 `samples/Downloader.Desktop.SamplePlugin` → `src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.GitHub`
+  (same id `com.bezzad.github-releases`; namespace `Downloader.Desktop.Plugins.GitHub`, file
+  `GitHubReleasesPlugin.cs`). Solution updated (sample removed; GitHub + Ollama projects added);
+  `samples/` gone; docs paths updated (`docs/writing-plugins.md`, CLAUDE.md layout).
+- [x] 1.2 App csproj `StageBundledPlugins`/`…OnPublish` targets copy each bundled plugin's DLL +
+  `.deps.json` into `$(OutDir)/plugins` and `$(PublishDir)/plugins` (RID-agnostic recursive glob per the
+  CI staging gotcha; loud `<Error>` if nothing found). Publish tarballs/macOS bundle pick the folder up
+  automatically (they package the publish dir). Test csproj staging retargeted to the new GitHub path.
 
 ## 2. Built-in plugin loading (host)
 
-- [ ] 2.1 `PluginManager`: load `<app dir>/plugins/` at startup as built-ins (`IsBuiltIn` on the
-  descriptor); keep `%AppData%/Downloader/plugins` as removable user plugins. `RemovePlugin` refuses
-  built-ins.
-- [ ] 2.2 Persist per-plugin enabled state in `Config` (id → enabled, default true); apply on load; save on
-  toggle.
-- [ ] 2.3 Settings → Plugins UI: built-ins show enable/disable only (no Remove); user plugins unchanged.
+- [x] 2.1 `PluginManager`: `BuiltInPluginsRoot` (= app dir `/plugins`), `LoadBuiltIns()`,
+  `LoadFromDirectory(dir, isBuiltIn)`, `PluginDescriptor.IsBuiltIn`; `RemovePlugin` refuses built-ins.
+  `%AppData%/Downloader/plugins` stays the removable user-plugin home.
+- [x] 2.2 Per-plugin enabled state: the existing persisted `Config.DisabledPlugins` list (id present =
+  disabled, default enabled) covers built-ins too — `MainViewModel` applies it after `LoadBuiltIns()`.
+  No new field needed.
+- [x] 2.3 Settings → Plugins UI: `PluginRowViewModel.IsBuiltIn`/`CanRemove`; the trash button is hidden
+  for built-ins (toggle stays).
 
 ## 3. SDK: post-download action (additive)
 
-- [ ] 3.1 Add `IPostDownloadAction` (Label, `CanOffer(sourceUrl, filePath)`, `ExecuteAsync`) +
-  `IPluginContext.RegisterPostDownloadAction` to Abstractions; no changes to existing contracts.
-- [ ] 3.2 Record `ResolverPluginId` on `DownloadItem` when a resolver claims a link (persisted).
-- [ ] 3.3 Host surfacing: on completion, offer the resolving plugin's applicable action as a button on the
-  completion notification and on the item (context menu / details); run on click only; failures show as
-  friendly item errors.
+- [x] 3.1 `IPostDownloadAction` (`Label`, `CanOffer(sourceUrl, filePath)`, `ExecuteAsync`) in
+  `Abstractions/PostDownload.cs` + `IPluginContext.RegisterPostDownloadAction` as a **default interface
+  method** (no-op) so existing hosts/fakes keep compiling — genuinely additive.
+- [x] 3.2 `DownloadItem.ResolverPluginId` (persisted), recorded in `Start` via
+  `PluginManager.FindResolverPluginId` when a resolver claims the link.
+- [x] 3.3 Host surfacing: on completion (engine + plan paths) `OfferPostDownloadAction` fires an
+  actionable notification (`NotificationService.ShowAction`); the row gets a button + context-menu item
+  (`PostActionLabel`/`HasPostAction`/`PostActionCommand`, refreshed on status change and after plugins
+  load). `RunPostDownloadAction` runs off-thread; failures land as the item's friendly error + an error
+  toast; the download stays Completed and the file is never modified.
 
 ## 4. Ollama plugin (`Downloader.Desktop.Plugins.Ollama`, id `com.bezzad.ollama-models`)
 
-- [ ] 4.1 Claim logic: `ollama.com/library/<model>[:tag]` URLs + bare `name[:tag]` pattern; no network;
-  unit-test matrix (URLs, bare names, `:latest` default, rejects).
-- [ ] 4.2 Registry client behind an interface (stub-able): fetch/parse manifest, pick the
-  `…image.model` layer, build blob URLs; clear not-found/unreachable errors.
-- [ ] 4.3 `ResolveAsync`: manifest → model blob URL + expected size + suggested `model-tag.gguf` name;
-  stash the manifest (item metadata or re-fetch on action) for the installer.
-- [ ] 4.4 "Add to Ollama" action: sha256 verify (streamed), fetch tiny metadata layers, hard-link-or-copy
-  blobs, write manifest last; store root from `OLLAMA_MODELS` else per-OS `~/.ollama/models`; clear errors
-  (mismatch, store missing); never touch the user's downloaded file.
+- [x] 4.1 `OllamaModelRef.TryParse`: `ollama.com/library/<model>[:tag]` URLs (+ community
+  `/<user>/<model>`), bare `name[:tag]` / `user/name[:tag]` (`:latest` default, `library` namespace
+  default); rejects other URLs, paths, multi-segment inputs and file-extension-looking tokens
+  (`video.mp4`) so normal adds are never hijacked. Unit-test matrix in `OllamaLogicTests`.
+- [x] 4.2 `IOllamaRegistry` (stub-able) + `HttpOllamaRegistry` (base URL injectable; default
+  `registry.ollama.ai`): manifest fetch/parse (`OllamaManifest`, picks the
+  `application/vnd.ollama.image.model` layer), blob URLs, clear not-found/unreachable errors.
+- [x] 4.3 `OllamaResolver.ResolveAsync`: manifest → single-part plan (model blob URL + `ExpectedSize`)
+  + suggested `model-tag.gguf` name. The manifest is re-fetched by the installer (no staleness risk —
+  blobs are content-addressed).
+- [x] 4.4 `AddToOllamaAction` + `OllamaInstaller`: streamed sha256 verify against the manifest digest,
+  metadata layers fetched into `{store}/blobs` (skip existing), model blob **hard-link-or-copy**
+  (P/Invoke `link()`/`CreateHardLink`, copy fallback), manifest written **last** (temp+move) at
+  `manifests/registry.ollama.ai/{ns}/{model}/{tag}`; store root `$OLLAMA_MODELS` else
+  `~/.ollama/models` (missing `~/.ollama` → "Install Ollama first" error); the downloaded file is never
+  modified.
 
 ## 5. Add flow: non-URL input
 
-- [ ] 5.1 When input isn't an absolute URL, consult enabled resolvers; claimed → proceed via plugin,
-  unclaimed → today's rejection. Multi-line input: apply per line.
+- [x] 5.1 Bare names already flow end-to-end: the Add dialog accepts any token, and `Start` →
+  `ResolvePlanAsync` lets an enabled resolver claim it (unclaimed → the engine fails it like today).
+  Covered by `Bare_model_name_is_claimed_by_an_enabled_resolver_and_rejected_when_disabled`.
 
-## 6. Tests
+## 6. Tests (15 new; full suite 211/211 green)
 
-- [ ] 6.1 Claim matrix + registry-client parsing tests (canned manifest JSON fixtures).
-- [ ] 6.2 Resolve tests against a loopback fake registry (manifest → blob URL/size/name; 404 → clear error).
-- [ ] 6.3 Installer tests into a temp store dir: happy path (blobs + manifest layout, hard-link/copy,
-  original file intact), digest mismatch → no manifest written, missing store → clear error.
-- [ ] 6.4 Built-in loading tests: app-dir plugins load flagged non-removable; enabled-state persists;
-  `RemovePlugin` refuses built-ins but still removes user plugins.
-- [ ] 6.5 Post-download action tests: offered only on the resolving plugin's completed items; not run
-  without click; failure surfaces message.
-- [ ] 6.6 Add-flow tests: bare name accepted when claimed, rejected when plugin disabled/unclaimed.
+- [x] 6.1 Claim matrix + manifest parsing (`OllamaLogicTests`, canned manifest JSON).
+- [x] 6.2 Resolve against a loopback fake registry (blob URL/size/name; 404 → clear error)
+  (`OllamaIntegrationTests`).
+- [x] 6.3 Installer into a temp store: happy path (blob layout incl. `sha256-*` names, manifest content,
+  original file intact) + digest mismatch → no manifest written. (The "no ~/.ollama at the DEFAULT
+  root" error path can't be simulated safely on a machine that has one — logic reviewed instead.)
+- [x] 6.4 Built-in loading: flagged `IsBuiltIn`, `RemovePlugin` refuses built-ins but still removes user
+  plugins; disable still works (persisted via the existing `DisabledPlugins` round-trip).
+- [x] 6.5 Post-download action: offered only by the resolving plugin for matching input; not offered
+  when disabled/wrong-plugin/no-id; not run without click; failure surfaces the friendly item error and
+  the row stays Completed.
+- [x] 6.6 Add-flow: bare name claimed when the resolver is enabled, unclaimed when disabled.
 
 ## 7. Docs & wrap-up
 
-- [ ] 7.1 Update CLAUDE.md layout section + plugin docs (`docs/plugins-architecture.md`,
-  `docs/writing-plugins.md`): built-in plugins home, post-download action contract, samples/ removal.
-- [ ] 7.1b **README.md — advertise the feature (standing rule):** add "Download Ollama models" (paste a
-  link or type `gemma3:12b` → download → one-click Add to Ollama) and the built-in plugins (GitHub
-  Releases + Ollama Models) to the README's user-facing feature highlights, so it's visible at first
-  glance; end-user wording, screenshot if the popup/row UI shows the action.
-- [ ] 7.2 Refresh Settings/Plugins screenshots if the UI changed (standing routine).
-- [ ] 7.3 Manual end-to-end check: type `gemma3:1b` (small!) → downloads → "Add to Ollama" → `ollama list`
-  shows it; note the result here before archiving.
+- [x] 7.1 CLAUDE.md layout (Abstractions + new `Downloader.Desktop.Plugins/` home, `samples/` removal);
+  `docs/writing-plugins.md` (paths + `IPostDownloadAction` row).
+- [x] 7.1b README feature bullet: "Download Ollama models" (paste a link or type `gemma3:12b` → download
+  → one-click Add to Ollama) + built-in plugins (GitHub Releases + Ollama Models).
+- [ ] 7.2 Settings/Plugins screenshots: **deferred to the Linux box** (this session is macOS; per
+  SKILL.md the docs screenshots must only be regenerated on Linux). The Plugins list now shows the two
+  built-ins without trash buttons — worth a capture refresh there.
+- [ ] 7.3 **Author's manual e2e:** type `gemma3:1b` (small!) → downloads → "Add to Ollama" →
+  `ollama list` shows it. Change stays in-progress until the author confirms (per the author's
+  standing rule, this change is NOT archived automatically).

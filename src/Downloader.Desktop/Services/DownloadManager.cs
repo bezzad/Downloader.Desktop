@@ -361,6 +361,9 @@ public partial class DownloadManager : IDownloadManager
                     var plan = await ResolvePlanAsync(urls[0], default).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
+                        // Remember WHICH plugin resolved this link so its post-download action (e.g.
+                        // "Add to Ollama") can be offered on the finished item, incl. after a restart.
+                        item.ResolverPluginId = _plugins?.FindResolverPluginId(urls[0]);
                         var pp = PersistedPlan.From(plan);
                         if (pp.NeedsRunner)
                         {
@@ -461,6 +464,43 @@ public partial class DownloadManager : IDownloadManager
         var name = string.IsNullOrWhiteSpace(currentFileName) ? plan.SuggestedFileName : currentFileName;
         AppLog.Info($"Plugin resolved {url} -> {part.Url}");
         return (part.Url, name);
+    }
+
+    /// <summary>The post-download action label a plugin offers for this COMPLETED item (e.g. "Add to
+    /// Ollama"), or null. Only the plugin that resolved the link is consulted.</summary>
+    public string PostDownloadActionLabel(DownloadItemViewModel vm)
+    {
+        var item = vm?.GetItem();
+        if (item == null || vm.Status != DownloadStatus.Completed)
+            return null;
+        return _plugins?.FindPostDownloadAction(item.ResolverPluginId, item.Url, item.FilePath)?.Label;
+    }
+
+    /// <summary>Runs the offered post-download action (user click). Failures surface as a friendly
+    /// in-app message on the item; the downloaded file is never modified by the host.</summary>
+    public async Task RunPostDownloadAction(DownloadItemViewModel vm)
+    {
+        var item = vm?.GetItem();
+        var action = item == null ? null
+            : _plugins?.FindPostDownloadAction(item.ResolverPluginId, item.Url, item.FilePath);
+        if (action == null)
+            return;
+
+        try
+        {
+            NotificationService.Inform(action.Label, vm.FileName ?? item.Url, isError: false);
+            await Task.Run(() => action.ExecuteAsync(item.Url, item.FilePath, null, default)).ConfigureAwait(false);
+            OnUi(() => NotificationService.Inform(action.Label, Localizer.Instance["PostAction_Done"], isError: false));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Post-download action '{action.Label}' failed for {item.Url}", ex);
+            OnUi(() =>
+            {
+                vm.ErrorMessage = Describe(ex);
+                NotificationService.Inform(action.Label, Describe(ex), isError: true);
+            });
+        }
     }
 
     /// <summary>Turns an exception into a short, user-friendly root cause.</summary>
@@ -939,6 +979,7 @@ public partial class DownloadManager : IDownloadManager
                 AppLog.Info($"Completed: {vm.FileName}");
                 if (NotifyCompleteEnabled)
                     NotificationService.NotifyCompleted(vm.FileName);
+                OfferPostDownloadAction(vm);
             }
 
             FinishTerminal(vm);
@@ -1022,6 +1063,17 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status == DownloadStatus.Completed)
             MaybeAllCompleted();
         NotifyList();
+    }
+
+    /// <summary>If the resolving plugin offers an action for this completed item (e.g. "Add to Ollama"),
+    /// surface it as an actionable notification. The row button appears via <see cref="PostDownloadActionLabel"/>.</summary>
+    private void OfferPostDownloadAction(DownloadItemViewModel vm)
+    {
+        var label = PostDownloadActionLabel(vm);
+        if (label == null)
+            return;
+        vm.RaisePostActionChanged();
+        NotificationService.ShowAction(label, vm.FileName ?? vm.Url, () => _ = RunPostDownloadAction(vm));
     }
 
     /// <summary>

@@ -68,6 +68,7 @@
   "Plan_Part": "Teil {0}/{1}",
   "Plan_Assembling": "Zusammenfügen…",
   "Plan_NoProcessor": "Kein installiertes Plugin kann diesen Download zusammenfügen — das benötigte Plugin ist evtl. deaktiviert oder fehlt.",
+  "PostAction_Done": "Fertig!",
   "Name_Fetching": "Name wird ermittelt…",
   "Error_LinkExpired": "Dieser Link scheint abgelaufen oder ungültig — der Server lieferte eine Webseite statt der Datei. Hol dir einen frischen Link und versuch es erneut.",
   "Name_Unnamed": "(unbenannt)",

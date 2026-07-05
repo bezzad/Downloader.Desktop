@@ -151,6 +151,10 @@ public class PluginRowViewModel : ViewModelBase
     public string Description => _descriptor.Description;
     public string VersionText => $"v{_descriptor.Version}";
 
+    /// <summary>Built-ins ship with the app: they can be disabled but not removed (hides the trash button).</summary>
+    public bool IsBuiltIn => _descriptor.IsBuiltIn;
+    public bool CanRemove => !_descriptor.IsBuiltIn;
+
     public bool IsEnabled
     {
         get => _descriptor.IsEnabled;

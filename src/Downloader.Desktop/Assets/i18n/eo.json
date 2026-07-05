@@ -68,6 +68,7 @@
   "Plan_Part": "Parto {0}/{1}",
   "Plan_Assembling": "Kunmetante…",
   "Plan_NoProcessor": "Neniu instalita kromaĵo povas kunmeti ĉi tiun elŝuton — la bezonata kromaĵo eble estas malŝaltita aŭ mankas.",
+  "PostAction_Done": "Farite!",
   "Name_Fetching": "Akirante nomon…",
   "Error_LinkExpired": "Ĉi tiu ligilo ŝajnas eksvalida aŭ nevalida — la servilo redonis retpaĝon anstataŭ la dosieron. Akiru novan ligilon kaj reprovu.",
   "Name_Unnamed": "(sennoma)",
