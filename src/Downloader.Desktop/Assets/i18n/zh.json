@@ -258,6 +258,6 @@
   "Set_Notch_Hint": "屏幕顶部中央的小胶囊显示时钟；悬停可查看实时下载进度。",
   "Notch_More": "还有 {0} 个…",
   "Notch_NoDownloads": "没有进行中的下载",
-  "Plan_PartsParallel": "分段 {0}/{1} · ×{2}",
-  "PostAction_OfferMsg": "{0} 已下载完成——点击以执行“{1}”。"
+  "PostAction_OfferMsg": "{0} 已下载完成——点击以执行“{1}”。",
+  "Det_SegCount": "{0} 个分段"
 }

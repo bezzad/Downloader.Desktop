@@ -258,6 +258,6 @@
   "Set_Notch_Hint": "Une petite pastille en haut au centre de l'écran affichant l'horloge ; survolez-la pour voir la progression des téléchargements en direct.",
   "Notch_More": "et {0} de plus…",
   "Notch_NoDownloads": "Aucun téléchargement actif",
-  "Plan_PartsParallel": "Parties {0}/{1} · ×{2}",
-  "PostAction_OfferMsg": "{0} est téléchargé — cliquez pour lancer « {1} »."
+  "PostAction_OfferMsg": "{0} est téléchargé — cliquez pour lancer « {1} ».",
+  "Det_SegCount": "{0} segments"
 }

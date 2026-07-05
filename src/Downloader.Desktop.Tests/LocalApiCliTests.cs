@@ -383,7 +383,19 @@ public class LocalApiEndToEndTests
     public void Start_prefers_the_persisted_effective_port()
     {
         // A config that remembers a non-default port from a previous run should bind that one first.
-        const int remembered = 15153;
+        // Pick a remembered port that is actually FREE right now — a live Downloader instance on this
+        // machine may hold any port in the range (it held 15153 during the author's session).
+        var remembered = LocalApiService.PortRange.Skip(1).First(p =>
+        {
+            try
+            {
+                var probe = new HttpListener();
+                probe.Prefixes.Add($"http://127.0.0.1:{p}/");
+                probe.Start(); probe.Stop(); probe.Close();
+                return true;
+            }
+            catch { return false; }
+        });
         var config = Config.New();
         config.Settings.LocalApiPort = remembered;
         LocalApiService.Config = config;

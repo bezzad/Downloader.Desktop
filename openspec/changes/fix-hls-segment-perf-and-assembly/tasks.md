@@ -36,9 +36,20 @@
   status now says **"Parts 12/36 · ×4"** while several segments are in flight (`Plan_PartsParallel`, all
   16 packs). Note: the author's byte-offset idea can't apply — HLS segments are separate server files,
   not ranges of one file, so parallel whole-segments is the correct equivalent (as they suspected).
-- [ ] 4.1 **Author re-test:** re-run the m3u8 e2e — download + merge already confirmed working; now check
-  the status shows "Parts i/N · ×4" during the run (visible parallelism). Stays in-progress until
-  confirmed.
+- [x] 4.5 **(reprocess — author feedback: "×2/×4 is cryptic; show segments as chunks in Details")** The
+  "×N" status suffix is GONE (back to plain "Part i/N"). Instead the Details window now renders every
+  plan segment as its own connection row: a new `PlanRunState` board (one slot per segment: waiting /
+  downloading / done + bytes/speed) is written by the runner from download threads and published on
+  `DownloadItemViewModel.PlanRun`; `DownloadDetailsViewModel` polls it (400 ms timer) instead of
+  attaching engine chunks (each segment is a single-chunk engine — attaching those showed one
+  endlessly-resetting row). Opening Details during an HLS run now shows e.g. 36 rows: 4 "Downloading"
+  with live speed, the finished ones "Completed", the rest "Pending" — exactly the requested UX. The
+  summary line says "36 segments" (`Det_SegCount`, all 16 packs; `Plan_PartsParallel` key removed).
+  +2 tests (runner fills the board to Done with real byte counts; the dialog renders waiting/active/done
+  rows). Note: per-segment BYTE-range chunking remains impossible — segments are separate server files.
+- [ ] 4.1 **Author re-test:** run the m3u8 again and open the Details window during the download — you
+  should see all segments listed, ~4 downloading in parallel, the rest pending/completed. Stays
+  in-progress until confirmed.
 - [x] 4.2 i18n: no new user-facing strings were needed.
 - [x] 4.3 `docs/plugins-architecture.md` plan-runner section updated with the segment/naming rules;
   SKILL.md note added.

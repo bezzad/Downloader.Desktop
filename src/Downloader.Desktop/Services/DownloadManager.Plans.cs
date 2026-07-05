@@ -51,12 +51,15 @@ public partial class DownloadManager
             ? _plugins?.FindPostProcessor(plan.ToPostProcess())
             : null;
 
+        // Live per-segment board for the details dialog (waiting / downloading / done rows).
+        var runState = new PlanRunState(plan.Parts.Count);
         OnUi(() =>
         {
             // Keep the row in sync with the ACTUAL output name (a playlist-derived "video.m3u8" gets
             // normalized to "video.mp4" above — the row must not keep showing the playlist name).
             if (!string.Equals(item.FileName, finalName, StringComparison.Ordinal))
                 vm.FileName = finalName;
+            vm.PlanRun = runState;
         });
 
         try
@@ -67,15 +70,19 @@ public partial class DownloadManager
                 onStage: stage => OnUi(() => vm.PlanStage = stage),
                 onProgress: p => { if (vm.Status == DownloadStatus.Running) vm.StageProgress(p.Percent, p.Speed, p.Downloaded, p.Total); },
                 isCancelled: () => vm.Status == DownloadStatus.Stopped,
-                ct).ConfigureAwait(false);
+                ct, runState).ConfigureAwait(false);
 
             if (finalPath == null)
+            {
+                OnUi(() => vm.PlanRun = null);
                 return; // user cancelled (parts folder already removed) — status stays Stopped
+            }
 
             var size = SafeLength(finalPath);
             OnUi(() =>
             {
                 vm.PlanStage = null;
+                vm.PlanRun = null;
                 item.PlanJson = null;
                 if (size > 0) { vm.Size = size; vm.Downloaded = size; }
                 vm.Progress = 100;
@@ -92,6 +99,7 @@ public partial class DownloadManager
             OnUi(() =>
             {
                 vm.PlanStage = null;
+                vm.PlanRun = null;
                 vm.ErrorMessage = Describe(ex);
                 vm.Status = DownloadStatus.Failed;
                 AppLog.Error($"Plan failed: {finalName}", ex);
@@ -119,7 +127,8 @@ public partial class DownloadManager
     internal async Task<string> ExecutePlanAsync(
         PersistedPlan plan, string folder, string finalName, IPostProcessor processor,
         Action<DownloadService> onPartService, Action<string> onStage,
-        Action<PlanProgress> onProgress, Func<bool> isCancelled, CancellationToken ct)
+        Action<PlanProgress> onProgress, Func<bool> isCancelled, CancellationToken ct,
+        PlanRunState runState = null)
     {
         folder ??= ".";
         finalName = SanitizeFileName(finalName);
@@ -166,6 +175,9 @@ public partial class DownloadManager
         {
             var part = parts[index];
             var partPath = partPaths[index];
+            runState?.SetActive(index);
+            if (part.ExpectedSize is > 0)
+                runState?.SetTotal(index, part.ExpectedSize.Value);
 
             var cfg = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
             ApplyHeaders(cfg, part.Headers);
@@ -185,6 +197,8 @@ public partial class DownloadManager
             {
                 partFraction[index] = Math.Clamp(e.ProgressPercentage / 100.0, 0, 1);
                 partSpeed[index] = e.BytesPerSecondSpeed;
+                runState?.SetTotal(index, e.TotalBytesToReceive);
+                runState?.Report(index, partFraction[index], e.BytesPerSecondSpeed, e.ReceivedBytesSize);
                 lock (progressGate) ReportProgress();
             };
 
@@ -201,6 +215,7 @@ public partial class DownloadManager
 
             MarkPartDone(partPath, part.ExpectedSize);
             partFraction[index] = 1;
+            runState?.SetDone(index, part.ExpectedSize ?? SafeLength(partPath));
             System.Threading.Interlocked.Add(ref doneBytes, part.ExpectedSize ?? SafeLength(partPath));
         }
 
@@ -211,6 +226,7 @@ public partial class DownloadManager
             if (IsPartComplete(partPaths[i], parts[i].ExpectedSize))
             {
                 partFraction[i] = 1;
+                runState?.SetDone(i, parts[i].ExpectedSize ?? SafeLength(partPaths[i]));
                 doneBytes += parts[i].ExpectedSize ?? SafeLength(partPaths[i]);
             }
             else
@@ -224,18 +240,11 @@ public partial class DownloadManager
         var parallel = pending.Count > 2 && pending.All(i => parts[i].Kind == PartKind.Segment);
 
         var doneCount = parts.Count - pending.Count;
-        var activeCount = 0;
-        void StagePart()
-        {
-            // In parallel mode say so explicitly ("Parts 12/36 · ×4") — segments finishing one by one
-            // made the concurrent run READ as serial (author feedback).
-            var active = System.Threading.Volatile.Read(ref activeCount);
-            onStage?.Invoke(active > 1
-                ? string.Format(Localizer.Instance["Plan_PartsParallel"],
-                    Math.Min(doneCount + 1, parts.Count), parts.Count, active)
-                : string.Format(Localizer.Instance["Plan_Part"],
-                    Math.Min(doneCount + 1, parts.Count), parts.Count));
-        }
+        void StagePart() =>
+            // Keep it simple ("Part 12/36") — the details dialog shows the per-segment parallelism
+            // (the earlier "×4" suffix confused the author). Parallelism is visible, not narrated.
+            onStage?.Invoke(string.Format(Localizer.Instance["Plan_Part"],
+                Math.Min(doneCount + 1, parts.Count), parts.Count));
 
         if (parallel)
         {
@@ -249,19 +258,13 @@ public partial class DownloadManager
                 await slots.WaitAsync(ct).ConfigureAwait(false);
                 running.Add(Task.Run(async () =>
                 {
-                    System.Threading.Interlocked.Increment(ref activeCount);
                     try
                     {
-                        StagePart();
                         await DownloadPartAsync(index).ConfigureAwait(false);
                         System.Threading.Interlocked.Increment(ref doneCount);
-                    }
-                    finally
-                    {
-                        System.Threading.Interlocked.Decrement(ref activeCount);
                         StagePart();
-                        slots.Release();
                     }
+                    finally { slots.Release(); }
                 }, ct));
             }
             try

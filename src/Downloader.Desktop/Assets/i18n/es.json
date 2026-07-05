@@ -258,6 +258,6 @@
   "Set_Notch_Hint": "Una pequeña píldora en el centro superior de la pantalla que muestra el reloj; pasa el cursor para ver el progreso de las descargas en vivo.",
   "Notch_More": "y {0} más…",
   "Notch_NoDownloads": "No hay descargas activas",
-  "Plan_PartsParallel": "Partes {0}/{1} · ×{2}",
-  "PostAction_OfferMsg": "{0} terminó de descargarse — haz clic para ejecutar «{1}»."
+  "PostAction_OfferMsg": "{0} terminó de descargarse — haz clic para ejecutar «{1}».",
+  "Det_SegCount": "{0} segmentos"
 }

@@ -28,7 +28,8 @@ public class DownloadDetailsViewModel : ViewModelBase
     private static string L(string key) => Localizer.Instance[key];
 
     public bool HasParts => Parts.Count > 0;
-    public string PartsSummary => Parts.Count > 0 ? string.Format(L("Det_ConnCount"), Parts.Count) : string.Empty;
+    public string PartsSummary => Parts.Count == 0 ? string.Empty
+        : string.Format(L(_planMode ? "Det_SegCount" : "Det_ConnCount"), Parts.Count);
     public bool HasQueue => !string.IsNullOrWhiteSpace(Item?.QueueName);
     public bool HasConfig => Item?.Configuration != null;
     public int Connections => Item?.Configuration?.ChunkCount ?? 0;
@@ -54,9 +55,14 @@ public class DownloadDetailsViewModel : ViewModelBase
         if (item != null)
             ((INotifyPropertyChanged)item).PropertyChanged += OnItemPropertyChanged;
 
-        // The engine handle may not exist yet (the manager assigns it only after resolving redirects
-        // off the UI thread). Attach now if it's ready, otherwise AttachDownload runs once it's set.
-        AttachDownload(item?.Download);
+        // A multi-part plan run feeds per-SEGMENT progress instead of engine chunks (each segment is
+        // its own single-chunk engine, so attaching those would show one endlessly-resetting row).
+        if (item?.PlanRun != null)
+            StartPlanPolling();
+        else
+            // The engine handle may not exist yet (the manager assigns it only after resolving redirects
+            // off the UI thread). Attach now if it's ready, otherwise AttachDownload runs once it's set.
+            AttachDownload(item?.Download);
 
         // If the download is already finished when the dialog opens, reflect its terminal state on
         // every segment instead of leaving them reading "Downloading".
@@ -73,7 +79,7 @@ public class DownloadDetailsViewModel : ViewModelBase
     /// </summary>
     private void AttachDownload(DownloadService download)
     {
-        if (download == null || ReferenceEquals(download, _download))
+        if (download == null || ReferenceEquals(download, _download) || Item?.PlanRun != null)
             return;
 
         if (_download != null)
@@ -237,6 +243,17 @@ public class DownloadDetailsViewModel : ViewModelBase
         if (e.PropertyName is nameof(DownloadItemViewModel.Progress) or nameof(DownloadItemViewModel.FileName)
             or nameof(DownloadItemViewModel.DisplayName) or nameof(DownloadItemViewModel.Status))
             Dispatcher.UIThread.Post(() => this.RaisePropertyChanged(nameof(WindowTitle)));
+
+        // The plan runner may start after the dialog opened — switch to segment polling when it does.
+        if (e.PropertyName == nameof(DownloadItemViewModel.PlanRun))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (Item?.PlanRun != null)
+                    StartPlanPolling();
+            });
+            return;
+        }
 
         // The engine handle is created after the dialog may have opened — attach as soon as it's set.
         if (e.PropertyName == nameof(DownloadItemViewModel.Download))
@@ -404,9 +421,56 @@ public class DownloadDetailsViewModel : ViewModelBase
             part.Freeze(key);
     }
 
+    // ---- Multi-part plan mode: poll the runner's per-segment board ----
+
+    private DispatcherTimer _planTimer;
+    private bool _planMode;
+
+    private void StartPlanPolling()
+    {
+        _planMode = true;
+        UpdateFromPlan();
+        if (_planTimer == null)
+        {
+            _planTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            _planTimer.Tick += (_, _) => UpdateFromPlan();
+        }
+        _planTimer.Start();
+        this.RaisePropertyChanged(nameof(PartsSummary));
+    }
+
+    private void UpdateFromPlan()
+    {
+        var run = Item?.PlanRun;
+        if (run == null)
+        {
+            // The run ended — the status-change handler completes/freezes the rows; stop polling.
+            _planTimer?.Stop();
+            return;
+        }
+
+        for (var i = 0; i < run.Count; i++)
+        {
+            var (state, fraction, speed, received, total) = run.Get(i);
+            var part = GetOrAddPart($"seg{i}", total);
+            switch (state)
+            {
+                case PlanRunState.PartState.Done:
+                    if (part.Progress < 100)
+                        part.Complete();
+                    break;
+                case PlanRunState.PartState.Active:
+                    part.Update(fraction * 100, speed, received, total);
+                    break;
+                // Waiting: leave untouched — 0% shows the localized "Pending".
+            }
+        }
+    }
+
     /// <summary>Detach engine handlers; call when the dialog closes.</summary>
     public void Cleanup()
     {
+        _planTimer?.Stop();
         if (_download != null)
         {
             _download.ChunkDownloadProgressChanged -= OnChunkProgress;

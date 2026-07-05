@@ -258,6 +258,6 @@
   "Set_Notch_Hint": "Eine kleine Pille oben mittig am Bildschirm mit der Uhr; beim Überfahren zeigt sie den Live-Downloadfortschritt.",
   "Notch_More": "und {0} weitere…",
   "Notch_NoDownloads": "Keine aktiven Downloads",
-  "Plan_PartsParallel": "Teile {0}/{1} · ×{2}",
-  "PostAction_OfferMsg": "{0} wurde heruntergeladen — klicke, um »{1}« auszuführen."
+  "PostAction_OfferMsg": "{0} wurde heruntergeladen — klicke, um »{1}« auszuführen.",
+  "Det_SegCount": "{0} Segmente"
 }

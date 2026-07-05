@@ -258,6 +258,6 @@
   "Set_Notch_Hint": "画面上部中央の小さなピルに時計を表示。ホバーするとダウンロードの進行状況が見られます。",
   "Notch_More": "ほか {0} 件…",
   "Notch_NoDownloads": "実行中のダウンロードはありません",
-  "Plan_PartsParallel": "パート {0}/{1} · ×{2}",
-  "PostAction_OfferMsg": "{0} のダウンロードが完了しました。クリックして「{1}」を実行します。"
+  "PostAction_OfferMsg": "{0} のダウンロードが完了しました。クリックして「{1}」を実行します。",
+  "Det_SegCount": "{0} セグメント"
 }

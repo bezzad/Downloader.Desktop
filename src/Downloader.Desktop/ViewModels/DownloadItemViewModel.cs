@@ -377,6 +377,16 @@ public class DownloadItemViewModel : ViewModelBase
 
     private static string L(string key) => Localizer.Instance[key];
 
+    private PlanRunState _planRun;
+
+    /// <summary>Live per-segment progress board while a multi-part plan runs (null otherwise). The
+    /// details dialog renders it as the "connections" list: waiting / downloading / done per segment.</summary>
+    public PlanRunState PlanRun
+    {
+        get => _planRun;
+        set => this.RaiseAndSetIfChanged(ref _planRun, value);
+    }
+
     /// <summary>Set by the multi-part plan runner to show "Part i/N" while downloading segments and
     /// "Assembling…" during post-processing. Null for a normal single-file download.</summary>
     public string PlanStage

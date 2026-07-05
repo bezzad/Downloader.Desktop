@@ -268,6 +268,39 @@ public class PlanRunnerTests
     }
 
     [Fact]
+    public async Task Run_state_tracks_every_segment_to_done()
+    {
+        // The details dialog renders PlanRunState as waiting/downloading/done rows — the runner must
+        // mark every segment Done with its real byte count by the end of the run.
+        var parts = Enumerable.Range(0, 5).ToDictionary(i => $"q{i}.ts", i => Bytes($"Q{i}", 2500 + i * 10));
+        using var server = new LoopbackServer(parts);
+        var dir = TempDir();
+        try
+        {
+            var plan = new PersistedPlan
+            {
+                PostProcessKind = PostProcessKind.None,
+                Parts = Enumerable.Range(0, 5)
+                    .Select(i => new PersistedPart { Url = server.Url + $"q{i}.ts", Kind = PartKind.Segment })
+                    .ToList()
+            };
+            var state = new PlanRunState(plan.Parts.Count);
+            await new DownloadManager().ExecutePlanAsync(plan, dir, "q.bin", null,
+                _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None, state);
+
+            for (var i = 0; i < 5; i++)
+            {
+                var (partState, fraction, _, received, total) = state.Get(i);
+                Assert.Equal(PlanRunState.PartState.Done, partState);
+                Assert.Equal(1, fraction);
+                Assert.Equal(2500 + i * 10, received);
+                Assert.Equal(2500 + i * 10, total);
+            }
+        }
+        finally { TryDelete(dir); }
+    }
+
+    [Fact]
     public void Persisted_plan_round_trips_through_json()
     {
         var plan = new DownloadPlan

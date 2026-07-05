@@ -258,6 +258,6 @@
   "Set_Notch_Hint": "A small pill at the top-center of the screen showing the clock; hover it to see live download progress.",
   "Notch_More": "and {0} more…",
   "Notch_NoDownloads": "No active downloads",
-  "Plan_PartsParallel": "Parts {0}/{1} · ×{2}",
-  "PostAction_OfferMsg": "{0} finished downloading — click to run “{1}”."
+  "PostAction_OfferMsg": "{0} finished downloading — click to run “{1}”.",
+  "Det_SegCount": "{0} segments"
 }

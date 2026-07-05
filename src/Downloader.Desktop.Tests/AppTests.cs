@@ -437,6 +437,36 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Details_dialog_renders_plan_segments_as_waiting_active_done_rows()
+    {
+        var item = new DownloadItem { Urls = { "https://h/video.m3u8" }, FileName = "video.mp4", Status = DownloadStatus.Running };
+        var vm = new DownloadItemViewModel(item, null) { Status = DownloadStatus.Running };
+
+        // Simulate the plan runner's live board: seg0 done, seg1 downloading at 40%, seg2 waiting.
+        var run = new PlanRunState(3);
+        run.SetDone(0, 5000);
+        run.SetActive(1);
+        run.Report(1, 0.4, 512 * 1024, 2000);
+        run.SetTotal(1, 5000);
+        vm.PlanRun = run;
+
+        var details = new DownloadDetailsViewModel(vm);
+        try
+        {
+            Assert.Equal(3, details.Parts.Count); // every segment gets a row (not one resetting chunk)
+            Localizer.Instance.Load("en");
+            Assert.Equal(100, details.Parts[0].Progress);
+            Assert.Equal("Completed", details.Parts[0].StatusText);
+            Assert.Equal(40, details.Parts[1].Progress, 1);
+            Assert.Equal("Downloading", details.Parts[1].StatusText);
+            Assert.Equal(0, details.Parts[2].Progress);
+            Assert.Equal("Pending", details.Parts[2].StatusText); // waiting its turn in the parallel cap
+            Assert.Contains("3", details.PartsSummary); // "3 segments"
+        }
+        finally { details.Cleanup(); }
+    }
+
+    [AvaloniaFact]
     public void Retry_clears_the_persisted_plan_so_it_re_resolves()
     {
         var manager = new DownloadManager();
