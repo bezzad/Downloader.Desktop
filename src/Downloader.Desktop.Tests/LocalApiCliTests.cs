@@ -324,6 +324,52 @@ public class LocalApiEndToEndTests
         }
     }
 
+    [AvaloniaFact]
+    public void Start_retries_in_background_until_a_port_frees_up()
+    {
+        // The reported bug: a transient startup condition (all ports momentarily busy) left the API
+        // silently dead until the user toggled the feature. Start must keep retrying and bind late.
+        var blockers = LocalApiService.PortRange.Select(p =>
+        {
+            var l = new HttpListener();
+            l.Prefixes.Add($"http://127.0.0.1:{p}/");
+            try { l.Start(); return l; } catch { return null; } // a port already busy externally blocks too
+        }).ToList();
+
+        var config = Config.New();
+        LocalApiService.Config = config;
+        LocalApiService.RetryInterval = TimeSpan.FromMilliseconds(50);
+        try
+        {
+            LocalApiService.Start();
+            Assert.False(LocalApiService.IsRunning); // everything blocked right now
+
+            // A retry attempt while everything is still blocked stays down (and doesn't throw).
+            LocalApiService.RetryTickForTest();
+            Assert.False(LocalApiService.IsRunning);
+
+            // Free one port; the next background retry tick should grab it.
+            var freed = blockers.First(b => b != null);
+            freed.Stop(); freed.Close();
+            blockers[blockers.IndexOf(freed)] = null;
+            LocalApiService.RetryTickForTest();
+
+            Assert.True(LocalApiService.IsRunning, "the retry should bind once a port frees up");
+            Assert.Contains(LocalApiService.EffectivePort, LocalApiService.PortRange);
+            Assert.Equal(LocalApiService.EffectivePort, config.Settings.LocalApiPort); // persisted late too
+        }
+        finally
+        {
+            LocalApiService.Stop();
+            LocalApiService.Config = null;
+            LocalApiService.RetryInterval = TimeSpan.FromSeconds(5);
+            foreach (var b in blockers.Where(b => b != null))
+            {
+                try { b.Stop(); b.Close(); } catch { /* cleanup */ }
+            }
+        }
+    }
+
     [Fact]
     public void SingleInstance_lock_port_is_outside_the_api_range()
     {

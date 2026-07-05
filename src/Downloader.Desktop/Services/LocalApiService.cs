@@ -65,16 +65,44 @@ public static class LocalApiService
                 yield return p;
     }
 
+    /// <summary>Raised (on the UI thread) after the listener state changes: a successful bind — including
+    /// a LATE bind from the startup retry — or a stop. Lets the Settings status row and the fallback
+    /// notification react even when the API comes up seconds after launch.</summary>
+    public static event Action StatusChanged;
+
+    // A transient condition at launch (e.g. the previous app instance still releasing its ports during an
+    // update/restart) used to leave the API silently dead until the user toggled it: Start() bound once
+    // and never retried. Now a short background retry keeps trying for ~1 minute.
+    private static Avalonia.Threading.DispatcherTimer _retry;
+    private static int _retriesLeft;
+    internal static TimeSpan RetryInterval = TimeSpan.FromSeconds(5); // shortened by tests
+    internal const int MaxRetries = 12;
+
     public static void Start()
     {
         if (IsRunning)
             return;
 
+        if (TryBindOnce())
+        {
+            StopRetry();
+            return;
+        }
+
+        // Every candidate was taken / denied right now — fail soft and keep retrying in the background
+        // (ports free up when the previous instance finishes exiting or the conflicting app closes).
+        AppLog.Info("Local API could not bind any port in the range — retrying in the background.");
+        BeginRetry();
+    }
+
+    private static bool TryBindOnce()
+    {
         foreach (var port in CandidatePorts())
         {
+            HttpListener listener = null;
             try
             {
-                var listener = new HttpListener();
+                listener = new HttpListener();
                 listener.Prefixes.Add($"http://127.0.0.1:{port}/");
                 listener.Start();
                 _listener = listener;
@@ -85,22 +113,65 @@ public static class LocalApiService
                 if (Config?.Settings != null)
                     Config.Settings.LocalApiPort = port;
                 AppLog.Info($"Local API listening on 127.0.0.1:{port}");
-                return;
+                RaiseStatusChanged();
+                return true;
             }
             catch (Exception ex)
             {
-                // This port is busy or denied — try the next one in the declared range.
+                // This port is busy or denied — release the half-built listener and try the next one.
+                try { listener?.Close(); } catch { /* best-effort */ }
                 AppLog.Error($"Local API could not bind 127.0.0.1:{port}", ex);
             }
         }
 
-        // Every candidate was taken / denied — fail soft, the rest of the app is unaffected.
         _listener = null;
         EffectivePort = 0;
+        return false;
+    }
+
+    private static void BeginRetry()
+    {
+        _retriesLeft = MaxRetries;
+        _retry ??= CreateRetryTimer();
+        _retry.Interval = RetryInterval;
+        _retry.Start();
+    }
+
+    private static Avalonia.Threading.DispatcherTimer CreateRetryTimer()
+    {
+        var timer = new Avalonia.Threading.DispatcherTimer();
+        timer.Tick += (_, _) => RetryTick();
+        return timer;
+    }
+
+    private static void RetryTick()
+    {
+        if (IsRunning || TryBindOnce())
+        {
+            StopRetry();
+            return;
+        }
+        if (--_retriesLeft <= 0)
+        {
+            AppLog.Info("Local API gave up retrying — every port in the range stayed busy.");
+            StopRetry();
+        }
+    }
+
+    /// <summary>Deterministic test seam: runs one background-retry attempt (headless DispatcherTimers
+    /// don't fire from RunJobs).</summary>
+    internal static void RetryTickForTest() => RetryTick();
+
+    private static void StopRetry() => _retry?.Stop();
+
+    private static void RaiseStatusChanged()
+    {
+        try { StatusChanged?.Invoke(); } catch { /* observers must not break the listener */ }
     }
 
     public static void Stop()
     {
+        StopRetry();
         try
         {
             _cts?.Cancel();
@@ -115,6 +186,8 @@ public static class LocalApiService
         {
             _listener = null;
             _cts = null;
+            EffectivePort = 0;
+            RaiseStatusChanged();
         }
     }
 

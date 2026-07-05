@@ -262,14 +262,23 @@ public class MainViewModel : ViewModelBase
         LocalApiService.Config = _config;
         if (_config.Settings.EnableBrowserIntegration)
         {
-            LocalApiService.Start();
             // If the preferred port was taken and we fell back within the declared range, tell the user
-            // once (this setup runs once per session) so the extension's "not connected" makes sense.
-            if (LocalApiService.IsRunning && LocalApiService.EffectivePort != LocalApiService.PreferredPort)
+            // once so the extension's "not connected" makes sense. Subscribed BEFORE Start so it also
+            // covers a LATE bind from the background retry (a transient startup port conflict used to
+            // leave the API silently dead until the user toggled the feature — the reported bug).
+            var portNotified = false;
+            LocalApiService.StatusChanged += () =>
+            {
+                if (portNotified || !LocalApiService.IsRunning ||
+                    LocalApiService.EffectivePort == LocalApiService.PreferredPort)
+                    return;
+                portNotified = true;
                 NotificationService.Notify(
                     Localizer.Instance["LocalApi_PortChangedTitle"],
                     string.Format(Localizer.Instance["LocalApi_PortChangedMsg"], LocalApiService.EffectivePort),
                     false);
+            };
+            LocalApiService.Start();
         }
 
         // Single instance: a second launch forwards its message here. A structured "add:{json}"

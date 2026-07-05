@@ -31,6 +31,9 @@ public class SettingViewModel : ViewModelBase
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _manager = manager;
+        // Keep the "Local API" row live: a LATE bind (the startup retry finally succeeding) or a stop
+        // flips the dot/text without the user having to toggle the feature (the reported bug).
+        LocalApiService.StatusChanged += RaiseLocalApiStatus;
         Plugins = new PluginsViewModel(pluginManager ?? new PluginManager(), _config);
         SelectSavePathCommand = ReactiveCommand.CreateFromTask(SelectSavePath);
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
@@ -296,6 +299,7 @@ public class SettingViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsLocalApiRunning));
         this.RaisePropertyChanged(nameof(LocalApiStatusBrush));
     }
+
 
     // ---- Language ----
     public System.Collections.Generic.IReadOnlyList<LanguageOption> Languages => Localizer.Languages;
