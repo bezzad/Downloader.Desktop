@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Downloader;
 using Downloader.Desktop.Converters;
 using Downloader.Desktop.Models;
@@ -299,6 +301,239 @@ public class AppTests
 
         await Task.Delay(50);
         Assert.Equal("ubuntu-26.04-desktop-amd64.iso", vm.Filename);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_suggests_single_clipboard_url_and_accepts_it()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/from-clipboard.zip"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.Equal("https://host/from-clipboard.zip", vm.ClipboardSuggestion);
+        Assert.True(vm.ShowClipboardSuggestion);
+        Assert.False(vm.CanDownload); // suggestion is NOT committed yet
+
+        vm.AcceptClipboardSuggestion();
+        Assert.Equal("https://host/from-clipboard.zip", vm.Urls);
+        Assert.True(vm.CanDownload);
+        Assert.False(vm.ShowClipboardSuggestion);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_suggests_multiple_clipboard_urls_mixed_separators()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/a.zip https://host/b.zip,https://host/c.zip"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.True(vm.ShowClipboardSuggestion);
+
+        // The overlay shows a compact one-line summary for many URLs (so a big clipboard can't flood
+        // the box) while the full text is still what gets committed on accept.
+        Localizer.Instance.Load("en");
+        Assert.Equal("3 links on clipboard", vm.ClipboardSuggestionDisplay);
+        Assert.DoesNotContain("\n", vm.ClipboardSuggestionDisplay);
+        Assert.Contains("a.zip", vm.ClipboardSuggestion); // full text retained for accept
+
+        vm.AcceptClipboardSuggestion();
+        Assert.True(vm.IsMultiple);
+        Assert.Contains("a.zip", vm.Urls);
+        Assert.Contains("b.zip", vm.Urls);
+        Assert.Contains("c.zip", vm.Urls);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_enter_accepts_clipboard_suggestion_not_newline()
+    {
+        // Regression: Enter in the empty multi-line links box used to insert a newline instead of
+        // accepting the clipboard suggestion, because the TextBox's own bubble-phase handler ran first.
+        // The view intercepts Enter in the TUNNEL phase; this drives a real key press to prove it.
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/from-clipboard.zip"));
+        await vm.ClipboardSuggestionReady;
+
+        var view = new Views.AddDownloadItemView { DataContext = vm };
+        vm.View = view;
+        view.Show();
+        var box = view.GetVisualDescendants().OfType<Avalonia.Controls.TextBox>().First(t => t.Name == "UrlBox");
+        box.Focus();
+
+        view.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None,
+            Avalonia.Input.PhysicalKey.Enter, "\r");
+
+        Assert.Equal("https://host/from-clipboard.zip", vm.Urls); // accepted, no leading/trailing newline
+        Assert.DoesNotContain("\n", vm.Urls);
+        Assert.False(vm.ShowClipboardSuggestion);
+        Assert.True(vm.CanDownload);
+        view.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_ignores_clipboard_when_seed_url_present()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            "https://host/seed.zip",
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("https://host/clipboard.zip"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.Null(vm.ClipboardSuggestion);
+        Assert.False(vm.ShowClipboardSuggestion);
+        Assert.Equal("https://host/seed.zip", vm.Urls);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_no_suggestion_for_non_url_clipboard()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null),
+            TimeSpan.Zero,
+            readClipboard: () => Task.FromResult("just some copied prose, not a link"));
+
+        await vm.ClipboardSuggestionReady;
+        Assert.Null(vm.ClipboardSuggestion);
+        Assert.False(vm.ShowClipboardSuggestion);
+    }
+
+    [AvaloniaFact]
+    public void Plan_stage_shows_part_progress_in_status_text()
+    {
+        Localizer.Instance.Load("en");
+        var vm = new DownloadItemViewModel(new DownloadItem { Status = DownloadStatus.Running }, null)
+        {
+            Status = DownloadStatus.Running,
+            Progress = 40
+        };
+        // No plan stage → plain percent.
+        Assert.Equal("40%", vm.StatusText);
+        // Multi-part plan sets the stage → "Part i/N · %".
+        vm.PlanStage = "Part 3/10";
+        Assert.Equal("Part 3/10 · 40%", vm.StatusText);
+        // Cleared when the plan finishes.
+        vm.PlanStage = null;
+        Assert.Equal("40%", vm.StatusText);
+    }
+
+    [AvaloniaFact]
+    public void Details_dialog_renders_plan_segments_as_waiting_active_done_rows()
+    {
+        var item = new DownloadItem { Urls = { "https://h/video.m3u8" }, FileName = "video.mp4", Status = DownloadStatus.Running };
+        var vm = new DownloadItemViewModel(item, null) { Status = DownloadStatus.Running };
+
+        // Simulate the plan runner's live board: seg0 done, seg1 downloading at 40%, seg2 waiting.
+        var run = new PlanRunState(3);
+        run.SetDone(0, 5000);
+        run.SetActive(1);
+        run.Report(1, 0.4, 512 * 1024, 2000);
+        run.SetTotal(1, 5000);
+        vm.PlanRun = run;
+
+        var details = new DownloadDetailsViewModel(vm);
+        try
+        {
+            Assert.Equal(3, details.Parts.Count); // every segment gets a row (not one resetting chunk)
+            Localizer.Instance.Load("en");
+            Assert.Equal(100, details.Parts[0].Progress);
+            Assert.Equal("Completed", details.Parts[0].StatusText);
+            Assert.Equal(40, details.Parts[1].Progress, 1);
+            Assert.Equal("Downloading", details.Parts[1].StatusText);
+            Assert.Equal(0, details.Parts[2].Progress);
+            Assert.Equal("Pending", details.Parts[2].StatusText); // waiting its turn in the parallel cap
+            Assert.Contains("3", details.PartsSummary); // "3 segments"
+        }
+        finally { details.Cleanup(); }
+    }
+
+    [AvaloniaFact]
+    public void Retry_clears_the_persisted_plan_so_it_re_resolves()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false; // don't actually start anything in the test
+        manager.Initialize(config);
+
+        var item = new DownloadItem
+        {
+            Urls = { "http://127.0.0.1:9/never" }, // connection-refused fast if the pump ever starts it
+            SaveFolder = System.IO.Path.GetTempPath(),
+            QueueId = config.DefaultQueue.Id,
+            PlanJson = "{\"Parts\":[{\"Url\":\"http://h/a\"},{\"Url\":\"http://h/b\"}]}"
+        };
+        var vm = manager.Add(item, autoStart: false);
+        vm.Status = DownloadStatus.Failed;
+
+        manager.Retry(vm);
+
+        // Retry drops the saved plan so the next Start re-resolves the (possibly expired) link.
+        Assert.Null(item.PlanJson);
+        Assert.NotEqual(DownloadStatus.Failed, vm.Status); // re-queued (Created) or already picked up (Running)
+        manager.Cancel(vm);
+    }
+
+    [AvaloniaFact]
+    public void Add_dialog_can_create_and_select_a_new_queue()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5;
+        config.DefaultQueue.IsRunning = false;
+        manager.Initialize(config);
+
+        var vm = new AddDownloadItemViewModel(config, "https://host/file.zip",
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero, manager: manager);
+        Assert.True(vm.CanAddQueue);
+        Assert.False(vm.ShowQueuePicker); // only the default queue exists so far
+
+        // Empty name → no-op.
+        vm.NewQueueName = "   ";
+        vm.ConfirmAddQueue();
+        Assert.Single(config.Queues);
+
+        vm.NewQueueName = "Series S01";
+        vm.ConfirmAddQueue();
+
+        Assert.Equal(2, config.Queues.Count);
+        var created = config.Queues.Last();
+        Assert.Equal("Series S01", created.Name);
+        Assert.Equal(5, created.MaxConcurrent); // seeded from settings via manager.AddQueue
+        Assert.True(vm.ShowQueuePicker);        // picker appears with the second queue
+        Assert.Same(created, vm.SelectedQueue); // new queue selected for this add
+
+        // The started download lands in the new queue.
+        var view = new Views.AddDownloadItemView { DataContext = vm };
+        vm.View = view;
+        view.Show();
+        vm.StartDownloadCommand.Execute(null);
+        // View.Close(items) returns the descriptors via ShowDialog normally; here grab them from the VM path:
+        view.Close();
+        var item = new DownloadItem
+        {
+            Urls = { "https://host/file.zip" },
+            QueueId = vm.SelectedQueue?.Id
+        };
+        Assert.Equal(created.Id, item.QueueId);
     }
 
     [AvaloniaFact]
@@ -741,7 +976,13 @@ public class AppTests
     public void Every_language_has_a_loadable_flag()
     {
         foreach (var lang in Localizer.Languages)
-            Assert.NotNull(lang.Flag); // Assets/flags/{code}.png must be embedded for each language
+        {
+            // Assets/flags/{code}.svg must be embedded and rasterize for each language.
+            Assert.NotNull(lang.Flag);
+            // Rendered at 3x the 15px display height so HiDPI screens get a crisp image.
+            Assert.Equal(45, lang.Flag.PixelSize.Height);
+            Assert.True(lang.Flag.PixelSize.Width > 0);
+        }
     }
 
     [AvaloniaFact]

@@ -9,7 +9,8 @@
         xmlns:services="clr-namespace:Downloader.Desktop.Services"
         mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="460"
         Width="560" Height="460"
-        CanResize="False"
+        MinWidth="480" MinHeight="360"
+        CanResize="True"
         FontSize="{StaticResource DefaultFontSize}"
         Background="Transparent"
         TransparencyLevelHint="Transparent"
@@ -21,6 +22,7 @@
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Add download">
 
+    <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
@@ -33,12 +35,29 @@
 
         <!-- Link(s) -->
         <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="{i18n:Tr Add_Links}" Margin="0 0 0 4" />
-        <TextBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                 Text="{Binding Urls, Mode=TwoWay}"
-                 AcceptsReturn="True" TextWrapping="NoWrap" Height="64"
-                 CornerRadius="6" Margin="0 0 0 14"
-                 VerticalContentAlignment="Top"
-                 PlaceholderText="{i18n:Tr Add_LinksPlaceholder}" />
+        <Panel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0 0 0 14" ClipToBounds="True">
+            <TextBox x:Name="UrlBox"
+                     Text="{Binding Urls, Mode=TwoWay}"
+                     AcceptsReturn="True" TextWrapping="NoWrap" Height="64"
+                     CornerRadius="6"
+                     VerticalContentAlignment="Top"
+                     PlaceholderText="{Binding LinksPlaceholder}" />
+            <!-- Clipboard suggestion: dimmed, non-committed, always a SINGLE line ("N links" summary for
+                 many) and clipped to the box so a big clipboard can't overflow the dialog. Enter/Tab
+                 (handled in code-behind) accepts the full clipboard content. -->
+            <TextBlock IsHitTestVisible="False"
+                       IsVisible="{Binding ShowClipboardSuggestion}"
+                       Text="{Binding ClipboardSuggestionDisplay}"
+                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxLines="1"
+                       Margin="12 8 12 0" VerticalAlignment="Top" HorizontalAlignment="Left"
+                       Foreground="{DynamicResource SystemAccentColor}" Opacity="0.65" />
+            <TextBlock IsHitTestVisible="False"
+                       IsVisible="{Binding ShowClipboardSuggestion}"
+                       Text="{i18n:Tr Add_ClipboardHint}"
+                       VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                       Margin="0 0 8 6" FontSize="11"
+                       Foreground="{DynamicResource SystemBaseMediumColor}" />
+        </Panel>
 
         <!-- Save folder -->
         <TextBlock Grid.Row="2" Grid.Column="0" Text="{i18n:Tr Add_SaveTo}" Margin="0 0 0 4" />
@@ -84,9 +103,28 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- Actions -->
+        <!-- Actions: [inline new-queue name row when adding] … [Add queue] [Add] -->
         <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0 16 0 0">
+            <!-- Inline queue-name entry (shown by the Add-queue button; Enter confirms). -->
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsAddingQueue}">
+                <TextBox x:Name="QueueNameBox" Width="160" CornerRadius="6" VerticalContentAlignment="Center"
+                         Text="{Binding NewQueueName, Mode=TwoWay}"
+                         PlaceholderText="{i18n:Tr Add_QueueNamePlaceholder}"
+                         KeyDown="OnQueueNameKeyDown" />
+                <Button Classes="icon" Command="{Binding ConfirmAddQueueCommand}" ToolTip.Tip="{i18n:Tr Add_QueueConfirm}">
+                    <PathIcon Data="{DynamicResource CheckmarkRegular}" Height="14" />
+                </Button>
+                <Button Classes="icon" Command="{Binding CancelAddQueueCommand}" ToolTip.Tip="{i18n:Tr Add_QueueCancel}">
+                    <PathIcon Data="{DynamicResource DismissRegular}" Height="14" />
+                </Button>
+            </StackPanel>
+            <!-- Same style as the Add button, to its left (author's spec). -->
+            <Button Content="{i18n:Tr Add_AddQueue}" Padding="20 8" Cursor="Hand"
+                    HorizontalContentAlignment="Center"
+                    Classes="accent"
+                    IsVisible="{Binding CanAddQueue}"
+                    Command="{Binding AddQueueCommand}" />
             <Button Content="{i18n:Tr Add_Download}" Padding="20 8" Cursor="Hand"
                     HorizontalContentAlignment="Center"
                     Classes="accent"
@@ -96,4 +134,6 @@
     </Grid>
     </DockPanel>
     </Border>
+    <v:ResizeGrips />
+    </Panel>
 </Window>

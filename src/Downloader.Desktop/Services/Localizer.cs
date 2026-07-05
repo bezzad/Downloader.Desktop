@@ -121,7 +121,12 @@ public sealed class LanguageOption
     private Avalonia.Media.Imaging.Bitmap _flag;
     private bool _flagLoaded;
 
-    /// <summary>Small country flag shown beside the language (lazy-loaded from Assets/flags/{code}.png).</summary>
+    /// <summary>Raster height the SVG flags are rendered at — 3x the 15px display size so they stay
+    /// crisp on HiDPI screens.</summary>
+    private const int FlagRasterHeight = 45;
+
+    /// <summary>Small country flag shown beside the language (lazy-rendered from Assets/flags/{code}.svg
+    /// via Svg.Skia — vector sources, so any raster size stays sharp).</summary>
     public Avalonia.Media.Imaging.Bitmap Flag
     {
         get
@@ -132,14 +137,40 @@ public sealed class LanguageOption
             try
             {
                 using var s = Avalonia.Platform.AssetLoader.Open(
-                    new Uri($"avares://Downloader.Desktop/Assets/flags/{Code}.png"));
-                _flag = new Avalonia.Media.Imaging.Bitmap(s);
+                    new Uri($"avares://Downloader.Desktop/Assets/flags/{Code}.svg"));
+                _flag = RenderSvg(s, FlagRasterHeight);
             }
             catch
             {
-                _flag = null; // missing flag asset → just show the name
+                _flag = null; // missing/broken flag asset → just show the name
             }
             return _flag;
         }
+    }
+
+    /// <summary>Rasterizes an SVG stream to an Avalonia bitmap at the given pixel height (width follows
+    /// the SVG's own aspect ratio).</summary>
+    private static Avalonia.Media.Imaging.Bitmap RenderSvg(System.IO.Stream stream, int targetHeight)
+    {
+        using var svg = new Svg.Skia.SKSvg();
+        var picture = svg.Load(stream);
+        if (picture == null || picture.CullRect.Height <= 0)
+            return null;
+
+        var scale = targetHeight / picture.CullRect.Height;
+        var width = (int)Math.Ceiling(picture.CullRect.Width * scale);
+        var info = new SkiaSharp.SKImageInfo(width, targetHeight,
+            SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
+
+        using var surface = SkiaSharp.SKSurface.Create(info);
+        surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+        surface.Canvas.Scale(scale);
+        surface.Canvas.DrawPicture(picture);
+        surface.Canvas.Flush();
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        using var ms = new System.IO.MemoryStream(data.ToArray());
+        return new Avalonia.Media.Imaging.Bitmap(ms);
     }
 }

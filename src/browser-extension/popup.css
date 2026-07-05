@@ -31,12 +31,27 @@ button.primary:hover { background: #0c7c9c; }
 button.wide { width: 100%; }
 button.link { background: none; color: #0E8FB3; padding: 2px 4px; }
 .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.section-head.sub { margin-top: 8px; font-size: 10px; opacity: .8; }
 .list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
 .list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,.15); }
 .list .meta { flex: 1; min-width: 0; }
 .list .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list .type { color: #888; font-size: 11px; }
+.list .size-line { color: #888; font-size: 11px; min-height: 14px; }
+.list .size-line.pending::after { content: "…"; }
+select.quality {
+  margin-top: 3px; max-width: 100%; font-size: 11px; padding: 3px 5px;
+  border-radius: 5px; border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
+}
 .empty { color: #888; text-align: center; padding: 8px 0; }
+.empty.unsupported { color: #E5594F; }
+details#otherSection { margin-top: 4px; }
+details#otherSection summary {
+  cursor: pointer; font-size: 11px; color: #888; padding: 4px 0; list-style: none;
+}
+details#otherSection summary::-webkit-details-marker { display: none; }
+details#otherSection summary::before { content: "▸ "; }
+details#otherSection[open] summary::before { content: "▾ "; }
 footer { padding: 10px 12px; border-top: 1px solid rgba(128,128,128,.25); }
 .mode { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #888; cursor: pointer; }
 .mode input { accent-color: #0E8FB3; }

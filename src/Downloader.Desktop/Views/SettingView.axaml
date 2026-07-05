@@ -246,6 +246,14 @@
 
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_Notch}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_Notch_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableNotch}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Set_RunAtStartup}" />
                             <TextBlock Classes="hint" Text="{i18n:Tr Set_RunAtStartup_Hint}" />
                         </StackPanel>
@@ -266,6 +274,20 @@
                             <TextBlock Classes="hint" Text="{i18n:Tr Set_BrowserIntegration_Hint}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableBrowserIntegration}" />
+                    </Grid>
+
+                    <!-- Read-only status: which loopback address the API bound to + a live reachable dot. -->
+                    <Grid Classes="field" ColumnDefinitions="*,Auto" IsVisible="{Binding EnableBrowserIntegration}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_LocalApiStatus}" />
+                            <TextBlock Classes="hint" Text="{Binding LocalApiAddress}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                                     Fill="{Binding LocalApiStatusBrush}" />
+                            <TextBlock Text="{Binding LocalApiStatusText}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="12" />
+                        </StackPanel>
                     </Grid>
 
                     <!-- Check for updates → (downloading: progress) → Restart to update. The label

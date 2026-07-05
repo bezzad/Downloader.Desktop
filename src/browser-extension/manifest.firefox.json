@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Downloader — Browser Integration",
-  "version": "1.1.0",
+  "version": "1.2.2",
   "description": "Adds 'Download with Downloader', captures video/audio/HLS media, and sends links to the Downloader desktop app.",
   "browser_specific_settings": {
     "gecko": {
@@ -16,11 +16,26 @@
   "host_permissions": [
     "<all_urls>",
     "http://127.0.0.1:15151/*",
-    "http://localhost:15151/*"
+    "http://127.0.0.1:15152/*",
+    "http://127.0.0.1:15153/*",
+    "http://127.0.0.1:15154/*",
+    "http://127.0.0.1:15155/*",
+    "http://localhost:15151/*",
+    "http://localhost:15152/*",
+    "http://localhost:15153/*",
+    "http://localhost:15154/*",
+    "http://localhost:15155/*"
   ],
   "background": {
     "scripts": ["common.js", "background.js"]
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Downloader",

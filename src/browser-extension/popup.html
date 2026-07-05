@@ -25,8 +25,13 @@
       <span>Detected media</span>
       <button id="scanLinks" class="link">Scan page links</button>
     </div>
-    <ul id="list" class="list"></ul>
+    <div id="mainHeading" class="section-head sub" style="display:none"><span>Main media</span></div>
+    <ul id="mainList" class="list"></ul>
     <p id="empty" class="empty">No media detected on this page yet.</p>
+    <details id="otherSection" style="display:none">
+      <summary id="otherSummary">Other detected (0)</summary>
+      <ul id="otherList" class="list"></ul>
+    </details>
   </section>
 
   <footer>

@@ -48,9 +48,9 @@ public class MainViewModel : ViewModelBase
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
         // Management pages open as dialogs over the always-downloads main view (the left rail was removed).
-        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"]));
-        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"]));
-        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"]));
+        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"], _config));
+        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"], _config));
+        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"], _config));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         DonateCommand = ReactiveCommand.Create(() =>
@@ -169,10 +169,17 @@ public class MainViewModel : ViewModelBase
 
         _downloadManager.Initialize(_config);
 
-        // Load external plugins (~/.config/Downloader/plugins) and apply the user's disabled list.
+        // Load the bundled built-in plugins (app dir /plugins — disable-only) plus the user's external
+        // plugins (~/.config/Downloader/plugins), then apply the persisted disabled list to both.
+        _pluginManager.LoadBuiltIns();
         _pluginManager.LoadFromDirectory(Services.PluginManager.PluginsRoot);
         foreach (var id in _config.DisabledPlugins ?? new System.Collections.Generic.List<string>())
             _pluginManager.SetEnabled(id, false);
+
+        // Plugins loaded AFTER the download list: re-raise post-download-action offers on completed
+        // items so their row buttons (e.g. "Add to Ollama") appear without needing a status change.
+        foreach (var vm in _downloadManager.Items)
+            vm.RaisePostActionChanged();
 
         Downloads = new DownloadsViewModel(_downloadManager);
         Queues = new QueuesViewModel(_config, _downloadManager);
@@ -223,6 +230,11 @@ public class MainViewModel : ViewModelBase
         if (_config.Settings.EnableSystemTray)
             TrayService.Enable();
 
+        // The notch overlay ("dynamic island") is opt-in; it runs independently of the main window so
+        // it stays visible while the app sits in the tray.
+        if (_config.Settings.EnableNotch)
+            NotchService.Start(_downloadManager);
+
         // Closing the window keeps the app alive in the tray (downloads keep running) unless the user
         // really quit from the tray menu, the tray is turned off, or an update is staged (closing should
         // then actually exit so the update applies).
@@ -249,7 +261,25 @@ public class MainViewModel : ViewModelBase
         LocalApiService.Manager = _downloadManager;
         LocalApiService.Config = _config;
         if (_config.Settings.EnableBrowserIntegration)
+        {
+            // If the preferred port was taken and we fell back within the declared range, tell the user
+            // once so the extension's "not connected" makes sense. Subscribed BEFORE Start so it also
+            // covers a LATE bind from the background retry (a transient startup port conflict used to
+            // leave the API silently dead until the user toggled the feature — the reported bug).
+            var portNotified = false;
+            LocalApiService.StatusChanged += () =>
+            {
+                if (portNotified || !LocalApiService.IsRunning ||
+                    LocalApiService.EffectivePort == LocalApiService.PreferredPort)
+                    return;
+                portNotified = true;
+                NotificationService.Notify(
+                    Localizer.Instance["LocalApi_PortChangedTitle"],
+                    string.Format(Localizer.Instance["LocalApi_PortChangedMsg"], LocalApiService.EffectivePort),
+                    false);
+            };
             LocalApiService.Start();
+        }
 
         // Single instance: a second launch forwards its message here. A structured "add:{json}"
         // (from the CLI) is added silently — no dialog, no focus steal; a plain URL keeps today's
@@ -446,7 +476,7 @@ public class MainViewModel : ViewModelBase
     {
         // Always open the dialog; URLs can be typed there if the top box was empty.
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
-            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl));
+            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager), _config);
 
         if (result is { Count: > 0 })
         {

@@ -13,7 +13,7 @@ mkdir -p "$OUT"
 rm -f "$OUT"/downloader-extension-*.zip
 
 # Files shared by both targets (everything except manifests + repo docs).
-COMMON=(background.js common.js popup.html popup.css popup.js icons)
+COMMON=(background.js common.js content.js popup.html popup.css popup.js icons)
 
 echo ">> Chrome/Edge zip ..."
 ( cd "$SRC" && zip -qr -X "../../$OUT/downloader-extension-chrome.zip" manifest.json "${COMMON[@]}" )

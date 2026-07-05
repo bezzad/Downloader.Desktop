@@ -34,6 +34,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Multi-connection downloads** — each file is split into several parts and downloaded in parallel for higher speed.
 - **Pause / resume / stop** any download, any time. Incomplete downloads resume after you restart the app.
 - **Add one or many links** — paste a single URL or many at once (one per line) and send them all to the same folder.
+- **Clipboard suggestions** — copied a link? The Add dialog offers it automatically; press **Enter** to use it, or just type over it.
 - **Automatic file names** — leave the name blank and the app detects it from the link or server.
 - **Queues** — group downloads and control how many run at the same time.
 - **Scheduler** — start and stop a queue automatically at set times (e.g. download overnight).
@@ -41,12 +42,15 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Clear status** — live progress and speed, a friendly reason when something fails, and a details view with per-connection progress.
 - **Light & dark themes** with a modern ocean-blue look.
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
+- **Dynamic Island (notch)** — an optional slim pill at the top-center of your screen showing the clock and live download speed; hover it to peek at active downloads without opening the app (Settings → Dynamic Island, off by default).
 - **System tray** — closing the window keeps downloads running in the background; reopen, mute notifications, or quit from the tray menu. Optionally **launch at startup** (hidden in the tray).
 - **Automatic update check** — get an in-app prompt when a new version ships, and update with one click.
+- **Extensible via plugins** — a plugin can turn a link the engine can't grab directly into a real download: the app downloads all the parts and assembles them into one file for you (e.g. **HLS `.m3u8`** streams → a single playable video via the HLS plugin). Multi-part downloads show live "Part 3/10" progress and an "Assembling…" step, and resume where they left off after a restart.
+- **Download Ollama models** — paste an `ollama.com` link or just type a model name like `gemma3:12b`, download it at full multi-connection speed, then click **Add to Ollama** to install it into your local Ollama in one step (checksum-verified). Ships built-in, together with the **GitHub Releases** plugin (paste `github.com/owner/repo` → get the latest release for your OS).
 - **Automation-friendly** — add and manage downloads from scripts or the terminal via a local API and CLI (see [Automation](#automation-local-api--command-line)).
 - **Multi-language UI** — English, فارسی (Persian), Español, Français, العربية (Arabic), Esperanto — with full right-to-left layout for Persian/Arabic. Switch under **Settings → App language**.
 - **No installation, no dependencies** — fully self-contained. You do **not** need to install .NET, FFmpeg, or anything else; just download and run.
-- **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced.
+- **Your settings, your way** — sensible defaults out of the box, saved the moment you change them, with every engine option available under Settings → Advanced. Dialogs are resizable and reopen at the size you left them.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
@@ -135,7 +139,9 @@ curl -X POST http://127.0.0.1:15151/api/add -d '{"url":"https://example.com/file
 
 You can also `list` all downloads (with progress and status) and `pause / resume / cancel / retry /
 remove` each one. Everything is **local-only** (loopback, never exposed to the network) and gated by
-the same **Settings → Browser extension & local API** toggle, on by default.
+the same **Settings → Browser extension & local API** toggle, on by default. If another program is
+already using port `15151`, the app automatically switches to the next port in `15151`–`15155` — the
+extension and CLI find it on their own, and Settings shows the current address.
 
 📖 **Full reference with examples:** [`docs/local-api.md`](docs/local-api.md)
 

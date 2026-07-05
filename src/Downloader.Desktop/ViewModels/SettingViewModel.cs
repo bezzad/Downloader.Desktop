@@ -31,6 +31,9 @@ public class SettingViewModel : ViewModelBase
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _manager = manager;
+        // Keep the "Local API" row live: a LATE bind (the startup retry finally succeeding) or a stop
+        // flips the dot/text without the user having to toggle the feature (the reported bug).
+        LocalApiService.StatusChanged += RaiseLocalApiStatus;
         Plugins = new PluginsViewModel(pluginManager ?? new PluginManager(), _config);
         SelectSavePathCommand = ReactiveCommand.CreateFromTask(SelectSavePath);
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
@@ -114,6 +117,20 @@ public class SettingViewModel : ViewModelBase
                 StartupService.Apply(false);
                 this.RaisePropertyChanged(nameof(RunAtStartup));
             }
+            this.RaisePropertyChanged();
+        }
+    }
+
+    /// <summary>Show the top-center "dynamic island" overlay; starts/stops live.</summary>
+    public bool EnableNotch
+    {
+        get => S.EnableNotch;
+        set
+        {
+            if (S.EnableNotch == value) return;
+            S.EnableNotch = value;
+            if (value) NotchService.Start(_manager);
+            else NotchService.Stop();
             this.RaisePropertyChanged();
         }
     }
@@ -251,8 +268,38 @@ public class SettingViewModel : ViewModelBase
             if (value) LocalApiService.Start();
             else LocalApiService.Stop();
             this.RaisePropertyChanged();
+            RaiseLocalApiStatus();
         }
     }
+
+    /// <summary>The effective loopback address the local API bound to, e.g. "127.0.0.1:15151".</summary>
+    public string LocalApiAddress
+    {
+        get
+        {
+            var port = LocalApiService.EffectivePort != 0 ? LocalApiService.EffectivePort : LocalApiService.PreferredPort;
+            return $"127.0.0.1:{port}";
+        }
+    }
+
+    /// <summary>Live "connected" / "not running" indicator for the local API row.</summary>
+    public string LocalApiStatusText =>
+        LocalApiService.IsRunning ? Localizer.Instance["Set_LocalApiConnected"] : Localizer.Instance["Set_LocalApiOffline"];
+
+    public bool IsLocalApiRunning => LocalApiService.IsRunning;
+
+    /// <summary>Green when reachable, gray when not — same palette as the download status dots.</summary>
+    public Avalonia.Media.IBrush LocalApiStatusBrush =>
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(LocalApiService.IsRunning ? "#1FA971" : "#6B7A83"));
+
+    private void RaiseLocalApiStatus()
+    {
+        this.RaisePropertyChanged(nameof(LocalApiAddress));
+        this.RaisePropertyChanged(nameof(LocalApiStatusText));
+        this.RaisePropertyChanged(nameof(IsLocalApiRunning));
+        this.RaisePropertyChanged(nameof(LocalApiStatusBrush));
+    }
+
 
     // ---- Language ----
     public System.Collections.Generic.IReadOnlyList<LanguageOption> Languages => Localizer.Languages;

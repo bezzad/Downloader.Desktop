@@ -221,7 +221,7 @@ public class LocalApiEndToEndTests
     }
 
     private static Task<HttpResponseMessage> Get(HttpClient client, string pathAndQuery) =>
-        Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.Port}{pathAndQuery}"));
+        Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.EffectivePort}{pathAndQuery}"));
 
     [AvaloniaFact]
     public void Api_add_list_control_and_legacy_endpoints_work()
@@ -273,7 +273,7 @@ public class LocalApiEndToEndTests
 
             // POST body form works too (control by JSON id) and is idempotent on a stopped row.
             var post = Task.Run(() => client.PostAsync(
-                $"http://127.0.0.1:{LocalApiService.Port}/api/pause",
+                $"http://127.0.0.1:{LocalApiService.EffectivePort}/api/pause",
                 new StringContent($$"""{"id":"{{id}}"}""", Encoding.UTF8, "application/json")));
             Assert.Equal(HttpStatusCode.OK, Pump(post).StatusCode);
         }
@@ -281,6 +281,134 @@ public class LocalApiEndToEndTests
         {
             LocalApiService.Stop();
             LocalApiService.Manager = null;
+            LocalApiService.Config = null;
+        }
+    }
+
+    [AvaloniaFact]
+    public void Start_falls_back_to_next_port_when_preferred_is_taken()
+    {
+        // Occupy the preferred port so the service must fall back. If 15151 is ALREADY taken (e.g. a real
+        // Downloader instance is running on this machine), that satisfies the precondition just as well —
+        // don't fail the test trying to double-bind it.
+        HttpListener blocker = null;
+        try
+        {
+            blocker = new HttpListener();
+            blocker.Prefixes.Add($"http://127.0.0.1:{LocalApiService.PreferredPort}/");
+            blocker.Start();
+        }
+        catch (HttpListenerException)
+        {
+            blocker = null; // preferred port is already held externally — precondition met without us
+        }
+
+        try
+        {
+            var config = Config.New();
+            LocalApiService.Config = config;
+            LocalApiService.Start();
+
+            Assert.True(LocalApiService.IsRunning);
+            Assert.NotEqual(LocalApiService.PreferredPort, LocalApiService.EffectivePort);
+            Assert.Contains(LocalApiService.EffectivePort, LocalApiService.PortRange);
+            // The effective port is persisted so the next start / the CLI prefers it.
+            Assert.Equal(LocalApiService.EffectivePort, config.Settings.LocalApiPort);
+        }
+        finally
+        {
+            LocalApiService.Stop();
+            LocalApiService.Config = null;
+            blocker?.Stop();
+            blocker?.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Start_retries_in_background_until_a_port_frees_up()
+    {
+        // The reported bug: a transient startup condition (all ports momentarily busy) left the API
+        // silently dead until the user toggled the feature. Start must keep retrying and bind late.
+        var blockers = LocalApiService.PortRange.Select(p =>
+        {
+            var l = new HttpListener();
+            l.Prefixes.Add($"http://127.0.0.1:{p}/");
+            try { l.Start(); return l; } catch { return null; } // a port already busy externally blocks too
+        }).ToList();
+
+        var config = Config.New();
+        LocalApiService.Config = config;
+        LocalApiService.RetryInterval = TimeSpan.FromMilliseconds(50);
+        try
+        {
+            LocalApiService.Start();
+            Assert.False(LocalApiService.IsRunning); // everything blocked right now
+
+            // A retry attempt while everything is still blocked stays down (and doesn't throw).
+            LocalApiService.RetryTickForTest();
+            Assert.False(LocalApiService.IsRunning);
+
+            // Free one port; the next background retry tick should grab it.
+            var freed = blockers.First(b => b != null);
+            freed.Stop(); freed.Close();
+            blockers[blockers.IndexOf(freed)] = null;
+            LocalApiService.RetryTickForTest();
+
+            Assert.True(LocalApiService.IsRunning, "the retry should bind once a port frees up");
+            Assert.Contains(LocalApiService.EffectivePort, LocalApiService.PortRange);
+            Assert.Equal(LocalApiService.EffectivePort, config.Settings.LocalApiPort); // persisted late too
+        }
+        finally
+        {
+            LocalApiService.Stop();
+            LocalApiService.Config = null;
+            LocalApiService.RetryInterval = TimeSpan.FromSeconds(5);
+            foreach (var b in blockers.Where(b => b != null))
+            {
+                try { b.Stop(); b.Close(); } catch { /* cleanup */ }
+            }
+        }
+    }
+
+    [Fact]
+    public void SingleInstance_lock_port_is_outside_the_api_range()
+    {
+        // The single-instance/CLI lock binds LockPort at startup; if it were inside the API's fallback
+        // range the API could never use that port (verified live: the API skipped 15152 → 15153 when the
+        // lock still sat on 15152). Guard the invariant so nobody moves it back into the range.
+        Assert.DoesNotContain(SingleInstanceService.LockPort, LocalApiService.PortRange);
+    }
+
+    [AvaloniaFact]
+    public void Start_prefers_the_persisted_effective_port()
+    {
+        // A config that remembers a non-default port from a previous run should bind that one first.
+        // Pick a remembered port that is actually FREE right now — a live Downloader instance on this
+        // machine may hold any port in the range (it held 15153 during the author's session).
+        var remembered = LocalApiService.PortRange.Skip(1).First(p =>
+        {
+            try
+            {
+                var probe = new HttpListener();
+                probe.Prefixes.Add($"http://127.0.0.1:{p}/");
+                probe.Start(); probe.Stop(); probe.Close();
+                return true;
+            }
+            catch { return false; }
+        });
+        var config = Config.New();
+        config.Settings.LocalApiPort = remembered;
+        LocalApiService.Config = config;
+        try
+        {
+            LocalApiService.Start();
+            Assert.True(LocalApiService.IsRunning);
+            Assert.Equal(remembered, LocalApiService.EffectivePort);
+            Assert.Equal(remembered, config.Settings.LocalApiPort); // round-trips unchanged
+        }
+        finally
+        {
+            LocalApiService.Stop();
             LocalApiService.Config = null;
         }
     }

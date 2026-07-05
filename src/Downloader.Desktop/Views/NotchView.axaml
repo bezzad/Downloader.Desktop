@@ -1,0 +1,85 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        x:Class="Downloader.Desktop.Views.NotchView"
+        x:DataType="vm:NotchViewModel"
+        Width="340" Height="34"
+        CanResize="False"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False"
+        Title="Downloader Island">
+
+    <!-- The notch body: dark pill hugging the top edge, rounded bottom corners only. -->
+    <Border x:Name="Body" Background="#EE0D0D10" CornerRadius="0,0,16,16" ClipToBounds="True"
+            BorderBrush="#33FFFFFF" BorderThickness="1,0,1,1">
+        <Panel>
+            <!-- Collapsed: info lives on the WINGS beside the physical notch (the center column is a
+                 hardware-sized gap on macOS — anything drawn there hides behind the webcam housing). -->
+            <!-- Percent (short) lives on the LEFT wing; the wider speed text gets the roomier RIGHT wing. -->
+            <Grid IsVisible="{Binding !IsExpanded}" ColumnDefinitions="*,Auto,*" Margin="12 0">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7"
+                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <Image Source="avares://Downloader.Desktop/Assets/downloader.png" Width="17" Height="17" />
+                    <TextBlock Text="{Binding TotalPercentText}" IsVisible="{Binding HasPercent}"
+                               Foreground="#4FC3F7" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <Border Grid.Column="1" Width="{Binding NotchGapWidth}" Background="Transparent" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TotalSpeedText}" IsVisible="{Binding HasActivity}"
+                               Foreground="#7FE3C6" FontSize="12" VerticalAlignment="Center" />
+                    <!-- macOS's menu bar already has a clock and the wing is narrow — Win/Linux only. -->
+                    <TextBlock Text="{Binding TimeText}" IsVisible="{Binding ShowCollapsedClock}"
+                               Foreground="White" FontSize="12" FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Expanded: clock + totals header, then the active (running + paused) downloads. -->
+            <StackPanel IsVisible="{Binding IsExpanded}" Margin="18 10 18 14" Spacing="10">
+                <!-- Same order as collapsed: percent on the left (by the logo), speed on the right. -->
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                    <Image Grid.Column="0" Source="avares://Downloader.Desktop/Assets/downloader.png"
+                           Width="17" Height="17" Margin="0 0 8 0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding TotalPercentText}" Foreground="#4FC3F7"
+                               FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="White" HorizontalAlignment="Center"
+                               FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding TotalSpeedText}" Foreground="#7FE3C6"
+                               FontSize="13" VerticalAlignment="Center" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding RunningRows}" IsVisible="{Binding HasRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <!-- Roomier rows (author feedback): breathing space between entries. -->
+                            <StackPanel Spacing="5" Margin="0 7 0 0">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Foreground="#DDFFFFFF"
+                                               FontSize="12" TextTrimming="CharacterEllipsis" />
+                                    <!-- StatusText: "45%" while running, "62% · Paused" for paused rows. -->
+                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#997FE3C6"
+                                               FontSize="11" Margin="10 0 0 0" />
+                                </Grid>
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                                             Height="4" MinHeight="0" CornerRadius="2"
+                                             Foreground="#4FC3F7" Background="#22FFFFFF" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="{Binding OverflowText}" IsVisible="{Binding HasOverflow}"
+                           Foreground="#88FFFFFF" FontSize="11" Margin="0 2 0 0" />
+                <TextBlock Text="{i18n:Tr Notch_NoDownloads}" IsVisible="{Binding !HasRows}"
+                           Foreground="#88FFFFFF" FontSize="12" />
+            </StackPanel>
+        </Panel>
+    </Border>
+</Window>

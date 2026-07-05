@@ -2,7 +2,6 @@
   "Top_PasteLink": "Paste download links…",
   "Top_Add": "Add",
   "Top_Search": "Search",
-
   "Nav_Status": "STATUS",
   "Nav_Manage": "MANAGE",
   "Nav_AllDownloads": "All downloads",
@@ -26,13 +25,11 @@
   "Plugins_Remove": "Remove plugin",
   "Plugins_Removed": "Plugin removed",
   "Nav_ToggleMenu": "Collapse / expand menu",
-
   "Status_All": "all",
   "Status_Downloading": "downloading",
   "Status_Queued": "queued",
   "Status_Done": "done",
   "Status_Failed": "failed",
-
   "Grid_SelectAll": "Select all",
   "Action_Start": "Start",
   "Action_Pause": "Pause",
@@ -52,17 +49,14 @@
   "Action_CopyError": "Copy error message",
   "Action_ErrorCopied": "Error copied!",
   "Action_Reorder": "Drag to reorder",
-
   "Col_Name": "Name",
   "Col_Queue": "Queue",
   "Col_Size": "Size",
   "Col_Progress": "Progress",
   "Col_Speed": "Speed",
-
   "Empty_Title": "No downloads yet",
   "Empty_Hint": "Paste a link in the box above and click Add to begin.",
   "Group_Downloads": "Downloads",
-
   "State_Queued": "Queued",
   "State_Paused": "Paused",
   "State_Stopped": "Stopped",
@@ -71,13 +65,18 @@
   "State_Failed": "Failed",
   "State_Downloading": "Downloading",
   "State_Pending": "Pending",
+  "Plan_Part": "Part {0}/{1}",
+  "Plan_Assembling": "Assembling…",
+  "Plan_NoProcessor": "No installed plugin can assemble this download — the required plugin may be disabled or missing.",
+  "PostAction_Done": "Done!",
   "Name_Fetching": "Fetching name…",
   "Error_LinkExpired": "This link looks expired or invalid — the server returned a web page instead of the file. Get a fresh link and try again.",
   "Name_Unnamed": "(unnamed)",
-
   "Add_Title": "Add download",
   "Add_Links": "Link(s) — one per line",
   "Add_LinksPlaceholder": "https://…  (paste multiple links, one per line, to download all into the folder below)",
+  "Add_ClipboardHint": "Press Enter to use clipboard link",
+  "Add_ClipboardMultiple": "{0} links on clipboard",
   "Add_SaveTo": "Save to",
   "Add_ChooseFolder": "Choose a folder",
   "Add_FileName": "File name (optional)",
@@ -86,7 +85,6 @@
   "Add_Queue": "Queue",
   "Add_Download": "Download",
   "Tooltip_Browse": "Browse",
-
   "Settings_Title": "Settings",
   "Settings_Reset": "Reset to defaults",
   "Settings_ResetTip": "Restore every setting to its default value",
@@ -111,7 +109,6 @@
   "Set_Notifications_Hint": "Master switch for the alerts below.",
   "Set_Language": "App language",
   "Set_Language_Hint": "Choose the interface language.",
-
   "Shutdown_Title": "Shutting down",
   "Shutdown_Message": "All downloads have finished. Your computer will shut down automatically.",
   "Shutdown_Countdown": "Shutting down in {0} seconds",
@@ -121,7 +118,6 @@
   "Shutdown_Canceled_Msg": "Your computer will stay on.",
   "Shutdown_Notify_Title": "Shutting down soon",
   "Shutdown_Notify_Msg": "All downloads finished — the computer will shut down in {0}s. Open Downloader to cancel.",
-
   "Sec_Notifications": "NOTIFICATIONS",
   "Set_NotifyComplete": "When a download completes",
   "Set_NotifyFailed": "When a download fails",
@@ -132,7 +128,11 @@
   "Set_ShutdownOnComplete_Hint": "Powers off 30 seconds after the last download completes (cancelable).",
   "Set_BrowserIntegration": "Browser extension & local API",
   "Set_BrowserIntegration_Hint": "Lets the browser extension, scripts and the command line add and control downloads over a local-only connection (nothing is exposed to the network).",
-
+  "Set_LocalApiStatus": "Local API address",
+  "Set_LocalApiConnected": "connected",
+  "Set_LocalApiOffline": "not running",
+  "LocalApi_PortChangedTitle": "Local API port changed",
+  "LocalApi_PortChangedMsg": "Port 15151 was busy, so Downloader is now listening on 127.0.0.1:{0}. The browser extension will reconnect automatically.",
   "Sec_AppUpdates": "APP & UPDATES",
   "Set_SystemTray": "Keep running in the system tray",
   "Set_SystemTray_Hint": "Closing the window keeps downloads running in the background.",
@@ -153,7 +153,6 @@
   "Update_LaterBtn": "Later",
   "Update_VersionAvailable": "{0} available",
   "Update_CancelTip": "Cancel download",
-
   "Sec_Plugins": "Plugins (add-ons)",
   "Sec_Logging": "LOGGING",
   "Set_WriteLog": "Write a log file",
@@ -161,7 +160,6 @@
   "Btn_OpenLogs": "Open logs folder",
   "Btn_ExportLog": "Export log…",
   "Btn_EmailLogs": "Email logs to developer",
-
   "Adv_Header": "Advanced",
   "Set_BufferBlock": "Buffer block size (bytes)",
   "Set_MaxRetries": "Max retries on failure",
@@ -175,7 +173,6 @@
   "Set_ClearOnFail": "Clear package when a download fails",
   "Set_FileExists": "When file already exists",
   "Set_FileExt": "In-progress file extension",
-
   "Net_Header": "Network & request headers",
   "Net_Hint": "Advanced HTTP options for tricky servers — usually safe to leave as-is.",
   "Set_UserAgent": "User agent",
@@ -187,7 +184,6 @@
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
   "Set_ProxyPlaceholder": "http://host:port (leave empty for none)",
-
   "About_Desc": "Cross-platform download manager. No installation or dependencies required.",
   "About_Title": "About",
   "About_Version": "Version {0}",
@@ -203,7 +199,6 @@
   "Contact_Telegram": "Telegram",
   "Contact_Email": "Email",
   "Col_TimeLeft": "Time left",
-
   "Det_Title": "Download details",
   "Det_SourceUrl": "Source URL",
   "Det_Mirrors": "Mirror URLs ({0})",
@@ -224,7 +219,6 @@
   "Det_Col_Total": "Total",
   "Det_ConnAppear": "Connections appear here while the file is downloading.",
   "Btn_Close": "Close",
-
   "Queues_Title": "Queues",
   "Queues_Add": "New queue",
   "Queues_MaxConcurrent": "Max concurrent",
@@ -242,7 +236,6 @@
   "Queues_MoveUp": "Move up (start sooner)",
   "Queues_MoveDown": "Move down (start later)",
   "Queues_MoveTo": "Move to another queue",
-
   "Sched_Title": "Scheduler",
   "Sched_Add": "New schedule",
   "Sched_Desc": "Start and stop a queue automatically at set times.",
@@ -256,5 +249,15 @@
   "Sched_OnceOn": "Once",
   "Sched_OnceOff": "Repeat",
   "Sched_Queue": "Queue",
-  "Sched_Remove": "Remove"
+  "Sched_Remove": "Remove",
+  "Add_AddQueue": "Add queue",
+  "Add_QueueNamePlaceholder": "Queue name",
+  "Add_QueueConfirm": "Create queue",
+  "Add_QueueCancel": "Cancel",
+  "Set_Notch": "Dynamic Island (notch) overlay",
+  "Set_Notch_Hint": "A small pill at the top-center of the screen showing the clock; hover it to see live download progress.",
+  "Notch_More": "and {0} more…",
+  "Notch_NoDownloads": "No active downloads",
+  "PostAction_OfferMsg": "{0} finished downloading — click to run “{1}”.",
+  "Det_SegCount": "{0} segments"
 }

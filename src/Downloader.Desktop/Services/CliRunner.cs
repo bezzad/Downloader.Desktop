@@ -68,28 +68,52 @@ public static class CliRunner
 
     private static int RunHttp(string verb, string id, bool printBody)
     {
-        var url = $"http://127.0.0.1:{LocalApiService.Port}/api/{verb}" +
-                  (id != null ? $"?id={Uri.EscapeDataString(id)}" : "");
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            using var response = client.GetAsync(url).GetAwaiter().GetResult();
-            var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        var suffix = $"/api/{verb}" + (id != null ? $"?id={Uri.EscapeDataString(id)}" : "");
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-            if (response.IsSuccessStatusCode)
+        // The running app may have fallen back within the declared port range, so try the last-known-good
+        // port first (from the persisted config), then the rest of the range until one answers.
+        foreach (var port in ResolveCandidatePorts())
+        {
+            var url = $"http://127.0.0.1:{port}{suffix}";
+            try
             {
-                Console.WriteLine(printBody ? body : "OK");
-                return 0;
-            }
+                using var response = client.GetAsync(url).GetAwaiter().GetResult();
+                var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 
-            Console.Error.WriteLine($"Error ({(int)response.StatusCode}): {body}");
-            return 1;
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine(printBody ? body : "OK");
+                    return 0;
+                }
+
+                // Reached the app but it rejected the request — report that, don't keep probing.
+                Console.Error.WriteLine($"Error ({(int)response.StatusCode}): {body}");
+                return 1;
+            }
+            catch (Exception)
+            {
+                // Couldn't reach this port — try the next candidate in the declared range.
+            }
         }
-        catch (Exception)
-        {
-            Console.Error.WriteLine(NotReachable);
-            return 1;
-        }
+
+        Console.Error.WriteLine(NotReachable);
+        return 1;
+    }
+
+    /// <summary>Ordered ports to try: the last-known-good persisted port first (if valid), then the whole
+    /// declared range. Reads the same config file the app writes its effective port to.</summary>
+    private static System.Collections.Generic.IEnumerable<int> ResolveCandidatePorts()
+    {
+        int persisted = 0;
+        try { persisted = new FileService().LoadFromFileAsync().GetAwaiter().GetResult()?.Settings?.LocalApiPort ?? 0; }
+        catch { /* unreadable config — just probe the range */ }
+
+        if (Array.IndexOf(LocalApiService.PortRange, persisted) >= 0)
+            yield return persisted;
+        foreach (var p in LocalApiService.PortRange)
+            if (p != persisted)
+                yield return p;
     }
 
     // The app is a GUI-subsystem executable on Windows, so stdout is detached from the invoking

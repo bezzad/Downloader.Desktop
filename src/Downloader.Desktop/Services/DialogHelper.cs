@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Downloader.Desktop.Models;
 using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 
@@ -15,9 +16,13 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class DialogHelper
 {
+    public const string AddDownloadWindowKey = "AddDownload";
+    public const string PageDialogWindowKey = "PageDialog";
+    public const string DetailsWindowKey = "Details";
+
     public static IClassicDesktopStyleApplicationLifetime AppLifetime =>
         Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-    
+
     public static Window MainWindow => AppLifetime?.MainWindow;
 
     /// <summary>The window the user is currently looking at — the front-most open dialog if one is up,
@@ -37,7 +42,39 @@ public static class DialogHelper
             await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(clipboard, text);
     }
     
-    public static async Task<TResult> ShowDialog<TV, TVm, TResult>(TV view, TVm viewModel)
+    /// <summary>Restores a window's last user-resized size from <see cref="Config.WindowSizes"/> (if any),
+    /// clamped to the window's own Min bounds and the owner's screen working area. Call before showing.</summary>
+    public static void ApplyPersistedSize(Window view, string key, Config config)
+    {
+        if (view == null || config?.WindowSizes == null || !config.WindowSizes.TryGetValue(key, out var size))
+            return;
+
+        var width = Math.Max(size.Width, view.MinWidth);
+        var height = Math.Max(size.Height, view.MinHeight);
+
+        var screen = view.Screens?.ScreenFromWindow(view) ?? view.Screens?.Primary;
+        if (screen != null)
+        {
+            width = Math.Min(width, screen.WorkingArea.Width);
+            height = Math.Min(height, screen.WorkingArea.Height);
+        }
+
+        view.Width = width;
+        view.Height = height;
+    }
+
+    /// <summary>Persists a window's current size into <see cref="Config.WindowSizes"/> under the given key.
+    /// The in-memory config is picked up by the app's existing periodic autosave — no explicit save here.</summary>
+    public static void SavePersistedSize(Window view, string key, Config config)
+    {
+        if (view == null || config == null)
+            return;
+
+        config.WindowSizes ??= new System.Collections.Generic.Dictionary<string, WindowSize>();
+        config.WindowSizes[key] = new WindowSize { Width = view.Width, Height = view.Height };
+    }
+
+    public static async Task<TResult> ShowDialog<TV, TVm, TResult>(TV view, TVm viewModel, Config config = null)
         where TV : Window
         where TVm : ViewModelBase
     {
@@ -47,6 +84,9 @@ public static class DialogHelper
             view.DataContext = viewModel;
             viewModel.View = view;
 
+            ApplyPersistedSize(view, AddDownloadWindowKey, config);
+            view.Closing += (_, _) => SavePersistedSize(view, AddDownloadWindowKey, config);
+
             // Show as a modal dialog and wait for it to close
             return await view.ShowDialog<TResult>(MainWindow);
         }
@@ -55,7 +95,7 @@ public static class DialogHelper
     }
 
     /// <summary>Opens the read-only details dialog for a download (info + live per-part progress).</summary>
-    public static async Task ShowDetails(DownloadItemViewModel item)
+    public static async Task ShowDetails(DownloadItemViewModel item, Config config = null)
     {
         if (MainWindow == null || item == null)
             return;
@@ -64,6 +104,9 @@ public static class DialogHelper
         var viewModel = new DownloadDetailsViewModel(item);
         view.DataContext = viewModel;
         view.Closed += (_, _) => viewModel.Cleanup();
+
+        ApplyPersistedSize(view, DetailsWindowKey, config);
+        view.Closing += (_, _) => SavePersistedSize(view, DetailsWindowKey, config);
 
         await view.ShowDialog(MainWindow);
     }
@@ -93,11 +136,15 @@ public static class DialogHelper
 
     /// <summary>Opens a management page (Queues / Scheduler / Settings) as a modal dialog over the
     /// downloads list — the main view is always the list (the left nav rail was removed).</summary>
-    public static async Task ShowPage(object pageViewModel, string title)
+    public static async Task ShowPage(object pageViewModel, string title, Config config = null)
     {
         if (MainWindow == null || pageViewModel == null)
             return;
         var view = new PageDialogView(pageViewModel, title);
+
+        ApplyPersistedSize(view, PageDialogWindowKey, config);
+        view.Closing += (_, _) => SavePersistedSize(view, PageDialogWindowKey, config);
+
         await view.ShowDialog(MainWindow);
     }
 

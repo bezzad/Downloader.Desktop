@@ -1,0 +1,13 @@
+<!doctype html>
+<html><body>
+<!-- Purely about HLS master/variant/segment fetches (grouping + quality picker + dedup) — no
+     <video> element here on purpose: Main-vs-Other triage is a separate concern, tested against
+     video-playing.html/video-paused.html instead, so the two don't get entangled. -->
+<script>
+  fetch('/master.m3u8');
+  fetch('/low/index.m3u8');
+  fetch('/high/index.m3u8');
+  fetch('/low/seg0.ts');
+  fetch('/junk.m3u8'); // noise: should be filtered as implausibly tiny once probed
+</script>
+</body></html>

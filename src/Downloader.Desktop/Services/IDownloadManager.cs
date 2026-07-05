@@ -32,6 +32,16 @@ public interface IDownloadManager
     /// <summary>The configured queues (read-only view for building per-queue menus).</summary>
     System.Collections.Generic.IReadOnlyList<DownloadQueue> Queues { get; }
 
+    /// <summary>The shared config instance loaded at startup (null until <see cref="Initialize"/> runs).</summary>
+    Config Config { get; }
+
+    /// <summary>The post-download action label the resolving plugin offers for this completed item
+    /// (e.g. "Add to Ollama"), or null when none applies.</summary>
+    string PostDownloadActionLabel(DownloadItemViewModel vm);
+
+    /// <summary>Runs the offered post-download action; failures surface as a friendly item error.</summary>
+    Task RunPostDownloadAction(DownloadItemViewModel vm);
+
     /// <summary>Combined speed of all running downloads, bytes/second.</summary>
     double TotalSpeed { get; }
 

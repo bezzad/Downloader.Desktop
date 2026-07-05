@@ -22,6 +22,7 @@ public class DownloadItemViewModel : ViewModelBase
     private double _speed;
     private DownloadStatus _status;
     private bool _isChecked;
+    private string _planStage;
 
     private DownloadService _download;
 
@@ -104,6 +105,10 @@ public class DownloadItemViewModel : ViewModelBase
         OpenFolderCommand = ReactiveCommand.Create(OpenContainingFolder);
         OpenFileCommand = ReactiveCommand.Create(OpenFile);
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Url));
+        PostActionCommand = ReactiveCommand.CreateFromTask(async () =>
+        {
+            if (_manager != null) await _manager.RunPostDownloadAction(this);
+        });
 
         // Refresh localized row text when the UI language changes.
         Localizer.Instance.PropertyChanged += OnLanguageChanged;
@@ -128,6 +133,20 @@ public class DownloadItemViewModel : ViewModelBase
     public ICommand OpenFolderCommand { get; }
     public ICommand OpenFileCommand { get; }
     public ICommand CopyUrlCommand { get; }
+    public ICommand PostActionCommand { get; }
+
+    /// <summary>Label of the plugin-offered post-download action for this completed item (e.g.
+    /// "Add to Ollama"), or null — drives the row button's visibility and tooltip.</summary>
+    public string PostActionLabel => _manager?.PostDownloadActionLabel(this);
+
+    public bool HasPostAction => PostActionLabel != null;
+
+    /// <summary>Called by the manager when the offer state changes (completion / plugin toggle).</summary>
+    public void RaisePostActionChanged()
+    {
+        this.RaisePropertyChanged(nameof(PostActionLabel));
+        this.RaisePropertyChanged(nameof(HasPostAction));
+    }
 
     public string FileName
     {
@@ -327,6 +346,8 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(IsNamePending));
             this.RaisePropertyChanged(nameof(ShowStatusBadge));
             this.RaisePropertyChanged(nameof(TimeLeftText));
+            this.RaisePropertyChanged(nameof(PostActionLabel));
+            this.RaisePropertyChanged(nameof(HasPostAction));
         }
     }
 
@@ -356,9 +377,33 @@ public class DownloadItemViewModel : ViewModelBase
 
     private static string L(string key) => Localizer.Instance[key];
 
+    private PlanRunState _planRun;
+
+    /// <summary>Live per-segment progress board while a multi-part plan runs (null otherwise). The
+    /// details dialog renders it as the "connections" list: waiting / downloading / done per segment.</summary>
+    public PlanRunState PlanRun
+    {
+        get => _planRun;
+        set => this.RaiseAndSetIfChanged(ref _planRun, value);
+    }
+
+    /// <summary>Set by the multi-part plan runner to show "Part i/N" while downloading segments and
+    /// "Assembling…" during post-processing. Null for a normal single-file download.</summary>
+    public string PlanStage
+    {
+        get => _planStage;
+        set
+        {
+            if (_planStage == value) return;
+            _planStage = value;
+            this.RaisePropertyChanged(nameof(StatusText));
+        }
+    }
+
     public string StatusText => Status switch
     {
         DownloadStatus.None or DownloadStatus.Created => L("State_Queued"),
+        DownloadStatus.Running when !string.IsNullOrEmpty(_planStage) => $"{_planStage} · {Progress:0}%",
         DownloadStatus.Running => $"{Progress:0}%",
         // Keep the percentage visible (and the bar filled) when paused/stopped, not just a state word.
         DownloadStatus.Paused => $"{Progress:0}% · {L("State_Paused")}",

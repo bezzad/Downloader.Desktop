@@ -18,13 +18,19 @@ namespace Downloader.Desktop.ViewModels;
 public class AddDownloadItemViewModel : ViewModelBase
 {
     private readonly Config _config;
+    private readonly IDownloadManager _manager;
     private readonly Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> _resolveFileInfo;
+    private readonly Func<Task<string>> _readClipboard;
+    private bool _isAddingQueue;
+    private string _newQueueName;
     private readonly TimeSpan _resolveDebounce;
     private string _urls;
     private string _fileName;
     private string _storageFolderPath;
     private DownloadQueue _selectedQueue;
     private string _sizeText;
+    private string _clipboardSuggestion;
+    private int _clipboardUrlCount;
     private bool _resolving;
     private bool _userTypedName;
     private CancellationTokenSource _resolveCts;
@@ -33,10 +39,14 @@ public class AddDownloadItemViewModel : ViewModelBase
         Config config,
         string url,
         Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> resolveFileInfo = null,
-        TimeSpan? resolveDebounce = null)
+        TimeSpan? resolveDebounce = null,
+        Func<Task<string>> readClipboard = null,
+        IDownloadManager manager = null)
     {
         _config = config;
+        _manager = manager;
         _resolveFileInfo = resolveFileInfo ?? DefaultResolveFileInfoAsync;
+        _readClipboard = readClipboard ?? DefaultReadClipboardAsync;
         _resolveDebounce = resolveDebounce ?? TimeSpan.FromMilliseconds(600);
         _urls = url ?? string.Empty;
         _storageFolderPath = !string.IsNullOrWhiteSpace(config?.Settings?.DefaultSavePath)
@@ -47,9 +57,33 @@ public class AddDownloadItemViewModel : ViewModelBase
 
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
+        AddQueueCommand = ReactiveCommand.Create(() => { IsAddingQueue = true; });
+        ConfirmAddQueueCommand = ReactiveCommand.Create(ConfirmAddQueue);
+        CancelAddQueueCommand = ReactiveCommand.Create(() => { NewQueueName = string.Empty; IsAddingQueue = false; });
 
         if (!string.IsNullOrWhiteSpace(_urls))
             TriggerResolve();
+
+        // Only offer a clipboard suggestion when the dialog opens with no seed URL ("user have no any
+        // link added before"). Exposed as a task so tests can await the async probe deterministically.
+        ClipboardSuggestionReady = string.IsNullOrWhiteSpace(_urls)
+            ? LoadClipboardSuggestionAsync()
+            : Task.CompletedTask;
+    }
+
+    private static async Task<string> DefaultReadClipboardAsync()
+    {
+        try
+        {
+            var clipboard = (DialogHelper.MainWindow as Avalonia.Controls.TopLevel)?.Clipboard;
+            if (clipboard == null)
+                return null;
+            return await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(clipboard).ConfigureAwait(true);
+        }
+        catch
+        {
+            return null; // clipboard unavailable / denied — no suggestion, dialog still opens fine
+        }
     }
 
     private static async Task<(string FileName, long FileSize)?> DefaultResolveFileInfoAsync(string url, DownloadConfiguration configuration)
@@ -72,6 +106,8 @@ public class AddDownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(IsMultiple));
             this.RaisePropertyChanged(nameof(IsSingleLink));
             this.RaisePropertyChanged(nameof(IsFilenameEnabled));
+            this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
+            this.RaisePropertyChanged(nameof(LinksPlaceholder));
             TriggerResolve();
         }
     }
@@ -80,11 +116,17 @@ public class AddDownloadItemViewModel : ViewModelBase
     // batch into the single-line top box (which can collapse new lines to spaces) still splits (#19).
     private static readonly char[] UrlSeparators = { '\n', '\r', '\t', ' ', ',', ';' };
 
-    private IReadOnlyList<string> ParsedUrls =>
-        (_urls ?? string.Empty)
+    private static IReadOnlyList<string> SplitUrls(string raw) =>
+        (raw ?? string.Empty)
         .Split(UrlSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Where(u => u.Length > 0)
         .ToList();
+
+    private IReadOnlyList<string> ParsedUrls => SplitUrls(_urls);
+
+    private static bool IsHttpUrl(string s) =>
+        s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        s.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
     public bool CanDownload => ParsedUrls.Count > 0;
 
@@ -115,6 +157,75 @@ public class AddDownloadItemViewModel : ViewModelBase
     {
         get => _resolving;
         private set => this.RaiseAndSetIfChanged(ref _resolving, value);
+    }
+
+    /// <summary>Completes once the initial clipboard-suggestion probe (if any) has finished. For tests/sequencing.</summary>
+    public Task ClipboardSuggestionReady { get; }
+
+    /// <summary>URL(s) found on the clipboard when the dialog opened empty, offered as a non-committed
+    /// suggestion (the FULL text that gets committed on accept). Never written into <see cref="Urls"/>
+    /// until the user accepts it (Enter/Tab). For display use <see cref="ClipboardSuggestionDisplay"/>.</summary>
+    public string ClipboardSuggestion
+    {
+        get => _clipboardSuggestion;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _clipboardSuggestion, value);
+            this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
+            this.RaisePropertyChanged(nameof(ClipboardSuggestionDisplay));
+            this.RaisePropertyChanged(nameof(LinksPlaceholder));
+        }
+    }
+
+    /// <summary>One-line overlay text for the suggestion: the single URL, or an "N links" summary for a
+    /// multi-URL clipboard — so a big clipboard never floods the box (the overlay stays a single line).</summary>
+    public string ClipboardSuggestionDisplay =>
+        _clipboardUrlCount > 1
+            ? string.Format(Localizer.Instance["Add_ClipboardMultiple"], _clipboardUrlCount)
+            : _clipboardSuggestion;
+
+    /// <summary>Show the placeholder-style suggestion overlay only while the real box is empty and a suggestion exists.</summary>
+    public bool ShowClipboardSuggestion => !string.IsNullOrEmpty(_clipboardSuggestion) && string.IsNullOrEmpty(_urls);
+
+    /// <summary>The links box placeholder — blanked while the clipboard suggestion overlay is showing so the two
+    /// don't visually collide (both only render when the box is empty).</summary>
+    public string LinksPlaceholder => ShowClipboardSuggestion ? string.Empty : Localizer.Instance["Add_LinksPlaceholder"];
+
+    /// <summary>Reads the clipboard once and, if it holds ≥1 valid http/https URL, stores it as a suggestion.
+    /// Any failure (no clipboard, denied, non-URL text) leaves the dialog unchanged.</summary>
+    private async Task LoadClipboardSuggestionAsync()
+    {
+        try
+        {
+            var text = await _readClipboard().ConfigureAwait(true);
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+            // The user may have typed while the async read was in flight — don't suggest over real input.
+            if (!string.IsNullOrEmpty(_urls))
+                return;
+
+            var urls = SplitUrls(text).Where(IsHttpUrl).ToList();
+            if (urls.Count == 0)
+                return;
+
+            _clipboardUrlCount = urls.Count;
+            ClipboardSuggestion = string.Join(Environment.NewLine, urls);
+        }
+        catch
+        {
+            // fail open — a clipboard hiccup must never break opening the dialog
+        }
+    }
+
+    /// <summary>Commits the clipboard suggestion into <see cref="Urls"/> (reusing the full parse/resolve
+    /// pipeline) and clears the suggestion. No-op if there's nothing to accept.</summary>
+    public void AcceptClipboardSuggestion()
+    {
+        if (string.IsNullOrEmpty(_clipboardSuggestion))
+            return;
+        Urls = _clipboardSuggestion;
+        _clipboardUrlCount = 0;
+        ClipboardSuggestion = null;
     }
 
     /// <summary>
@@ -204,7 +315,9 @@ public class AddDownloadItemViewModel : ViewModelBase
         }
     }
 
-    public List<DownloadQueue> Queues => _config?.Queues;
+    // A fresh list each read: re-raising PropertyChanged with the SAME list instance would not make the
+    // ComboBox re-enumerate (same lesson as the queue MenuFlyout gotcha).
+    public List<DownloadQueue> Queues => _config?.Queues?.ToList();
 
     public DownloadQueue SelectedQueue
     {
@@ -213,6 +326,45 @@ public class AddDownloadItemViewModel : ViewModelBase
     }
 
     public bool ShowQueuePicker => (_config?.Queues?.Count ?? 0) > 1;
+
+    // ---- Inline queue creation (the "Add queue" button next to Add) ----
+
+    public ICommand AddQueueCommand { get; }
+    public ICommand ConfirmAddQueueCommand { get; }
+    public ICommand CancelAddQueueCommand { get; }
+
+    /// <summary>The button only shows when the dialog has a manager to create queues through
+    /// (design-time / legacy constructions don't).</summary>
+    public bool CanAddQueue => _manager != null;
+
+    /// <summary>True while the inline "name the new queue" row is showing.</summary>
+    public bool IsAddingQueue
+    {
+        get => _isAddingQueue;
+        private set => this.RaiseAndSetIfChanged(ref _isAddingQueue, value);
+    }
+
+    public string NewQueueName
+    {
+        get => _newQueueName;
+        set => this.RaiseAndSetIfChanged(ref _newQueueName, value);
+    }
+
+    /// <summary>Creates the queue through the manager (so QueuesChanged/pump wiring stays consistent),
+    /// refreshes the picker and selects the new queue. Empty/whitespace names are ignored.</summary>
+    public void ConfirmAddQueue()
+    {
+        var name = NewQueueName?.Trim();
+        if (string.IsNullOrEmpty(name) || _manager == null)
+            return;
+
+        var queue = _manager.AddQueue(name);
+        NewQueueName = string.Empty;
+        IsAddingQueue = false;
+        this.RaisePropertyChanged(nameof(Queues));
+        this.RaisePropertyChanged(nameof(ShowQueuePicker));
+        SelectedQueue = queue; // the download(s) being added land in the new queue
+    }
 
     private async Task SelectFileStoragePathAsync()
     {

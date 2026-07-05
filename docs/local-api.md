@@ -6,13 +6,65 @@ an HTTP request or run a program) add and manage downloads without touching the 
 
 - Everything is **local-only**: the app listens on `127.0.0.1:15151` (loopback). Nothing is exposed
   to your network or the internet.
+- If another program already holds `15151`, the app automatically falls back to the next free port
+  in the small fixed range `15151`–`15155` and notifies you once. The effective address is shown in
+  **Settings** next to the integration toggle; the browser extension and the CLI rediscover the
+  port automatically, but your own scripts should check Settings (or probe `/ping` across the
+  range) if the default doesn't answer.
 - It is controlled by **Settings → Browser extension & local API** (on by default; turn it off if
   you don't want other local programs adding downloads).
 - There is no authentication token — any program running on your own machine may use it.
 
+## Listen port & automatic fallback
+
+The app prefers **`15151`**. If another program already holds it when the app starts, the app binds
+the next free port in a small, fixed range and remembers it:
+
+| | |
+|---|---|
+| **Preferred port** | `15151` |
+| **Fallback range** | `15151` → `15152` → `15153` → `15154` → `15155` (tried in order) |
+| **On fallback** | the app shows a one-time notification and displays the live address in **Settings → Local API address** (with a green “connected” dot) |
+| **Remembered** | the chosen port is saved; on the next start the app tries the last-known-good port first, so it stays stable |
+| **All five taken** | the API simply doesn’t start (the rest of the app is unaffected); Settings shows “not running” |
+
+You never configure the port by hand — a manually chosen port outside this range would be invisible
+to the browser extension (see below), so the range is fixed on purpose.
+
+### How the browser extension finds the port
+
+The extension can’t just “use whatever port the app picked”, because a browser extension may only
+talk to origins it declared **at install time** (Manifest V3 `host_permissions`). So the extension’s
+manifest declares the **whole `15151`–`15155` range** up front, and at runtime it **discovers** which
+one the app is actually on:
+
+1. It remembers the **last port that worked** (in extension storage) and tries that first.
+2. Otherwise it probes `/ping` across `15151`…`15155` **in order** and uses the first that answers
+   `200`.
+3. On success it caches that port, so the next add is instant (no re-scan).
+
+This means: if the app falls back from `15151` to, say, `15153`, the extension re-discovers `15153`
+on its next action automatically — **you don’t reinstall or reconfigure anything.** The same applies
+to the CLI, which reads the app’s remembered port and probes the range the same way.
+
+> **Note:** the app’s single-instance / CLI lock uses port **`15150`**, deliberately *outside* the
+> API range, so all five ports `15151`–`15155` are genuinely available to the API.
+
+### For your own scripts
+
+If you write your own script and the default port doesn’t answer, either read the address shown in
+**Settings → Local API address**, or probe `/ping` across `15151`–`15155` and use the first port that
+returns `200` (that’s exactly what the extension and CLI do):
+
+```bash
+for p in 15151 15152 15153 15154 15155; do
+  curl -s -o /dev/null -m 1 "http://127.0.0.1:$p/ping" && { echo "Downloader is on $p"; break; }
+done
+```
+
 ## HTTP API
 
-Base URL: `http://127.0.0.1:15151`
+Base URL: `http://127.0.0.1:15151` (or the fallback port shown in Settings — see above)
 
 ### Add a download — `POST /api/add` (or `GET` with query parameters)
 

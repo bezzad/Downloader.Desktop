@@ -26,6 +26,7 @@
         <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
     </Window.DataTemplates>
 
+    <Panel>
     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
         <DockPanel>
@@ -33,4 +34,6 @@
             <ContentControl Content="{Binding #Root.Page}" />
         </DockPanel>
     </Border>
+    <v:ResizeGrips />
+    </Panel>
 </Window>

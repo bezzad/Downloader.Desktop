@@ -42,7 +42,7 @@
          reads Major.Minor.Build); the 4th component (a unique, increasing revision = half-seconds since
          midnight UTC) only differentiates builds in FileVersion. Keep VersionPrefix three-part. -->
     <PropertyGroup Label="Versioning">
-        <VersionPrefix>1.6.1</VersionPrefix>
+        <VersionPrefix>1.7.0</VersionPrefix>
         <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
         <Version>$(VersionPrefix).$(_RevisionNumber)</Version>
         <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
@@ -93,6 +93,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
         <PackageReference Include="Dotnet.Bundle" Version="0.9.13" />
+        <PackageReference Include="Svg.Skia" Version="5.1.1" />
     </ItemGroup>
 
     <ItemGroup>
@@ -112,5 +113,40 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
+      <!-- Bundled plugins: built (ordering only, never compile-referenced) and staged into
+           $(OutDir)/plugins + $(PublishDir)/plugins by the targets below, where PluginManager.LoadBuiltIns
+           picks them up at startup. -->
+      <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj"
+                        ReferenceOutputAssembly="false" Private="false" />
+      <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj"
+                        ReferenceOutputAssembly="false" Private="false" />
     </ItemGroup>
+
+    <ItemGroup>
+      <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
+    </ItemGroup>
+
+    <!-- Stage the bundled plugins' DLL + deps.json into the app output (and the publish output) as
+         plugins/. RID-agnostic recursive glob: a parallel/self-contained build can drop plugin output
+         under a RID subfolder, so never hardcode bin/<cfg>/net10.0 (see the test project's identical
+         gotcha). ref/ assemblies are metadata-only and can't be loaded. -->
+    <Target Name="StageBundledPlugins" AfterTargets="Build">
+        <ItemGroup>
+            <BundledPluginFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.dll"
+                               Exclude="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\ref\**" />
+            <BundledPluginFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.deps.json" />
+        </ItemGroup>
+        <Error Condition="'@(BundledPluginFile)' == ''"
+               Text="StageBundledPlugins: no bundled plugin outputs found — did the plugin projects build for '$(Configuration)'?" />
+        <Copy SourceFiles="@(BundledPluginFile)" DestinationFolder="$(OutDir)plugins" SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="StageBundledPluginsOnPublish" AfterTargets="Publish">
+        <ItemGroup>
+            <BundledPluginPubFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.dll"
+                                  Exclude="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\ref\**" />
+            <BundledPluginPubFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.deps.json" />
+        </ItemGroup>
+        <Copy SourceFiles="@(BundledPluginPubFile)" DestinationFolder="$(PublishDir)plugins" SkipUnchangedFiles="true" />
+    </Target>
 </Project>

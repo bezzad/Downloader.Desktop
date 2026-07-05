@@ -18,8 +18,11 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class SingleInstanceService
 {
-    // Distinct from the local API listener (15151).
-    private const int LockPort = 15152;
+    /// <summary>The single-instance / CLI-forward lock port. Must sit OUTSIDE the local API's fallback
+    /// range (<see cref="LocalApiService.PortRange"/> = 15151–15155): if it were inside (it used to be
+    /// 15152) the API could never bind that port — this lock holds it — so the API's fallback would
+    /// silently skip it. A regression test asserts it stays outside the range.</summary>
+    public const int LockPort = 15150;
 
     /// <summary>Message prefix for a structured CLI add payload: <c>add:{json}</c>.</summary>
     public const string AddPrefix = "add:";

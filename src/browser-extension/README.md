@@ -11,6 +11,17 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   for downloadable links, then send one or all to the app.
 - **Media capture** — watches network responses and surfaces **video / audio / HLS (`.m3u8`)**
   streams, with a badge count on the toolbar icon.
+- **Size, resolution and quality picker** — each detected item is probed for its file size, and an
+  HLS master playlist expands into a quality dropdown (resolution or bitrate per option) instead of
+  one opaque `.m3u8` row. Probing never blocks the popup: it renders immediately, then upgrades
+  rows in place as results arrive.
+- **Main media vs. Other detected** — on media-heavy pages (a social-media post with dozens of
+  segment/thumbnail requests) the video you're actually viewing is promoted to a **Main media**
+  section; everything else collapses into an expandable **Other detected (N)** — nothing is hidden,
+  just triaged.
+- **Known-unsupported-site message** — on sites that stream via MSE/DRM with no fetchable file URL
+  (YouTube, Netflix, …), the popup explains why nothing was found instead of showing a blank list
+  that looks broken.
 - **Auto-send** — every captured link is forwarded to the app's local listener. By default it is
   **added silently and starts downloading** (the app's `/api/add` endpoint); untick
   **“Add silently (no dialog)”** in the popup to review each link in the app's Add dialog
@@ -24,7 +35,9 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 
 1. The **Downloader desktop app** must be running.
 2. **Settings → Browser extension & local API** must be on in the app (it opens the local listener
-   on port `15151`). It is enabled by default.
+   on port `15151`, falling back to `15152`–`15155` if that port is taken by another program — the
+   extension finds the right one automatically). It is enabled by default; the effective address is
+   shown in the app's Settings.
 
 ## Load it for testing (unpacked)
 
@@ -47,13 +60,16 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 The extension only needs the app's loopback endpoints:
 
 ```
-GET http://127.0.0.1:15151/api/add?url=<url-encoded link>   # silent add (default)
-GET http://127.0.0.1:15151/add?url=<url-encoded link>       # open the Add dialog instead
-GET http://127.0.0.1:15151/ping                              # reachability check
+GET http://127.0.0.1:<port>/api/add?url=<url-encoded link>   # silent add (default)
+GET http://127.0.0.1:<port>/add?url=<url-encoded link>       # open the Add dialog instead
+GET http://127.0.0.1:<port>/ping                              # reachability check
 ```
 
-These are served by `Services/LocalApiService.cs` in the desktop app (see `docs/local-api.md` in the
-main repo for the full API). No other ports, servers or accounts are involved.
+`<port>` is normally `15151`; if another program holds it, the app falls back within the declared
+range `15151`–`15155` and the extension probes `/ping` across that range (last-known-good port
+first) to rediscover it. These are served by `Services/LocalApiService.cs` in the desktop app (see
+`docs/local-api.md` in the main repo for the full API). No other ports, servers or accounts are
+involved.
 
 ## Files
 
@@ -61,10 +77,13 @@ main repo for the full API). No other ports, servers or accounts are involved.
 |------|------|
 | `manifest.json` | Chrome/Edge MV3 manifest (service-worker background) |
 | `manifest.firefox.json` | Firefox MV3 manifest (scripts background + gecko id) |
-| `common.js` | Shared helpers: media detection + `sendToApp()` |
-| `background.js` | Context menus, response sniffing, badge, message handler |
-| `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI |
+| `common.js` | Shared helpers: media detection, `sendToApp()`, size/HLS probing, grouping |
+| `background.js` | Context menus, response sniffing, badge, message handler, probing coordinator |
+| `content.js` | Tracks the visible/playing `<video>`/`<audio>` element for Main-vs-Other triage |
+| `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI (grouped cards, quality picker) |
 | `icons/` | Toolbar/store icons (16/48/128) |
+
+Run the unit tests (pure helpers in `common.js`) with `node --test src/browser-extension/common.test.js`.
 
 ## Publishing (later)
 

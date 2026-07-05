@@ -186,6 +186,6 @@ public partial class DownloadsView : UserControl
         // (cells are non-focusable for clean row selection, so we don't depend on cell focus/selection).
         var row = v.FindAncestorOfType<DataGridRow>(includeSelf: true);
         if (row?.DataContext is DownloadItemViewModel item)
-            await DialogHelper.ShowDetails(item);
+            await DialogHelper.ShowDetails(item, (DataContext as DownloadsViewModel)?.Config);
     }
 }
