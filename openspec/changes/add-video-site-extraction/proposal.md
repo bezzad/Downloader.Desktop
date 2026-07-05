@@ -47,3 +47,16 @@ which is the whole point of a download manager for end users.
 - **Docs**: update `docs/plugins-hls-torrent-plan.md` to fold site extraction into the HLS plugin
   (it previously deferred this to a separate future "video-sites" plugin).
 - **Network/privacy**: extraction makes requests to the target site; documented. No new host telemetry.
+
+## Release note (2026-07-06)
+
+Shipped in **Downloader Desktop v1.7.0** (tag `v1.7.0`, main merge `3c4d2ce`, version bump `9199661`):
+- Desktop side: plan-part completion no longer gates on approximate extracted sizes (`f79ab92`).
+- Plugin side (Downloader.Plugins repo): x.com fixes in **v1.1.1** (`bad4d46`, issue #2 — root-relative
+  segments became `file://`; codecless progressive MP4s skipped) and YouTube support in **v1.1.2**
+  (`3770656`, issue #3 — browser-cookie retry chain + auto-provisioned deno JS runtime for the n-challenge).
+- Channels: GitHub Release (6 assets) + curated notes; Homebrew tap at 1.7.0; winget PR
+  microsoft/winget-pkgs#398214 (awaiting moderator); Snap rerun after a transient store rate-limit.
+- Verified end-to-end on real URLs: x.com status video (video+audio MP4) and a YouTube watch URL (32 MB
+  MP4, video+audio). Task 7.3 (author-side confirmation) still open — change stays in-progress per the
+  author's instruction (do not archive).
