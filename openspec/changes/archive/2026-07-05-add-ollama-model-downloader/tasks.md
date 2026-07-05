@@ -79,12 +79,13 @@
   `docs/writing-plugins.md` (paths + `IPostDownloadAction` row).
 - [x] 7.1b README feature bullet: "Download Ollama models" (paste a link or type `gemma3:12b` → download
   → one-click Add to Ollama) + built-in plugins (GitHub Releases + Ollama Models).
-- [ ] 7.2 Settings/Plugins screenshots: **deferred to the Linux box** (this session is macOS; per
-  SKILL.md the docs screenshots must only be regenerated on Linux). The Plugins list now shows the two
-  built-ins without trash buttons — worth a capture refresh there.
+- [ ] 7.2 Settings/Plugins screenshots: **carried over to the next Linux session** (macOS captures must
+  not be committed per SKILL.md). Archived with this box open by the author's decision — the reminder
+  also lives in the SKILL screenshot routine.
 - [x] 7.4 **(reprocess — author feedback)** The completion toast's button said a bare "Open", which read
   as open/unzip the file. `NotificationService.ShowAction` now takes an `actionText`; the offer passes the
   action's own label so the button literally says **"Add to Ollama"**, and the message explains it:
   "<file> finished downloading — click to run 'Add to Ollama'." (`PostAction_OfferMsg`, all 16 packs).
-- [ ] 7.3 **Author's manual e2e:** type `gemma3:1b` (small!) → downloads → the toast button now says
-  "Add to Ollama" → click → `ollama list` shows it. Change stays in-progress until the author confirms.
+- [x] 7.3 **Author-verified (2026-07-05):** the `gemma3:1b` flow works end-to-end (download → the
+  clarified "Add to Ollama" toast button → installed into the local store). Archived on the author's
+  explicit `/opsx:archive`.
