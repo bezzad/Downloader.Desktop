@@ -43,9 +43,10 @@
   live ↓speed, right = total percent (average of active downloads) + clock; collapsed width 340 (mac).
   Expanded now lists **running AND paused** items (paused show "62% · Paused" via StatusText), gets the
   logo + totals in the header, and roomier line spacing. Mockups regenerated in this folder.
-- [ ] 4.3 **Author on-device re-verification:** macOS — pill at the notch with visible wings (logo+speed
-  left, percent+clock right); hover shows running+paused with more spacing. Stays in-progress until
-  confirmed.
+- [x] 4.3 **Author-verified on-device (2026-07-05):** the pill sits at the macOS notch with visible
+  wings; after two rounds of author-driven layout polish (wings around the hardware cutout, then
+  percent-left / speed-right with the collapsed clock kept Win/Linux-only), the author confirmed the
+  island looks and behaves right ("it is good") and archived it explicitly.
 
 ## 5. Docs
 
