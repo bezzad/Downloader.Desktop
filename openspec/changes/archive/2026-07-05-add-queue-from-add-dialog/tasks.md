@@ -21,6 +21,6 @@
 
 - [x] 4.1 `Add_dialog_can_create_and_select_a_new_queue`: queue added to config with the settings-seeded
   cap, picker appears, new queue selected, `QueueId` stamped; empty-name no-op. Suite 216/216.
-- [ ] 4.2 **Author re-test:** open Add link → "Add queue" → name → confirm → the picker shows/selects it
-  and the added download lands in that queue (visible on the Queues page). Stays in-progress until
-  confirmed.
+- [x] 4.2 **Author-verified (2026-07-05):** Add link → "Add queue" → name → confirm works; the picker
+  shows/selects the new queue and the download lands in it. Archived on the author's explicit
+  `/opsx:archive`.
