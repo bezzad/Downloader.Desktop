@@ -364,28 +364,25 @@ public partial class DownloadManager
     /// finished (so a half-written part with no size isn't mistaken for complete).</summary>
     internal static bool IsPartComplete(string partPath, long? expectedSize)
     {
-        if (!File.Exists(partPath))
-            return false;
-        if (expectedSize is > 0)
-            return SafeLength(partPath) == expectedSize.Value;
-        return File.Exists(DoneMarker(partPath));
+        // A completed part always carries a .done marker (written only after the engine finished with no
+        // error). We do NOT gate on expectedSize: it comes from yt-dlp's filesize_approx for extracted
+        // streams and is only an estimate — an exact-match gate re-downloaded a finished part forever.
+        _ = expectedSize;
+        return File.Exists(partPath) && SafeLength(partPath) > 0 && File.Exists(DoneMarker(partPath));
     }
 
     /// <summary>Post-download verification for the part JUST fetched (before its <c>.done</c> marker is
-    /// written): the file exists and either matches the expected size or, when the size is unknown, is
-    /// non-empty.</summary>
+    /// written): the engine already reported success (no error), so the part just needs to exist and be
+    /// non-empty. expectedSize is NOT an equality gate — it's an approximation for extracted streams.</summary>
     private static bool PartDownloadedOk(string partPath, long? expectedSize)
     {
-        if (!File.Exists(partPath))
-            return false;
-        var len = SafeLength(partPath);
-        return expectedSize is > 0 ? len == expectedSize.Value : len > 0;
+        _ = expectedSize;
+        return File.Exists(partPath) && SafeLength(partPath) > 0;
     }
 
     private static void MarkPartDone(string partPath, long? expectedSize)
     {
-        if (expectedSize is > 0)
-            return; // a size match is the completion signal; no marker needed
+        _ = expectedSize;
         try { File.WriteAllText(DoneMarker(partPath), "1"); } catch { /* best-effort */ }
     }
 
