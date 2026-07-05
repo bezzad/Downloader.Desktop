@@ -253,5 +253,9 @@
   "Add_AddQueue": "Добавить очередь",
   "Add_QueueNamePlaceholder": "Имя очереди",
   "Add_QueueConfirm": "Создать очередь",
-  "Add_QueueCancel": "Отмена"
+  "Add_QueueCancel": "Отмена",
+  "Set_Notch": "Оверлей Dynamic Island (вырез)",
+  "Set_Notch_Hint": "Небольшая «таблетка» вверху по центру экрана с часами; наведите курсор, чтобы увидеть ход загрузок.",
+  "Notch_More": "и ещё {0}…",
+  "Notch_NoDownloads": "Нет активных загрузок"
 }

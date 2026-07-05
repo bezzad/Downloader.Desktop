@@ -1,0 +1,65 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        x:Class="Downloader.Desktop.Views.NotchView"
+        x:DataType="vm:NotchViewModel"
+        Width="170" Height="34"
+        CanResize="False"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False"
+        Title="Downloader Island">
+
+    <!-- The notch body: dark pill hugging the top edge, rounded bottom corners only. -->
+    <Border x:Name="Body" Background="#EE0D0D10" CornerRadius="0,0,16,16" ClipToBounds="True"
+            BorderBrush="#33FFFFFF" BorderThickness="1,0,1,1">
+        <Panel>
+            <!-- Collapsed: clock + tiny aggregate speed -->
+            <StackPanel IsVisible="{Binding !IsExpanded}" Orientation="Horizontal" Spacing="10"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="{Binding TimeText}" Foreground="White" FontSize="14" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding TotalSpeedText}" IsVisible="{Binding HasActivity}"
+                           Foreground="#7FE3C6" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Expanded: clock + total speed header, then the running downloads -->
+            <StackPanel IsVisible="{Binding IsExpanded}" Margin="16 8 16 12" Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding TimeText}" Foreground="White"
+                               FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="1" Text="{Binding TotalSpeedText}" Foreground="#7FE3C6"
+                               FontSize="13" VerticalAlignment="Center" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding RunningRows}" IsVisible="{Binding HasRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                            <StackPanel Spacing="3" Margin="0 3 0 0">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Foreground="#DDFFFFFF"
+                                               FontSize="12" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Text="{Binding SpeedText}" Foreground="#997FE3C6"
+                                               FontSize="11" Margin="8 0 0 0" />
+                                </Grid>
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                                             Height="4" MinHeight="0" CornerRadius="2"
+                                             Foreground="#4FC3F7" Background="#22FFFFFF" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="{Binding OverflowText}" IsVisible="{Binding HasOverflow}"
+                           Foreground="#88FFFFFF" FontSize="11" />
+                <TextBlock Text="{i18n:Tr Notch_NoDownloads}" IsVisible="{Binding !HasRows}"
+                           Foreground="#88FFFFFF" FontSize="12" />
+            </StackPanel>
+        </Panel>
+    </Border>
+</Window>

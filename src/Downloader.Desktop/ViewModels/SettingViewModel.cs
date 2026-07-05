@@ -118,6 +118,20 @@ public class SettingViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Show the top-center "dynamic island" overlay; starts/stops live.</summary>
+    public bool EnableNotch
+    {
+        get => S.EnableNotch;
+        set
+        {
+            if (S.EnableNotch == value) return;
+            S.EnableNotch = value;
+            if (value) NotchService.Start(_manager);
+            else NotchService.Stop();
+            this.RaisePropertyChanged();
+        }
+    }
+
     /// <summary>Launch hidden to the tray when the OS starts. Enabling it also enables the tray.</summary>
     public bool RunAtStartup
     {

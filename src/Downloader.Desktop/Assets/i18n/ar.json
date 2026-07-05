@@ -253,5 +253,9 @@
   "Add_AddQueue": "إضافة قائمة انتظار",
   "Add_QueueNamePlaceholder": "اسم قائمة الانتظار",
   "Add_QueueConfirm": "إنشاء القائمة",
-  "Add_QueueCancel": "إلغاء"
+  "Add_QueueCancel": "إلغاء",
+  "Set_Notch": "طبقة الجزيرة الديناميكية (النوتش)",
+  "Set_Notch_Hint": "شريط صغير أعلى منتصف الشاشة يعرض الساعة؛ مرّر المؤشر فوقه لرؤية تقدم التنزيلات مباشرة.",
+  "Notch_More": "و{0} أخرى…",
+  "Notch_NoDownloads": "لا توجد تنزيلات نشطة"
 }

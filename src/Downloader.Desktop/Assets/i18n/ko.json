@@ -253,5 +253,9 @@
   "Add_AddQueue": "대기열 추가",
   "Add_QueueNamePlaceholder": "대기열 이름",
   "Add_QueueConfirm": "대기열 만들기",
-  "Add_QueueCancel": "취소"
+  "Add_QueueCancel": "취소",
+  "Set_Notch": "다이내믹 아일랜드(노치) 오버레이",
+  "Set_Notch_Hint": "화면 상단 중앙의 작은 알약 모양에 시계가 표시됩니다. 마우스를 올리면 실시간 다운로드 진행률을 볼 수 있습니다.",
+  "Notch_More": "외 {0}개…",
+  "Notch_NoDownloads": "진행 중인 다운로드 없음"
 }

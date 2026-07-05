@@ -253,5 +253,9 @@
   "Add_AddQueue": "Añadir cola",
   "Add_QueueNamePlaceholder": "Nombre de la cola",
   "Add_QueueConfirm": "Crear cola",
-  "Add_QueueCancel": "Cancelar"
+  "Add_QueueCancel": "Cancelar",
+  "Set_Notch": "Superposición Dynamic Island (notch)",
+  "Set_Notch_Hint": "Una pequeña píldora en el centro superior de la pantalla que muestra el reloj; pasa el cursor para ver el progreso de las descargas en vivo.",
+  "Notch_More": "y {0} más…",
+  "Notch_NoDownloads": "No hay descargas activas"
 }

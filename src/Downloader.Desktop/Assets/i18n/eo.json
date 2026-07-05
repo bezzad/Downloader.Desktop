@@ -253,5 +253,9 @@
   "Add_AddQueue": "Aldoni vicon",
   "Add_QueueNamePlaceholder": "Nomo de vico",
   "Add_QueueConfirm": "Krei vicon",
-  "Add_QueueCancel": "Nuligi"
+  "Add_QueueCancel": "Nuligi",
+  "Set_Notch": "Dinamika insulo (noĉo)",
+  "Set_Notch_Hint": "Malgranda pilolo supre-centre de la ekrano montranta la horloĝon; ŝvebu por vidi vivan elŝutan progreson.",
+  "Notch_More": "kaj {0} pliaj…",
+  "Notch_NoDownloads": "Neniuj aktivaj elŝutoj"
 }

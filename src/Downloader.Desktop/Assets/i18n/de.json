@@ -253,5 +253,9 @@
   "Add_AddQueue": "Warteschlange hinzufügen",
   "Add_QueueNamePlaceholder": "Name der Warteschlange",
   "Add_QueueConfirm": "Warteschlange erstellen",
-  "Add_QueueCancel": "Abbrechen"
+  "Add_QueueCancel": "Abbrechen",
+  "Set_Notch": "Dynamic-Island-Overlay (Notch)",
+  "Set_Notch_Hint": "Eine kleine Pille oben mittig am Bildschirm mit der Uhr; beim Überfahren zeigt sie den Live-Downloadfortschritt.",
+  "Notch_More": "und {0} weitere…",
+  "Notch_NoDownloads": "Keine aktiven Downloads"
 }

@@ -253,5 +253,9 @@
   "Add_AddQueue": "Add queue",
   "Add_QueueNamePlaceholder": "Queue name",
   "Add_QueueConfirm": "Create queue",
-  "Add_QueueCancel": "Cancel"
+  "Add_QueueCancel": "Cancel",
+  "Set_Notch": "Dynamic Island (notch) overlay",
+  "Set_Notch_Hint": "A small pill at the top-center of the screen showing the clock; hover it to see live download progress.",
+  "Notch_More": "and {0} more…",
+  "Notch_NoDownloads": "No active downloads"
 }

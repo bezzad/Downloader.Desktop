@@ -78,6 +78,10 @@ public class DownloadSettings
     /// <summary>Keep the app running in the system tray when the main window is closed (on by default).</summary>
     public bool EnableSystemTray { get; set; } = true;
 
+    /// <summary>Show the top-center "dynamic island" notch overlay (clock + hover-expand live download
+    /// data). Off by default — it claims screen real estate, so it's opt-in.</summary>
+    public bool EnableNotch { get; set; } = false;
+
     /// <summary>Launch the app (hidden to tray) when the OS starts. Requires the tray to be enabled.</summary>
     public bool RunAtStartup { get; set; } = false;
 

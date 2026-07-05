@@ -230,6 +230,11 @@ public class MainViewModel : ViewModelBase
         if (_config.Settings.EnableSystemTray)
             TrayService.Enable();
 
+        // The notch overlay ("dynamic island") is opt-in; it runs independently of the main window so
+        // it stays visible while the app sits in the tray.
+        if (_config.Settings.EnableNotch)
+            NotchService.Start(_downloadManager);
+
         // Closing the window keeps the app alive in the tray (downloads keep running) unless the user
         // really quit from the tray menu, the tray is turned off, or an update is staged (closing should
         // then actually exit so the update applies).

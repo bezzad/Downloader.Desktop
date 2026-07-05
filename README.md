@@ -42,6 +42,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Clear status** — live progress and speed, a friendly reason when something fails, and a details view with per-connection progress.
 - **Light & dark themes** with a modern ocean-blue look.
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
+- **Dynamic Island (notch)** — an optional slim pill at the top-center of your screen showing the clock and live download speed; hover it to peek at active downloads without opening the app (Settings → Dynamic Island, off by default).
 - **System tray** — closing the window keeps downloads running in the background; reopen, mute notifications, or quit from the tray menu. Optionally **launch at startup** (hidden in the tray).
 - **Automatic update check** — get an in-app prompt when a new version ships, and update with one click.
 - **Extensible via plugins** — a plugin can turn a link the engine can't grab directly into a real download: the app downloads all the parts and assembles them into one file for you (e.g. **HLS `.m3u8`** streams → a single playable video via the HLS plugin). Multi-part downloads show live "Part 3/10" progress and an "Assembling…" step, and resume where they left off after a restart.

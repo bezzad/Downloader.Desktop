@@ -253,5 +253,9 @@
   "Add_AddQueue": "कतार जोड़ें",
   "Add_QueueNamePlaceholder": "कतार नाम",
   "Add_QueueConfirm": "कतार बनाएँ",
-  "Add_QueueCancel": "रद्द करें"
+  "Add_QueueCancel": "रद्द करें",
+  "Set_Notch": "डायनामिक आइलैंड (नॉच) ओवरले",
+  "Set_Notch_Hint": "स्क्रीन के ऊपर-केंद्र में एक छोटी पट्टी जो घड़ी दिखाती है; लाइव डाउनलोड प्रगति देखने के लिए होवर करें।",
+  "Notch_More": "और {0} अन्य…",
+  "Notch_NoDownloads": "कोई सक्रिय डाउनलोड नहीं"
 }

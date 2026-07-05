@@ -253,5 +253,9 @@
   "Add_AddQueue": "キューを追加",
   "Add_QueueNamePlaceholder": "キュー名",
   "Add_QueueConfirm": "キューを作成",
-  "Add_QueueCancel": "キャンセル"
+  "Add_QueueCancel": "キャンセル",
+  "Set_Notch": "ダイナミックアイランド（ノッチ）オーバーレイ",
+  "Set_Notch_Hint": "画面上部中央の小さなピルに時計を表示。ホバーするとダウンロードの進行状況が見られます。",
+  "Notch_More": "ほか {0} 件…",
+  "Notch_NoDownloads": "実行中のダウンロードはありません"
 }

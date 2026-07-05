@@ -253,5 +253,9 @@
   "Add_AddQueue": "Növbə əlavə et",
   "Add_QueueNamePlaceholder": "Növbə adı",
   "Add_QueueConfirm": "Növbəni yarat",
-  "Add_QueueCancel": "Ləğv et"
+  "Add_QueueCancel": "Ləğv et",
+  "Set_Notch": "Dinamik Ada (kəsik) qatı",
+  "Set_Notch_Hint": "Ekranın yuxarı mərkəzində saatı göstərən kiçik lövhə; yükləmə irəliləyişini canlı görmək üçün üzərinə gəlin.",
+  "Notch_More": "və daha {0}…",
+  "Notch_NoDownloads": "Aktiv yükləmə yoxdur"
 }

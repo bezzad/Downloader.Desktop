@@ -253,5 +253,9 @@
   "Add_AddQueue": "Ajouter une file",
   "Add_QueueNamePlaceholder": "Nom de la file",
   "Add_QueueConfirm": "Créer la file",
-  "Add_QueueCancel": "Annuler"
+  "Add_QueueCancel": "Annuler",
+  "Set_Notch": "Superposition Dynamic Island (encoche)",
+  "Set_Notch_Hint": "Une petite pastille en haut au centre de l'écran affichant l'horloge ; survolez-la pour voir la progression des téléchargements en direct.",
+  "Notch_More": "et {0} de plus…",
+  "Notch_NoDownloads": "Aucun téléchargement actif"
 }

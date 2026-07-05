@@ -253,5 +253,9 @@
   "Add_AddQueue": "添加队列",
   "Add_QueueNamePlaceholder": "队列名称",
   "Add_QueueConfirm": "创建队列",
-  "Add_QueueCancel": "取消"
+  "Add_QueueCancel": "取消",
+  "Set_Notch": "灵动岛（刘海）悬浮层",
+  "Set_Notch_Hint": "屏幕顶部中央的小胶囊显示时钟；悬停可查看实时下载进度。",
+  "Notch_More": "还有 {0} 个…",
+  "Notch_NoDownloads": "没有进行中的下载"
 }

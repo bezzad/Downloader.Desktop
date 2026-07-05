@@ -246,6 +246,14 @@
 
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_Notch}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_Notch_Hint}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableNotch}" />
+                    </Grid>
+
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Set_RunAtStartup}" />
                             <TextBlock Classes="hint" Text="{i18n:Tr Set_RunAtStartup_Hint}" />
                         </StackPanel>
