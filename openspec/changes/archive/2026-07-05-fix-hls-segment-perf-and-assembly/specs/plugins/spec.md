@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Plan execution downloads segment parts efficiently
 When executing a resolved multi-part plan, the app SHALL download parts marked as segments (or parts

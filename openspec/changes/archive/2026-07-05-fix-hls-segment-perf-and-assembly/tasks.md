@@ -47,9 +47,9 @@
   summary line says "36 segments" (`Det_SegCount`, all 16 packs; `Plan_PartsParallel` key removed).
   +2 tests (runner fills the board to Done with real byte counts; the dialog renders waiting/active/done
   rows). Note: per-segment BYTE-range chunking remains impossible — segments are separate server files.
-- [ ] 4.1 **Author re-test:** run the m3u8 again and open the Details window during the download — you
-  should see all segments listed, ~4 downloading in parallel, the rest pending/completed. Stays
-  in-progress until confirmed.
+- [x] 4.1 **Author-verified (2026-07-05):** re-ran the m3u8 e2e — download + ffmpeg merge produce a
+  playable .mp4, and the Details window shows all segments as parallel connection rows (~4 downloading,
+  rest pending/completed). Archived on the author's explicit `/opsx:archive … done`.
 - [x] 4.2 i18n: no new user-facing strings were needed.
 - [x] 4.3 `docs/plugins-architecture.md` plan-runner section updated with the segment/naming rules;
   SKILL.md note added.
