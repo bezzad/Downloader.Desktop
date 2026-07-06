@@ -14,6 +14,24 @@ Treat this file as a living cache. **Whenever you discover something non-obvious
 
 **Commit policy**: follow root `CLAUDE.md` → "Workflow & progress tracking" — commit frequently directly to `develop` and push, including skill-file notes, as part of routine work. (Superseded the older "never commit automatically" rule once the cross-machine PLAN.md/TASKS.md workflow was set up.)
 
+## Code map (read this before grepping — it's where things live)
+Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
+- **Download lifecycle / queues / scheduler**: `Services/DownloadManager.cs` (+ `IDownloadManager.cs`). Owns `Items`, all state transitions (`Start`/`Pause`/`Cancel`/`Resume`/`Retry`/`StopAll`), `PumpQueue` (the ONLY capped start path — `Start` is the uncapped primitive), `EvaluateSchedules`, `ApplyGlobalSpeedLimit`. `Start` builds the `DownloadConfiguration` from `Settings.ToConfiguration()` **synchronously before its first `await`**, so `vm.Status=Running` + `vm.Configuration` are observable right after `Add(autoStart:true)` — that's how the headless tests assert without real I/O (unreachable IP `10.255.255.1`).
+- **Per-row state/UI**: `ViewModels/DownloadItemViewModel.cs`. Model-backed props write through to `_item` (pattern: `get => _item.X; set { _item.X = value; RaisePropertyChanged(); }` — see `Status`, `HasCustomSpeedLimit`). Exposes `GetItem()`, `Manager`, live `Configuration`.
+- **Persisted record**: `Models/DownloadItem.cs`. **Global settings** (mirrors the engine `DownloadConfiguration`): `Models/DownloadSettings.cs` (+ `ToConfiguration()`). **Root persisted state**: `Models/Config.cs` (`Settings`/`Queues`/`Schedules`/`Downloads`, `DefaultQueue`).
+- **Settings screen**: `ViewModels/SettingViewModel.cs` — `S` = the `DownloadSettings`; setters that must "bite" live also call the manager (e.g. `MaxConcurrentDownloads`→`PumpQueue`, `MaxSpeedKbPerSecond`→`ApplyGlobalSpeedLimit`).
+- **Details dialog**: `ViewModels/DownloadDetailsViewModel.cs` + `Views/DownloadDetailsView.axaml` (per-connection strip, mirror editor, speed-limit box). Reaches global config via `Item.Manager.Config`.
+- **Custom window chrome**: `Views/TitleBar`, `Views/ResizeGrips.axaml.cs` (+ pure `Views/WindowResize.cs`). **Notch overlay**: `Views/NotchView.axaml(.cs)` (height constants) + `ViewModels/NotchViewModel.cs` (`MaxRows=3`, `HasOverflow`).
+- **i18n**: `Assets/i18n/*.json` (16 packs) + `Services/Localizer` + `Markup/TrExtension`. **Notifications**: `Services/NotificationService`. **Tray/startup/update**: `Services/{TrayService,StartupService,UpdateService}`.
+- **Tests** (`src/Downloader.Desktop.Tests/`): foldered by kind — `Unit/` (pure), `Integration/` (manager+engine, headless via `[AvaloniaFact]`), `UI/`, `Plugins/`. Build manager tests with `new DownloadManager(); Initialize(Config.New()); Add(item, autoStart)`.
+
+## Token discipline in this repo (the author flagged over-spend on small fixes)
+1. **Use the Code map above instead of grepping** for where a thing lives. Only grep for a specific symbol you can't place from it.
+2. **Read the method, not the file** — use `Read` with `offset`/`limit` (or `grep -n` the symbol first) rather than dumping 400-line files. VMs/`DownloadManager` are large.
+3. **Batch independent reads/greps into one message** (multiple tool calls per turn) — don't serialize discovery.
+4. **Build once per logical chunk**, not after every edit; `Edit` already fails loudly on a bad match, so don't re-`Read` a file just to confirm an edit landed.
+5. For a small, well-scoped fix, target the one file the Code map names, edit, then one build+filtered-test — that's the whole loop.
+
 ## Engine (`Downloader` 5.8.0) quick reference — sibling repo `../Downloader` is exactly this version
 - `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
 - `DownloadService(DownloadConfiguration cfg, ILoggerFactory factory = null)` — implements `IDownloadService`: same events (`DownloadStarted/DownloadProgressChanged/ChunkDownloadProgressChanged/DownloadFileCompleted`), plus `Package`, `Pause()`, `Resume()`, `CancelAsync()`/`CancelTaskAsync()`, `Clear()`, and `AddLogger(ILogger)`.
