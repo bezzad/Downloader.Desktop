@@ -1,10 +1,14 @@
 ## 1. Durable download state across restart
 
-- [ ] 1.1 Add a plain regression test: no schedules configured, several items Stopped (incl. via Stop All), `Initialize` runs on a fresh `DownloadManager` → assert every item is still Stopped and nothing auto-starts. This must reproduce the reported bug (or rule out `Initialize` itself as the cause) before any fix lands.
-- [ ] 1.2 Add a scheduler-specific regression test: an enabled schedule whose window contains "now", simulating that it already fired earlier the same day, then a fresh process's first `EvaluateSchedules` tick → assert it does NOT re-trigger `StartQueue` and the previously-stopped items stay Stopped.
-- [ ] 1.3 Add `LastFiredStartDate`/`LastFiredStopDate` (nullable date) to `DownloadSchedule`, persisted with `Config`.
-- [ ] 1.4 Update `EvaluateSchedules`/`TriggerStart`/`TriggerStop` to check/set the persisted date instead of (or alongside) the in-memory `_firedKeys`/`_firedDay`, so a schedule that already fired today does not re-fire after a restart; a schedule that hasn't fired yet today still fires normally (including on a restart that lands inside its window for the first time that day).
-- [ ] 1.5 Confirm the tests from 1.1/1.2 pass; add a "schedule fires normally when it hasn't fired today yet" test alongside them so the fix doesn't regress the legitimate catch-up case.
+- [x] 1.1 Add a plain regression test: no schedules configured, several items Stopped (incl. via Stop All), `Initialize` runs on a fresh `DownloadManager` → assert every item is still Stopped and nothing auto-starts. This must reproduce the reported bug (or rule out `Initialize` itself as the cause) before any fix lands.
+  > `DownloadStateDurabilityTests.StopAll_survives_a_restart_with_no_schedules_configured` — confirmed `Initialize` itself was already correct (only Running/Paused get normalized); the bug needed a second manager instance + a schedule to reproduce (see 1.2).
+- [x] 1.2 Add a scheduler-specific regression test: an enabled schedule whose window contains "now", simulating that it already fired earlier the same day, then a fresh process's first `EvaluateSchedules` tick → assert it does NOT re-trigger `StartQueue` and the previously-stopped items stay Stopped.
+  > `Schedule_that_already_fired_today_does_not_refire_on_restart` — reproduced the bug against the OLD code (in-memory `_firedKeys`/`_firedDay` reset every process, so this failed before the fix) and now passes against the fix.
+- [x] 1.3 Add `LastFiredStartDate`/`LastFiredStopDate` (nullable date) to `DownloadSchedule`, persisted with `Config`.
+- [x] 1.4 Update `EvaluateSchedules`/`TriggerStart`/`TriggerStop` to check/set the persisted date instead of (or alongside) the in-memory `_firedKeys`/`_firedDay`, so a schedule that already fired today does not re-fire after a restart; a schedule that hasn't fired yet today still fires normally (including on a restart that lands inside its window for the first time that day).
+  > Replaced `_firedKeys`/`_firedDay` entirely (no longer needed — per-schedule date comparison already resets naturally each new day). `EvaluateSchedules` made `internal` so tests can drive it directly.
+- [x] 1.5 Confirm the tests from 1.1/1.2 pass; add a "schedule fires normally when it hasn't fired today yet" test alongside them so the fix doesn't regress the legitimate catch-up case.
+  > `Schedule_that_has_not_fired_today_still_fires_normally` — asserts the target queue's item actually starts AND `LastFiredStartDate` is recorded (so it won't re-fire again later the same day). All 3 tests green; full suite 300/300.
 
 ## 2. Focus-aware notifications on Windows
 

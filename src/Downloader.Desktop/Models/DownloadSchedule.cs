@@ -29,4 +29,12 @@ public class DownloadSchedule
     public bool Once { get; set; }
 
     public bool Enabled { get; set; } = true;
+
+    /// <summary>The last local calendar date this schedule's start trigger fired, or null if never.
+    /// Persisted so relaunching the app inside an already-fired-today window does not re-fire the start
+    /// (a restart used to look identical to "never fired today" to the old in-memory-only tracking).</summary>
+    public DateTime? LastFiredStartDate { get; set; }
+
+    /// <summary>The last local calendar date this schedule's stop trigger fired, or null if never.</summary>
+    public DateTime? LastFiredStopDate { get; set; }
 }

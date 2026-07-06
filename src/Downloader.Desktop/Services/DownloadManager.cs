@@ -179,8 +179,6 @@ public partial class DownloadManager : IDownloadManager
     // ---------------- Scheduler ----------------
 
     private DispatcherTimer _schedulerTimer;
-    private readonly HashSet<string> _firedKeys = new();
-    private DateTime _firedDay = DateTime.MinValue;
 
     private void StartScheduler()
     {
@@ -192,18 +190,21 @@ public partial class DownloadManager : IDownloadManager
 
     private void OnSchedulerTick(object sender, EventArgs e) => EvaluateSchedules();
 
-    private void EvaluateSchedules()
+    /// <summary>
+    /// Fires each enabled schedule's start/stop at most once per calendar day, tracked via
+    /// <see cref="DownloadSchedule.LastFiredStartDate"/>/<see cref="DownloadSchedule.LastFiredStopDate"/>
+    /// (persisted with the schedule) instead of an in-memory-only set. This is what stops a relaunch inside
+    /// an already-fired-today window from re-firing a start that already happened earlier that day — the
+    /// old in-memory tracking reset on every process start, so a restart looked identical to "never fired
+    /// today" and could undo an explicit Stop All a few seconds after reopening the app.
+    /// </summary>
+    internal void EvaluateSchedules()
     {
         if (_config?.Schedules == null)
             return;
 
         var now = DateTime.Now;
-        if (now.Date != _firedDay)
-        {
-            _firedDay = now.Date;
-            _firedKeys.Clear();
-        }
-
+        var today = now.Date;
         var tod = now.TimeOfDay;
         foreach (var sch in _config.Schedules.ToList())
         {
@@ -212,19 +213,20 @@ public partial class DownloadManager : IDownloadManager
             if (sch.Days is { Length: > 0 } && !sch.Days.Contains(now.DayOfWeek))
                 continue;
 
-            var startKey = sch.Id + ":start";
-            var stopKey = sch.Id + ":stop";
-
             var inWindow = tod >= sch.StartTime && (sch.StopTime == null || tod < sch.StopTime.Value);
-            if (inWindow && _firedKeys.Add(startKey))
+            if (inWindow && sch.LastFiredStartDate != today)
             {
+                sch.LastFiredStartDate = today;
                 TriggerStart(sch);
                 if (sch.Once)
                     sch.Enabled = false;
             }
 
-            if (sch.StopTime is { } stop && tod >= stop && _firedKeys.Add(stopKey))
+            if (sch.StopTime is { } stop && tod >= stop && sch.LastFiredStopDate != today)
+            {
+                sch.LastFiredStopDate = today;
                 TriggerStop(sch);
+            }
         }
     }
 
