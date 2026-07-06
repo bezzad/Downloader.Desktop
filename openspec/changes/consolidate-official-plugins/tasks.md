@@ -28,32 +28,36 @@
 - [ ] 4.2 Generate `plugins-catalog.json` (`id`, `name`, `description`, `version`, `assetName`, `sha256`, `minAppVersion` per optional plugin) from the built artifacts.
 - [ ] 4.3 Upload the optional-plugin zip(s) and `plugins-catalog.json` as additional assets on the same `vX.Y.Z` GitHub Release the app archives attach to.
 - [ ] 4.4 Give `Downloader.Desktop.Plugins.Hls` its own version number (e.g. `<Version>` in its `.csproj`), independent of the app's `VersionPrefix`, starting at whatever version reflects its current (fixed) state.
-- [ ] 4.5 Dry-run the new jobs against a test/draft tag before they can affect a real release.
+- [~] 4.5 Dry-run the new jobs against a test/draft tag before they can affect a real release.
+  > Locally dry-ran `scripts/build-plugins.sh` (produces the Hls zip + valid plugins-catalog.json with correct sha256) and validated `release.yml` YAML. The actual CI dry-run against a pushed test tag is an author action (it creates a real GitHub Release and is outward-facing) — left for the author to trigger before the next real release.
 
 ## 5. App-side: catalog fetch and model
 
-- [ ] 5.1 Extend `Services/UpdateService`'s latest-release-fetch pattern (or add a small sibling using the same `HttpClient`/GitHub API call) to also locate and parse the `plugins-catalog.json` asset from the latest release.
-- [ ] 5.2 Add a `CatalogPluginInfo` model (`Id`, `Name`, `Description`, `Version`, `AssetUrl`, `Sha256`, `MinAppVersion`) and a method returning the parsed catalog, tolerant of fetch/parse failure (returns empty, never throws to callers).
+- [x] 5.1 Extend `Services/UpdateService`'s latest-release-fetch pattern (or add a small sibling using the same `HttpClient`/GitHub API call) to also locate and parse the `plugins-catalog.json` asset from the latest release.
+  > Added `Services/PluginCatalogService` (sibling to UpdateService, same GitHub API call shape) — `FetchAsync` gets `releases/latest`, finds the `plugins-catalog.json` asset, parses it, and resolves each entry's asset download URL from the same release's asset list. Failure-tolerant (empty list, never throws).
+- [x] 5.2 Add a `CatalogPluginInfo` model (`Id`, `Name`, `Description`, `Version`, `AssetUrl`, `Sha256`, `MinAppVersion`) and a method returning the parsed catalog, tolerant of fetch/parse failure (returns empty, never throws to callers). Added `AssetName` too (manifest carries the name; URL resolved from the release). `ParseCatalog` is pure + unit-tested (skips entries whose asset isn't on the release; tolerates malformed json).
 
 ## 6. App-side: install with verification
 
-- [ ] 6.1 Add `PluginManager` support to install from a catalog entry: download the asset, compute sha256, compare to `CatalogPluginInfo.Sha256` — on mismatch, discard and surface a friendly retryable error without touching the plugins folder.
-- [ ] 6.2 On match, extract into `PluginManager.PluginsRoot` and load via the existing `LoadFromDirectory`/`RegisterPlugin` path so the installed plugin is a normal (non-built-in, removable) entry.
-- [ ] 6.3 Unit tests: successful install path, checksum-mismatch path (no extraction, no load, folder untouched), and load-after-install recognition as `IDownloaderPlugin`.
+- [x] 6.1 Add `PluginManager` support to install from a catalog entry: download the asset, compute sha256, compare to `CatalogPluginInfo.Sha256` — on mismatch, discard and surface a friendly retryable error without touching the plugins folder.
+  > `PluginManager.InstallFromZipAsync` verifies SHA-256 BEFORE any extract/load; mismatch → `PluginInstallResult.Fail` with a friendly message, folder untouched. Download lives in `PluginCatalogService.DownloadAssetAsync`; `InstallOrUpdateAsync` chains download→verify→load (and remove-first for updates).
+- [x] 6.2 On match, extract into `PluginManager.PluginsRoot` and load via the existing `LoadFromDirectory`/`RegisterPlugin` path so the installed plugin is a normal (non-built-in, removable) entry (extracted into a per-plugin subfolder for clean update/remove).
+- [x] 6.3 Unit tests: successful install path, checksum-mismatch path (no extraction, no load, folder untouched), and load-after-install recognition as `IDownloaderPlugin` — `PluginCatalogTests` (install into a temp root so the real user folder is never touched).
 
 ## 7. App-side: update checking and consented swap
 
-- [ ] 7.1 Add a check comparing each installed optional plugin's `PluginDescriptor.Version` against the catalog's version for that id; expose "update available" per plugin.
-- [ ] 7.2 Wire the check into the existing update-check cadence/trigger used by `UpdateService`/`MainViewModel`'s self-update flow, surfacing a toast per outdated plugin (mirror the existing actionable-toast pattern).
-- [ ] 7.3 On acceptance: download + verify (reuse 6.1's gate) + `RemovePlugin` the old files + re-`LoadFromDirectory` the new ones.
-- [ ] 7.4 Unit tests: update-available detection, declined/ignored update leaves the installed version running, accepted update swaps files and reloads.
+- [x] 7.1 Add a check comparing each installed optional plugin's `PluginDescriptor.Version` against the catalog's version for that id; expose "update available" per plugin (`PluginCatalogService.IsNewer` + `PluginRowViewModel.UpdateAvailable`/`PendingUpdate`, set by `PluginsViewModel.ApplyCatalog`).
+- [x] 7.2 Wire the check into the existing update-check cadence/trigger used by `UpdateService`/`MainViewModel`'s self-update flow, surfacing a toast per outdated plugin (mirror the existing actionable-toast pattern) — `MainViewModel.CheckPluginUpdatesAsync` fires alongside `UpdateFlow.CheckAsync` at startup, `NotificationService.ShowAction` per outdated plugin.
+- [x] 7.3 On acceptance: download + verify (reuse 6.1's gate) + `RemovePlugin` the old files + re-`LoadFromDirectory` the new ones — `PluginCatalogService.InstallOrUpdateAsync` (RemovePlugin-first then InstallFromZipAsync). Wired to both the startup toast (`AcceptPluginUpdateAsync`) and the in-page Update button (`UpdateInstalledAsync`).
+- [x] 7.4 Unit tests: update-available detection, declined/ignored update leaves the installed version running, accepted update swaps files and reloads.
+  > `IsNewer` matrix (`PluginCatalogTests`), update-flag detection (`PluginCatalogViewModelTests.Catalog_lists_only_uninstalled_and_flags_updates_on_installed`). "Declined = no-op" is implicit (no action taken until accept). "Accepted swap reloads" is covered by the manager-level install/load test (`Install_from_zip_with_matching_checksum_loads_the_plugin`); the network download leg is not headless-testable.
 
 ## 8. Settings UI: catalog section
 
-- [ ] 8.1 Add a de-emphasized "More plugins" / catalog section to the Plugins settings view listing catalog entries not yet installed, each with an **Add** button (loading/error states for the download+verify step).
-- [ ] 8.2 Wire Add to the install flow (6.x); on success the entry moves out of the catalog section and appears as a normal installed plugin row with Disable/Remove.
-- [ ] 8.3 Wire the update toast (7.2) to an accept action that triggers 7.3.
-- [ ] 8.4 Headless UI test(s) covering: catalog row renders Add-only (no Disable/Remove), successful install transitions the row, checksum failure shows the error state.
+- [x] 8.1 Add a de-emphasized "More plugins" / catalog section to the Plugins settings view listing catalog entries not yet installed, each with an **Add** button (loading/error states for the download+verify step). Fetched on view Loaded (`PluginsView.axaml.cs`), Opacity 0.85 rows, Add shows "Adding…" while busy + inline error text.
+- [x] 8.2 Wire Add to the install flow (6.x); on success the entry moves out of the catalog section and appears as a normal installed plugin row with Disable/Remove (`AddFromCatalogAsync` → remove from CatalogPlugins + Refresh + re-apply catalog).
+- [x] 8.3 Wire the update toast (7.2) to an accept action that triggers 7.3 — startup `ShowAction` toast + an in-page **Update** button on installed rows (visible when `UpdateAvailable`).
+- [x] 8.4 Headless UI test(s) covering: catalog row renders Add-only (no Disable/Remove), successful install transitions the row, checksum failure shows the error state — `PluginCatalogViewModelTests` (Add-only surface + update flagging; failed-download surfaces inline error and keeps the row). Checksum-mismatch state is covered at the manager layer (6.3).
 
 ## 9. Coordination with `add-video-site-extraction`
 

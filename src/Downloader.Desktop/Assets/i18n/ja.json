@@ -259,5 +259,12 @@
   "Notch_More": "ほか {0} 件…",
   "Notch_NoDownloads": "実行中のダウンロードはありません",
   "PostAction_OfferMsg": "{0} のダウンロードが完了しました。クリックして「{1}」を実行します。",
-  "Det_SegCount": "{0} セグメント"
+  "Det_SegCount": "{0} セグメント",
+  "Plugins_More": "その他のプラグイン",
+  "Plugins_MoreHint": "カタログから追加できるオプションのプラグイン",
+  "Plugins_Add": "追加",
+  "Plugins_Adding": "追加中…",
+  "Plugins_Update": "更新",
+  "Plugins_UpdateAvailable": "更新があります",
+  "Plugins_AddFailed": "プラグインを追加できませんでした"
 }

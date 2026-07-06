@@ -1,14 +1,29 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Downloader.Desktop.Plugins;
 
 namespace Downloader.Desktop.Services;
+
+/// <summary>Outcome of installing/updating an optional plugin from a downloaded package.</summary>
+public sealed class PluginInstallResult
+{
+    public bool Success { get; init; }
+    /// <summary>Friendly, user-facing message when <see cref="Success"/> is false.</summary>
+    public string Error { get; init; }
+    /// <summary>The newly loaded plugin on success.</summary>
+    public PluginDescriptor Plugin { get; init; }
+
+    public static PluginInstallResult Ok(PluginDescriptor p) => new() { Success = true, Plugin = p };
+    public static PluginInstallResult Fail(string error) => new() { Success = false, Error = error };
+}
 
 /// <summary>Read-only info about a loaded plugin (bound by the Plugins UI; returned to callers).</summary>
 public sealed class PluginDescriptor
@@ -184,6 +199,96 @@ public sealed class PluginManager
             TryDeleteFile(Path.ChangeExtension(p.SourcePath, ".deps.json"));
         }
         return true;
+    }
+
+    /// <summary>True if a plugin with this id is currently loaded.</summary>
+    public bool IsInstalled(string pluginId)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return false;
+        lock (_gate) return _plugins.Any(p => p.Descriptor.Id == pluginId);
+    }
+
+    /// <summary>The loaded version of a plugin (from its descriptor), or null if not installed.</summary>
+    public string InstalledVersion(string pluginId)
+    {
+        lock (_gate) return _plugins.FirstOrDefault(p => p.Descriptor.Id == pluginId)?.Descriptor.Version;
+    }
+
+    /// <summary>
+    /// Install an optional plugin from a downloaded package zip. The package's SHA-256 is verified against
+    /// <paramref name="expectedSha256"/> <b>before</b> anything is extracted or loaded — a mismatch aborts
+    /// with a friendly error and leaves the plugins folder untouched (never loads unverified code). On a
+    /// match the zip is extracted into its own folder under <see cref="PluginsRoot"/> and loaded like any
+    /// user-installed (non-built-in, removable) plugin. Pure of network I/O (caller downloads the zip), so
+    /// it is unit-testable with a local file.
+    /// </summary>
+    public Task<PluginInstallResult> InstallFromZipAsync(string zipPath, string expectedSha256,
+        string folderName, CancellationToken ct = default)
+        => InstallFromZipAsync(zipPath, expectedSha256, folderName, PluginsRoot, ct);
+
+    /// <summary>Install variant with an explicit plugins root (tests pass a temp dir so the real user
+    /// plugins folder is never touched). The public overload uses <see cref="PluginsRoot"/>.</summary>
+    internal async Task<PluginInstallResult> InstallFromZipAsync(string zipPath, string expectedSha256,
+        string folderName, string pluginsRoot, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(zipPath) || !File.Exists(zipPath))
+            return PluginInstallResult.Fail("The plugin download is missing.");
+        if (string.IsNullOrWhiteSpace(expectedSha256))
+            return PluginInstallResult.Fail("The plugin catalog entry has no checksum to verify against.");
+
+        // --- Security gate: verify BEFORE touching the plugins folder ---
+        string actual;
+        try { actual = await ComputeSha256Async(zipPath, ct).ConfigureAwait(false); }
+        catch (Exception ex) { return PluginInstallResult.Fail($"Could not read the download: {ex.Message}"); }
+        if (!string.Equals(actual, expectedSha256.Trim(), StringComparison.OrdinalIgnoreCase))
+            return PluginInstallResult.Fail("The plugin download could not be verified (checksum mismatch). Please try again.");
+
+        // --- Extract into a dedicated per-plugin folder under the plugins root ---
+        var target = Path.Combine(pluginsRoot, SafeFolderName(folderName));
+        try
+        {
+            Directory.CreateDirectory(pluginsRoot);
+            if (Directory.Exists(target))
+                Directory.Delete(target, recursive: true);
+            Directory.CreateDirectory(target);
+            ZipFile.ExtractToDirectory(zipPath, target, overwriteFiles: true);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Extracting plugin package to '{target}' failed", ex);
+            return PluginInstallResult.Fail($"Could not unpack the plugin: {ex.Message}");
+        }
+
+        // --- Load it (a normal user-installed plugin: non-built-in, removable) ---
+        var before = new HashSet<string>();
+        lock (_gate) foreach (var p in _plugins) before.Add(p.Descriptor.Id);
+        LoadFromDirectory(target);
+        var added = Plugins.FirstOrDefault(p => !before.Contains(p.Id));
+        if (added == null)
+        {
+            try { Directory.Delete(target, recursive: true); } catch { /* best-effort cleanup */ }
+            return PluginInstallResult.Fail("The downloaded package contained no plugin.");
+        }
+        return PluginInstallResult.Ok(added);
+    }
+
+    /// <summary>Lowercase hex SHA-256 of a file.</summary>
+    public static async Task<string> ComputeSha256Async(string path, CancellationToken ct = default)
+    {
+        await using var fs = File.OpenRead(path);
+        using var sha = SHA256.Create();
+        var hash = await sha.ComputeHashAsync(fs, ct).ConfigureAwait(false);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string SafeFolderName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "plugin";
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+        return name.Replace(Path.DirectorySeparatorChar, '_').Replace(Path.AltDirectorySeparatorChar, '_');
     }
 
     private static void TryDeleteFile(string path)

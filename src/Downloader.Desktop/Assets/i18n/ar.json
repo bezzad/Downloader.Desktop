@@ -259,5 +259,12 @@
   "Notch_More": "و{0} أخرى…",
   "Notch_NoDownloads": "لا توجد تنزيلات نشطة",
   "PostAction_OfferMsg": "اكتمل تنزيل {0} — انقر لتشغيل «{1}».",
-  "Det_SegCount": "{0} مقطعًا"
+  "Det_SegCount": "{0} مقطعًا",
+  "Plugins_More": "المزيد من الإضافات",
+  "Plugins_MoreHint": "إضافات اختيارية يمكنك إضافتها من الكتالوج",
+  "Plugins_Add": "إضافة",
+  "Plugins_Adding": "جارٍ الإضافة…",
+  "Plugins_Update": "تحديث",
+  "Plugins_UpdateAvailable": "يتوفر تحديث",
+  "Plugins_AddFailed": "تعذّر إضافة الإضافة"
 }

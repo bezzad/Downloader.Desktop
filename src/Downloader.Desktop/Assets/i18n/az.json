@@ -259,5 +259,12 @@
   "Notch_More": "və daha {0}…",
   "Notch_NoDownloads": "Aktiv yükləmə yoxdur",
   "PostAction_OfferMsg": "{0} yükləndi — «{1}» işlətmək üçün klikləyin.",
-  "Det_SegCount": "{0} seqment"
+  "Det_SegCount": "{0} seqment",
+  "Plugins_More": "Daha çox plagin",
+  "Plugins_MoreHint": "Kataloqdan əlavə edə biləcəyiniz seçimli plaginlər",
+  "Plugins_Add": "Əlavə et",
+  "Plugins_Adding": "Əlavə edilir…",
+  "Plugins_Update": "Yenilə",
+  "Plugins_UpdateAvailable": "Yeniləmə mövcuddur",
+  "Plugins_AddFailed": "Plagin əlavə edilə bilmədi"
 }

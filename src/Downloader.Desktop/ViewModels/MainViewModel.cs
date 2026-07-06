@@ -312,7 +312,57 @@ public class MainViewModel : ViewModelBase
         }
 
         if (_config.Settings.AutoUpdate)
+        {
             _ = UpdateFlow.CheckAsync(manual: false);
+            _ = CheckPluginUpdatesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Background check for updates to INSTALLED optional plugins: compare each loaded optional plugin's
+    /// version against the release catalog and, for any that's newer, show a single actionable notification
+    /// the user can accept (download → verify sha256 → swap). Never auto-updates; failure-tolerant (an
+    /// empty/unreachable catalog is a no-op). Built-ins are excluded (they update with the app).
+    /// </summary>
+    private async Task CheckPluginUpdatesAsync()
+    {
+        try
+        {
+            var catalog = await PluginCatalogService.FetchAsync().ConfigureAwait(true);
+            if (catalog.Count == 0)
+                return;
+
+            foreach (var descriptor in _pluginManager.Plugins.Where(p => !p.IsBuiltIn).ToList())
+            {
+                var info = catalog.FirstOrDefault(c => c.Id == descriptor.Id);
+                if (info == null || !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
+                    continue;
+
+                var title = Localizer.Instance["Plugins_UpdateAvailable"];
+                var message = $"{descriptor.Name} → v{info.Version}";
+                NotificationService.ShowAction(title, message, () => _ = AcceptPluginUpdateAsync(info));
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Plugin update check failed", ex);
+        }
+    }
+
+    /// <summary>Accept an offered optional-plugin update from the startup notification: swap it, then inform.</summary>
+    private async Task AcceptPluginUpdateAsync(Models.CatalogPluginInfo info)
+    {
+        var result = await PluginCatalogService.InstallOrUpdateAsync(_pluginManager, info).ConfigureAwait(true);
+        if (result.Success)
+        {
+            foreach (var vm in _downloadManager.Items)
+                vm.RaisePostActionChanged(); // refresh any post-download actions the updated plugin offers
+            NotificationService.Inform(Localizer.Instance["Plugins_Installed"], result.Plugin?.Name ?? info.Name, false);
+        }
+        else
+        {
+            NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], result.Error, true);
+        }
     }
 
     /// <summary>A CLI "add" payload arrived (forwarded or via --cli-add) — add it with no UI.</summary>

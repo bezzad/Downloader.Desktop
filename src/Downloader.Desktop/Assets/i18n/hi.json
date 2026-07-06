@@ -259,5 +259,12 @@
   "Notch_More": "और {0} अन्य…",
   "Notch_NoDownloads": "कोई सक्रिय डाउनलोड नहीं",
   "PostAction_OfferMsg": "{0} डाउनलोड हो गया — «{1}» चलाने के लिए क्लिक करें।",
-  "Det_SegCount": "{0} खंड"
+  "Det_SegCount": "{0} खंड",
+  "Plugins_More": "और प्लगइन",
+  "Plugins_MoreHint": "कैटलॉग से जोड़े जा सकने वाले वैकल्पिक प्लगइन",
+  "Plugins_Add": "जोड़ें",
+  "Plugins_Adding": "जोड़ा जा रहा है…",
+  "Plugins_Update": "अपडेट करें",
+  "Plugins_UpdateAvailable": "अपडेट उपलब्ध है",
+  "Plugins_AddFailed": "प्लगइन जोड़ा नहीं जा सका"
 }

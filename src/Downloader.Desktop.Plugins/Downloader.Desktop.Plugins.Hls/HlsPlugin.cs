@@ -12,7 +12,13 @@ public sealed class HlsPlugin : IDownloaderPlugin
 {
     public string Id => "com.bezzad.hls";
     public string Name => "HLS (m3u8) downloader";
-    public string Version => "1.1.2";
+    // Derived from the assembly (set by the csproj <Version>) so the runtime-reported version and the
+    // release catalog's version share ONE source — otherwise a bumped catalog vs. a stale hardcoded
+    // string here would make the update check prompt forever. Major.Minor.Build mirrors the app's own
+    // UpdateService.CurrentVersion.
+    public string Version => typeof(HlsPlugin).Assembly.GetName().Version is { } v
+        ? $"{v.Major}.{v.Minor}.{v.Build}"
+        : "1.1.2";
     public string Author => "bezzad";
     public string Description =>
         "Downloads HLS (.m3u8) streams and videos from supported sites (e.g. x.com): expands the stream " +

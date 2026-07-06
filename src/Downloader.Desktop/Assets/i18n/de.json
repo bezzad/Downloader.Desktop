@@ -259,5 +259,12 @@
   "Notch_More": "und {0} weitere…",
   "Notch_NoDownloads": "Keine aktiven Downloads",
   "PostAction_OfferMsg": "{0} wurde heruntergeladen — klicke, um »{1}« auszuführen.",
-  "Det_SegCount": "{0} Segmente"
+  "Det_SegCount": "{0} Segmente",
+  "Plugins_More": "Weitere Plugins",
+  "Plugins_MoreHint": "Optionale Plugins, die du aus dem Katalog hinzufügen kannst",
+  "Plugins_Add": "Hinzufügen",
+  "Plugins_Adding": "Wird hinzugefügt…",
+  "Plugins_Update": "Aktualisieren",
+  "Plugins_UpdateAvailable": "Update verfügbar",
+  "Plugins_AddFailed": "Plugin konnte nicht hinzugefügt werden"
 }

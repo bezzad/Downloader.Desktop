@@ -107,6 +107,49 @@ jobs:
           # (osx-x64) failed to upload its asset. Notes are stamped once by the separate `notes` job below
           # (and scripts/release.sh sets curated notes on top).
 
+  # Build the OPTIONAL (catalog-tier) plugins and attach them + plugins-catalog.json to the same release.
+  # Optional plugins (HLS, future torrent) are NOT bundled in the app — they ship only here and the app
+  # downloads+verifies (sha256) them on demand (see the consolidate-official-plugins change). Runs AFTER
+  # the app matrix so the release already exists (same create-race avoidance as `extension` below).
+  # Also asserts the app's own publish output never contains an optional-plugin DLL, so the build/publish
+  # isolation can't silently regress (the compile-time guard is PluginIsolationTests).
+  plugins:
+    name: Attach optional plugins + catalog
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Isolation guard — app publish output must not contain an optional plugin
+        shell: bash
+        run: |
+          dotnet publish src/Downloader.Desktop/Downloader.Desktop.csproj \
+            -c Release -r linux-x64 --self-contained true \
+            -p:DebugType=None -p:DebugSymbols=false -o publish/isolation-check
+          if find publish/isolation-check -iname 'Downloader.Desktop.Plugins.Hls*' | grep -q .; then
+            echo "::error::optional plugin leaked into the app publish output"; exit 1
+          fi
+          echo "OK: no optional-plugin assemblies in the app publish output."
+
+      - name: Build optional plugin zips + catalog
+        run: ./scripts/build-plugins.sh dist
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/plugins-catalog.json
+          fail_on_unmatched_files: true
+          # No generate_release_notes here — the release exists by now (see the notes job).
+
   # Attach the browser-extension store zips to the same release so users (and the manual Chrome/Edge
   # dashboard upload) can grab the build matching this version. Runs AFTER the app matrix so the
   # release already exists — a concurrent create here would reintroduce the "tag_name already_exists"

@@ -259,5 +259,12 @@
   "Notch_More": "et {0} de plus…",
   "Notch_NoDownloads": "Aucun téléchargement actif",
   "PostAction_OfferMsg": "{0} est téléchargé — cliquez pour lancer « {1} ».",
-  "Det_SegCount": "{0} segments"
+  "Det_SegCount": "{0} segments",
+  "Plugins_More": "Plus de plugins",
+  "Plugins_MoreHint": "Plugins optionnels que vous pouvez ajouter depuis le catalogue",
+  "Plugins_Add": "Ajouter",
+  "Plugins_Adding": "Ajout…",
+  "Plugins_Update": "Mettre à jour",
+  "Plugins_UpdateAvailable": "Mise à jour disponible",
+  "Plugins_AddFailed": "Impossible d'ajouter le plugin"
 }
