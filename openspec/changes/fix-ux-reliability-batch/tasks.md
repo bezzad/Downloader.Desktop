@@ -48,6 +48,6 @@
 
 ## 6. Wrap-up
 
-- [ ] 6.1 Run the full standing verification: `dotnet build Downloader.Desktop.sln`, `dotnet test` (all suites green).
-- [ ] 6.2 Append any non-obvious gotchas found while implementing (scheduler date-tracking, speed-limit propagation, Windows notification mechanism, resize-anchor math) to `.claude/skills/downloader-desktop/SKILL.md`.
-- [ ] 6.3 If any view's UI changed (notch panel size, details dialog's new toggle), regenerate `docs/screenshots/`/notch mockups on Linux and visually verify before committing.
+- [x] 6.1 Run the full standing verification: `dotnet build Downloader.Desktop.sln`, `dotnet test` (all suites green). — 315 tests green, solution build clean.
+- [x] 6.2 Append any non-obvious gotchas found while implementing (scheduler date-tracking, speed-limit propagation, Windows notification mechanism, resize-anchor math) to `.claude/skills/downloader-desktop/SKILL.md`.
+- [~] 6.3 If any view's UI changed (notch panel size, details dialog's new toggle), regenerate `docs/screenshots/`/notch mockups on Linux and visually verify before committing. — DEFERRED to a Linux run: on macOS every PNG re-renders with font/AA drift (not a real UI diff), so committing them would inject platform noise. The details-dialog "Use global limit" button is hidden by default (only shows once a per-item cap is set), so the default captures are unaffected anyway; only the §3 notch mockup genuinely changed and it's Linux-only per standing convention.
