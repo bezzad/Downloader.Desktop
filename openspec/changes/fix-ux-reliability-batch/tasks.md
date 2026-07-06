@@ -12,9 +12,12 @@
 
 ## 2. Focus-aware notifications on Windows
 
-- [ ] 2.1 Add a Windows branch to `Services/NotificationService.TryNative` that shows a native OS notification (spawn a system utility — e.g. a `powershell.exe` invocation of the WinRT toast API — no new NuGet dependency), matching the existing try/catch/return-bool contract of the Linux/macOS branches.
-- [ ] 2.2 Verify the existing `PreferOsChannel`/`InAppVisible` routing logic needs no changes (it should already call the new Windows branch through the same `TryNative` path).
-- [ ] 2.3 Note in the change (and flag to the author) that this cannot be verified on the current dev box or CI — needs manual confirmation on an actual Windows machine.
+- [x] 2.1 Add a Windows branch to `Services/NotificationService.TryNative` that shows a native OS notification (spawn a system utility — e.g. a `powershell.exe` invocation of the WinRT toast API — no new NuGet dependency), matching the existing try/catch/return-bool contract of the Linux/macOS branches.
+  > New `Services/WindowsNotifier.cs` (mirrors `MacNotifier`'s shape): spawns `powershell.exe -EncodedCommand <base64>` invoking `Windows.UI.Notifications.ToastNotificationManager`. Text travels via `-EncodedCommand` (no command-line escaping needed) and is XML-escaped with `SecurityElement.Escape` before being embedded in the script's single-quoted PowerShell string (which also strips any raw `'` that could break out of that string). Wired into `TryNative` as a new `OperatingSystem.IsWindows()` branch, same try/catch/return-bool contract.
+- [x] 2.2 Verify the existing `PreferOsChannel`/`InAppVisible` routing logic needs no changes (it should already call the new Windows branch through the same `TryNative` path).
+  > Confirmed unchanged — `Notify`/`ShowAction` call `TryNative` unconditionally on any non-in-app-visible path; the new Windows branch is just another case inside it. 5 existing notification/channel tests + full suite (300/300) still green, no regressions on macOS/Linux (branch is a no-op there since `OperatingSystem.IsWindows()` is false).
+- [x] 2.3 Note in the change (and flag to the author) that this cannot be verified on the current dev box or CI — needs manual confirmation on an actual Windows machine.
+  > Flagged in `WindowsNotifier`'s doc comment and here: this dev box is macOS and CI has no Windows runner for this repo's test suite, so the actual toast call is unverified — needs the author (or a Windows CI job) to confirm a real toast appears when the app is unfocused/tray-hidden on Windows.
 
 ## 3. Notch overlay expanded size
 
