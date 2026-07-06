@@ -24,10 +24,11 @@
 
 ## 4. Release pipeline: optional-plugin assets + catalog
 
-- [ ] 4.1 In `.github/workflows/release.yml`, add a job (parallel to the existing per-platform app build matrix) that builds each optional plugin project, zips its output (dll + managed deps), and computes its sha256.
-- [ ] 4.2 Generate `plugins-catalog.json` (`id`, `name`, `description`, `version`, `assetName`, `sha256`, `minAppVersion` per optional plugin) from the built artifacts.
-- [ ] 4.3 Upload the optional-plugin zip(s) and `plugins-catalog.json` as additional assets on the same `vX.Y.Z` GitHub Release the app archives attach to.
-- [ ] 4.4 Give `Downloader.Desktop.Plugins.Hls` its own version number (e.g. `<Version>` in its `.csproj`), independent of the app's `VersionPrefix`, starting at whatever version reflects its current (fixed) state.
+- [x] 4.1 In `.github/workflows/release.yml`, add a job (parallel to the existing per-platform app build matrix) that builds each optional plugin project, zips its output (dll + managed deps), and computes its sha256.
+  > New `plugins` job (needs: build) runs `scripts/build-plugins.sh` + an isolation grep (`dotnet publish` must not contain the optional plugin). Logic lives in the script so it's locally runnable.
+- [x] 4.2 Generate `plugins-catalog.json` (`id`, `name`, `description`, `version`, `assetName`, `sha256`, `minAppVersion` per optional plugin) from the built artifacts — `scripts/build-plugins.sh` (static fields from `packaging/plugins/optional-plugins.json`, version from csproj `<Version>`, sha256 of the zip).
+- [x] 4.3 Upload the optional-plugin zip(s) and `plugins-catalog.json` as additional assets on the same `vX.Y.Z` GitHub Release the app archives attach to (`action-gh-release` in the `plugins` job).
+- [x] 4.4 Give `Downloader.Desktop.Plugins.Hls` its own version number (e.g. `<Version>` in its `.csproj`), independent of the app's `VersionPrefix`, starting at whatever version reflects its current (fixed) state — `<Version>1.1.2</Version>`; `HlsPlugin.Version` derives from the assembly so it's the single source.
 - [~] 4.5 Dry-run the new jobs against a test/draft tag before they can affect a real release.
   > Locally dry-ran `scripts/build-plugins.sh` (produces the Hls zip + valid plugins-catalog.json with correct sha256) and validated `release.yml` YAML. The actual CI dry-run against a pushed test tag is an author action (it creates a real GitHub Release and is outward-facing) — left for the author to trigger before the next real release.
 
