@@ -126,26 +126,38 @@
       <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
     </ItemGroup>
 
-    <!-- Stage the bundled plugins' DLL + deps.json into the app output (and the publish output) as
-         plugins/. RID-agnostic recursive glob: a parallel/self-contained build can drop plugin output
-         under a RID subfolder, so never hardcode bin/<cfg>/net10.0 (see the test project's identical
-         gotcha). ref/ assemblies are metadata-only and can't be loaded. -->
+    <!-- Stage the BUILT-IN plugins' DLL + deps.json into the app output (and the publish output) as
+         plugins/. This is an EXPLICIT per-plugin glob allow-list, NOT a wildcard over
+         Downloader.Desktop.Plugins\* : optional/catalog-tier plugins (e.g. Downloader.Desktop.Plugins.Hls)
+         live in the same parent folder but must NEVER be bundled into the app — they ship only as
+         downloadable release assets (see the consolidate-official-plugins change). Adding a new BUILT-IN
+         plugin means adding its two globs here; a new OPTIONAL plugin needs no change and stays
+         un-bundled. (Safe-failure direction: forgetting to list a built-in just leaves it unbundled; the
+         reverse — a wildcard sweeping up an optional plugin — is the bug this allow-list prevents.)
+         RID-agnostic recursive glob: a parallel/self-contained build can drop plugin output under a RID
+         subfolder, so never hardcode bin/<cfg>/net10.0 (see the test project's identical gotcha). ref/
+         assemblies are metadata-only and can't be loaded. -->
+    <PropertyGroup>
+        <_GitHubPluginBin>..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\bin\$(Configuration)</_GitHubPluginBin>
+        <_OllamaPluginBin>..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\bin\$(Configuration)</_OllamaPluginBin>
+    </PropertyGroup>
+
     <Target Name="StageBundledPlugins" AfterTargets="Build">
         <ItemGroup>
-            <BundledPluginFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.dll"
-                               Exclude="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\ref\**" />
-            <BundledPluginFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.deps.json" />
+            <BundledPluginFile Include="$(_GitHubPluginBin)\**\Downloader.Desktop.Plugins.*.dll;$(_OllamaPluginBin)\**\Downloader.Desktop.Plugins.*.dll"
+                               Exclude="$(_GitHubPluginBin)\**\ref\**;$(_OllamaPluginBin)\**\ref\**" />
+            <BundledPluginFile Include="$(_GitHubPluginBin)\**\Downloader.Desktop.Plugins.*.deps.json;$(_OllamaPluginBin)\**\Downloader.Desktop.Plugins.*.deps.json" />
         </ItemGroup>
         <Error Condition="'@(BundledPluginFile)' == ''"
-               Text="StageBundledPlugins: no bundled plugin outputs found — did the plugin projects build for '$(Configuration)'?" />
+               Text="StageBundledPlugins: no bundled plugin outputs found — did the built-in plugin projects build for '$(Configuration)'?" />
         <Copy SourceFiles="@(BundledPluginFile)" DestinationFolder="$(OutDir)plugins" SkipUnchangedFiles="true" />
     </Target>
 
     <Target Name="StageBundledPluginsOnPublish" AfterTargets="Publish">
         <ItemGroup>
-            <BundledPluginPubFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.dll"
-                                  Exclude="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\ref\**" />
-            <BundledPluginPubFile Include="..\Downloader.Desktop.Plugins\*\bin\$(Configuration)\**\Downloader.Desktop.Plugins.*.deps.json" />
+            <BundledPluginPubFile Include="$(_GitHubPluginBin)\**\Downloader.Desktop.Plugins.*.dll;$(_OllamaPluginBin)\**\Downloader.Desktop.Plugins.*.dll"
+                                  Exclude="$(_GitHubPluginBin)\**\ref\**;$(_OllamaPluginBin)\**\ref\**" />
+            <BundledPluginPubFile Include="$(_GitHubPluginBin)\**\Downloader.Desktop.Plugins.*.deps.json;$(_OllamaPluginBin)\**\Downloader.Desktop.Plugins.*.deps.json" />
         </ItemGroup>
         <Copy SourceFiles="@(BundledPluginPubFile)" DestinationFolder="$(PublishDir)plugins" SkipUnchangedFiles="true" />
     </Target>

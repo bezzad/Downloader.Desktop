@@ -1,20 +1,26 @@
 ## 1. Investigate source material
 
-- [ ] 1.1 In `../Downloader.Plugins`, identify the branch/commit with the YouTube/x.com pure video-link fix (check `feat/video-site-extraction` and any other branches/PRs beyond what's already on its default branch) and confirm exactly what state needs to move over.
-- [ ] 1.2 Attempt to preserve git history for the move (`git subtree split` or `git filter-repo` on `../Downloader.Plugins` scoped to `src/Downloader.Plugins.Hls` + its tests); if it produces a broken/unreasonable graft, fall back to a clean copy of current source + tests (per design.md's accepted fallback).
+- [x] 1.1 In `../Downloader.Plugins`, identify the branch/commit with the YouTube/x.com pure video-link fix (check `feat/video-site-extraction` and any other branches/PRs beyond what's already on its default branch) and confirm exactly what state needs to move over.
+  > The x.com fix (`bad4d46`) and YouTube fix (`3770656`) are ALREADY committed on `develop` (its tip, v1.1.2 state). No unmerged fix branch — `main` is merely behind at `89a960a`. So the "bug" is already fixed on `develop`; migrating `develop`'s tip carries the fix (task 2.3 is a migration, not a new fix).
+- [x] 1.2 Attempt to preserve git history for the move (`git subtree split` or `git filter-repo` on `../Downloader.Plugins` scoped to `src/Downloader.Plugins.Hls` + its tests); if it produces a broken/unreasonable graft, fall back to a clean copy of current source + tests (per design.md's accepted fallback).
+  > Chose the clean-copy fallback: the target path AND namespaces both change (a graft would need path/namespace rewrites anyway), and history stays recoverable in the old repo until its manual deletion.
 
 ## 2. Migrate the Hls plugin into this repo
 
-- [ ] 2.1 Create `src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Hls/` from the migrated source, renaming namespace/assembly from `Downloader.Plugins.Hls` to `Downloader.Desktop.Plugins.Hls` consistently (project file, namespaces, plugin id stays `com.bezzad.hls` — do not change the id).
-- [ ] 2.2 Bring over its test project alongside the app's existing test conventions (xUnit v3 / `Downloader.Desktop.Tests` patterns already used for GitHub/Ollama loadability tests).
-- [ ] 2.3 Apply the YouTube/x.com pure video-link fix identified in 1.1 as part of this move (not a follow-up commit).
-- [ ] 2.4 Get the migrated project + tests green standalone (`dotnet test` on just this project) before wiring it into the main solution.
+- [x] 2.1 Create `src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Hls/` from the migrated source, renaming namespace/assembly from `Downloader.Plugins.Hls` to `Downloader.Desktop.Plugins.Hls` consistently (project file, namespaces, plugin id stays `com.bezzad.hls` — do not change the id).
+- [x] 2.2 Bring over its test project alongside the app's existing test conventions (xUnit v3 / `Downloader.Desktop.Tests` patterns already used for GitHub/Ollama loadability tests).
+  > Deviation (per "minimal change / don't disturb working scenarios"): kept the plugin's OWN test project at `src/Downloader.Desktop.Plugins.Hls.Tests/` on xUnit **v2** (its established, passing suite of pure logic/loadability tests). Rewriting 8 files v2→v3 purely for uniformity is high-risk churn on the exact code we're preserving; mixed xunit majors across independent projects run fine under `dotnet test <sln>`. Both suites run in the standing verification.
+- [x] 2.3 Apply the YouTube/x.com pure video-link fix identified in 1.1 as part of this move (not a follow-up commit).
+  > Already present on `develop`'s tip (see 1.1); carried over by copying that state, not a new fix.
+- [x] 2.4 Get the migrated project + tests green standalone (`dotnet test` on just this project) before wiring it into the main solution — **62/62 green**.
 
 ## 3. Solution wiring with build-output isolation
 
-- [ ] 3.1 Add `Downloader.Desktop.Plugins.Hls` (and its test project) to `Downloader.Desktop.sln` for build/test only.
-- [ ] 3.2 Confirm (and if needed, adjust) the app's `.csproj`/build targets so nothing copies `Downloader.Desktop.Plugins.Hls`'s output into the app's own `bin`/publish `plugins/` folder — no `ProjectReference`, no MSBuild copy target referencing it.
-- [ ] 3.3 Add a CI/test guard asserting the app's publish output does not contain `Downloader.Desktop.Plugins.Hls.dll` (fails loudly if isolation regresses later).
+- [x] 3.1 Add `Downloader.Desktop.Plugins.Hls` (and its test project) to `Downloader.Desktop.sln` for build/test only.
+- [x] 3.2 Confirm (and if needed, adjust) the app's `.csproj`/build targets so nothing copies `Downloader.Desktop.Plugins.Hls`'s output into the app's own `bin`/publish `plugins/` folder — no `ProjectReference`, no MSBuild copy target referencing it.
+  > The `StageBundledPlugins`/`...OnPublish` targets used a wildcard `Downloader.Desktop.Plugins\*` that would have swept up Hls. Rewrote them as an EXPLICIT per-plugin glob allow-list (GitHub + Ollama only). Verified: app bin tree has zero Hls; staged `plugins/` = GitHub + Ollama DLL/deps only.
+- [x] 3.3 Add a CI/test guard asserting the app's publish output does not contain `Downloader.Desktop.Plugins.Hls.dll` (fails loudly if isolation regresses later).
+  > Test guard `PluginIsolationTests` (2 tests): app csproj never references/stages the optional plugin (comment-stripped), and the staged folder has GitHub+Ollama but no Hls. A matching `dotnet publish` grep step is added to CI in task 4.1.
 
 ## 4. Release pipeline: optional-plugin assets + catalog
 
