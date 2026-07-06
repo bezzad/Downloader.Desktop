@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -23,6 +24,13 @@ public partial class ResizeGrips : UserControl
     private WindowEdge _edge;
     private bool _resizing;
 
+    // Drag-start snapshot (captured once in OnPressed) so every frame is computed from a fixed anchor
+    // rather than the window's moving bounds — the fix for West/North resizes walking the window off-screen.
+    private PixelPoint _startPointer;
+    private PixelPoint _startPos;
+    private double _startWidth;
+    private double _startHeight;
+
     public ResizeGrips()
     {
         InitializeComponent();
@@ -40,6 +48,10 @@ public partial class ResizeGrips : UserControl
             _window = w;
             _edge = edge;
             _resizing = true;
+            _startPointer = w.PointToScreen(e.GetPosition(w)); // screen/device pixels, stable as the window moves
+            _startPos = w.Position;
+            _startWidth = w.Bounds.Width;
+            _startHeight = w.Bounds.Height;
             e.Pointer.Capture(grip);
             e.Handled = true;
         }
@@ -50,53 +62,25 @@ public partial class ResizeGrips : UserControl
         if (!_resizing || _window is null)
             return;
 
-        // Pointer position in DIPs relative to the window's current top-left.
-        var p = e.GetPosition(_window);
+        var pointer = _window.PointToScreen(e.GetPosition(_window)); // current pointer in screen/device pixels
         var scale = _window.RenderScaling;
-
-        bool west = _edge is WindowEdge.West or WindowEdge.NorthWest or WindowEdge.SouthWest;
-        bool east = _edge is WindowEdge.East or WindowEdge.NorthEast or WindowEdge.SouthEast;
-        bool north = _edge is WindowEdge.North or WindowEdge.NorthWest or WindowEdge.NorthEast;
-        bool south = _edge is WindowEdge.South or WindowEdge.SouthWest or WindowEdge.SouthEast;
-
-        double width = _window.Bounds.Width;
-        double height = _window.Bounds.Height;
-        int posX = _window.Position.X;
-        int posY = _window.Position.Y;
 
         double minW = _window.MinWidth > 0 ? _window.MinWidth : 1;
         double minH = _window.MinHeight > 0 ? _window.MinHeight : 1;
         double maxW = double.IsFinite(_window.MaxWidth) && _window.MaxWidth > 0 ? _window.MaxWidth : double.MaxValue;
         double maxH = double.IsFinite(_window.MaxHeight) && _window.MaxHeight > 0 ? _window.MaxHeight : double.MaxValue;
 
-        // East/South keep the opposite edge fixed, so the size is just the pointer offset.
-        if (east)
-        {
-            width = Math.Clamp(p.X, minW, maxW);
-        }
-        else if (west)
-        {
-            // West moves the left edge to the pointer: grow/shrink and shift the origin to match,
-            // clamped so the edge never crosses the min/max size.
-            var newW = Math.Clamp(width - p.X, minW, maxW);
-            posX -= (int)Math.Round((newW - width) * scale);
-            width = newW;
-        }
+        var r = WindowResize.Compute(_edge, _startPointer, _startPos, _startWidth, _startHeight,
+            pointer, scale, minW, minH, maxW, maxH);
 
-        if (south)
-        {
-            height = Math.Clamp(p.Y, minH, maxH);
-        }
-        else if (north)
-        {
-            var newH = Math.Clamp(height - p.Y, minH, maxH);
-            posY -= (int)Math.Round((newH - height) * scale);
-            height = newH;
-        }
+        // Last-resort off-screen guard, so a fast drag can never lose the window entirely.
+        var areas = _window.Screens?.All?.Select(s => s.WorkingArea).ToArray() ?? Array.Empty<PixelRect>();
+        var pos = WindowResize.ClampOnScreen(r.Position, (int)Math.Round(r.Width * scale),
+            (int)Math.Round(r.Height * scale), areas);
 
-        _window.Position = new PixelPoint(posX, posY);
-        _window.Width = width;
-        _window.Height = height;
+        _window.Position = pos;
+        _window.Width = r.Width;
+        _window.Height = r.Height;
         e.Handled = true;
     }
 

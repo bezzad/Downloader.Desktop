@@ -39,11 +39,11 @@
 
 ## 5. Main window resize from the left/top edge
 
-- [ ] 5.1 Extract the resize math (given a drag-start snapshot — pointer position, window position, window size — plus a current pointer position, compute the new width/height/position) into a small pure/static method so it can be unit-tested without a real pointer drag.
-- [ ] 5.2 Update `ResizeGrips.OnPressed` to capture the drag-start snapshot (screen-space pointer position + `_window.Position` + `_window.Bounds.Width/Height`) once.
-- [ ] 5.3 Update `ResizeGrips.OnMoved` to compute every frame's width/height/position from that fixed snapshot plus the current pointer's screen-space delta — not by re-reading `_window.Bounds`/`_window.Position` (today's per-frame-relative-to-window approach that can compound error across rapid events).
-- [ ] 5.4 Keep the existing `MinWidth/MinHeight/MaxWidth/MaxHeight` clamps; add a final clamp so the window's position can't end up entirely outside every screen's working area, as a last-resort guard.
-- [ ] 5.5 Unit test the extracted math (5.1) with a simulated fast multi-step drag sequence (many small deltas in quick succession) from each edge/corner, asserting the final size/position matches a single equivalent large delta — the property that was broken before (compounding error).
+- [x] 5.1 Extract the resize math (given a drag-start snapshot — pointer position, window position, window size — plus a current pointer position, compute the new width/height/position) into a small pure/static method so it can be unit-tested without a real pointer drag.
+- [x] 5.2 Update `ResizeGrips.OnPressed` to capture the drag-start snapshot (screen-space pointer position + `_window.Position` + `_window.Bounds.Width/Height`) once.
+- [x] 5.3 Update `ResizeGrips.OnMoved` to compute every frame's width/height/position from that fixed snapshot plus the current pointer's screen-space delta — not by re-reading `_window.Bounds`/`_window.Position` (today's per-frame-relative-to-window approach that can compound error across rapid events).
+- [x] 5.4 Keep the existing `MinWidth/MinHeight/MaxWidth/MaxHeight` clamps; add a final clamp so the window's position can't end up entirely outside every screen's working area, as a last-resort guard.
+- [x] 5.5 Unit test the extracted math (5.1) with a simulated fast multi-step drag sequence (many small deltas in quick succession) from each edge/corner, asserting the final size/position matches a single equivalent large delta — the property that was broken before (compounding error).
 - [ ] 5.6 Manual verification (author): drag every edge and corner of the main window, both slowly and quickly, and confirm the window never disappears or ends up off-screen. Headless Avalonia cannot simulate a real multi-frame OS-level drag, so this step cannot be automated.
 
 ## 6. Wrap-up
