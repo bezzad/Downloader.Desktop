@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Plugins;
 
 /// <summary>
 /// Catalog parsing, version comparison, and the verify-before-load install gate for optional plugins

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 
-namespace Downloader.Desktop.Plugins.Hls.Tests;
+namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 /// <summary>
 /// A tiny in-process HTTP server for tests: register path -> (bytes, content-type) and it serves them on

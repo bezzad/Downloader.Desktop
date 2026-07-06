@@ -14,7 +14,7 @@ using Downloader.Desktop.Plugins.Ollama;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Plugins;
 
 /// <summary>Pure tests for the Ollama plugin's claim/manifest logic (compile-referenced project).</summary>
 public class OllamaLogicTests

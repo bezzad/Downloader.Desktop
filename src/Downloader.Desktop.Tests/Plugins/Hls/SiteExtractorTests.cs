@@ -1,6 +1,7 @@
+using Downloader.Desktop.Plugins.Hls;
 using Xunit;
 
-namespace Downloader.Desktop.Plugins.Hls.Tests;
+namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 /// <summary>
 /// Unit tests for the pure format-selection core: canned <c>yt-dlp -J</c> JSON → the chosen

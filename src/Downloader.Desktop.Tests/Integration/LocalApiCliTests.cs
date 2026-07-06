@@ -12,7 +12,7 @@ using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Integration;
 
 /// <summary>Pure tests for the local API request models, the CLI parser and the config migration.</summary>
 public class LocalApiCliLogicTests

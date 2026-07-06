@@ -6,7 +6,7 @@ using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Unit;
 
 /// <summary>Pure-logic unit tests (no Avalonia runtime needed).</summary>
 public class LogicTests

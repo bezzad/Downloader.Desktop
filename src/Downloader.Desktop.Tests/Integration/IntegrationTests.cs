@@ -8,7 +8,7 @@ using Downloader;
 using Downloader.Desktop.Models;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Integration;
 
 /// <summary>
 /// End-to-end integration: serve a small file from a local HTTP server (loopback only, no external

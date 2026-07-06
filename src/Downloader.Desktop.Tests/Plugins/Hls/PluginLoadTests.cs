@@ -1,9 +1,10 @@
 using System.Reflection;
 using System.Runtime.Loader;
 using Downloader.Desktop.Plugins;
+using Downloader.Desktop.Plugins.Hls;
 using Xunit;
 
-namespace Downloader.Desktop.Plugins.Hls.Tests;
+namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 /// <summary>
 /// Mirrors the host loader: load the built plugin DLL in a collectible AssemblyLoadContext that resolves the

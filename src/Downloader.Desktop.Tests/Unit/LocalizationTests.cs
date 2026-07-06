@@ -3,7 +3,7 @@ using Avalonia.Media;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Unit;
 
 /// <summary>i18n tests — run under the Avalonia headless runtime because translations load via AssetLoader.</summary>
 public class LocalizationTests

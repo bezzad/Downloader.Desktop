@@ -7,7 +7,7 @@ using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Plugins;
 
 /// <summary>
 /// PluginsViewModel catalog behavior (consolidate-official-plugins): the "More plugins" list shows only

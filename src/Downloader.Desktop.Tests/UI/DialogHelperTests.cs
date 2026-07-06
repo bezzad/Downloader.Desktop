@@ -4,7 +4,7 @@ using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.UI;
 
 public class DialogHelperTests
 {

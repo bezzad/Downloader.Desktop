@@ -1,7 +1,8 @@
 using System.Text;
+using Downloader.Desktop.Plugins.Hls;
 using Xunit;
 
-namespace Downloader.Desktop.Plugins.Hls.Tests;
+namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 public class Aes128Tests
 {

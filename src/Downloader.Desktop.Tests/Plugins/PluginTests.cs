@@ -6,7 +6,7 @@ using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Plugins;
 
 /// <summary>
 /// TDD for the plugin foundation: the registry/pipeline behavior of <see cref="PluginManager"/>.

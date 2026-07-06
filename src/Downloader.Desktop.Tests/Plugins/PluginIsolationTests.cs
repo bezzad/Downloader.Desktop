@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Plugins;
 
 /// <summary>
 /// Guards the built-in vs. optional plugin boundary (consolidate-official-plugins change): the optional

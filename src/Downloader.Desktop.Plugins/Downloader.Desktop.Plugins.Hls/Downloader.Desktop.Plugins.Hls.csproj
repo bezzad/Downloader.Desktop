@@ -22,7 +22,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Downloader.Desktop.Plugins.Hls.Tests" />
+    <!-- HLS tests live in the app's consolidated test project (Downloader.Desktop.Tests, under Plugins/Hls). -->
+    <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
   </ItemGroup>
 
   <ItemGroup>

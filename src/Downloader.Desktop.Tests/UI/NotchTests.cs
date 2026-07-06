@@ -9,7 +9,7 @@ using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.UI;
 
 public class NotchTests
 {

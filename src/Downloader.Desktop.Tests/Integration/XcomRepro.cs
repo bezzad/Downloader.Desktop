@@ -8,7 +8,7 @@ using Downloader.Desktop.Services;
 using Xunit;
 
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Integration;
 
 /// <summary>Live repro harness for the author's failing x.com flow (network + real plugin + ffmpeg).
 /// Gated: DLDESKTOP_XCOM_REPRO must carry the page URL. Not part of the normal suite.</summary>
@@ -40,7 +40,7 @@ public class XcomRepro
         var persisted = PersistedPlan.From(plan);
         var dir = Path.Combine(Path.GetTempPath(), "xcom_repro_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        var processor = persisted.PostProcessKind != Plugins.PostProcessKind.None
+        var processor = persisted.PostProcessKind != Downloader.Desktop.Plugins.PostProcessKind.None
             ? pm.FindPostProcessor(persisted.ToPostProcess())
             : null;
         W($"processor: {(processor == null ? "NONE" : processor.GetType().Name)}");

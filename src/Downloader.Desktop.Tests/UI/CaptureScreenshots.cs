@@ -16,7 +16,7 @@ using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.UI;
 
 /// <summary>A no-op plugin used only to populate the Plugins-page screenshot.</summary>
 internal sealed class DemoPlugin(string name, string description) : IDownloaderPlugin

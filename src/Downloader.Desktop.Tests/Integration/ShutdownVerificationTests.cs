@@ -12,7 +12,7 @@ using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Integration;
 
 /// <summary>
 /// Real-app verification of the shutdown-on-completion flow: drives an actual loopback download

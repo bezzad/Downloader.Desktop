@@ -1,4 +1,4 @@
-namespace Downloader.Desktop.Plugins.Hls.Tests;
+namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 internal static class TestFixtures
 {

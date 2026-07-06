@@ -62,6 +62,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
   - `ViewModels/` — `ViewModelBase` (has `View`), `MainViewModel`, `DownloadsViewModel`, `DownloadItemViewModel`, `AddDownloadItemViewModel`, `SettingViewModel`.
   - `Views/` — matching `.axaml(.cs)`: `MainWindow`, `DownloadsView`, `AddDownloadItemView`, `SettingView`.
   - `Assets/` — icons (`.ico`/`.icns`/`.png`), `Info.plist`, `config.json`, `Icons.axaml`.
+- `Downloader.Desktop.Tests/` — the **single** test project (xUnit v3 + `Avalonia.Headless.XUnit`), organized into folders with matching namespaces (no loose `.cs` at the root): `Unit/` (pure logic), `Integration/` (loopback/engine/local-API-CLI/e2e), `UI/` (Avalonia headless + `CaptureScreenshots`), `Plugins/` (all plugin tests) with `Plugins/Hls/` for the HLS plugin (folded in from the former separate `Downloader.Desktop.Plugins.Hls.Tests` project — now deleted; runs in CI for the first time), and `TestSupport/` (`TestAppBuilder`/assembly attrs, kept at the root namespace). New tests go in the folder that fits + its sub-namespace.
 
 ## Architecture notes
 - **MVVM**: Views bind to ViewModels (compiled bindings on by default). `MainViewModel` is the root, resolved via DI and set as `MainWindow.DataContext` in `App.OnFrameworkInitializationCompleted`.

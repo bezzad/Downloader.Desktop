@@ -1,7 +1,8 @@
 using Downloader.Desktop.Plugins;
+using Downloader.Desktop.Plugins.Hls;
 using Xunit;
 
-namespace Downloader.Desktop.Plugins.Hls.Tests;
+namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 /// <summary>
 /// Resolver-level tests for site extraction: <see cref="HlsResolver"/> with a stubbed <see cref="IYtDlp"/>

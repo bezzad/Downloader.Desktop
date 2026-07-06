@@ -13,7 +13,7 @@ using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
 using Xunit;
 
-namespace Downloader.Desktop.Tests;
+namespace Downloader.Desktop.Tests.Integration;
 
 /// <summary>
 /// Exercises the multi-part plan runner core (<see cref="DownloadManager.ExecutePlanAsync"/>) against a
