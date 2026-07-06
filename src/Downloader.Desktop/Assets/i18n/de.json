@@ -210,6 +210,8 @@
   "Det_Queue": "Warteschlange",
   "Det_SavedTo": "Gespeichert unter",
   "Det_SpeedLimit": "Geschwindigkeitslimit (KB/s)",
+  "Det_UseGlobalLimit": "Globales Limit verwenden",
+  "Det_UseGlobalLimitTip": "Dem globalen Geschwindigkeitslimit aus den Einstellungen folgen statt einem Limit pro Element",
   "Det_Connections": "VERBINDUNGEN",
   "Det_ConnCount": "{0} Verbindungen",
   "Det_Col_Index": "#",

@@ -210,6 +210,8 @@
   "Det_Queue": "कतार",
   "Det_SavedTo": "यहाँ सहेजा गया",
   "Det_SpeedLimit": "गति सीमा (KB/s)",
+  "Det_UseGlobalLimit": "वैश्विक सीमा उपयोग करें",
+  "Det_UseGlobalLimitTip": "प्रति-आइटम सीमा के बजाय सेटिंग्स की वैश्विक गति सीमा का पालन करें",
   "Det_Connections": "कनेक्शन",
   "Det_ConnCount": "{0} कनेक्शन",
   "Det_Col_Index": "#",

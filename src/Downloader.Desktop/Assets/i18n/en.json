@@ -210,6 +210,8 @@
   "Det_Queue": "Queue",
   "Det_SavedTo": "Saved to",
   "Det_SpeedLimit": "Speed limit (KB/s)",
+  "Det_UseGlobalLimit": "Use global limit",
+  "Det_UseGlobalLimitTip": "Follow the global speed limit from Settings instead of a per-item cap",
   "Det_Connections": "CONNECTIONS",
   "Det_ConnCount": "{0} connections",
   "Det_Col_Index": "#",

@@ -210,6 +210,8 @@
   "Det_Queue": "Cola",
   "Det_SavedTo": "Guardado en",
   "Det_SpeedLimit": "Límite de velocidad (KB/s)",
+  "Det_UseGlobalLimit": "Usar límite global",
+  "Det_UseGlobalLimitTip": "Seguir el límite de velocidad global de Ajustes en vez de un límite por elemento",
   "Det_Connections": "CONEXIONES",
   "Det_ConnCount": "{0} conexiones",
   "Det_Col_Index": "#",

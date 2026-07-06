@@ -42,6 +42,7 @@ public class DownloadDetailsViewModel : ViewModelBase
     {
         Item = item;
 
+        UseGlobalLimitCommand = ReactiveCommand.Create(UseGlobalSpeedLimit);
         CopyUrlCommand = ReactiveCommand.CreateFromTask(CopyUrlAsync);
         CopyPathCommand = ReactiveCommand.CreateFromTask(CopyPathAsync);
         CopyErrorCommand = ReactiveCommand.CreateFromTask(CopyErrorAsync);
@@ -100,6 +101,7 @@ public class DownloadDetailsViewModel : ViewModelBase
         _download.DownloadProgressChanged += OnOverallProgress;
     }
 
+    public ICommand UseGlobalLimitCommand { get; }
     public ICommand CopyUrlCommand { get; }
     public ICommand CopyPathCommand { get; }
     public ICommand CopyErrorCommand { get; }
@@ -328,10 +330,36 @@ public class DownloadDetailsViewModel : ViewModelBase
         }
         set
         {
+            var bytes = value <= 0 ? 0 : value * 1024;
+            // Editing the cap here opts this item OUT of the global limit, and persists the choice so it
+            // survives Stop → Resume and a restart (Start reads it back from the model).
+            if (Item != null)
+            {
+                Item.HasCustomSpeedLimit = true;
+                Item.CustomSpeedLimitBytesPerSecond = bytes;
+            }
             if (Item?.Configuration != null)
-                Item.Configuration.MaximumBytesPerSecond = value <= 0 ? 0 : value * 1024;
+                Item.Configuration.MaximumBytesPerSecond = bytes; // live-apply to the running engine
             this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(UsesGlobalSpeedLimit));
         }
+    }
+
+    /// <summary>True while this item follows the global speed limit (no per-item override set).</summary>
+    public bool UsesGlobalSpeedLimit => Item?.HasCustomSpeedLimit != true;
+
+    /// <summary>Clears the per-item override and re-applies the current global limit to the running engine.</summary>
+    public void UseGlobalSpeedLimit()
+    {
+        if (Item == null)
+            return;
+        Item.HasCustomSpeedLimit = false;
+        Item.CustomSpeedLimitBytesPerSecond = 0;
+        var global = Item.Manager?.Config?.Settings?.MaximumBytesPerSecond ?? 0;
+        if (Item.Configuration != null)
+            Item.Configuration.MaximumBytesPerSecond = global <= 0 ? 0 : global;
+        this.RaisePropertyChanged(nameof(SpeedLimitKb));
+        this.RaisePropertyChanged(nameof(UsesGlobalSpeedLimit));
     }
 
     private void OnChunkProgress(object sender, DownloadProgressChangedEventArgs e)

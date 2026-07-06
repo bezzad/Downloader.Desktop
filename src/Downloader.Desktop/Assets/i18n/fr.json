@@ -210,6 +210,8 @@
   "Det_Queue": "File",
   "Det_SavedTo": "Enregistré dans",
   "Det_SpeedLimit": "Limite de vitesse (Ko/s)",
+  "Det_UseGlobalLimit": "Utiliser la limite globale",
+  "Det_UseGlobalLimitTip": "Suivre la limite de vitesse globale des Paramètres au lieu d'une limite par élément",
   "Det_Connections": "CONNEXIONS",
   "Det_ConnCount": "{0} connexions",
   "Det_Col_Index": "#",

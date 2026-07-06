@@ -210,6 +210,8 @@
   "Det_Queue": "Kuyruk",
   "Det_SavedTo": "Kaydedildiği yer",
   "Det_SpeedLimit": "Hız sınırı (KB/s)",
+  "Det_UseGlobalLimit": "Genel sınırı kullan",
+  "Det_UseGlobalLimitTip": "Öğe başına sınır yerine Ayarlardaki genel hız sınırını izle",
   "Det_Connections": "BAĞLANTILAR",
   "Det_ConnCount": "{0} bağlantı",
   "Det_Col_Index": "#",

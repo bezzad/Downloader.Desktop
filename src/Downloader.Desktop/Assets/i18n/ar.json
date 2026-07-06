@@ -210,6 +210,8 @@
   "Det_Queue": "قائمة الانتظار",
   "Det_SavedTo": "حُفظ في",
   "Det_SpeedLimit": "حد السرعة (ك.بايت/ث)",
+  "Det_UseGlobalLimit": "استخدام الحد العام",
+  "Det_UseGlobalLimitTip": "اتّبع حد السرعة العام من الإعدادات بدلاً من حد خاص بكل عنصر",
   "Det_Connections": "الاتصالات",
   "Det_ConnCount": "{0} اتصالات",
   "Det_Col_Index": "#",

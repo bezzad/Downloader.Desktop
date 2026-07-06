@@ -28,14 +28,14 @@
 
 ## 4. Global vs. per-item speed limit
 
-- [ ] 4.1 Add `HasCustomSpeedLimit` (bool) and `CustomSpeedLimitBytesPerSecond` (long) to `Models/DownloadItem.cs`, defaulting to `false`/`0` so existing saved configs deserialize unaffected.
-- [ ] 4.2 Mirror both fields on `DownloadItemViewModel` (write-through to `_item`, like `Status`).
-- [ ] 4.3 Update `DownloadDetailsViewModel.SpeedLimitKb`'s setter to also set `Item.HasCustomSpeedLimit = true` and persist `Item.CustomSpeedLimitBytesPerSecond`, alongside the existing live `Item.Configuration.MaximumBytesPerSecond` mutation.
-- [ ] 4.4 Add a small "Use global limit" toggle/button next to the details dialog's speed-limit `NumericUpDown` that clears `HasCustomSpeedLimit` and immediately re-applies the current global value.
-- [ ] 4.5 Update `DownloadManager.Start(vm)` to apply `vm.GetItem().CustomSpeedLimitBytesPerSecond` to the freshly-built `DownloadConfiguration` when `HasCustomSpeedLimit` is true, instead of always taking the current Settings value.
-- [ ] 4.6 Add `DownloadManager.ApplyGlobalSpeedLimit(long bytesPerSecond)`: iterate `Items`, for every item WITHOUT `HasCustomSpeedLimit`, set `vm.Configuration.MaximumBytesPerSecond` live (no-op safely if `Configuration` is null/stopped).
-- [ ] 4.7 Call `ApplyGlobalSpeedLimit` from `SettingViewModel`'s speed-limit setter after writing through to `Settings.MaximumBytesPerSecond`, mirroring the existing `MaxConcurrentDownloads` → `DefaultQueue` sync-on-change pattern.
-- [ ] 4.8 Tests: global limit change reaches a Running item without a custom limit; a custom-limited Running item is untouched by a global change; a custom limit survives Stop → Resume and a simulated restart (`Initialize` + `Start`); reverting to "use global" re-applies the current global value and re-subscribes the item to future global changes.
+- [x] 4.1 Add `HasCustomSpeedLimit` (bool) and `CustomSpeedLimitBytesPerSecond` (long) to `Models/DownloadItem.cs`, defaulting to `false`/`0` so existing saved configs deserialize unaffected.
+- [x] 4.2 Mirror both fields on `DownloadItemViewModel` (write-through to `_item`, like `Status`).
+- [x] 4.3 Update `DownloadDetailsViewModel.SpeedLimitKb`'s setter to also set `Item.HasCustomSpeedLimit = true` and persist `Item.CustomSpeedLimitBytesPerSecond`, alongside the existing live `Item.Configuration.MaximumBytesPerSecond` mutation.
+- [x] 4.4 Add a small "Use global limit" toggle/button next to the details dialog's speed-limit `NumericUpDown` that clears `HasCustomSpeedLimit` and immediately re-applies the current global value.
+- [x] 4.5 Update `DownloadManager.Start(vm)` to apply `vm.GetItem().CustomSpeedLimitBytesPerSecond` to the freshly-built `DownloadConfiguration` when `HasCustomSpeedLimit` is true, instead of always taking the current Settings value.
+- [x] 4.6 Add `DownloadManager.ApplyGlobalSpeedLimit(long bytesPerSecond)`: iterate `Items`, for every item WITHOUT `HasCustomSpeedLimit`, set `vm.Configuration.MaximumBytesPerSecond` live (no-op safely if `Configuration` is null/stopped).
+- [x] 4.7 Call `ApplyGlobalSpeedLimit` from `SettingViewModel`'s speed-limit setter after writing through to `Settings.MaximumBytesPerSecond`, mirroring the existing `MaxConcurrentDownloads` → `DefaultQueue` sync-on-change pattern.
+- [x] 4.8 Tests: global limit change reaches a Running item without a custom limit; a custom-limited Running item is untouched by a global change; a custom limit survives Stop → Resume and a simulated restart (`Initialize` + `Start`); reverting to "use global" re-applies the current global value and re-subscribes the item to future global changes.
 
 ## 5. Main window resize from the left/top edge
 

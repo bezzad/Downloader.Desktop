@@ -97,6 +97,14 @@ public class DownloadItem
     public DateTime? LastTry { get; set; }
     public DownloadStatus Status { get; set; }
 
+    /// <summary>True when the user set a per-item speed cap in the details dialog, so global speed-limit
+    /// changes must NOT override it. Defaults false → the item follows the global limit.</summary>
+    public bool HasCustomSpeedLimit { get; set; }
+
+    /// <summary>The per-item speed cap in bytes/sec, applied on Start when <see cref="HasCustomSpeedLimit"/>
+    /// is true. 0 means unlimited (still counts as custom once the user opts out of the global limit).</summary>
+    public long CustomSpeedLimitBytesPerSecond { get; set; }
+
     /// <summary>Human-readable reason for the last failure (shown in the UI).</summary>
     public string LastError { get; set; }
 

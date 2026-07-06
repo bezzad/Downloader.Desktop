@@ -210,6 +210,8 @@
   "Det_Queue": "Coda",
   "Det_SavedTo": "Salvato in",
   "Det_SpeedLimit": "Limite di velocità (KB/s)",
+  "Det_UseGlobalLimit": "Usa limite globale",
+  "Det_UseGlobalLimitTip": "Segui il limite di velocità globale delle Impostazioni invece di un limite per elemento",
   "Det_Connections": "CONNESSIONI",
   "Det_ConnCount": "{0} connessioni",
   "Det_Col_Index": "#",

@@ -210,6 +210,8 @@
   "Det_Queue": "대기열",
   "Det_SavedTo": "저장 위치",
   "Det_SpeedLimit": "속도 제한 (KB/s)",
+  "Det_UseGlobalLimit": "전역 제한 사용",
+  "Det_UseGlobalLimitTip": "항목별 제한 대신 설정의 전역 속도 제한을 따릅니다",
   "Det_Connections": "연결",
   "Det_ConnCount": "{0}개 연결",
   "Det_Col_Index": "#",

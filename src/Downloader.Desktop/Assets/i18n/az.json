@@ -210,6 +210,8 @@
   "Det_Queue": "Növbə",
   "Det_SavedTo": "Saxlanıldığı yer",
   "Det_SpeedLimit": "Sürət limiti (KB/s)",
+  "Det_UseGlobalLimit": "Qlobal limiti istifadə et",
+  "Det_UseGlobalLimitTip": "Fərdi limit əvəzinə Ayarlardakı qlobal sürət limitini izləyin",
   "Det_Connections": "BAĞLANTILAR",
   "Det_ConnCount": "{0} bağlantı",
   "Det_Col_Index": "#",

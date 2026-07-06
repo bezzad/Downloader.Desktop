@@ -210,6 +210,8 @@
   "Det_Queue": "Очередь",
   "Det_SavedTo": "Сохранено в",
   "Det_SpeedLimit": "Ограничение скорости (КБ/с)",
+  "Det_UseGlobalLimit": "Использовать общий лимит",
+  "Det_UseGlobalLimitTip": "Следовать общему ограничению скорости из настроек вместо индивидуального",
   "Det_Connections": "СОЕДИНЕНИЯ",
   "Det_ConnCount": "{0} соединений",
   "Det_Col_Index": "#",

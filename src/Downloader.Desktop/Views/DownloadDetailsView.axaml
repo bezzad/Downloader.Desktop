@@ -179,6 +179,10 @@
                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                         <NumericUpDown Value="{Binding SpeedLimitKb}" Minimum="0" Increment="128"
                                        FormatString="N0" Width="140" VerticalContentAlignment="Center" />
+                        <Button Content="{i18n:Tr Det_UseGlobalLimit}" Classes="link"
+                                Command="{Binding UseGlobalLimitCommand}"
+                                IsVisible="{Binding !UsesGlobalSpeedLimit}" VerticalAlignment="Center"
+                                ToolTip.Tip="{i18n:Tr Det_UseGlobalLimitTip}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                         <Button Classes="icon" Command="{Binding Item.PauseCommand}" IsVisible="{Binding Item.CanPause}" ToolTip.Tip="{i18n:Tr Action_Pause}">

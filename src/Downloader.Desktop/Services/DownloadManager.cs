@@ -345,6 +345,10 @@ public partial class DownloadManager : IDownloadManager
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+        // A per-item speed cap set in the details dialog wins over the global limit and survives restarts.
+        if (item.HasCustomSpeedLimit)
+            configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
+                ? 0 : item.CustomSpeedLimitBytesPerSecond;
         vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
         var fileName = item.FileName;
 
@@ -618,6 +622,19 @@ public partial class DownloadManager : IDownloadManager
         Items.Remove(vm);
         NotifyList();
         return Task.CompletedTask;
+    }
+
+    /// <summary>Live-apply a new global speed limit (bytes/sec, 0 = unlimited) to every running item that
+    /// has NOT opted out with a per-item custom limit. Safe when an item's engine handle isn't up yet.</summary>
+    public void ApplyGlobalSpeedLimit(long bytesPerSecond)
+    {
+        var value = bytesPerSecond <= 0 ? 0 : bytesPerSecond;
+        foreach (var vm in Items)
+        {
+            if (vm.HasCustomSpeedLimit || vm.Configuration == null)
+                continue;
+            vm.Configuration.MaximumBytesPerSecond = value;
+        }
     }
 
     public void StartAll() =>
