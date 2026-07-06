@@ -109,7 +109,7 @@ public class NotchTests
             view.CaptureRenderedFrame()!.Save(Path.Combine(outDir, "mockup-collapsed.png"));
 
             vm.IsExpanded = true;
-            view.Width = 400; view.Height = 210;
+            view.Width = NotchView.ExpandedWidth; view.Height = NotchView.ExpandedHeight;
             for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             view.CaptureRenderedFrame()!.Save(Path.Combine(outDir, "mockup-expanded.png"));
         }

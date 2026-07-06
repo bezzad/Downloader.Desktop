@@ -21,8 +21,10 @@
 
 ## 3. Notch overlay expanded size
 
-- [ ] 3.1 Replace `NotchView.axaml.cs`'s hardcoded `ExpandedWidth/Height = 400, 210` with named constants computed from the actual content metrics (header height, top/bottom padding, per-row height including its progress bar and inter-row spacing, × `NotchViewModel.MaxRows`).
-- [ ] 3.2 Regenerate the gated `CaptureNotchMockups` PNGs (Linux-only per standing convention) and visually confirm the expanded panel now hugs its content with only a small margin below the third row.
+- [x] 3.1 Replace `NotchView.axaml.cs`'s hardcoded `ExpandedWidth/Height = 400, 210` with named constants computed from the actual content metrics (header height, top/bottom padding, per-row height including its progress bar and inter-row spacing, × `NotchViewModel.MaxRows`).
+  > `ExpandedHeight` is now `ExpandedVerticalPadding + HeaderRowHeight + HeaderToListSpacing + RowHeight * NotchViewModel.MaxRows` = 24+22+10+32×3 = 152 (was a flat 210). Both fields made `internal` (were `private`) so `NotchTests.CaptureNotchMockups` resizes to the real computed value instead of a second hardcoded number that could drift.
+- [~] 3.2 Regenerate the gated `CaptureNotchMockups` PNGs (Linux-only per standing convention) and visually confirm the expanded panel now hugs its content with only a small margin below the third row.
+  > Ran the gated capture locally (macOS, not for commit — screenshots must be Ubuntu-rendered) purely as a sanity check: the expanded panel now shows 3 rows + "and 1 more…" with no leftover empty space below the last row (was previously ~1.5x taller than the content). The actual committed PNGs still need regenerating on the Linux box per standing convention — left for the author/CI.
 
 ## 4. Global vs. per-item speed limit
 

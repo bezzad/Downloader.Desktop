@@ -22,7 +22,19 @@ public partial class NotchView : Window
     // would be hidden behind it (author-reported "empty rectangle").
     private static double CollapsedWidth => OperatingSystem.IsMacOS() ? 360 : 230;
     private const double CollapsedHeight = 30;
-    private const double ExpandedWidth = 400, ExpandedHeight = 210;
+    internal const double ExpandedWidth = 400;
+
+    // Expanded height, sized to its actual content instead of a fixed guess (was a flat 210, ~1.5x its
+    // content). Kept as named constants matching NotchView.axaml's metrics so the relationship between
+    // "3 rows" and the window height stays traceable and won't silently drift if a row's content changes.
+    // Internal (not private) so the gated mockup-capture test resizes to the real computed value instead
+    // of a second hardcoded number that could drift out of sync with this one.
+    private const double ExpandedVerticalPadding = 24; // StackPanel Margin="18 10 18 14": top 10 + bottom 14
+    private const double HeaderRowHeight = 22;         // clock/percent/speed header Grid
+    private const double HeaderToListSpacing = 10;     // StackPanel Spacing between the header and the row list
+    private const double RowHeight = 32;               // per row: 7 top margin + ~16 name line + 5 spacing + 4 progress bar
+    internal static readonly double ExpandedHeight =
+        ExpandedVerticalPadding + HeaderRowHeight + HeaderToListSpacing + RowHeight * NotchViewModel.MaxRows;
 
     private readonly DispatcherTimer _collapseDelay;
 
