@@ -33,6 +33,7 @@ public partial class NotchView : Window
     private const double HeaderRowHeight = 22;         // clock/percent/speed header Grid
     private const double HeaderToListSpacing = 10;     // StackPanel Spacing between the header and the row list
     private const double RowHeight = 32;               // per row: 7 top margin + ~16 name line + 5 spacing + 4 progress bar
+    private const double OverflowFooterHeight = 30;    // "and N more" line + its Spacing, reserved only when it shows
     internal static readonly double ExpandedHeight =
         ExpandedVerticalPadding + HeaderRowHeight + HeaderToListSpacing + RowHeight * NotchViewModel.MaxRows;
 
@@ -98,10 +99,14 @@ public partial class NotchView : Window
 
     private void SetExpanded(bool expanded)
     {
-        if (DataContext is NotchViewModel vm)
+        var vm = DataContext as NotchViewModel;
+        if (vm != null)
             vm.IsExpanded = expanded;
         Width = expanded ? ExpandedWidth : CollapsedWidth;
-        Height = expanded ? ExpandedHeight : CollapsedHeight;
+        // Reserve room for the "and N more" footer only when it's actually shown, so ≤3 rows still hug their content.
+        Height = expanded
+            ? ExpandedHeight + (vm?.HasOverflow == true ? OverflowFooterHeight : 0)
+            : CollapsedHeight;
         Reposition();
     }
 
