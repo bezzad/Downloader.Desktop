@@ -12,7 +12,7 @@
       }
     }
   },
-  "permissions": ["contextMenus", "webRequest", "tabs", "scripting", "notifications", "storage"],
+  "permissions": ["contextMenus", "webRequest", "tabs", "scripting", "notifications", "storage", "cookies"],
   "host_permissions": [
     "<all_urls>",
     "http://127.0.0.1:15151/*",

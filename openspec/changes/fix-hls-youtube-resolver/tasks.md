@@ -20,11 +20,11 @@
 
 ## 4. Browser extension: capture and send cookies for the target URL
 
-- [ ] 4.1 Add the `cookies` permission to both `manifest.json` and `manifest.firefox.json`.
-- [ ] 4.2 When sending a URL to the app (existing `sendToApp`/context-menu/popup flows), also call `chrome.cookies.getAll({url})` for that exact URL and include the result in the `/api/add` payload's new `cookies` field.
-- [ ] 4.3 Keep the existing URL-only flow working unchanged for sites/requests where cookie capture isn't needed or fails (never block sending the URL on cookie capture failing).
-- [ ] 4.4 Update the extension's README/`PRIVACY.md` to document the new permission plainly: cookies are read only for a URL the user explicitly sent to the app, sent only to the local app over localhost, never transmitted elsewhere, never logged.
-- [ ] 4.5 Unit tests (`common.test.js`): cookie capture is attempted for a matching URL; a capture failure doesn't prevent the URL from being sent; the payload shape matches what `LocalApiService` expects.
+- [x] 4.1 Add the `cookies` permission to both `manifest.json` and `manifest.firefox.json`.
+- [x] 4.2 When sending a URL to the app (existing `sendToApp`/context-menu/popup flows), also call `chrome.cookies.getAll({url})` for that exact URL and include the result in the `/api/add` payload's new `cookies` field.
+- [x] 4.3 Keep the existing URL-only flow working unchanged for sites/requests where cookie capture isn't needed or fails (never block sending the URL on cookie capture failing).
+- [x] 4.4 Update the extension's README/`PRIVACY.md` to document the new permission plainly: cookies are read only for a URL the user explicitly sent to the app, sent only to the local app over localhost, never transmitted elsewhere, never logged.
+- [x] 4.5 Unit tests (`common.test.js`): cookie capture is attempted for a matching URL; a capture failure doesn't prevent the URL from being sent; the payload shape matches what `LocalApiService` expects.
 
 ## 5. Verify YouTube works end-to-end
 

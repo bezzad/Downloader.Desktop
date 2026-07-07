@@ -108,9 +108,61 @@ function setAddMode(mode) {
 }
 
 // Silent add via the local API. Returns "ok" (added — on a pre-API app the same request opens
+// Map one browser cookie (chrome.cookies.getAll shape) to the app's /api/add cookie shape.
+// Session cookies (no expirationDate) omit `expires`; the app writes them with expiry 0.
+function mapCookie(c) {
+  return {
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path || "/",
+    secure: !!c.secure,
+    expires: c.session ? undefined
+      : (Number.isFinite(c.expirationDate) ? Math.floor(c.expirationDate) : undefined)
+  };
+}
+
+// Capture the live session cookies for exactly this URL, so a site that needs a signed-in session
+// (e.g. YouTube) can be resolved by the app. Reads the browser's live cookie jar via the extension
+// `cookies` API — never an on-disk store. ALWAYS resolves to an array; any failure (no permission,
+// no API, an exception) yields [] so sending the URL is never blocked (task 4.3).
+async function captureCookies(url) {
+  try {
+    const cookiesApi = api && api.cookies;
+    if (!cookiesApi || !cookiesApi.getAll) return [];
+    const raw = await new Promise((resolve) => {
+      try {
+        const maybe = cookiesApi.getAll({ url }, (c) => resolve(c || [])); // MV2 callback style
+        if (maybe && typeof maybe.then === "function") maybe.then((c) => resolve(c || []), () => resolve([]));
+      } catch { resolve([]); }
+    });
+    return (raw || []).map(mapCookie);
+  } catch {
+    return [];
+  }
+}
+
 // the Add dialog instead, which still captures the link), "fallback" (endpoint unknown, retry
 // the legacy dialog endpoint) or "fail".
-async function sendToAppSilently(base, url, filename) {
+async function sendToAppSilently(base, url, filename, cookies) {
+  // When we captured live cookies, POST JSON so the cookie list + metadata travel intact (a GET query
+  // can't carry them). Otherwise keep the original URL-only GET path unchanged.
+  if (cookies && cookies.length) {
+    const body = { url, cookies };
+    if (filename) body.filename = filename;
+    try {
+      const res = await fetch(`${base}/api/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) return "ok";
+      if (res.status === 404) return "fallback";
+      return "fail";
+    } catch {
+      return "fail";
+    }
+  }
   let endpoint = `${base}/api/add?url=${encodeURIComponent(url)}`;
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
   try {
@@ -132,7 +184,9 @@ async function sendToApp(url, filename) {
   if (port == null) return false;
   const base = appBase(port);
   if (await getAddMode() === "silent") {
-    const silent = await sendToAppSilently(base, url, filename);
+    // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
+    const cookies = await captureCookies(url);
+    const silent = await sendToAppSilently(base, url, filename, cookies);
     if (silent === "ok") return true;
     if (silent === "fail") return false;
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
@@ -352,6 +406,7 @@ if (typeof module !== "undefined") {
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     computeMainGroups, MAIN_WINDOW_MS,
-    candidatePorts, discoverAppPort, APP_PORT_RANGE
+    candidatePorts, discoverAppPort, APP_PORT_RANGE,
+    captureCookies, mapCookie, sendToAppSilently
   };
 }
