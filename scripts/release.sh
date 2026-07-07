@@ -48,6 +48,26 @@ sha256_of() { # stream a file on stdin -> hex digest
   else shasum -a 256 | awk '{print $1}'; fi
 }
 
+# Checksum a release asset. Uses `gh release download` (retried) rather than `curl` against the
+# github.com release-asset redirect: on flaky networks that redirect (to a signed S3/Azure blob
+# URL) reliably drops mid-transfer with a TLS/EOF error under plain curl, while `gh`'s downloader
+# handles it fine. Downloads to a temp file (not a pipe) so a partial/failed attempt can be retried
+# cleanly instead of silently hashing truncated bytes.
+sha256_of_asset() { # sha256_of_asset TAG ASSET_NAME
+  local tag="$1" name="$2" tmp attempt
+  tmp="$(mktemp)"
+  for attempt in 1 2 3 4 5; do
+    if gh release download "$tag" --repo "$REPO" --pattern "$name" --clobber -O "$tmp" >/dev/null 2>&1; then
+      sha256_of < "$tmp"
+      rm -f "$tmp"
+      return 0
+    fi
+    sleep 3
+  done
+  rm -f "$tmp"
+  return 1
+}
+
 # Portable in-place sed: GNU (Linux) takes -i with no arg, BSD (macOS) needs -i ''.
 sedi() {
   if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi
@@ -173,8 +193,6 @@ ok "pushed $TAG — release.yml (GitHub assets + curl) and snap.yml (Snap Store)
 
 # --- 4. wait for the GitHub Release assets ---------------------------------
 step "Waiting for the Release build to attach the macOS archives"
-ARM_URL="https://github.com/$REPO/releases/download/$TAG/Downloader-osx-arm64.tar.gz"
-X64_URL="https://github.com/$REPO/releases/download/$TAG/Downloader-osx-x64.tar.gz"
 deadline=$(( $(date +%s) + 1800 ))   # up to 30 minutes
 while :; do
   have_arm="no"; have_x64="no"
@@ -205,8 +223,8 @@ rm -f "$NOTES_TMP"
 
 # --- 5. update Homebrew (tap repo + in-repo mirror) ------------------------
 step "Updating Homebrew cask in $TAP_REPO"
-ARM_SHA="$(curl -fsSL "$ARM_URL" | sha256_of)"; [[ -n "$ARM_SHA" ]] || die "failed to checksum arm64 archive"
-X64_SHA="$(curl -fsSL "$X64_URL" | sha256_of)"; [[ -n "$X64_SHA" ]] || die "failed to checksum x64 archive"
+ARM_SHA="$(sha256_of_asset "$TAG" "Downloader-osx-arm64.tar.gz")"; [[ -n "$ARM_SHA" ]] || die "failed to checksum arm64 archive"
+X64_SHA="$(sha256_of_asset "$TAG" "Downloader-osx-x64.tar.gz")"; [[ -n "$X64_SHA" ]] || die "failed to checksum x64 archive"
 ok "arm64 sha256 = $ARM_SHA"
 ok "x64   sha256 = $X64_SHA"
 
@@ -295,7 +313,7 @@ fi
 # --- 6. winget (in-repo mirror + winget-pkgs PR) ---------------------------
 step "Updating winget manifests + submitting to $WINGET_UPSTREAM"
 WIN_URL="https://github.com/$REPO/releases/download/$TAG/Downloader-win-x64.zip"
-WIN_SHA="$(curl -fsSL "$WIN_URL" | sha256_of | tr '[:lower:]' '[:upper:]')"
+WIN_SHA="$(sha256_of_asset "$TAG" "Downloader-win-x64.zip" | tr '[:lower:]' '[:upper:]')"
 if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
   ok "win-x64 sha256 = $WIN_SHA"
   rewrite_winget
