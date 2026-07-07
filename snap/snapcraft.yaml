@@ -56,6 +56,12 @@ parts:
     source: publish/linux-x64
     organize:
       Downloader: bin/Downloader
+      # StageBundledPlugins (Downloader.Desktop.csproj) writes built-in plugin DLLs to
+      # publish/linux-x64/plugins/. PluginManager looks for them next to the executable
+      # (AppContext.BaseDirectory/plugins), so they must land under bin/ too — otherwise
+      # they're silently skipped (Directory.Exists check, no error) and no built-in
+      # plugin (Ollama, GitHub) loads in the snap build.
+      plugins: bin/plugins
     stage-packages:
       - libicu70
       - libssl3
