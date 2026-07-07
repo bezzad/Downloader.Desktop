@@ -1,8 +1,8 @@
 ## 1. Diagnose the actual failure (do this before any fix)
 
-- [ ] 1.1 Add a gated (e.g. `DLDESKTOP_NET=1`, matching the existing GitHub-plugin live test pattern) test in `Downloader.Desktop.Tests/Plugins/Hls` that runs `HlsResolver.ResolveAsync` (or `YtDlpBinary.ExtractJsonAsync` directly) against a known-public YouTube video URL, e.g. `https://youtu.be/Wv6LFlehX4k`.
-- [ ] 1.2 Run it locally and record which outcome occurred: succeeded anonymously; succeeded after a `--cookies-from-browser` retry (which browser); every cookie-browser retry exhausted with no working session; a deno-provisioning warning appeared in the logs; some other yt-dlp stderr. Do not log or persist the video's content — only the structural `DownloadPlan` facts (part count/kind) and the failure category.
-- [ ] 1.3 Based on the result, confirm (or rule out) the cookie/session hypothesis before proceeding — if the cause is different (e.g. deno), retarget tasks 2-5 below to that actual cause instead.
+- [x] 1.1 Add a gated (e.g. `DLDESKTOP_NET=1`, matching the existing GitHub-plugin live test pattern) test in `Downloader.Desktop.Tests/Plugins/Hls` that runs `HlsResolver.ResolveAsync` (or `YtDlpBinary.ExtractJsonAsync` directly) against a known-public YouTube video URL, e.g. `https://youtu.be/Wv6LFlehX4k`.
+- [x] 1.2 Run it locally and record which outcome occurred: succeeded anonymously; succeeded after a `--cookies-from-browser` retry (which browser); every cookie-browser retry exhausted with no working session; a deno-provisioning warning appeared in the logs; some other yt-dlp stderr. Do not log or persist the video's content — only the structural `DownloadPlan` facts (part count/kind) and the failure category.
+- [x] 1.3 Based on the result, confirm (or rule out) the cookie/session hypothesis before proceeding — if the cause is different (e.g. deno), retarget tasks 2-5 below to that actual cause instead.
 
 ## 2. Local API: optional cookie hand-off
 

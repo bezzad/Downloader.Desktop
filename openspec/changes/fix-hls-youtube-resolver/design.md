@@ -139,3 +139,27 @@ per the existing load-it-now instructions).
   the update-swap archive, are handled elsewhere in the app)? Lean `Path.GetTempPath()` for a short-lived
   secret (less risk of it lingering in a directory that's otherwise meant for durable cached binaries), but
   confirm during implementation.
+
+## Diagnosis result (task 1, run 2026-07-07 on macOS arm64)
+
+Ran the gated `YtDlpDiagnosisTests.Diagnose_youtube_extraction` (`DLDESKTOP_NET=1`) against
+`https://youtu.be/Wv6LFlehX4k`. Outcome:
+
+- yt-dlp and **deno both provisioned successfully** → rules out the deno/JS-runtime hypothesis (root cause c).
+- **Anonymous extraction failed** with YouTube's "Sign in to confirm you're not a bot" bot-check
+  (`NeedsCookies` stderr signature matched).
+- The existing `--cookies-from-browser chrome` fallback **hung until the 4-minute cancellation** — on
+  macOS, reading Chrome's on-disk cookie store triggers a blocking keychain-access prompt that a
+  headless/background (and often a normal) session never answers, so the subprocess stalls indefinitely.
+
+**Confirmed root cause = (b): a session exists but yt-dlp cannot read the on-disk browser cookie store**
+(macOS keychain gate blocking here; Chrome 127+ app-bound encryption is the equivalent on Windows). This
+validates the D2–D4 primary fix path: have the browser extension hand the app a live session's cookies via
+`chrome.cookies.getAll`, written to a temp Netscape file and passed as `--cookies <file>` — which never
+touches the on-disk store or the keychain. Tasks 2–5 proceed as written.
+
+**Secondary finding (noted, not fixed here):** `--cookies-from-browser` has no per-attempt timeout, so a
+keychain/app-bound-encryption prompt can hang the whole extraction. Left as-is deliberately — on a real
+interactive desktop the prompt is answerable, and a timeout could cut off that legitimate case; the D2 fix
+sidesteps the hang entirely when the extension supplies cookies. Revisit only if the hang is reported on
+interactive desktops.
