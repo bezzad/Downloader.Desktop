@@ -27,9 +27,16 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   **“Add silently (no dialog)”** in the popup to review each link in the app's Add dialog
   (`/add?url=…`) instead. On an app version without the API the extension falls back to the
   dialog automatically.
+- **Signed-in session hand-off** — when you send a link, the extension also passes the cookies for
+  **that one URL** to the app, so a site that needs you to be logged in (e.g. a YouTube video handled
+  by the app's video downloader) can be fetched with your live session. Cookies are read only for the
+  URL you send, go only to your local app, are never logged, and the app deletes them right after the
+  download. See [PRIVACY.md](PRIVACY.md).
 
-> **Not supported:** YouTube and other DRM/encrypted streaming sites — they don't expose a direct,
-> fetchable media URL, so there's nothing the engine can download.
+> **Direct media capture doesn't work on DRM/encrypted streaming sites** (Netflix, and YouTube's
+> in-page player) — they don't expose a fetchable media URL. A YouTube *video page* link can still be
+> sent to the app, which downloads it via its video-site plugin (using the session cookies above when
+> the video requires sign-in).
 
 ## Requirements
 

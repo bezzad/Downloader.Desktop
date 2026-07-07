@@ -210,6 +210,8 @@
   "Det_Queue": "Queue",
   "Det_SavedTo": "Saved to",
   "Det_SpeedLimit": "Speed limit (KB/s)",
+  "Det_UseGlobalLimit": "Use global limit",
+  "Det_UseGlobalLimitTip": "Follow the global speed limit from Settings instead of a per-item cap",
   "Det_Connections": "CONNECTIONS",
   "Det_ConnCount": "{0} connections",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "and {0} more…",
   "Notch_NoDownloads": "No active downloads",
   "PostAction_OfferMsg": "{0} finished downloading — click to run “{1}”.",
-  "Det_SegCount": "{0} segments"
+  "Det_SegCount": "{0} segments",
+  "Plugins_More": "More plugins",
+  "Plugins_MoreHint": "Optional plugins you can add from the catalog",
+  "Plugins_Add": "Add",
+  "Plugins_Adding": "Adding…",
+  "Plugins_Update": "Update",
+  "Plugins_UpdateAvailable": "Update available",
+  "Plugins_AddFailed": "Couldn't add the plugin"
 }

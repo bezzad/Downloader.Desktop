@@ -351,6 +351,20 @@ public class DownloadItemViewModel : ViewModelBase
         }
     }
 
+    /// <summary>True when this item opts out of the global speed limit (write-through to the model, like Status).</summary>
+    public bool HasCustomSpeedLimit
+    {
+        get => _item.HasCustomSpeedLimit;
+        set { _item.HasCustomSpeedLimit = value; this.RaisePropertyChanged(); }
+    }
+
+    /// <summary>The persisted per-item speed cap in bytes/sec (write-through to the model).</summary>
+    public long CustomSpeedLimitBytesPerSecond
+    {
+        get => _item.CustomSpeedLimitBytesPerSecond;
+        set { _item.CustomSpeedLimitBytesPerSecond = value; this.RaisePropertyChanged(); }
+    }
+
     public bool IsChecked
     {
         get => _isChecked;
@@ -443,6 +457,9 @@ public class DownloadItemViewModel : ViewModelBase
             return $"{t.Minutes}m {t.Seconds}s";
         return $"{t.Seconds}s";
     }
+
+    /// <summary>The owning manager (lets the details dialog read the global speed limit / apply it back).</summary>
+    public IDownloadManager Manager => _manager;
 
     public string LastTry => _item.LastTry?.ToString("dd MMM yyyy");
 

@@ -3,11 +3,15 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+// common.js binds `api = globalThis.browser || globalThis.chrome` at load — provide a mutable stub before
+// requiring it so cookie tests can swap `chrome.cookies.getAll` per test (api holds this same object).
+global.chrome = { cookies: {} };
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
-  candidatePorts, discoverAppPort, APP_PORT_RANGE
+  candidatePorts, discoverAppPort, APP_PORT_RANGE,
+  captureCookies, mapCookie, sendToAppSilently
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -204,4 +208,62 @@ test("discoverAppPort returns null when no port in the range answers", async () 
   const port = await discoverAppPort(probe, 15151);
   assert.equal(port, null);
   assert.deepEqual(probed, APP_PORT_RANGE); // scanned the whole declared range
+});
+
+// ---------------- Cookie hand-off (fix-hls-youtube-resolver §4) ----------------
+
+test("mapCookie maps chrome shape and omits expires for session cookies", () => {
+  const persistent = mapCookie({ name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expirationDate: 1893456000.7 });
+  assert.deepEqual(persistent, { name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expires: 1893456000 });
+  const session = mapCookie({ name: "PREF", value: "x", domain: "youtube.com", path: "/", secure: false, session: true });
+  assert.equal(session.expires, undefined);
+  assert.equal(session.secure, false);
+});
+
+test("captureCookies is attempted for the given URL and returns the mapped list", async () => {
+  let askedUrl = null;
+  global.chrome.cookies.getAll = async ({ url }) => { askedUrl = url; return [
+    { name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expirationDate: 1893456000 }
+  ]; };
+  const cookies = await captureCookies("https://youtu.be/x");
+  assert.equal(askedUrl, "https://youtu.be/x"); // scoped to the exact URL
+  assert.equal(cookies.length, 1);
+  assert.equal(cookies[0].name, "SID");
+});
+
+test("captureCookies returns [] when the cookies API throws (send is never blocked)", async () => {
+  global.chrome.cookies.getAll = async () => { throw new Error("no permission"); };
+  const cookies = await captureCookies("https://youtu.be/x");
+  assert.deepEqual(cookies, []);
+});
+
+test("captureCookies returns [] when the cookies API is unavailable", async () => {
+  const saved = global.chrome.cookies.getAll;
+  delete global.chrome.cookies.getAll;
+  const cookies = await captureCookies("https://youtu.be/x");
+  assert.deepEqual(cookies, []);
+  global.chrome.cookies.getAll = saved;
+});
+
+test("sendToAppSilently POSTs JSON with the app's cookie shape when cookies are present", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const cookies = [{ name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expires: 1893456000 }];
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://youtu.be/x", null, cookies);
+  assert.equal(result, "ok");
+  assert.equal(seen.endpoint, "http://127.0.0.1:15151/api/add");
+  assert.equal(seen.opts.method, "POST");
+  const body = JSON.parse(seen.opts.body);
+  assert.equal(body.url, "https://youtu.be/x");
+  assert.equal(body.cookies[0].name, "SID");
+  assert.equal(body.cookies[0].value, "v");
+});
+
+test("sendToAppSilently keeps the URL-only GET path when no cookies are captured", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://example.com/a.zip", null, []);
+  assert.equal(result, "ok");
+  assert.match(seen.endpoint, /\/api\/add\?url=/);
+  assert.notEqual(seen.opts && seen.opts.method, "POST");
 });

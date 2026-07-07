@@ -210,6 +210,8 @@
   "Det_Queue": "Vico",
   "Det_SavedTo": "Konservita al",
   "Det_SpeedLimit": "Rapidlimo (KB/s)",
+  "Det_UseGlobalLimit": "Uzi mallokan limon",
+  "Det_UseGlobalLimitTip": "Sekvi la mallokan rapidlimon el Agordoj anstataŭ po-era limo",
   "Det_Connections": "KONEKTOJ",
   "Det_ConnCount": "{0} konektoj",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "kaj {0} pliaj…",
   "Notch_NoDownloads": "Neniuj aktivaj elŝutoj",
   "PostAction_OfferMsg": "{0} finis elŝuti — alklaku por ruli «{1}».",
-  "Det_SegCount": "{0} segmentoj"
+  "Det_SegCount": "{0} segmentoj",
+  "Plugins_More": "Pliaj kromaĵoj",
+  "Plugins_MoreHint": "Nedevigaj kromaĵoj kiujn vi povas aldoni el la katalogo",
+  "Plugins_Add": "Aldoni",
+  "Plugins_Adding": "Aldonante…",
+  "Plugins_Update": "Ĝisdatigi",
+  "Plugins_UpdateAvailable": "Ĝisdatigo disponebla",
+  "Plugins_AddFailed": "Ne eblis aldoni la kromaĵon"
 }

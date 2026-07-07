@@ -210,6 +210,8 @@
   "Det_Queue": "صف",
   "Det_SavedTo": "ذخیره در",
   "Det_SpeedLimit": "محدودیت سرعت (کیلوبایت/ثانیه)",
+  "Det_UseGlobalLimit": "استفاده از محدودیت سراسری",
+  "Det_UseGlobalLimitTip": "به‌جای محدودیت جداگانه، از محدودیت سرعت سراسری تنظیمات پیروی کن",
   "Det_Connections": "اتصال‌ها",
   "Det_ConnCount": "{0} اتصال",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "و {0} مورد دیگر…",
   "Notch_NoDownloads": "دانلود فعالی نیست",
   "PostAction_OfferMsg": "دانلود {0} تمام شد — برای اجرای «{1}» کلیک کنید.",
-  "Det_SegCount": "{0} قطعه"
+  "Det_SegCount": "{0} قطعه",
+  "Plugins_More": "پلاگین‌های بیشتر",
+  "Plugins_MoreHint": "پلاگین‌های اختیاری که می‌توانید از فهرست اضافه کنید",
+  "Plugins_Add": "افزودن",
+  "Plugins_Adding": "در حال افزودن…",
+  "Plugins_Update": "به‌روزرسانی",
+  "Plugins_UpdateAvailable": "به‌روزرسانی موجود است",
+  "Plugins_AddFailed": "افزودن پلاگین ناموفق بود"
 }

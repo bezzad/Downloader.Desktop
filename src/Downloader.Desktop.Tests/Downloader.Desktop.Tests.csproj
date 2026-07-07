@@ -2,6 +2,10 @@
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>disable</Nullable>
+        <!-- Implicit usings on: the consolidated HLS tests (Plugins/Hls/) were authored against them
+             (System, System.Threading.Tasks, System.Collections.Generic, …). Existing tests keep their
+             explicit usings — implicit + explicit coexist without conflict. -->
+        <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <!-- The app project is self-contained, so the test project must be too (matches host RID). -->
@@ -26,6 +30,20 @@
         <!-- The Ollama plugin IS compile-referenced: its pure logic (claim parsing, manifest parsing,
              installer) is unit-tested directly. ALC loading is already covered by the GitHub plugin test. -->
         <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj" />
+        <!-- The optional HLS plugin IS compile-referenced: its tests (Plugins/Hls/) call internal types
+             (SiteExtractor, ExtractionResult, …) directly, and its DLL lands in the test output so
+             PluginLoadTests can load it in a host-mirroring ALC. Referencing an OPTIONAL plugin from the
+             TEST project is fine — the isolation rule only bars the APP project from referencing it
+             (guarded by PluginIsolationTests). -->
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Hls\Downloader.Desktop.Plugins.Hls.csproj" />
+    </ItemGroup>
+
+    <!-- HLS plugin test fixtures (sample playlists) → <testout>/Fixtures, where TestFixtures.Dir reads them. -->
+    <ItemGroup>
+        <None Include="Plugins\Hls\Fixtures\**\*">
+            <Link>Fixtures\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <!-- Stage the built GitHub plugin DLL into <testout>/plugins-sample so the integration test can load it.

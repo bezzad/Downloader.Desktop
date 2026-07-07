@@ -210,6 +210,8 @@
   "Det_Queue": "Kuyruk",
   "Det_SavedTo": "Kaydedildiği yer",
   "Det_SpeedLimit": "Hız sınırı (KB/s)",
+  "Det_UseGlobalLimit": "Genel sınırı kullan",
+  "Det_UseGlobalLimitTip": "Öğe başına sınır yerine Ayarlardaki genel hız sınırını izle",
   "Det_Connections": "BAĞLANTILAR",
   "Det_ConnCount": "{0} bağlantı",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "ve {0} tane daha…",
   "Notch_NoDownloads": "Etkin indirme yok",
   "PostAction_OfferMsg": "{0} indirildi — «{1}» çalıştırmak için tıklayın.",
-  "Det_SegCount": "{0} parça"
+  "Det_SegCount": "{0} parça",
+  "Plugins_More": "Diğer eklentiler",
+  "Plugins_MoreHint": "Katalogdan ekleyebileceğiniz isteğe bağlı eklentiler",
+  "Plugins_Add": "Ekle",
+  "Plugins_Adding": "Ekleniyor…",
+  "Plugins_Update": "Güncelle",
+  "Plugins_UpdateAvailable": "Güncelleme mevcut",
+  "Plugins_AddFailed": "Eklenti eklenemedi"
 }

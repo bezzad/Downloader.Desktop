@@ -1,8 +1,18 @@
-# Plan: HLS and Torrent plugins (new repo)
+# Plan: HLS and Torrent plugins
+
+> **⚠️ STATUS (superseded — kept for historical context).** The "separate repo" framing below is no longer
+> accurate. First-party plugin source was **consolidated into this repo** (the `consolidate-official-plugins`
+> change): the **HLS plugin now lives here** at `src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Hls`
+> as an **optional / catalog-tier** plugin (built + tested in the solution, shipped as a release asset, not
+> bundled), and the old `bezzad/Downloader.Plugins` repo is being retired. The current design is in
+> [`docs/plugins-architecture.md`](plugins-architecture.md) (built-in vs. optional tiers + the
+> release catalog install/update flow) and [`docs/writing-plugins.md`](writing-plugins.md). **Torrent** is
+> still just a plan — no project exists yet; when built it would follow the same optional/catalog tier.
+> Read the sections below only as background on the HLS/Torrent design intent, not as current layout.
 
 Build two official plugins for Downloader against the plugin SDK
-(`Downloader.Desktop.Plugins.Abstractions`), in a **separate repo**, each with tests. This document is the
-spec for a fresh Claude session.
+(`Downloader.Desktop.Plugins.Abstractions`), each with tests. This document was originally the spec for a
+fresh Claude session when the plugins were planned to live in a separate repo (see the status note above).
 
 ## ⚠️ Read first: host-integration dependency (Phase 2)
 The host app (Downloader.Desktop) ships the plugin **SDK + loader + Plugins UI** (Phase 1, done), but does

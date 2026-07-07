@@ -179,8 +179,6 @@ public partial class DownloadManager : IDownloadManager
     // ---------------- Scheduler ----------------
 
     private DispatcherTimer _schedulerTimer;
-    private readonly HashSet<string> _firedKeys = new();
-    private DateTime _firedDay = DateTime.MinValue;
 
     private void StartScheduler()
     {
@@ -192,18 +190,21 @@ public partial class DownloadManager : IDownloadManager
 
     private void OnSchedulerTick(object sender, EventArgs e) => EvaluateSchedules();
 
-    private void EvaluateSchedules()
+    /// <summary>
+    /// Fires each enabled schedule's start/stop at most once per calendar day, tracked via
+    /// <see cref="DownloadSchedule.LastFiredStartDate"/>/<see cref="DownloadSchedule.LastFiredStopDate"/>
+    /// (persisted with the schedule) instead of an in-memory-only set. This is what stops a relaunch inside
+    /// an already-fired-today window from re-firing a start that already happened earlier that day — the
+    /// old in-memory tracking reset on every process start, so a restart looked identical to "never fired
+    /// today" and could undo an explicit Stop All a few seconds after reopening the app.
+    /// </summary>
+    internal void EvaluateSchedules()
     {
         if (_config?.Schedules == null)
             return;
 
         var now = DateTime.Now;
-        if (now.Date != _firedDay)
-        {
-            _firedDay = now.Date;
-            _firedKeys.Clear();
-        }
-
+        var today = now.Date;
         var tod = now.TimeOfDay;
         foreach (var sch in _config.Schedules.ToList())
         {
@@ -212,19 +213,20 @@ public partial class DownloadManager : IDownloadManager
             if (sch.Days is { Length: > 0 } && !sch.Days.Contains(now.DayOfWeek))
                 continue;
 
-            var startKey = sch.Id + ":start";
-            var stopKey = sch.Id + ":stop";
-
             var inWindow = tod >= sch.StartTime && (sch.StopTime == null || tod < sch.StopTime.Value);
-            if (inWindow && _firedKeys.Add(startKey))
+            if (inWindow && sch.LastFiredStartDate != today)
             {
+                sch.LastFiredStartDate = today;
                 TriggerStart(sch);
                 if (sch.Once)
                     sch.Enabled = false;
             }
 
-            if (sch.StopTime is { } stop && tod >= stop && _firedKeys.Add(stopKey))
+            if (sch.StopTime is { } stop && tod >= stop && sch.LastFiredStopDate != today)
+            {
+                sch.LastFiredStopDate = today;
                 TriggerStop(sch);
+            }
         }
     }
 
@@ -343,6 +345,10 @@ public partial class DownloadManager : IDownloadManager
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+        // A per-item speed cap set in the details dialog wins over the global limit and survives restarts.
+        if (item.HasCustomSpeedLimit)
+            configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
+                ? 0 : item.CustomSpeedLimitBytesPerSecond;
         vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
         var fileName = item.FileName;
 
@@ -358,7 +364,7 @@ public partial class DownloadManager : IDownloadManager
                 var persisted = PersistedPlan.FromJson(item.PlanJson);
                 if (persisted == null)
                 {
-                    var plan = await ResolvePlanAsync(urls[0], default).ConfigureAwait(false);
+                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
                         // Remember WHICH plugin resolved this link so its post-download action (e.g.
@@ -419,6 +425,23 @@ public partial class DownloadManager : IDownloadManager
                 NotifyList();
             });
         }
+        finally
+        {
+            // A browser-supplied cookie file is a transient secret — delete it right after this attempt
+            // (success or failure), whether or not the plugin path actually consumed it.
+            DeleteCookieFile(item);
+        }
+    }
+
+    /// <summary>Best-effort delete + clear of an item's transient extension-supplied cookie file.</summary>
+    internal static void DeleteCookieFile(DownloadItem item)
+    {
+        var path = item?.CookieFilePath;
+        if (string.IsNullOrEmpty(path))
+            return;
+        item.CookieFilePath = null;
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception ex) { AppLog.Warn($"Couldn't delete temp cookie file: {ex.Message}"); }
     }
 
     /// <summary>
@@ -432,13 +455,16 @@ public partial class DownloadManager : IDownloadManager
     /// (real part URLs + post-process recipe). Returns null when no plugin claims it, there's no plugin
     /// manager, or resolving fails.</summary>
     public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
-        string url, System.Threading.CancellationToken cancellationToken)
+        string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null)
     {
         if (_plugins == null)
             return null;
         try
         {
-            return await _plugins.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
+            var options = string.IsNullOrEmpty(cookieFilePath)
+                ? null
+                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath };
+            return await _plugins.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -616,6 +642,19 @@ public partial class DownloadManager : IDownloadManager
         Items.Remove(vm);
         NotifyList();
         return Task.CompletedTask;
+    }
+
+    /// <summary>Live-apply a new global speed limit (bytes/sec, 0 = unlimited) to every running item that
+    /// has NOT opted out with a per-item custom limit. Safe when an item's engine handle isn't up yet.</summary>
+    public void ApplyGlobalSpeedLimit(long bytesPerSecond)
+    {
+        var value = bytesPerSecond <= 0 ? 0 : bytesPerSecond;
+        foreach (var vm in Items)
+        {
+            if (vm.HasCustomSpeedLimit || vm.Configuration == null)
+                continue;
+            vm.Configuration.MaximumBytesPerSecond = value;
+        }
     }
 
     public void StartAll() =>

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "com.bezzad.hls",
+    "assembly": "Downloader.Desktop.Plugins.Hls",
+    "project": "src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Hls/Downloader.Desktop.Plugins.Hls.csproj",
+    "name": "HLS / Video sites",
+    "description": "Downloads HLS (.m3u8) streams and videos from supported sites (e.g. YouTube, x.com): expands the stream into segments and assembles them (AES-128 decrypt + concat/mux + ffmpeg remux) into a playable file. yt-dlp and ffmpeg are auto-downloaded on first use.",
+    "minAppVersion": "1.7.0"
+  }
+]

@@ -210,6 +210,8 @@
   "Det_Queue": "Fila",
   "Det_SavedTo": "Salvo em",
   "Det_SpeedLimit": "Limite de velocidade (KB/s)",
+  "Det_UseGlobalLimit": "Usar limite global",
+  "Det_UseGlobalLimitTip": "Seguir o limite de velocidade global das Configurações em vez de um limite por item",
   "Det_Connections": "CONEXÕES",
   "Det_ConnCount": "{0} conexões",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "e mais {0}…",
   "Notch_NoDownloads": "Nenhum download ativo",
   "PostAction_OfferMsg": "{0} terminou de baixar — clique para executar «{1}».",
-  "Det_SegCount": "{0} segmentos"
+  "Det_SegCount": "{0} segmentos",
+  "Plugins_More": "Mais plugins",
+  "Plugins_MoreHint": "Plugins opcionais que você pode adicionar do catálogo",
+  "Plugins_Add": "Adicionar",
+  "Plugins_Adding": "Adicionando…",
+  "Plugins_Update": "Atualizar",
+  "Plugins_UpdateAvailable": "Atualização disponível",
+  "Plugins_AddFailed": "Não foi possível adicionar o plugin"
 }

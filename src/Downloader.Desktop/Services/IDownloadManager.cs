@@ -74,6 +74,9 @@ public interface IDownloadManager
     /// <summary>Removes every completed item from the list.</summary>
     void ClearCompleted();
 
+    /// <summary>Live-apply a global speed limit (bytes/sec, 0 = unlimited) to running items without a per-item override.</summary>
+    void ApplyGlobalSpeedLimit(long bytesPerSecond);
+
     // ---- Queues ----
 
     /// <summary>Starts (up to the cap) the queued items in a queue and marks it running.</summary>

@@ -97,6 +97,14 @@ public class DownloadItem
     public DateTime? LastTry { get; set; }
     public DownloadStatus Status { get; set; }
 
+    /// <summary>True when the user set a per-item speed cap in the details dialog, so global speed-limit
+    /// changes must NOT override it. Defaults false → the item follows the global limit.</summary>
+    public bool HasCustomSpeedLimit { get; set; }
+
+    /// <summary>The per-item speed cap in bytes/sec, applied on Start when <see cref="HasCustomSpeedLimit"/>
+    /// is true. 0 means unlimited (still counts as custom once the user opts out of the global limit).</summary>
+    public long CustomSpeedLimitBytesPerSecond { get; set; }
+
     /// <summary>Human-readable reason for the last failure (shown in the UI).</summary>
     public string LastError { get; set; }
 
@@ -108,6 +116,12 @@ public class DownloadItem
     /// <summary>Id of the plugin whose resolver claimed this link (persisted), so its post-download
     /// action (e.g. "Add to Ollama") can be offered on the completed item — even after a restart.</summary>
     public string ResolverPluginId { get; set; }
+
+    /// <summary>Transient path to a temp Netscape cookie file supplied by the browser extension for THIS
+    /// attempt (a signed-in session for a site like YouTube). Never persisted — cookies are secrets — and
+    /// deleted right after the resolve attempt. Null for normal downloads.</summary>
+    [JsonIgnore]
+    public string CookieFilePath { get; set; }
 
     [JsonIgnore]
     public string FolderPath => SaveFolder;

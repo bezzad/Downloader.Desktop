@@ -210,6 +210,8 @@
   "Det_Queue": "キュー",
   "Det_SavedTo": "保存先",
   "Det_SpeedLimit": "速度制限 (KB/s)",
+  "Det_UseGlobalLimit": "グローバル制限を使用",
+  "Det_UseGlobalLimitTip": "項目ごとの制限ではなく、設定のグローバル速度制限に従う",
   "Det_Connections": "接続",
   "Det_ConnCount": "{0} 個の接続",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "ほか {0} 件…",
   "Notch_NoDownloads": "実行中のダウンロードはありません",
   "PostAction_OfferMsg": "{0} のダウンロードが完了しました。クリックして「{1}」を実行します。",
-  "Det_SegCount": "{0} セグメント"
+  "Det_SegCount": "{0} セグメント",
+  "Plugins_More": "その他のプラグイン",
+  "Plugins_MoreHint": "カタログから追加できるオプションのプラグイン",
+  "Plugins_Add": "追加",
+  "Plugins_Adding": "追加中…",
+  "Plugins_Update": "更新",
+  "Plugins_UpdateAvailable": "更新があります",
+  "Plugins_AddFailed": "プラグインを追加できませんでした"
 }

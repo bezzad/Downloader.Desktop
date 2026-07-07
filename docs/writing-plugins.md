@@ -103,6 +103,17 @@ type the app expects.
 
 > ⚠️ **Trust:** a plugin is normal code with full app permissions. Only install plugins you trust.
 
+### First-party plugins (built-in vs. optional/catalog)
+First-party plugins live in `src/Downloader.Desktop.Plugins/` and ship two ways (see
+[`docs/plugins-architecture.md`](plugins-architecture.md)):
+- **Built-in** (`GitHub`, `Ollama`) — bundled with the app, disable-only, updated with the app. Added to
+  the app csproj's `StageBundledPlugins` allow-list.
+- **Optional / catalog** (`Hls`) — *not* bundled or referenced by the app; shipped as a release asset the
+  user installs on demand from Settings → **More plugins** (download → SHA-256-verify → load). To add a new
+  optional plugin: create its project under `src/Downloader.Desktop.Plugins/`, give it a csproj `<Version>`,
+  add an entry to `packaging/plugins/optional-plugins.json`, and the release workflow builds + publishes it
+  + regenerates `plugins-catalog.json`. Do **not** add a `ProjectReference` to it from the app.
+
 ## Interface reference
 | Interface | Purpose | Implement when |
 |---|---|---|

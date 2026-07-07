@@ -210,6 +210,8 @@
   "Det_Queue": "Очередь",
   "Det_SavedTo": "Сохранено в",
   "Det_SpeedLimit": "Ограничение скорости (КБ/с)",
+  "Det_UseGlobalLimit": "Использовать общий лимит",
+  "Det_UseGlobalLimitTip": "Следовать общему ограничению скорости из настроек вместо индивидуального",
   "Det_Connections": "СОЕДИНЕНИЯ",
   "Det_ConnCount": "{0} соединений",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "и ещё {0}…",
   "Notch_NoDownloads": "Нет активных загрузок",
   "PostAction_OfferMsg": "{0} скачан — нажмите, чтобы выполнить «{1}».",
-  "Det_SegCount": "{0} сегментов"
+  "Det_SegCount": "{0} сегментов",
+  "Plugins_More": "Другие плагины",
+  "Plugins_MoreHint": "Дополнительные плагины, которые можно добавить из каталога",
+  "Plugins_Add": "Добавить",
+  "Plugins_Adding": "Добавление…",
+  "Plugins_Update": "Обновить",
+  "Plugins_UpdateAvailable": "Доступно обновление",
+  "Plugins_AddFailed": "Не удалось добавить плагин"
 }

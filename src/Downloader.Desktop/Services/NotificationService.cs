@@ -238,13 +238,21 @@ public static class NotificationService
                 // overridden.) Falls through to the in-app toast if the native call fails.
                 return MacNotifier.TryNotify("Downloader", title, message);
             }
+
+            if (OperatingSystem.IsWindows())
+            {
+                // A real Windows toast (via WindowsNotifier, no new NuGet dependency) so unfocused/
+                // tray-hidden notifications reach the OS here too, matching Linux/macOS. Unverifiable
+                // on this dev box/CI — falls back to the in-app toast if it fails (see WindowsNotifier).
+                return WindowsNotifier.TryNotify("Downloader", title, message);
+            }
         }
         catch
         {
             // fall through to the in-app toast
         }
 
-        return false; // Windows + fallbacks use the in-app toast
+        return false; // any platform without a working native channel falls back to the in-app toast
     }
 
     private static void Run(string file, string[] args)

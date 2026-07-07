@@ -379,7 +379,14 @@ public class SettingViewModel : ViewModelBase
     public long MaxSpeedKbPerSecond
     {
         get => S.MaximumBytesPerSecond <= 0 ? 0 : S.MaximumBytesPerSecond / 1024;
-        set { S.MaximumBytesPerSecond = value <= 0 ? 0 : value * 1024; this.RaisePropertyChanged(); }
+        set
+        {
+            S.MaximumBytesPerSecond = value <= 0 ? 0 : value * 1024;
+            // Make the change bite immediately on running downloads that follow the global limit (items
+            // with a per-item override are left alone) — same live-apply pattern as MaxConcurrentDownloads.
+            _manager?.ApplyGlobalSpeedLimit(S.MaximumBytesPerSecond);
+            this.RaisePropertyChanged();
+        }
     }
 
     public int MaxConcurrentDownloads

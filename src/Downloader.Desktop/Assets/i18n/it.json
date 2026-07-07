@@ -210,6 +210,8 @@
   "Det_Queue": "Coda",
   "Det_SavedTo": "Salvato in",
   "Det_SpeedLimit": "Limite di velocità (KB/s)",
+  "Det_UseGlobalLimit": "Usa limite globale",
+  "Det_UseGlobalLimitTip": "Segui il limite di velocità globale delle Impostazioni invece di un limite per elemento",
   "Det_Connections": "CONNESSIONI",
   "Det_ConnCount": "{0} connessioni",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "e altri {0}…",
   "Notch_NoDownloads": "Nessun download attivo",
   "PostAction_OfferMsg": "{0} è stato scaricato — fai clic per eseguire «{1}».",
-  "Det_SegCount": "{0} segmenti"
+  "Det_SegCount": "{0} segmenti",
+  "Plugins_More": "Altri plugin",
+  "Plugins_MoreHint": "Plugin opzionali che puoi aggiungere dal catalogo",
+  "Plugins_Add": "Aggiungi",
+  "Plugins_Adding": "Aggiunta…",
+  "Plugins_Update": "Aggiorna",
+  "Plugins_UpdateAvailable": "Aggiornamento disponibile",
+  "Plugins_AddFailed": "Impossibile aggiungere il plugin"
 }

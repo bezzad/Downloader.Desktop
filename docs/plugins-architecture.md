@@ -39,15 +39,45 @@ to the Job, never to a transfer** — same as today's row binding. (Detailed in 
   on both sides (shared type identity). Works with the single-file host.
 - **No trimming** (`PublishTrimmed` is off) — required for reflection-based loading.
 
+## Plugin tiers (built-in vs. optional/catalog)
+All first-party plugins live in one repo (`src/Downloader.Desktop.Plugins/`) but ship in two ways:
+
+- **Built-in** (`GitHub`, `Ollama`): staged into the app's own build/publish `plugins/` folder, bundled with
+  every install, **disable-only** (never removable), and updated with the app. The app csproj's
+  `StageBundledPlugins` target copies them — an **explicit per-plugin allow-list**, so an optional plugin
+  sitting in the same parent folder is never accidentally bundled.
+- **Optional / catalog** (`Hls`, future `Torrent`): compiled + tested in the solution but the app has **no
+  reference to them and never copies them into its output** — they are absent on a fresh install and keep
+  the core dependency-free. They ship only as downloadable release assets and are installed on demand.
+
+## The optional-plugin catalog (discover / install / update)
+At release time, `scripts/build-plugins.sh` (run by `.github/workflows/release.yml`) builds each optional
+plugin, zips it (dll + `deps.json`), computes its SHA-256, and attaches the zip plus a generated
+`plugins-catalog.json` to the **same** `vX.Y.Z` GitHub Release as the app archives. The static metadata
+(id/name/description/minAppVersion) comes from `packaging/plugins/optional-plugins.json`; the version comes
+from the plugin's csproj `<Version>` (also the single source for the plugin's runtime-reported version, so
+the update check can't loop).
+
+The app (`Services/PluginCatalogService`) fetches that catalog off the **latest** release — the same call
+`UpdateService` uses for the app's own self-update. In Settings → Plugins:
+- **Add** (on a "More plugins" catalog row): download the asset → **verify SHA-256 before extracting or
+  loading anything** (`PluginManager.InstallFromZipAsync` — a mismatch aborts with a friendly error and
+  never loads unverified code) → extract into `PluginsRoot` → load. It then behaves like any user-installed
+  plugin (Disable/Remove).
+- **Update**: each installed optional plugin's version is compared to the catalog's; when newer the user is
+  offered an update (a startup toast and an in-page Update button) — **only** on explicit acceptance is the
+  new asset downloaded, verified, and swapped (unload old ALC → replace → reload). Never silent.
+
 ## How the user gets plugins (UI)
-A **Plugins** page (nav → MANAGE) lists installed plugins (name / version / author / description) with an
-**enable** toggle, plus:
-- **Install plugin…** → file picker → copies the `.dll` (+ siblings) into the plugins folder → reloads.
+A **Plugins** section (Settings) lists installed plugins (name / version / author / description) with an
+**enable** toggle, the catalog "More plugins" list (above), plus:
+- **Install plugin…** → file picker → copies the `.dll` (+ siblings) into the plugins folder → reloads
+  (manual/power-user path for a plugin not in the catalog).
 - **Open plugins folder** → `%AppData%/Downloader/plugins` (Linux `~/.config/Downloader/plugins`).
 - **Reload** → rescan the folder.
 Disabled plugin ids persist in `Config.DisabledPlugins`. (Trust note: a plugin is arbitrary code with full
-app privileges — the safe long-term UX is an in-app catalog of **vetted/official** plugins from our GitHub,
-ideally signed; the open folder is for power users.)
+app privileges — the catalog install path verifies a SHA-256 we publish before loading; code signing is a
+possible future hardening step. The manual open-folder/file-picker path is for power users.)
 
 ## Phasing
 - **Phase 1 (done):** the Abstractions SDK + `PluginManager` (registry + ALC loader + enable/disable

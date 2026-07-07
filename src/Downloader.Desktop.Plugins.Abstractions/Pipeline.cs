@@ -14,6 +14,21 @@ public interface ILinkResolver
 
     /// <summary>Resolve the input into real downloadable parts + a post-process recipe.</summary>
     Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken);
+
+    /// <summary>Resolve with extra per-request options (e.g. a browser-supplied cookie file for sites that
+    /// need a signed-in session). Default-implemented to ignore the options, so existing resolvers and
+    /// external plugins keep working unchanged; only resolvers that need them (e.g. the HLS/yt-dlp one)
+    /// override this.</summary>
+    Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
+        => ResolveAsync(url, cancellationToken);
+}
+
+/// <summary>Optional per-request inputs for a resolve call. All members are optional/nullable.</summary>
+public sealed class ResolveOptions
+{
+    /// <summary>Path to a temporary Netscape-format cookie file (from a live browser session handed over by
+    /// the extension) to try before any on-disk browser cookie store. Null = none supplied.</summary>
+    public string? CookieFilePath { get; init; }
 }
 
 /// <summary>The result of resolving: the real parts to download + how to combine them afterwards.</summary>

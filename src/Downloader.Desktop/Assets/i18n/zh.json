@@ -210,6 +210,8 @@
   "Det_Queue": "队列",
   "Det_SavedTo": "保存到",
   "Det_SpeedLimit": "速度限制 (KB/s)",
+  "Det_UseGlobalLimit": "使用全局限制",
+  "Det_UseGlobalLimitTip": "遵循设置中的全局速度限制，而不是单项限制",
   "Det_Connections": "连接",
   "Det_ConnCount": "{0} 个连接",
   "Det_Col_Index": "#",
@@ -259,5 +261,12 @@
   "Notch_More": "还有 {0} 个…",
   "Notch_NoDownloads": "没有进行中的下载",
   "PostAction_OfferMsg": "{0} 已下载完成——点击以执行“{1}”。",
-  "Det_SegCount": "{0} 个分段"
+  "Det_SegCount": "{0} 个分段",
+  "Plugins_More": "更多插件",
+  "Plugins_MoreHint": "可从目录添加的可选插件",
+  "Plugins_Add": "添加",
+  "Plugins_Adding": "正在添加…",
+  "Plugins_Update": "更新",
+  "Plugins_UpdateAvailable": "有可用更新",
+  "Plugins_AddFailed": "无法添加插件"
 }
