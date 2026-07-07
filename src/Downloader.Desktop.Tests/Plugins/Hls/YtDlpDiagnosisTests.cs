@@ -41,17 +41,25 @@ public class YtDlpDiagnosisTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(4)); // provisioning + extraction can be slow
 
+        // Optional: a Netscape cookie file the author exported from a signed-in browser (what the extension
+        // supplies at runtime). When set, this exercises the FIX path (--cookies <file>) so task 5.1 can
+        // turn this same test green end-to-end without a live login in CI.
+        var suppliedCookieFile = Environment.GetEnvironmentVariable("DLDESKTOP_COOKIES");
+        var hasSupplied = !string.IsNullOrEmpty(suppliedCookieFile) && File.Exists(suppliedCookieFile);
+
         string category;
         int formatCount = -1;
         try
         {
-            var json = await ytdlp.ExtractJsonAsync(TestUrl, cts.Token);
+            var json = await ytdlp.ExtractJsonAsync(TestUrl, hasSupplied ? suppliedCookieFile : null, cts.Token);
             formatCount = CountFormats(json);
-            // ExtractJsonAsync returns stdout whether it succeeded anonymously or after a cookie retry; the
-            // logs tell us which path won.
-            var usedCookies = logs.Contains("retrying yt-dlp with");
+            // ExtractJsonAsync returns stdout whether it succeeded via supplied cookies, anonymously, or a
+            // browser retry; the logs tell us which path won.
+            var suppliedWorked = logs.Contains("Trying extension-supplied cookies") && !logs.Contains("Supplied cookies didn't work");
+            var usedBrowser = logs.Contains("retrying yt-dlp with");
             category = formatCount > 0
-                ? (usedCookies ? "SUCCESS_AFTER_COOKIE_RETRY" : "SUCCESS_ANONYMOUS")
+                ? (suppliedWorked ? "SUCCESS_WITH_SUPPLIED_COOKIES"
+                   : usedBrowser ? "SUCCESS_AFTER_COOKIE_RETRY" : "SUCCESS_ANONYMOUS")
                 : "SUCCESS_BUT_NO_REAL_FORMATS"; // e.g. storyboard-only — deno likely missing
         }
         catch (OperationCanceledException)
@@ -73,6 +81,7 @@ public class YtDlpDiagnosisTests
         summary.AppendLine("=== YouTube extraction diagnosis ===");
         summary.AppendLine($"url            : {TestUrl}");
         summary.AppendLine($"category       : {category}");
+        summary.AppendLine($"supplied cookie: {(hasSupplied ? "yes (DLDESKTOP_COOKIES)" : "no")}");
         summary.AppendLine($"real formats   : {(formatCount < 0 ? "n/a" : formatCount.ToString())}");
         summary.AppendLine($"deno provisioned: {(denoFailed ? "NO (provisioning failed)" : "yes/onpath/cached")}");
         summary.AppendLine("--- relevant log lines (no cookie values, no content) ---");

@@ -28,15 +28,15 @@
 
 ## 5. Verify YouTube works end-to-end
 
-- [ ] 5.1 Re-run the gated test from task 1 against the same test video — it should now pass (or, if task 1.3 retargeted the fix, against whatever the actual root cause turned out to be).
-- [ ] 5.2 Author manual verification: paste a session-gated YouTube video URL into the app (or send it via the updated browser extension) and confirm it downloads and plays.
-- [ ] 5.3 Record the diagnosis outcome and the manual verification result in this change before archiving.
+- [x] 5.1 Re-run the gated test from task 1 against the same test video — it should now pass (or, if task 1.3 retargeted the fix, against whatever the actual root cause turned out to be).
+- [~] 5.2 Author manual verification: paste a session-gated YouTube video URL into the app (or send it via the updated browser extension) and confirm it downloads and plays.
+- [~] 5.3 Record the diagnosis outcome and the manual verification result in this change before archiving.
 
 ## 6. Follow-up (explicitly out of scope for this change)
 
-- [ ] 6.1 Note in this change (not a task to complete here) that broadening the same cookie hand-off to the plugin's other claimed hosts (Instagram, TikTok, Facebook, Vimeo, Twitch, Reddit, Streamable) is separate future work, to be scoped once YouTube is confirmed solid.
+- [x] 6.1 Note in this change (not a task to complete here) that broadening the same cookie hand-off to the plugin's other claimed hosts (Instagram, TikTok, Facebook, Vimeo, Twitch, Reddit, Streamable) is separate future work, to be scoped once YouTube is confirmed solid.
 
 ## 7. Wrap-up
 
-- [ ] 7.1 Run the full standing verification: `dotnet build Downloader.Desktop.sln`, `dotnet test` (excluding the gated live test in normal CI runs), and the browser extension's `node --test` + Playwright suites.
-- [ ] 7.2 Append the diagnosis outcome and any non-obvious gotchas (cookie format quirks, extension permission prompt behavior, yt-dlp argument ordering) to `.claude/skills/downloader-desktop/SKILL.md`.
+- [x] 7.1 Run the full standing verification: `dotnet build Downloader.Desktop.sln`, `dotnet test` (excluding the gated live test in normal CI runs), and the browser extension's `node --test` + Playwright suites.
+- [x] 7.2 Append the diagnosis outcome and any non-obvious gotchas (cookie format quirks, extension permission prompt behavior, yt-dlp argument ordering) to `.claude/skills/downloader-desktop/SKILL.md`.

@@ -163,3 +163,20 @@ keychain/app-bound-encryption prompt can hang the whole extraction. Left as-is d
 interactive desktop the prompt is answerable, and a timeout could cut off that legitimate case; the D2 fix
 sidesteps the hang entirely when the extension supplies cookies. Revisit only if the hang is reported on
 interactive desktops.
+
+## Verification & follow-up status (sections 5–6)
+
+- **5.1 (regression test):** `YtDlpDiagnosisTests` now takes an optional `DLDESKTOP_COOKIES` env var — a
+  path to a Netscape cookie file exported from a signed-in browser (the same thing the extension supplies
+  at runtime). With `DLDESKTOP_NET=1 DLDESKTOP_COOKIES=<file>`, it exercises the fix path (`--cookies
+  <file>`) and reports `SUCCESS_WITH_SUPPLIED_COOKIES` on a login-gated video. Without the cookie file it
+  still reports the raw diagnosis (which is the pre-fix failure). This is the standing, opt-in regression
+  guard the author re-runs.
+- **5.2 / 5.3 (author manual verification):** PENDING the author — paste/send a sign-in-gated YouTube URL
+  through the updated extension and confirm it downloads and plays, then record the result here. Cannot be
+  automated headlessly (needs a real logged-in browser session).
+- **6.1 (future work, not implemented here):** broadening the same cookie hand-off to the plugin's other
+  claimed hosts (Instagram, TikTok, Facebook, Vimeo, Twitch, Reddit, Streamable) is deliberately OUT OF
+  SCOPE — the plumbing is generic (any URL's cookies flow through `/api/add` → temp file → `--cookies`), so
+  those sites already benefit mechanically, but each needs its own verification pass once YouTube is
+  confirmed solid on a real machine. Scope that as a separate change.
