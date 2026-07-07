@@ -55,24 +55,27 @@ public sealed class HlsResolver : ILinkResolver
         return _probe?.LooksLikeHls(url) == true;
     }
 
-    public async Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
+    public Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
+        => ResolveAsync(url, options: null, cancellationToken);
+
+    public async Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
     {
         // A direct media/playlist link is parsed straight away — yt-dlp is never invoked for it.
         if (!UrlLooksLikeHls(url) && IsSupportedSite(url))
-            return await ResolveViaExtractionAsync(url, cancellationToken).ConfigureAwait(false);
+            return await ResolveViaExtractionAsync(url, options?.CookieFilePath, cancellationToken).ConfigureAwait(false);
 
         return await BuildHlsPlanAsync(url, SuggestFileName(url), headers: null, cancellationToken)
             .ConfigureAwait(false);
     }
 
     /// <summary>Extract a site page URL with yt-dlp and build a plan from the chosen format(s).</summary>
-    private async Task<DownloadPlan> ResolveViaExtractionAsync(string url, CancellationToken ct)
+    private async Task<DownloadPlan> ResolveViaExtractionAsync(string url, string cookieFilePath, CancellationToken ct)
     {
         if (_ytDlp is null)
             throw new InvalidOperationException(
                 "Video extraction is unavailable for this link (yt-dlp is not configured).");
 
-        var json = await _ytDlp.ExtractJsonAsync(url, ct).ConfigureAwait(false);
+        var json = await _ytDlp.ExtractJsonAsync(url, cookieFilePath, ct).ConfigureAwait(false);
         var result = SiteExtractor.Select(json); // throws a clear message on no-media / bad JSON
 
         switch (result.Kind)

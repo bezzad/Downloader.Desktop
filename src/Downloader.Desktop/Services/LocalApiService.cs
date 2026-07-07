@@ -400,7 +400,7 @@ public static class LocalApiService
                 string.Equals(q.Id, req.Queue, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(q.Name, req.Queue, StringComparison.OrdinalIgnoreCase));
 
-        return new DownloadItem
+        var item = new DownloadItem
         {
             Urls = urls,
             FileName = string.IsNullOrWhiteSpace(req.Filename) ? null : req.Filename.Trim(),
@@ -409,6 +409,17 @@ public static class LocalApiService
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
+
+        // If the extension handed over a live session's cookies, write them to a short-lived temp file now;
+        // DownloadManager.Start passes it to the plugin resolver and deletes it right after. Best-effort:
+        // a failure here must never block adding the download (the URL-only flow still works).
+        if (req.Cookies is { Count: > 0 })
+        {
+            try { item.CookieFilePath = CookieFile.WriteTempFile(req.Cookies); }
+            catch (Exception ex) { AppLog.Warn($"Couldn't write temp cookie file: {ex.Message}"); }
+        }
+
+        return item;
     }
 
     // ---------------- Small pure helpers (unit-testable, no networking) ----------------
@@ -492,6 +503,10 @@ public sealed class ApiAddRequest
     public List<string> Mirrors { get; set; } = new();
     public bool Start { get; set; } = true;
 
+    /// <summary>Optional live-session cookies for this URL, supplied by the browser extension for sites that
+    /// need a signed-in session (e.g. YouTube). Never persisted or logged; written to a temp file for yt-dlp.</summary>
+    public List<CookieDto> Cookies { get; set; } = new();
+
     /// <summary>Human-readable validation error, or null when the request is usable.</summary>
     public string Error { get; set; }
 
@@ -515,6 +530,10 @@ public sealed class ApiAddRequest
                 foreach (var m in mirrors.EnumerateArray())
                     if (m.ValueKind == JsonValueKind.String)
                         req.Mirrors.Add(m.GetString());
+            if (root.TryGetProperty("cookies", out var cookies) && cookies.ValueKind == JsonValueKind.Array)
+                foreach (var c in cookies.EnumerateArray())
+                    if (ParseCookie(c) is { } dto)
+                        req.Cookies.Add(dto);
             return req.Validate();
         }
         catch (JsonException)
@@ -560,4 +579,28 @@ public sealed class ApiAddRequest
 
     private static string GetString(JsonElement root, string name) =>
         root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    /// <summary>Parse one cookie object (the <c>chrome.cookies.getAll</c> shape) into a <see cref="CookieDto"/>,
+    /// or null if it lacks the minimum (name + domain). Never logs values.</summary>
+    private static CookieDto ParseCookie(JsonElement e)
+    {
+        if (e.ValueKind != JsonValueKind.Object)
+            return null;
+        var name = GetString(e, "name");
+        var domain = GetString(e, "domain");
+        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(domain))
+            return null;
+        var dto = new CookieDto
+        {
+            Name = name,
+            Value = GetString(e, "value") ?? string.Empty,
+            Domain = domain,
+            Path = GetString(e, "path") ?? "/",
+            Secure = e.TryGetProperty("secure", out var s) && s.ValueKind == JsonValueKind.True,
+        };
+        if (e.TryGetProperty("expires", out var exp) && exp.ValueKind == JsonValueKind.Number &&
+            exp.TryGetInt64(out var epoch))
+            dto.Expires = epoch;
+        return dto;
+    }
 }

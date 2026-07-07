@@ -117,6 +117,12 @@ public class DownloadItem
     /// action (e.g. "Add to Ollama") can be offered on the completed item — even after a restart.</summary>
     public string ResolverPluginId { get; set; }
 
+    /// <summary>Transient path to a temp Netscape cookie file supplied by the browser extension for THIS
+    /// attempt (a signed-in session for a site like YouTube). Never persisted — cookies are secrets — and
+    /// deleted right after the resolve attempt. Null for normal downloads.</summary>
+    [JsonIgnore]
+    public string CookieFilePath { get; set; }
+
     [JsonIgnore]
     public string FolderPath => SaveFolder;
 

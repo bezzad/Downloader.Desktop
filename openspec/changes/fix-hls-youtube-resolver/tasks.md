@@ -6,17 +6,17 @@
 
 ## 2. Local API: optional cookie hand-off
 
-- [ ] 2.1 Extend `ApiAddRequest`/the `/api/add` JSON contract with an optional `cookies` field: a list of `{name, value, domain, path, secure, expires}` objects (the shape `chrome.cookies.getAll` returns).
-- [ ] 2.2 When present, `LocalApiService` writes the cookies to a short-lived temp file in Netscape cookie-file format, scoped to that one download attempt.
-- [ ] 2.3 Thread the temp cookie-file path through to the plugin's resolve call for that download (extend `ILinkResolver`/`IYtDlp`'s contract minimally, or pass it via the existing per-request headers/context mechanism — whichever fits the current plugin SDK shape with the least churn).
-- [ ] 2.4 Delete the temp cookie file in a `finally` immediately after the resolve/download attempt (success or failure).
-- [ ] 2.5 Unit tests: the temp file is created with the expected Netscape format from a sample cookie list; it is deleted after both a successful and a failed attempt; no cookie value appears in any log output.
+- [x] 2.1 Extend `ApiAddRequest`/the `/api/add` JSON contract with an optional `cookies` field: a list of `{name, value, domain, path, secure, expires}` objects (the shape `chrome.cookies.getAll` returns).
+- [x] 2.2 When present, `LocalApiService` writes the cookies to a short-lived temp file in Netscape cookie-file format, scoped to that one download attempt.
+- [x] 2.3 Thread the temp cookie-file path through to the plugin's resolve call for that download (extend `ILinkResolver`/`IYtDlp`'s contract minimally, or pass it via the existing per-request headers/context mechanism — whichever fits the current plugin SDK shape with the least churn).
+- [x] 2.4 Delete the temp cookie file in a `finally` immediately after the resolve/download attempt (success or failure).
+- [x] 2.5 Unit tests: the temp file is created with the expected Netscape format from a sample cookie list; it is deleted after both a successful and a failed attempt; no cookie value appears in any log output.
 
 ## 3. YtDlpBinary: prefer supplied cookies over the browser-file retry loop
 
-- [ ] 3.1 When a cookie file is supplied for this resolve call, try `--cookies <file>` FIRST (before the existing anonymous attempt is even needed, or immediately after an anonymous attempt fails — whichever ordering the diagnosis in step 1 suggests is more efficient).
-- [ ] 3.2 Fall back to the existing `--cookies-from-browser` retry loop if the supplied cookies don't work (e.g. expired since capture).
-- [ ] 3.3 Unit tests: supplied cookies are tried before the browser loop; a working supplied-cookie file short-circuits the browser loop entirely; an expired/invalid supplied cookie file still falls through to the existing behavior unchanged.
+- [x] 3.1 When a cookie file is supplied for this resolve call, try `--cookies <file>` FIRST (before the existing anonymous attempt is even needed, or immediately after an anonymous attempt fails — whichever ordering the diagnosis in step 1 suggests is more efficient).
+- [x] 3.2 Fall back to the existing `--cookies-from-browser` retry loop if the supplied cookies don't work (e.g. expired since capture).
+- [x] 3.3 Unit tests: supplied cookies are tried before the browser loop; a working supplied-cookie file short-circuits the browser loop entirely; an expired/invalid supplied cookie file still falls through to the existing behavior unchanged.
 
 ## 4. Browser extension: capture and send cookies for the target URL
 

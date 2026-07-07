@@ -12,4 +12,10 @@ public interface IYtDlp
     /// <summary>Run <c>yt-dlp -J &lt;url&gt;</c> and return its JSON stdout. Throws a clear, logged error if
     /// yt-dlp cannot be provisioned or the extraction process fails.</summary>
     Task<string> ExtractJsonAsync(string url, CancellationToken cancellationToken);
+
+    /// <summary>Same, but try a supplied Netscape cookie file (from a live browser session) first, before
+    /// any anonymous/on-disk-browser attempt. Default-implemented to ignore the file so existing stubs keep
+    /// working; the real <see cref="YtDlpBinary"/> honors it.</summary>
+    Task<string> ExtractJsonAsync(string url, string? cookieFilePath, CancellationToken cancellationToken)
+        => ExtractJsonAsync(url, cancellationToken);
 }

@@ -364,7 +364,7 @@ public partial class DownloadManager : IDownloadManager
                 var persisted = PersistedPlan.FromJson(item.PlanJson);
                 if (persisted == null)
                 {
-                    var plan = await ResolvePlanAsync(urls[0], default).ConfigureAwait(false);
+                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
                         // Remember WHICH plugin resolved this link so its post-download action (e.g.
@@ -425,6 +425,23 @@ public partial class DownloadManager : IDownloadManager
                 NotifyList();
             });
         }
+        finally
+        {
+            // A browser-supplied cookie file is a transient secret — delete it right after this attempt
+            // (success or failure), whether or not the plugin path actually consumed it.
+            DeleteCookieFile(item);
+        }
+    }
+
+    /// <summary>Best-effort delete + clear of an item's transient extension-supplied cookie file.</summary>
+    internal static void DeleteCookieFile(DownloadItem item)
+    {
+        var path = item?.CookieFilePath;
+        if (string.IsNullOrEmpty(path))
+            return;
+        item.CookieFilePath = null;
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception ex) { AppLog.Warn($"Couldn't delete temp cookie file: {ex.Message}"); }
     }
 
     /// <summary>
@@ -438,13 +455,16 @@ public partial class DownloadManager : IDownloadManager
     /// (real part URLs + post-process recipe). Returns null when no plugin claims it, there's no plugin
     /// manager, or resolving fails.</summary>
     public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
-        string url, System.Threading.CancellationToken cancellationToken)
+        string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null)
     {
         if (_plugins == null)
             return null;
         try
         {
-            return await _plugins.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
+            var options = string.IsNullOrEmpty(cookieFilePath)
+                ? null
+                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath };
+            return await _plugins.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

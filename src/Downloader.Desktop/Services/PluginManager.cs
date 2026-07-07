@@ -153,12 +153,18 @@ public sealed class PluginManager
     }
 
     /// <summary>Run the input through the first matching resolver, or null if no plugin claims it.</summary>
-    public async Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
+    public Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
+        => ResolveAsync(url, options: null, cancellationToken);
+
+    /// <summary>As above, forwarding per-request resolve options (e.g. a supplied cookie file) to the resolver.</summary>
+    public async Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
     {
         var resolver = FindResolver(url);
         if (resolver == null)
             return null;
-        return await resolver.ResolveAsync(url, cancellationToken).ConfigureAwait(false);
+        return options == null
+            ? await resolver.ResolveAsync(url, cancellationToken).ConfigureAwait(false)
+            : await resolver.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
     }
 
     public void SetEnabled(string pluginId, bool enabled)

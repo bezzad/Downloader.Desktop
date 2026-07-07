@@ -30,15 +30,31 @@ public sealed class YtDlpBinary : IYtDlp
         _log = logger ?? NullLogger.Instance;
     }
 
-    public async Task<string> ExtractJsonAsync(string url, CancellationToken cancellationToken)
+    public Task<string> ExtractJsonAsync(string url, CancellationToken cancellationToken)
+        => ExtractJsonAsync(url, cookieFilePath: null, cancellationToken);
+
+    public async Task<string> ExtractJsonAsync(string url, string? cookieFilePath, CancellationToken cancellationToken)
     {
         var exe = await EnsureYtDlpAsync(cancellationToken).ConfigureAwait(false);
         // YouTube drops all real formats unless yt-dlp can solve its JS "n challenge", which needs a JS
         // runtime (deno). Best-effort: extraction still works for most sites without it.
         var deno = await TryEnsureDenoAsync(cancellationToken).ConfigureAwait(false);
 
-        // First try without cookies (works for public content and never touches browser data).
-        var (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, deno), cancellationToken)
+        // If the browser extension handed over a live session's cookies, try them FIRST — a live cookie jar
+        // is far more reliable than reading a browser's on-disk store, which can be encrypted or keychain-
+        // gated (and can hang). Only fall through if these cookies don't work (e.g. expired since capture).
+        if (!string.IsNullOrEmpty(cookieFilePath))
+        {
+            _log.LogInformation("Trying extension-supplied cookies for {Url}", url);
+            var (co, _, ccode) = await RunAsync(exe, BuildArgs(url, cookieFilePath, null, deno), cancellationToken)
+                .ConfigureAwait(false);
+            if (ccode == 0 && !string.IsNullOrWhiteSpace(co))
+                return co;
+            _log.LogWarning("Supplied cookies didn't work (yt-dlp exit {Code}); falling back", ccode); // never logs cookie values
+        }
+
+        // Try without cookies (works for public content and never touches browser data).
+        var (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, null, deno), cancellationToken)
             .ConfigureAwait(false);
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
             return stdout;
@@ -51,7 +67,7 @@ public sealed class YtDlpBinary : IYtDlp
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 _log.LogInformation("Site requires sign-in — retrying yt-dlp with {Browser} cookies", browser);
-                var (o, e, code) = await RunAsync(exe, BuildArgs(url, browser, deno), cancellationToken)
+                var (o, e, code) = await RunAsync(exe, BuildArgs(url, null, browser, deno), cancellationToken)
                     .ConfigureAwait(false);
                 if (code == 0 && !string.IsNullOrWhiteSpace(o))
                     return o;
@@ -69,8 +85,10 @@ public sealed class YtDlpBinary : IYtDlp
     }
 
     // -J: dump a single JSON object, no download. --no-warnings keeps stdout clean JSON.
-    private static string BuildArgs(string url, string? cookieBrowser, string? denoPath) =>
+    // A supplied cookie FILE (--cookies) wins over reading a browser's on-disk store (--cookies-from-browser).
+    internal static string BuildArgs(string url, string? cookieFile, string? cookieBrowser, string? denoPath) =>
         (denoPath is null ? "" : $"--js-runtimes \"deno:{denoPath}\" ")
+        + (cookieFile is null ? "" : $"--cookies \"{cookieFile}\" ")
         + (cookieBrowser is null ? "" : $"--cookies-from-browser {cookieBrowser} ")
         + $"-J --no-warnings --no-playlist \"{url}\"";
 
