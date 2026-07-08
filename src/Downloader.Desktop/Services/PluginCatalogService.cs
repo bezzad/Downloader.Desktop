@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Plugins;
 
 namespace Downloader.Desktop.Services;
 
@@ -156,11 +157,17 @@ public static class PluginCatalogService
     /// Install (or update) an optional plugin from a catalog entry: if a copy is already loaded it is
     /// unloaded first (update swap), then the asset is downloaded to a temp file and handed to
     /// <see cref="PluginManager.InstallFromZipAsync(string,string,string,CancellationToken)"/>, which
-    /// verifies the SHA-256 before extracting/loading. The temp download is always cleaned up. This is the
-    /// single path both the Plugins page's Add button and the update-accept flow use.
+    /// verifies the SHA-256 before extracting/loading. Once loaded, any external runtime binaries the
+    /// plugin declares (<see cref="PluginManager.GetRuntimeDependencies"/>, e.g. the HLS plugin's
+    /// ffmpeg/yt-dlp) are fetched (resumable, with progress) before this call reports success — a
+    /// dependency failure or cancellation rolls the plugin back out (<see cref="PluginManager.RemovePlugin"/>)
+    /// so it never appears "installed" without what it needs to actually run. The temp plugin-package
+    /// download is always cleaned up; a partial dependency download is left in place to resume next time.
+    /// This is the single path both the Plugins page's Add button and the update-accept flow use.
     /// </summary>
     public static async Task<PluginInstallResult> InstallOrUpdateAsync(PluginManager manager,
-        CatalogPluginInfo info, CancellationToken ct = default)
+        CatalogPluginInfo info, CancellationToken ct = default,
+        IProgress<PluginDependencyProgress> dependencyProgress = null)
     {
         if (manager == null || info == null)
             return PluginInstallResult.Fail("Nothing to install.");
@@ -171,15 +178,39 @@ public static class PluginCatalogService
             manager.RemovePlugin(info.Id);
 
         var tmp = Path.Combine(Path.GetTempPath(), $"plugin-dl-{Guid.NewGuid():N}.zip");
+        PluginInstallResult result;
         try
         {
             if (!await DownloadAssetAsync(info, tmp, ct).ConfigureAwait(false))
                 return PluginInstallResult.Fail("Could not download the plugin. Please check your connection and try again.");
-            return await manager.InstallFromZipAsync(tmp, info.Sha256, info.Id, ct).ConfigureAwait(false);
+            result = await manager.InstallFromZipAsync(tmp, info.Sha256, info.Id, ct).ConfigureAwait(false);
         }
         finally
         {
             try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best-effort */ }
+        }
+
+        if (!result.Success)
+            return result;
+
+        var deps = manager.GetRuntimeDependencies(info.Id);
+        if (deps.Count == 0)
+            return result;
+
+        try
+        {
+            await PluginDependencyInstaller.EnsureAllAsync(deps, dependencyProgress, ct).ConfigureAwait(false);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            manager.RemovePlugin(info.Id);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            manager.RemovePlugin(info.Id);
+            return PluginInstallResult.Fail($"Installed, but a required component could not be downloaded: {ex.Message}");
         }
     }
 }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using Downloader.Desktop.Plugins;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -86,32 +87,61 @@ public sealed class FfmpegBinary : IFfmpeg
     {
         if (_resolved is not null) return _resolved;
 
-        var cached = Path.Combine(_dataDir, "ffmpeg-bin", ExeName);
+        var cached = TargetExePath(_dataDir);
         if (File.Exists(cached)) return _resolved = cached;
 
         var onPath = FindOnPath();
         if (onPath is not null) return _resolved = onPath;
 
         _log.LogInformation("ffmpeg not found; downloading a static build into {Dir}", _dataDir);
-        return _resolved = await DownloadAsync(cached, cancellationToken).ConfigureAwait(false);
+        var archive = ArchivePath(_dataDir);
+        await using (var fs = File.Create(archive))
+        await using (var stream = await _http.GetStreamAsync(ResolveDownloadUrl(), cancellationToken).ConfigureAwait(false))
+            await stream.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
+        await FinishInstallAsync(cancellationToken).ConfigureAwait(false);
+        return _resolved = cached;
     }
 
-    private async Task<string> DownloadAsync(string targetExe, CancellationToken ct)
+    /// <summary>
+    /// Declares ffmpeg as a <see cref="PluginBinaryDependency"/> so the host can fetch it (resumable, with
+    /// progress) at plugin-install time instead of silently on first real use.
+    /// </summary>
+    public PluginBinaryDependency GetDependency() => new()
     {
-        var url = OperatingSystem.IsWindows() ? WinUrl
-                : OperatingSystem.IsMacOS() ? MacUrl
-                : OperatingSystem.IsLinux() ? LinuxUrl
-                : throw new PlatformNotSupportedException("No ffmpeg static build configured for this OS.");
+        Id = "ffmpeg",
+        DisplayName = "FFmpeg",
+        DownloadUrl = new Uri(ResolveDownloadUrl()),
+        DownloadDestination = ArchivePath(_dataDir),
+        IsAvailable = () => File.Exists(TargetExePath(_dataDir)) || FindOnPath() is not null,
+        FinishInstallAsync = FinishInstallAsync,
+    };
 
+    private static string ResolveDownloadUrl() =>
+        OperatingSystem.IsWindows() ? WinUrl
+        : OperatingSystem.IsMacOS() ? MacUrl
+        : OperatingSystem.IsLinux() ? LinuxUrl
+        : throw new PlatformNotSupportedException("No ffmpeg static build configured for this OS.");
+
+    private static string TargetExePath(string dataDir) => Path.Combine(dataDir, "ffmpeg-bin", ExeName);
+
+    private static string ArchivePath(string dataDir)
+    {
+        var binDir = Path.Combine(dataDir, "ffmpeg-bin");
+        var ext = Path.GetExtension(new Uri(ResolveDownloadUrl()).AbsolutePath);
+        return Path.Combine(binDir, "ffmpeg-download" + (string.IsNullOrEmpty(ext)
+            ? (OperatingSystem.IsLinux() ? ".tar.xz" : ".zip")
+            : ext));
+    }
+
+    /// <summary>Extract/place an already-downloaded archive (at <see cref="ArchivePath"/>) into the plugin's
+    /// cached ffmpeg location. Called both by the self-contained lazy download and by the host after it
+    /// downloads the archive itself (see <see cref="GetDependency"/>).</summary>
+    private Task FinishInstallAsync(CancellationToken ct)
+    {
         var binDir = Path.Combine(_dataDir, "ffmpeg-bin");
         Directory.CreateDirectory(binDir);
-        var archive = Path.Combine(binDir, "ffmpeg-download" + Path.GetExtension(new Uri(url).AbsolutePath));
-        if (string.IsNullOrEmpty(Path.GetExtension(archive)))
-            archive = Path.Combine(binDir, OperatingSystem.IsLinux() ? "ffmpeg.tar.xz" : "ffmpeg.zip");
-
-        await using (var fs = File.Create(archive))
-        await using (var stream = await _http.GetStreamAsync(url, ct).ConfigureAwait(false))
-            await stream.CopyToAsync(fs, ct).ConfigureAwait(false);
+        var archive = ArchivePath(_dataDir);
+        var targetExe = TargetExePath(_dataDir);
 
         Extract(archive, binDir);
         try { File.Delete(archive); } catch (IOException) { }
@@ -120,13 +150,11 @@ public sealed class FfmpegBinary : IFfmpeg
                     ?? throw new InvalidOperationException("ffmpeg binary not found in the downloaded archive.");
 
         if (found != targetExe)
-        {
             File.Copy(found, targetExe, overwrite: true);
-        }
         if (!OperatingSystem.IsWindows())
             MakeExecutable(targetExe);
 
-        return targetExe;
+        return Task.CompletedTask;
     }
 
     private static void Extract(string archive, string destDir)

@@ -221,6 +221,29 @@ public sealed class PluginManager
         lock (_gate) return _plugins.FirstOrDefault(p => p.Descriptor.Id == pluginId)?.Descriptor.Version;
     }
 
+    /// <summary>The external runtime binaries (e.g. ffmpeg, yt-dlp) a loaded plugin declares it needs, or
+    /// empty if it doesn't implement <see cref="IHasRuntimeDependencies"/> or isn't loaded.</summary>
+    public IReadOnlyList<PluginBinaryDependency> GetRuntimeDependencies(string pluginId)
+    {
+        LoadedPlugin p;
+        lock (_gate) p = _plugins.FirstOrDefault(x => x.Descriptor.Id == pluginId);
+        if (p?.Plugin is not IHasRuntimeDependencies hasDeps)
+            return Array.Empty<PluginBinaryDependency>();
+        try { return hasDeps.GetRequiredDependencies(DataDirectoryFor(pluginId)) ?? Array.Empty<PluginBinaryDependency>(); }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Plugin '{pluginId}' failed to report its runtime dependencies", ex);
+            return Array.Empty<PluginBinaryDependency>();
+        }
+    }
+
+    private static string DataDirectoryFor(string pluginId)
+    {
+        var dir = Path.Combine(PluginsRoot, "data", pluginId);
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
     /// <summary>
     /// Install an optional plugin from a downloaded package zip. The package's SHA-256 is verified against
     /// <paramref name="expectedSha256"/> <b>before</b> anything is extracted or loaded — a mismatch aborts
@@ -332,6 +355,7 @@ public sealed class PluginManager
     private sealed class LoadedPlugin
     {
         public PluginDescriptor Descriptor { get; }
+        public IDownloaderPlugin Plugin { get; }
         public List<ILinkResolver> Resolvers { get; } = new();
         public List<ITransferProvider> TransferProviders { get; } = new();
         public List<IPostProcessor> PostProcessors { get; } = new();
@@ -343,6 +367,7 @@ public sealed class PluginManager
         public LoadedPlugin(IDownloaderPlugin plugin, AssemblyLoadContext alc, string sourcePath = null,
             bool isBuiltIn = false)
         {
+            Plugin = plugin;
             Alc = alc;
             SourcePath = sourcePath;
             Descriptor = new PluginDescriptor

@@ -113,13 +113,33 @@
                                             <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource SystemBaseMediumColor}" />
                                         </StackPanel>
-                                        <Button Grid.Column="1" Classes="accent" VerticalAlignment="Center" Padding="14 8"
-                                                IsEnabled="{Binding !IsBusy}" Command="{Binding AddCommand}">
-                                            <Panel>
-                                                <TextBlock Text="{i18n:Tr Plugins_Add}" IsVisible="{Binding !IsBusy}" />
-                                                <TextBlock Text="{i18n:Tr Plugins_Adding}" IsVisible="{Binding IsBusy}" />
-                                            </Panel>
-                                        </Button>
+                                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" MinWidth="110">
+                                            <Button Classes="accent" HorizontalAlignment="Right" Padding="14 8"
+                                                    Command="{Binding AddCommand}" IsVisible="{Binding !IsBusy}">
+                                                <TextBlock Text="{i18n:Tr Plugins_Add}" />
+                                            </Button>
+                                            <!-- Busy: the Add button is replaced by a compact percent + a
+                                                 cancel (×) affordance inside it; the total progress bar for
+                                                 all dependencies being fetched sits under it. -->
+                                            <Border Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Right"
+                                                    Padding="10 6" CornerRadius="6" IsVisible="{Binding IsBusy}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding ProgressPercent, StringFormat={}{0:0}%}"
+                                                               Foreground="White" VerticalAlignment="Center" />
+                                                    <Button Classes="icon" Padding="2" Width="18" Height="18"
+                                                            Command="{Binding CancelCommand}"
+                                                            ToolTip.Tip="{i18n:Tr Plugins_Cancel}">
+                                                        <PathIcon Data="{StaticResource DismissRegular}" Width="9" Height="9"
+                                                                  Foreground="White" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+                                            <ProgressBar IsVisible="{Binding IsBusy}" Minimum="0" Maximum="100"
+                                                         Value="{Binding ProgressPercent}" Height="4" Width="110" />
+                                            <TextBlock IsVisible="{Binding IsBusy}" Text="{Binding ProgressText}"
+                                                       FontSize="10" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
+                                                       MaxWidth="110" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        </StackPanel>
                                     </Grid>
                                     <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
                                                FontSize="12" Foreground="{DynamicResource SystemErrorTextColor}" />
