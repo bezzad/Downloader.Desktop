@@ -6,8 +6,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using Avalonia.Threading;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
 using ReactiveUI;
 
@@ -104,16 +104,24 @@ public class PluginsViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(HasCatalog));
     }
 
-    /// <summary>Add (install) an optional plugin from the catalog: download → verify sha256 → load.</summary>
+    /// <summary>Add (install) an optional plugin from the catalog: download plugin → verify sha256 → load →
+    /// fetch any declared runtime dependencies (e.g. ffmpeg/yt-dlp for HLS), reporting progress on the row
+    /// and rolling the plugin back out if the user cancels or a dependency fails.</summary>
     internal async Task AddFromCatalogAsync(CatalogPluginRowViewModel row)
     {
         if (row == null || row.IsBusy)
             return;
         row.IsBusy = true;
         row.ErrorText = null;
+        row.SetProgress(null, 0);
+        row.BeginCancellable();
         try
         {
-            var result = await PluginCatalogService.InstallOrUpdateAsync(_manager, row.Info).ConfigureAwait(true);
+            var progress = new Progress<PluginDependencyProgress>(p =>
+                row.SetProgress(p.Total > 1 ? $"{p.DependencyName} ({p.Index}/{p.Total})" : p.DependencyName, p.PercentComplete));
+            var result = await PluginCatalogService
+                .InstallOrUpdateAsync(_manager, row.Info, row.CancellationToken, progress)
+                .ConfigureAwait(true);
             if (result.Success)
             {
                 CatalogPlugins.Remove(row);
@@ -128,6 +136,10 @@ public class PluginsViewModel : ViewModelBase
                 NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], result.Error, true);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // User cancel — no error toast, the row just returns to its idle Add state.
+        }
         catch (Exception ex)
         {
             AppLog.Error("Failed to add catalog plugin", ex);
@@ -137,6 +149,7 @@ public class PluginsViewModel : ViewModelBase
         finally
         {
             row.IsBusy = false;
+            row.EndCancellable();
         }
     }
 
@@ -328,14 +341,17 @@ public class PluginRowViewModel : ViewModelBase
 public class CatalogPluginRowViewModel : ViewModelBase
 {
     private readonly CatalogPluginInfo _info;
+    private CancellationTokenSource _cts;
 
     public CatalogPluginRowViewModel(CatalogPluginInfo info, Func<CatalogPluginRowViewModel, Task> onAdd)
     {
         _info = info;
         AddCommand = ReactiveCommand.CreateFromTask(() => onAdd?.Invoke(this) ?? Task.CompletedTask);
+        CancelCommand = ReactiveCommand.Create(() => _cts?.Cancel());
     }
 
     public ICommand AddCommand { get; }
+    public ICommand CancelCommand { get; }
 
     public CatalogPluginInfo Info => _info;
     public string Id => _info.Id;
@@ -358,4 +374,37 @@ public class CatalogPluginRowViewModel : ViewModelBase
         set { this.RaiseAndSetIfChanged(ref _errorText, value); this.RaisePropertyChanged(nameof(HasError)); }
     }
     public bool HasError => !string.IsNullOrWhiteSpace(_errorText);
+
+    private double _progressPercent;
+    /// <summary>0-100 progress shown under the Add button while <see cref="IsBusy"/>.</summary>
+    public double ProgressPercent
+    {
+        get => _progressPercent;
+        private set => this.RaiseAndSetIfChanged(ref _progressPercent, value);
+    }
+
+    private string _progressText;
+    /// <summary>E.g. "yt-dlp (2/3)"; null while just downloading the plugin package itself.</summary>
+    public string ProgressText
+    {
+        get => _progressText;
+        private set => this.RaiseAndSetIfChanged(ref _progressText, value);
+    }
+
+    public void SetProgress(string text, double percent)
+    {
+        ProgressText = text;
+        ProgressPercent = percent;
+    }
+
+    /// <summary>Cancellation token for the in-flight Add attempt (cancelled by <see cref="CancelCommand"/>).</summary>
+    public CancellationToken CancellationToken => (_cts ??= new CancellationTokenSource()).Token;
+
+    public void BeginCancellable() => _cts = new CancellationTokenSource();
+
+    public void EndCancellable()
+    {
+        _cts?.Dispose();
+        _cts = null;
+    }
 }

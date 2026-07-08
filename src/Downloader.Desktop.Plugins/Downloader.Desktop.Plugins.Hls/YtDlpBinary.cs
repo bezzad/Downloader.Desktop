@@ -98,27 +98,22 @@ public sealed class YtDlpBinary : IYtDlp
     {
         if (_denoResolved is not null) return _denoResolved.Length == 0 ? null : _denoResolved;
 
-        var name = OperatingSystem.IsWindows() ? "deno.exe" : "deno";
-        var cached = Path.Combine(_dataDir, "deno-bin", name);
+        var cached = DenoExePath(_dataDir);
         if (File.Exists(cached)) return _denoResolved = cached;
 
-        var onPath = FindOnPath(name);
+        var onPath = FindOnPath(Path.GetFileName(cached));
         if (onPath is not null) return _denoResolved = onPath;
 
         try
         {
-            var url = "https://github.com/denoland/deno/releases/latest/download/" + DenoAssetName;
+            var url = DenoDownloadUrl;
             _log.LogInformation("deno not found; downloading {Url} into {Dir}", url, _dataDir);
-            var binDir = Path.GetDirectoryName(cached)!;
-            Directory.CreateDirectory(binDir);
-            var archive = Path.Combine(binDir, "deno.zip");
+            var archive = DenoArchivePath(_dataDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
             await using (var fs = File.Create(archive))
             await using (var stream = await _http.GetStreamAsync(url, ct).ConfigureAwait(false))
                 await stream.CopyToAsync(fs, ct).ConfigureAwait(false);
-            System.IO.Compression.ZipFile.ExtractToDirectory(archive, binDir, overwriteFiles: true);
-            try { File.Delete(archive); } catch (IOException) { }
-            if (!OperatingSystem.IsWindows())
-                MakeExecutable(cached);
+            await FinishDenoInstallAsync(ct).ConfigureAwait(false);
             return _denoResolved = cached;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -127,6 +122,57 @@ public sealed class YtDlpBinary : IYtDlp
             _denoResolved = string.Empty; // don't retry every extraction
             return null;
         }
+    }
+
+    /// <summary>Declares yt-dlp and deno as <see cref="PluginBinaryDependency"/> entries so the host can
+    /// fetch them (resumable, with progress) at plugin-install time instead of silently on first real use.
+    /// Deno is included even though it's best-effort at runtime — pre-fetching it up front avoids a silent,
+    /// unreported failure later.</summary>
+    public IReadOnlyList<PluginBinaryDependency> GetDependencies() => new[]
+    {
+        new PluginBinaryDependency
+        {
+            Id = "yt-dlp",
+            DisplayName = "yt-dlp",
+            DownloadUrl = new Uri(ReleaseBase + AssetName),
+            DownloadDestination = YtDlpExePath(_dataDir),
+            IsAvailable = () => File.Exists(YtDlpExePath(_dataDir)) || FindOnPath(ExeName) is not null,
+            FinishInstallAsync = ct =>
+            {
+                if (!OperatingSystem.IsWindows())
+                    MakeExecutable(YtDlpExePath(_dataDir));
+                return Task.CompletedTask;
+            },
+        },
+        new PluginBinaryDependency
+        {
+            Id = "deno",
+            DisplayName = "Deno",
+            DownloadUrl = new Uri(DenoDownloadUrl),
+            DownloadDestination = DenoArchivePath(_dataDir),
+            IsAvailable = () => File.Exists(DenoExePath(_dataDir)) || FindOnPath(Path.GetFileName(DenoExePath(_dataDir))) is not null,
+            FinishInstallAsync = FinishDenoInstallAsync,
+        },
+    };
+
+    private static string DenoExePath(string dataDir) =>
+        Path.Combine(dataDir, "deno-bin", OperatingSystem.IsWindows() ? "deno.exe" : "deno");
+
+    private static string DenoArchivePath(string dataDir) => Path.Combine(dataDir, "deno-bin", "deno.zip");
+
+    private static string DenoDownloadUrl =>
+        "https://github.com/denoland/deno/releases/latest/download/" + DenoAssetName;
+
+    private Task FinishDenoInstallAsync(CancellationToken ct)
+    {
+        var binDir = Path.Combine(_dataDir, "deno-bin");
+        Directory.CreateDirectory(binDir);
+        var archive = DenoArchivePath(_dataDir);
+        System.IO.Compression.ZipFile.ExtractToDirectory(archive, binDir, overwriteFiles: true);
+        try { File.Delete(archive); } catch (IOException) { }
+        if (!OperatingSystem.IsWindows())
+            MakeExecutable(DenoExePath(_dataDir));
+        return Task.CompletedTask;
     }
 
     private static string DenoAssetName
@@ -199,7 +245,7 @@ public sealed class YtDlpBinary : IYtDlp
     {
         if (_resolved is not null) return _resolved;
 
-        var cached = Path.Combine(_dataDir, "yt-dlp-bin", ExeName);
+        var cached = YtDlpExePath(_dataDir);
         if (File.Exists(cached)) return _resolved = cached;
 
         var onPath = FindOnPath(ExeName);
@@ -208,6 +254,8 @@ public sealed class YtDlpBinary : IYtDlp
         _log.LogInformation("yt-dlp not found; downloading the latest build into {Dir}", _dataDir);
         return _resolved = await DownloadAsync(cached, cancellationToken).ConfigureAwait(false);
     }
+
+    private static string YtDlpExePath(string dataDir) => Path.Combine(dataDir, "yt-dlp-bin", ExeName);
 
     private async Task<string> DownloadAsync(string targetExe, CancellationToken ct)
     {
