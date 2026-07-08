@@ -39,10 +39,17 @@ public static class TrayService
         {
             BuildTray();
         }
-        catch
+        catch (Exception ex)
         {
             // Some platforms / sessions have no usable tray — fail soft so close-to-tray falls back to a
-            // normal close (IsActive stays false) instead of stranding the window with no way back.
+            // normal close (IsActive stays false) instead of stranding the window with no way back. But
+            // NEVER swallow the reason silently: this used to be a bare `catch { }`, which is why "the
+            // icon just doesn't show" was unanswerable when it happened under a Rider debug run (no packed
+            // app, no icon theme, potentially no SNI host at all) — there was no signal to diagnose from.
+            // AppLog only writes when the user has enabled logging in Settings; Debug.WriteLine always
+            // shows up in the IDE's Debug/Run output regardless, so a dev session sees it immediately.
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Failed to enable the system tray icon: {ex}");
+            AppLog.Error("Failed to enable the system tray icon", ex);
             _tray = null;
         }
     }
@@ -121,14 +128,23 @@ public static class TrayService
     private static string NotifItemHeader() =>
         NotificationService.Enabled ? "Disable notifications" : "Enable notifications";
 
+    /// <summary>Tray icons must be SMALL. Public for testing only — see <see cref="TraySize"/>.</summary>
+    internal static readonly PixelSize TraySize = new(64, 64);
+
     private static WindowIcon LoadIcon()
     {
-        // Tray icons must be SMALL. The full 1080x1080 app PNG is a ~4.6 MB RGBA pixmap; pushing that to
-        // the StatusNotifierItem host over DBus can make the item render but its menu fail to attach
-        // (part of the "no tray menu" bug on Linux). Downscale to 64x64 for the tray.
         using var stream = AssetLoader.Open(new Uri("avares://Downloader.Desktop/Assets/downloader512.png"));
         using var bmp = new Bitmap(stream);
-        var scaled = bmp.CreateScaledBitmap(new PixelSize(64, 64), BitmapInterpolationMode.HighQuality);
+        using var scaled = ScaleToTraySize(bmp);
         return new WindowIcon(scaled);
     }
+
+    /// <summary>
+    /// The full 1080x1080 app PNG is a ~4.6 MB RGBA pixmap; pushing that to the StatusNotifierItem host
+    /// over DBus can make the item render but its menu fail to attach (part of the "no tray menu" bug on
+    /// Linux). Downscale to <see cref="TraySize"/> for the tray. Split out from <see cref="LoadIcon"/> so
+    /// the actual pixel size is testable — <see cref="WindowIcon"/> doesn't expose its dimensions.
+    /// </summary>
+    internal static Bitmap ScaleToTraySize(Bitmap source) =>
+        source.CreateScaledBitmap(TraySize, BitmapInterpolationMode.HighQuality);
 }
