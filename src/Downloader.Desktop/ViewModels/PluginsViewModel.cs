@@ -138,7 +138,11 @@ public class PluginsViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            // User cancel — no error toast, the row just returns to its idle Add state.
+            // User cancel — no error toast. The plugin was rolled back (PluginCatalogService), so
+            // re-sync both lists: it must reappear in "More plugins" with an idle Add button, not
+            // vanish until a restart re-fetches the catalog.
+            Refresh();
+            ApplyCatalog();
         }
         catch (Exception ex)
         {
@@ -192,7 +196,10 @@ public class PluginsViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsEmpty));
     }
 
-    /// <summary>Uninstall a plugin (called by a row's Remove button): drop it from disk + memory and refresh.</summary>
+    /// <summary>Uninstall a plugin (called by a row's Remove button): drop it from disk + memory and refresh.
+    /// A catalog-tier plugin (e.g. HLS) must reappear in "More plugins" with an Add button right away —
+    /// without <see cref="ApplyCatalog"/> it stayed invisible in both lists until the app restarted and
+    /// re-fetched the catalog from scratch.</summary>
     private void RemoveRow(PluginRowViewModel row)
     {
         if (row == null)
@@ -201,6 +208,7 @@ public class PluginsViewModel : ViewModelBase
         _config?.DisabledPlugins?.Remove(row.Id);
         Plugins.Remove(row);
         this.RaisePropertyChanged(nameof(IsEmpty));
+        ApplyCatalog();
         NotificationService.Inform(Localizer.Instance["Plugins_Removed"], row.Name, false);
     }
 
