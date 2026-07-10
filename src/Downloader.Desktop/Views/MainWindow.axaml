@@ -125,12 +125,16 @@
         </Border>
 
         <!-- ===== Action toolbar (visible on every page) =====
-             First group acts on the selected downloads rows (disabled when nothing is checked);
-             the queue group is selection-independent; the last group navigates between the
-             in-window pages (Downloads / Queues / Scheduler / Settings — current one highlighted). -->
+             The downloads-list actions (selected-rows group + queue group) only show on the
+             Downloads page; the nav buttons switch the in-window pages (current one highlighted),
+             with the Home (Downloads) button pinned to the right edge. -->
         <Border DockPanel.Dock="Top" Padding="5 4"
                 BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 0 1">
-            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+            <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <!-- Downloads-list actions: hidden on the Queues/Scheduler/Settings pages -->
+                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                            IsVisible="{Binding IsDownloadsSelected}">
                 <Button Classes="tool" Command="{Binding Downloads.StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource PlayRegular}" HorizontalAlignment="Center" />
@@ -205,13 +209,9 @@
                 </Button>
 
                 <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
+                </StackPanel>
 
-                <!-- Page navigation: back to the downloads list (icon-only), Queues, Scheduler, Settings -->
-                <Button Classes="tool" Classes.selected="{Binding IsDownloadsSelected}"
-                        Command="{Binding ShowDownloadsCommand}" ToolTip.Tip="{i18n:Tr Nav_Downloads}">
-                    <PathIcon Data="{DynamicResource AppsListRegular}" HorizontalAlignment="Center"
-                              VerticalAlignment="Center" />
-                </Button>
+                <!-- Page navigation: Queues / Scheduler / Settings (Home sits at the far right) -->
                 <Button Classes="tool" Classes.selected="{Binding IsQueuesSelected}"
                         Command="{Binding ShowQueuesCommand}" ToolTip.Tip="{i18n:Tr Nav_Queues}">
                     <StackPanel Orientation="Vertical" Spacing="3">
@@ -234,6 +234,15 @@
                     </StackPanel>
                 </Button>
             </StackPanel>
+
+            <!-- Home: back to the downloads list, pinned to the toolbar's right edge -->
+            <Button Grid.Column="1" Classes="tool" Classes.selected="{Binding IsDownloadsSelected}"
+                    Command="{Binding ShowDownloadsCommand}" ToolTip.Tip="{i18n:Tr Nav_Downloads}"
+                    VerticalAlignment="Center">
+                <PathIcon Data="{DynamicResource HomeRegular}" HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+            </Button>
+            </Grid>
         </Border>
 
         <!-- ===== Status bar ===== -->

@@ -385,6 +385,26 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Add_dialog_esc_closes_it()
+    {
+        // Esc must close the Add-link dialog like every other custom-chrome dialog (no native chrome
+        // means no built-in close-on-Esc).
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero);
+        var view = new Views.AddDownloadItemView { DataContext = vm };
+        vm.View = view;
+        view.Show();
+
+        var closed = false;
+        view.Closed += (_, _) => closed = true;
+        view.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None,
+            Avalonia.Input.PhysicalKey.Escape, null);
+
+        Assert.True(closed);
+    }
+
+    [AvaloniaFact]
     public async Task Add_dialog_ignores_clipboard_when_seed_url_present()
     {
         var config = Config.New();
