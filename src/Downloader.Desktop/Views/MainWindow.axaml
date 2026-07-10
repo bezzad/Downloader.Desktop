@@ -125,16 +125,46 @@
         </Border>
 
         <!-- ===== Action toolbar (visible on every page) =====
-             The downloads-list actions (selected-rows group + queue group) only show on the
-             Downloads page; the nav buttons switch the in-window pages (current one highlighted),
-             with the Home (Downloads) button pinned to the right edge. -->
+             Left: page navigation (Home / Settings / Scheduler / Queues — current one highlighted).
+             Right: the downloads-list actions (selected-rows group + queue group), shown only on
+             the Downloads page. -->
         <Border DockPanel.Dock="Top" Padding="5 4"
                 BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 0 1">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+            <!-- Page navigation, pinned left -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                <!-- Downloads-list actions: hidden on the Queues/Scheduler/Settings pages -->
-                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
-                            IsVisible="{Binding IsDownloadsSelected}">
+                <Button Classes="tool" Classes.selected="{Binding IsDownloadsSelected}"
+                        Command="{Binding ShowDownloadsCommand}" ToolTip.Tip="{i18n:Tr Nav_Downloads}"
+                        VerticalAlignment="Stretch">
+                    <PathIcon Data="{DynamicResource HomeRegular}" HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                </Button>
+                <Button Classes="tool" Classes.selected="{Binding IsSettingsSelected}"
+                        Command="{Binding ShowSettingViewCommand}" ToolTip.Tip="{i18n:Tr Nav_Settings}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource SettingsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Settings}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Classes.selected="{Binding IsSchedulerSelected}"
+                        Command="{Binding ShowSchedulerCommand}" ToolTip.Tip="{i18n:Tr Nav_Scheduler}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ClockRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Scheduler}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Classes.selected="{Binding IsQueuesSelected}"
+                        Command="{Binding ShowQueuesCommand}" ToolTip.Tip="{i18n:Tr Nav_Queues}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource TabsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Queues}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- Downloads-list actions, pinned right; hidden on the Settings/Scheduler/Queues pages -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                        IsVisible="{Binding IsDownloadsSelected}">
                 <Button Classes="tool" Command="{Binding Downloads.StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource PlayRegular}" HorizontalAlignment="Center" />
@@ -207,41 +237,7 @@
                         <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
-
-                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
-                </StackPanel>
-
-                <!-- Page navigation: Queues / Scheduler / Settings (Home sits at the far right) -->
-                <Button Classes="tool" Classes.selected="{Binding IsQueuesSelected}"
-                        Command="{Binding ShowQueuesCommand}" ToolTip.Tip="{i18n:Tr Nav_Queues}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource TabsRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Nav_Queues}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="tool" Classes.selected="{Binding IsSchedulerSelected}"
-                        Command="{Binding ShowSchedulerCommand}" ToolTip.Tip="{i18n:Tr Nav_Scheduler}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource ClockRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Nav_Scheduler}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="tool" Classes.selected="{Binding IsSettingsSelected}"
-                        Command="{Binding ShowSettingViewCommand}" ToolTip.Tip="{i18n:Tr Nav_Settings}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource SettingsRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Nav_Settings}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
             </StackPanel>
-
-            <!-- Home: back to the downloads list, pinned to the toolbar's right edge -->
-            <Button Grid.Column="1" Classes="tool" Classes.selected="{Binding IsDownloadsSelected}"
-                    Command="{Binding ShowDownloadsCommand}" ToolTip.Tip="{i18n:Tr Nav_Downloads}"
-                    VerticalAlignment="Center">
-                <PathIcon Data="{DynamicResource HomeRegular}" HorizontalAlignment="Center"
-                          VerticalAlignment="Center" />
-            </Button>
             </Grid>
         </Border>
 
