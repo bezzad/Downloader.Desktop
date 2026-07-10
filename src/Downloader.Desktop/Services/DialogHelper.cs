@@ -17,7 +17,6 @@ namespace Downloader.Desktop.Services;
 public static class DialogHelper
 {
     public const string AddDownloadWindowKey = "AddDownload";
-    public const string PageDialogWindowKey = "PageDialog";
     public const string DetailsWindowKey = "Details";
 
     public static IClassicDesktopStyleApplicationLifetime AppLifetime =>
@@ -132,20 +131,6 @@ public static class DialogHelper
         vm.CloseRequested += () => { try { view.Close(); } catch { /* already closed */ } };
         view.Show();
         view.Activate();
-    }
-
-    /// <summary>Opens a management page (Queues / Scheduler / Settings) as a modal dialog over the
-    /// downloads list — the main view is always the list (the left nav rail was removed).</summary>
-    public static async Task ShowPage(object pageViewModel, string title, Config config = null)
-    {
-        if (MainWindow == null || pageViewModel == null)
-            return;
-        var view = new PageDialogView(pageViewModel, title);
-
-        ApplyPersistedSize(view, PageDialogWindowKey, config);
-        view.Closing += (_, _) => SavePersistedSize(view, PageDialogWindowKey, config);
-
-        await view.ShowDialog(MainWindow);
     }
 
     /// <summary>Asks the user to pick an existing file (filtered by extension); returns its path or null.</summary>

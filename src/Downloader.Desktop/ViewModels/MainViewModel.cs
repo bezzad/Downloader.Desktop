@@ -47,10 +47,12 @@ public class MainViewModel : ViewModelBase
         ShowQueuedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Queued));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
-        // Management pages open as dialogs over the always-downloads main view (the left rail was removed).
-        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"], _config));
-        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"], _config));
-        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"], _config));
+        // Management pages open in-window: the central ContentControl swaps between the downloads
+        // list and Queues/Scheduler/Settings; the toolbar's Downloads button returns to the list.
+        ShowDownloadsCommand = ReactiveCommand.Create(() => Navigate(NavSection.Downloads));
+        ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
+        ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
+        ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         DonateCommand = ReactiveCommand.Create(() =>
@@ -90,6 +92,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowQueuedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
+    public ICommand ShowDownloadsCommand { get; }
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
@@ -139,6 +142,7 @@ public class MainViewModel : ViewModelBase
     public bool IsQueuedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Queued;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
+    public bool IsDownloadsSelected => _section == NavSection.Downloads;
     public bool IsQueuesSelected => _section == NavSection.Queues;
     public bool IsSchedulerSelected => _section == NavSection.Scheduler;
     public bool IsSettingsSelected => _section == NavSection.Settings;
@@ -512,6 +516,7 @@ public class MainViewModel : ViewModelBase
 
     private void RaiseNavFlags()
     {
+        this.RaisePropertyChanged(nameof(IsDownloadsSelected));
         this.RaisePropertyChanged(nameof(IsAllSelected));
         this.RaisePropertyChanged(nameof(IsActiveSelected));
         this.RaisePropertyChanged(nameof(IsQueuedSelected));

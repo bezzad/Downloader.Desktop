@@ -8,6 +8,7 @@
   "Nav_Active": "进行中",
   "Nav_Completed": "已完成",
   "Nav_Failed": "失败 / 已停止",
+  "Nav_Downloads": "下载",
   "Nav_Queues": "队列",
   "Nav_Scheduler": "计划任务",
   "Nav_Plugins": "插件",
