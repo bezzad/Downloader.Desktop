@@ -104,6 +104,71 @@ public class SiteExtractorTests
     }
 
     [Fact]
+    public void Select_does_not_cap_quality_at_a_low_progressive_when_taller_split_streams_exist()
+    {
+        // YouTube shape: the ONLY progressive combined format is 360p (format 18), while video-only goes
+        // to 1080p and premuxed HLS variants also reach 1080p. Preferring "simple" here downloaded every
+        // YouTube video at 360p. The taller HLS stream must win.
+        const string json = """
+        {
+          "title": "YT clip",
+          "formats": [
+            { "format_id": "18", "url": "https://cdn/prog360.mp4", "ext": "mp4", "protocol": "https", "vcodec": "h264", "acodec": "aac", "height": 360, "tbr": 500 },
+            { "format_id": "96", "url": "https://cdn/hls1080.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "h264", "acodec": "aac", "height": 1080, "tbr": 2500 },
+            { "format_id": "v1080", "url": "https://cdn/v1080.mp4", "ext": "mp4", "protocol": "https", "vcodec": "vp9", "acodec": "none", "height": 1080, "tbr": 2000 },
+            { "format_id": "a", "url": "https://cdn/a.m4a", "ext": "m4a", "protocol": "https", "vcodec": "none", "acodec": "opus", "tbr": 128 }
+          ]
+        }
+        """;
+
+        var r = SiteExtractor.Select(json);
+
+        Assert.Equal(ExtractionKind.Hls, r.Kind);
+        Assert.Equal("https://cdn/hls1080.m3u8", r.PrimaryUrl);
+    }
+
+    [Fact]
+    public void Select_muxes_split_streams_when_they_beat_the_progressive_and_no_hls()
+    {
+        const string json = """
+        {
+          "title": "YT clip",
+          "formats": [
+            { "format_id": "18", "url": "https://cdn/prog360.mp4", "ext": "mp4", "protocol": "https", "vcodec": "h264", "acodec": "aac", "height": 360, "tbr": 500 },
+            { "format_id": "v1080", "url": "https://cdn/v1080.mp4", "ext": "mp4", "protocol": "https", "vcodec": "vp9", "acodec": "none", "height": 1080, "tbr": 2000 },
+            { "format_id": "a", "url": "https://cdn/a.m4a", "ext": "m4a", "protocol": "https", "vcodec": "none", "acodec": "opus", "tbr": 128 }
+          ]
+        }
+        """;
+
+        var r = SiteExtractor.Select(json);
+
+        Assert.Equal(ExtractionKind.VideoAudio, r.Kind);
+        Assert.Equal("https://cdn/v1080.mp4", r.VideoUrl);
+        Assert.Equal("https://cdn/a.m4a", r.AudioUrl);
+    }
+
+    [Fact]
+    public void Select_keeps_progressive_when_split_streams_are_not_taller()
+    {
+        const string json = """
+        {
+          "title": "Clip",
+          "formats": [
+            { "format_id": "p", "url": "https://cdn/prog720.mp4", "ext": "mp4", "protocol": "https", "vcodec": "h264", "acodec": "aac", "height": 720, "tbr": 1500 },
+            { "format_id": "v", "url": "https://cdn/v720.mp4", "ext": "mp4", "protocol": "https", "vcodec": "vp9", "acodec": "none", "height": 720, "tbr": 1400 },
+            { "format_id": "a", "url": "https://cdn/a.m4a", "ext": "m4a", "protocol": "https", "vcodec": "none", "acodec": "opus", "tbr": 128 }
+          ]
+        }
+        """;
+
+        var r = SiteExtractor.Select(json);
+
+        Assert.Equal(ExtractionKind.Progressive, r.Kind);
+        Assert.Equal("https://cdn/prog720.mp4", r.PrimaryUrl);
+    }
+
+    [Fact]
     public void Select_sanitizes_title_into_filename()
     {
         const string json = """

@@ -61,12 +61,21 @@ internal static class SiteExtractor
         var formats = info.Formats ?? new List<YtDlpFormat>();
 
         // 1) Single progressive HTTP(S) file with both audio+video — simplest, no post-process.
+        // BUT only when it doesn't cap quality: YouTube's only combined progressive format is 360p while
+        // separate video+audio streams go up to 1080p+ — preferring "simple" there downloads every video
+        // in visibly poor quality. When a strictly taller video-only stream exists, fall through to mux.
         var progressive = formats
             .Where(f => !string.IsNullOrEmpty(f.Url)
                         && ((f.IsProgressiveHttp && f.HasVideo && f.HasAudio) || f.LikelyCombined))
             .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
             .FirstOrDefault();
-        if (progressive is not null)
+        var hasSplitAudio = formats.Any(f => !string.IsNullOrEmpty(f.Url) && f.HasAudio && !f.HasVideo && !f.IsHls);
+        var tallestSplitVideo = !hasSplitAudio ? 0 : formats
+            .Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && !f.HasAudio && !f.IsHls)
+            .Select(f => f.Quality.height)
+            .DefaultIfEmpty(0)
+            .Max();
+        if (progressive is not null && progressive.Quality.height >= tallestSplitVideo)
         {
             return new ExtractionResult
             {
