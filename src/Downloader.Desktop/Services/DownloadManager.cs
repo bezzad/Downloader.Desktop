@@ -1112,13 +1112,12 @@ public partial class DownloadManager : IDownloadManager
         if (label == null)
             return;
         vm.RaisePostActionChanged();
-        // The button carries the action's own name ("Add to Ollama") and the message says what clicking
-        // does — a generic "Open" button read as open/unzip the file (author-reported confusion).
-        NotificationService.ShowAction(
+        // The in-window action lives on the completed row (its action button, shown via
+        // PostDownloadActionLabel) — the notification just tells the user it's available.
+        NotificationService.Notify(
             label,
             string.Format(Localizer.Instance["PostAction_OfferMsg"], vm.FileName ?? vm.Url, label),
-            () => _ = RunPostDownloadAction(vm),
-            actionText: label);
+            isError: false);
     }
 
     /// <summary>

@@ -217,11 +217,6 @@ public class MainViewModel : ViewModelBase
         if (View is not Window window)
             return;
 
-        // Focus-aware notification routing: any window active ⇒ in-app toasts; unfocused/tray ⇒ OS.
-        NotificationService.SetFocused(window.IsActive);
-        window.Activated += (_, _) => NotificationService.SetFocused(true);
-        window.Deactivated += (_, _) => NotificationService.SetFocused(false);
-
         TrayService.Init(window, Quit);
         TrayService.NotificationsToggled = enabled =>
         {
@@ -250,9 +245,6 @@ public class MainViewModel : ViewModelBase
             {
                 e.Cancel = true;
                 window.Hide();
-                // Hidden to tray: route notifications to the OS. macOS doesn't fire Deactivated on Hide,
-                // so set this explicitly (the visibility check in NotificationService backs it up).
-                NotificationService.SetFocused(false);
             }
         };
 
@@ -312,7 +304,6 @@ public class MainViewModel : ViewModelBase
             Environment.GetCommandLineArgs().Contains("--minimized"))
         {
             window.Hide();
-            NotificationService.SetFocused(false); // started hidden in tray ⇒ OS notifications
         }
 
         if (_config.Settings.AutoUpdate)
@@ -342,30 +333,16 @@ public class MainViewModel : ViewModelBase
                 if (info == null || !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
                     continue;
 
+                // The in-window action lives on the Settings → Plugins row (its "Update" button, shown via
+                // PluginRowViewModel.UpdateAvailable) — the notification just points the user there.
                 var title = Localizer.Instance["Plugins_UpdateAvailable"];
                 var message = $"{descriptor.Name} → v{info.Version}";
-                NotificationService.ShowAction(title, message, () => _ = AcceptPluginUpdateAsync(info));
+                NotificationService.Notify(title, message, false);
             }
         }
         catch (Exception ex)
         {
             AppLog.Error("Plugin update check failed", ex);
-        }
-    }
-
-    /// <summary>Accept an offered optional-plugin update from the startup notification: swap it, then inform.</summary>
-    private async Task AcceptPluginUpdateAsync(Models.CatalogPluginInfo info)
-    {
-        var result = await PluginCatalogService.InstallOrUpdateAsync(_pluginManager, info).ConfigureAwait(true);
-        if (result.Success)
-        {
-            foreach (var vm in _downloadManager.Items)
-                vm.RaisePostActionChanged(); // refresh any post-download actions the updated plugin offers
-            NotificationService.Inform(Localizer.Instance["Plugins_Installed"], result.Plugin?.Name ?? info.Name, false);
-        }
-        else
-        {
-            NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], result.Error, true);
         }
     }
 
