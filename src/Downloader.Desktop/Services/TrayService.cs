@@ -84,10 +84,14 @@ public static class TrayService
         menu.Items.Add(quit);
         _tray.Menu = menu;
 
-        // NOTE: do NOT subscribe TrayIcon.Clicked here. On Linux SNI/AppIndicator (Ubuntu GNOME) the
-        // icon has no separate "activate" — the *primary click itself* is what opens the context menu,
-        // so a Clicked→ShowWindow handler swallows the click and the menu never appears (the reported
-        // "no right-click menu" bug). The menu's "Open Downloader" item is the way back from the tray.
+        // Open the main window when the icon is activated (left-click on backends that raise Activate,
+        // e.g. KDE/KStatusNotifierItem and libappindicator secondary-activate). On Ubuntu GNOME the
+        // primary click opens the context menu instead and Clicked usually never fires, so this is a
+        // no-op there rather than a conflict — it does NOT swallow the menu. The point is resilience:
+        // when the DBus/StatusNotifierItem menu comes up stale/corrupted (the recurring Ubuntu bug),
+        // clicking the icon is still a working way back into the app, independent of the menu.
+        _tray.Clicked += (_, _) => ShowWindow();
+
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
     }
 
