@@ -255,3 +255,9 @@ non-interactively). The manual steps below are the fallback / what the script do
    merge (the CLA is already signed for `bezzad`).
 5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
 6. Record the release in the relevant OpenSpec change (or a short release note in the archive) — version, tag, commit hashes, tap commit, winget PR # — per the workflow above.
+
+## Token-efficient builds & tests (MANDATORY)
+
+- **`dotnet build`**: always run with `-v q --nologo` (e.g. `dotnet build Downloader.Desktop.sln -v q --nologo`). Only re-run without `-v q` if you need to inspect a specific error in detail.
+- **`dotnet test`**: always run with `-v q --nologo`. On failure, re-run ONLY the failing test(s) with `--filter FullyQualifiedName~<TestName>` instead of the whole suite.
+- **Long-running commands** (`dotnet test`, `dotnet build`, `npm test`, Playwright, `gh run watch`): run them with `run_in_background: true` and wait for the completion notification — never poll in a `while … sleep` loop, and never dump their full output into context. After completion, read only the tail / failure section of the output.
