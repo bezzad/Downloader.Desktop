@@ -1,0 +1,24 @@
+codecov:
+  notify:
+    after_n_builds: 1
+    wait_for_ci: true
+  status:
+    project:
+      default: # default is the status check's name, not default settings
+        target: auto
+        threshold: 5
+        base: auto
+        flags:
+          - unit
+        paths:
+          - "src"
+        # advanced settings
+        branches:
+          - main
+          - develop
+        if_ci_failed: error #success, failure, error, ignore
+        informational: false
+        only_pulls: false
+
+ignore:
+  - (?s:src/Downloader\.Desktop\.Tests/.*/[^\/]*)\Z

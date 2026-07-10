@@ -52,7 +52,7 @@ jobs:
       run: dotnet build "${{ env.Solution_Name }}" --configuration ${{ matrix.configuration }} --no-restore
 
     - name: Test
-      run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
+      run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --collect:"XPlat Code Coverage"
 
     - name: Upload test results
       if: always()
@@ -61,3 +61,15 @@ jobs:
         name: test-results-${{ matrix.os }}-${{ matrix.configuration }}
         path: ./TestResults
         if-no-files-found: ignore
+
+    # Upload coverage once (from a single matrix cell) to avoid duplicate reports.
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.configuration == 'Release'
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./TestResults/**/coverage.cobertura.xml
+        flags: unit
+        name: codecov-desktop
+        fail_ci_if_error: false
+        verbose: true
