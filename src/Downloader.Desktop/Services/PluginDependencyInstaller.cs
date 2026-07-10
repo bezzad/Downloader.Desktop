@@ -33,6 +33,23 @@ public static class PluginDependencyInstaller
             ct.ThrowIfCancellationRequested();
             var dep = pending[i];
             progress?.Report(new PluginDependencyProgress(dep.DisplayName, 0, i + 1, pending.Count));
+
+            // Self-heal an earlier interrupted attempt: a fully-downloaded archive that was never
+            // extracted just needs FinishInstall; a truncated/corrupt one must be deleted so the engine
+            // downloads it fresh instead of skipping the "already existing" file forever.
+            if (File.Exists(dep.DownloadDestination))
+            {
+                try
+                {
+                    await dep.FinishInstallAsync(ct).ConfigureAwait(false);
+                    if (SafeIsAvailable(dep))
+                        continue;
+                }
+                catch (OperationCanceledException) { throw; }
+                catch { /* stale/corrupt archive — fall through to a fresh download */ }
+                try { File.Delete(dep.DownloadDestination); } catch (IOException) { }
+            }
+
             await DownloadOneAsync(dep, i, pending.Count, progress, ct).ConfigureAwait(false);
             await dep.FinishInstallAsync(ct).ConfigureAwait(false);
         }

@@ -122,6 +122,92 @@ public class PluginDependencyInstallerTests
     }
 
     [Fact]
+    public async Task EnsureAllAsync_finishes_an_existing_complete_archive_without_redownloading()
+    {
+        // An install-time fetch that downloaded fully but was killed before extraction: the archive sits
+        // at the destination. EnsureAll must just extract it, not download again.
+        using var server = new RangeLoopbackServer(new byte[16]);
+        var dir = Directory.CreateTempSubdirectory("plugin-dep-heal-").FullName;
+        try
+        {
+            var dest = Path.Combine(dir, "dep.bin");
+            await File.WriteAllBytesAsync(dest, new byte[] { 1, 2, 3 });
+            var available = false;
+            var dep = new PluginBinaryDependency
+            {
+                Id = "d1",
+                DisplayName = "Dep One",
+                DownloadUrl = new Uri(server.Url + "does-not-exist.bin"), // a download attempt would 404 → fail loudly
+                DownloadDestination = dest,
+                IsAvailable = () => available,
+                FinishInstallAsync = _ => { available = true; return Task.CompletedTask; },
+            };
+
+            await PluginDependencyInstaller.EnsureAllAsync(new[] { dep }, null, CancellationToken.None);
+
+            Assert.True(available);
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    [Fact]
+    public async Task EnsureAllAsync_replaces_a_corrupt_archive_and_downloads_fresh()
+    {
+        // A truncated archive from an interrupted download: FinishInstall throws on it, so EnsureAll must
+        // delete it and download the real payload instead of failing on the same bad file forever.
+        var payload = new byte[8 * 1024];
+        new Random(7).NextBytes(payload);
+        using var server = new RangeLoopbackServer(payload);
+
+        var dir = Directory.CreateTempSubdirectory("plugin-dep-corrupt-").FullName;
+        try
+        {
+            var dest = Path.Combine(dir, "dep.bin");
+            await File.WriteAllBytesAsync(dest, new byte[] { 9, 9 }); // truncated garbage
+            var available = false;
+            var dep = new PluginBinaryDependency
+            {
+                Id = "d1",
+                DisplayName = "Dep One",
+                DownloadUrl = new Uri(server.Url + "dep.bin"),
+                DownloadDestination = dest,
+                IsAvailable = () => available,
+                FinishInstallAsync = async _ =>
+                {
+                    var bytes = await File.ReadAllBytesAsync(dest);
+                    if (bytes.Length != payload.Length)
+                        throw new InvalidOperationException("corrupt archive");
+                    available = true;
+                },
+            };
+
+            await PluginDependencyInstaller.EnsureAllAsync(new[] { dep }, null, CancellationToken.None);
+
+            Assert.True(available);
+            Assert.Equal(payload, await File.ReadAllBytesAsync(dest));
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    [Fact]
+    public async Task Deno_finish_install_deletes_a_corrupt_archive_so_the_next_attempt_redownloads()
+    {
+        var dataDir = Directory.CreateTempSubdirectory("deno-corrupt-").FullName;
+        try
+        {
+            var ytDlp = new YtDlpBinary(dataDir);
+            var deno = ytDlp.GetDependencies().First(d => d.Id == "deno");
+            Directory.CreateDirectory(Path.GetDirectoryName(deno.DownloadDestination)!);
+            await File.WriteAllBytesAsync(deno.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }); // truncated "zip"
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => deno.FinishInstallAsync(CancellationToken.None));
+
+            Assert.False(File.Exists(deno.DownloadDestination)); // corrupt archive was removed
+        }
+        finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    [Fact]
     public async Task EnsureAllAsync_skips_dependencies_that_are_already_available()
     {
         using var server = new RangeLoopbackServer(new byte[16]);

@@ -26,7 +26,10 @@ public sealed class YtDlpBinary : IYtDlp
     public YtDlpBinary(string dataDirectory, HttpClient? http = null, ILogger? logger = null)
     {
         _dataDir = dataDirectory;
-        _http = http ?? new HttpClient();
+        // The default HttpClient timeout (100 s) covers the WHOLE body read — on a slow link a ~45 MB
+        // binary gets cut off mid-stream and the truncated file poisons every later attempt. Rely on the
+        // caller's CancellationToken instead.
+        _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _log = logger ?? NullLogger.Instance;
     }
 
@@ -73,6 +76,10 @@ public sealed class YtDlpBinary : IYtDlp
                     return o;
                 // A missing/locked browser fails fast with a cookie-database error; keep trying the rest.
                 _log.LogWarning("yt-dlp with {Browser} cookies exited {Code}: {Err}", browser, code, Tail(e));
+                // Cookies got past the sign-in wall but the site returned no usable formats — on YouTube
+                // that means the JS "n challenge" wasn't solved (deno missing), not a cookie problem.
+                if (deno is null && MissingFormats(e))
+                    throw NoJsRuntimeError();
             }
             throw new InvalidOperationException(
                 "This site requires a signed-in browser session. Open the video once in your browser " +
@@ -80,6 +87,8 @@ public sealed class YtDlpBinary : IYtDlp
         }
 
         _log.LogWarning("yt-dlp exited {Code}: {Err}", exitCode, Tail(stderr));
+        if (deno is null && MissingFormats(stderr))
+            throw NoJsRuntimeError();
         throw new InvalidOperationException(
             $"Couldn't extract a video from this link. {FriendlyError(stderr)}".Trim());
     }
@@ -119,6 +128,9 @@ public sealed class YtDlpBinary : IYtDlp
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogWarning(ex, "Couldn't provision deno — YouTube formats may be unavailable");
+            // Never leave a partial/corrupt archive behind: it would make every later attempt (here AND
+            // the host's install-time fetch) extract garbage instead of re-downloading.
+            try { File.Delete(DenoArchivePath(_dataDir)); } catch (IOException) { }
             _denoResolved = string.Empty; // don't retry every extraction
             return null;
         }
@@ -168,7 +180,17 @@ public sealed class YtDlpBinary : IYtDlp
         var binDir = Path.Combine(_dataDir, "deno-bin");
         Directory.CreateDirectory(binDir);
         var archive = DenoArchivePath(_dataDir);
-        System.IO.Compression.ZipFile.ExtractToDirectory(archive, binDir, overwriteFiles: true);
+        try
+        {
+            System.IO.Compression.ZipFile.ExtractToDirectory(archive, binDir, overwriteFiles: true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A truncated/corrupt zip (interrupted download) must not survive — delete it so the next
+            // attempt downloads fresh instead of failing on the same bad file forever.
+            try { File.Delete(archive); } catch (IOException) { }
+            throw new InvalidOperationException("The downloaded Deno archive was corrupt; it will be re-downloaded on the next attempt.", ex);
+        }
         try { File.Delete(archive); } catch (IOException) { }
         if (!OperatingSystem.IsWindows())
             MakeExecutable(DenoExePath(_dataDir));
@@ -189,6 +211,16 @@ public sealed class YtDlpBinary : IYtDlp
             throw new PlatformNotSupportedException("No deno build configured for this OS.");
         }
     }
+
+    /// <summary>Does this stderr say the site offered no usable formats? On YouTube this is the signature
+    /// of an unsolved JS "n challenge" (no JS runtime), which hides every real format.</summary>
+    internal static bool MissingFormats(string stderr) =>
+        !string.IsNullOrWhiteSpace(stderr)
+        && stderr.Contains("Requested format is not available", StringComparison.OrdinalIgnoreCase);
+
+    private static InvalidOperationException NoJsRuntimeError() => new(
+        "This video needs the Deno component, which isn't installed yet. It is downloaded " +
+        "automatically — check your internet connection and try again in a minute.");
 
     /// <summary>Does this stderr indicate the site wants a signed-in session (worth a cookie retry)?</summary>
     internal static bool NeedsCookies(string stderr)

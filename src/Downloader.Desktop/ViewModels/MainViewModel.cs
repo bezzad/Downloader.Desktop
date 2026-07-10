@@ -180,6 +180,10 @@ public class MainViewModel : ViewModelBase
         foreach (var id in _config.DisabledPlugins ?? new System.Collections.Generic.List<string>())
             _pluginManager.SetEnabled(id, false);
 
+        // Self-heal plugin binary dependencies (yt-dlp/deno/ffmpeg…): an install-time fetch that was
+        // interrupted (app closed, network drop) otherwise never retries and the plugin half-works.
+        _ = Task.Run(EnsurePluginDependenciesAsync);
+
         // Plugins loaded AFTER the download list: re-raise post-download-action offers on completed
         // items so their row buttons (e.g. "Add to Ollama") appear without needing a status change.
         foreach (var vm in _downloadManager.Items)
@@ -343,6 +347,28 @@ public class MainViewModel : ViewModelBase
         catch (Exception ex)
         {
             AppLog.Error("Plugin update check failed", ex);
+        }
+    }
+
+    /// <summary>Background retry of any enabled plugin's missing binary dependencies (resumable — a
+    /// half-downloaded archive from an interrupted install is picked up, a corrupt one replaced).
+    /// Failure-tolerant: offline just logs and the next launch tries again.</summary>
+    private async Task EnsurePluginDependenciesAsync()
+    {
+        foreach (var descriptor in _pluginManager.Plugins.Where(p => p.IsEnabled).ToList())
+        {
+            try
+            {
+                var deps = _pluginManager.GetRuntimeDependencies(descriptor.Id);
+                if (deps.Count == 0)
+                    continue;
+                await PluginDependencyInstaller.EnsureAllAsync(deps, null, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error($"Dependency check for plugin {descriptor.Id} failed", ex);
+            }
         }
     }
 
