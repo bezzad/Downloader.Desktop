@@ -50,6 +50,7 @@ public class NotchTests
         Assert.True(notch.HasActivity);
         Assert.StartsWith("↓", notch.TotalSpeedText);
         Assert.Matches(@"\d", notch.TimeText); // live clock text
+        Assert.False(notch.ShowCollapsedClock); // downloading → speed replaces the clock (author's spec)
     }
 
     [AvaloniaFact]
@@ -60,6 +61,8 @@ public class NotchTests
         Assert.False(notch.HasRows);
         Assert.False(notch.HasOverflow);
         Assert.False(notch.HasActivity); // no speed chip in the pill when nothing runs
+        if (!NotchViewModel.IsMac)
+            Assert.True(notch.ShowCollapsedClock); // idle → the clock shows (instead of a speed)
     }
 
     [AvaloniaFact]

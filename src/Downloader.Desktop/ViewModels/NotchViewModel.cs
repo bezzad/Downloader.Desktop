@@ -43,9 +43,10 @@ public class NotchViewModel : ViewModelBase, IDisposable
     public static bool IsMac => OperatingSystem.IsMacOS();
     public static double NotchGapWidth => IsMac ? 185 : 6;
 
-    /// <summary>The collapsed clock only shows where the notch replaces a system clock (Win/Linux
-    /// desktops) — the macOS menu bar already has one, and the wing is too narrow for speed + time.</summary>
-    public static bool ShowCollapsedClock => !IsMac;
+    /// <summary>The collapsed clock shows only when idle (a downloading pill shows the speed INSTEAD of
+    /// the time — one stat at a time, author's spec) and never on macOS (the menu bar already has a
+    /// clock, and the wing is too narrow for speed + time).</summary>
+    public bool ShowCollapsedClock => !IsMac && !HasActivity;
 
     /// <summary>Running first, then paused (top <see cref="MaxRows"/>).</summary>
     public ObservableCollection<DownloadItemViewModel> RunningRows { get; } = new();
@@ -64,6 +65,7 @@ public class NotchViewModel : ViewModelBase, IDisposable
         {
             this.RaiseAndSetIfChanged(ref _totalSpeedText, value);
             this.RaisePropertyChanged(nameof(HasActivity));
+            this.RaisePropertyChanged(nameof(ShowCollapsedClock));
         }
     }
 

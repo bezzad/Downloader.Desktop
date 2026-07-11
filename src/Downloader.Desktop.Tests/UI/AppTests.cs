@@ -395,6 +395,22 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public async Task Add_dialog_ignores_extensionless_probe_names()
+    {
+        // youtube.com/watch?v=… probes to the page-path segment "watch" — not a file name. The box must
+        // stay empty so the resolver/engine names the download at start.
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            "https://www.youtube.com/watch?v=abc123",
+            (_, _) => Task.FromResult<(string, long)?>(("watch", 0)),
+            TimeSpan.Zero);
+
+        await Task.Delay(50);
+        Assert.Equal(string.Empty, vm.Filename);
+    }
+
+    [AvaloniaFact]
     public async Task Add_dialog_uses_url_name_fallback_when_probe_returns_null()
     {
         var config = Config.New();

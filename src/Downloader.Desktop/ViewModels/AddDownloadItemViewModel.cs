@@ -150,6 +150,9 @@ public class AddDownloadItemViewModel : ViewModelBase
 
     public bool HasVariants => Variants.Count > 0;
 
+    /// <summary>The whole variant block (spinner or list) — gates the star row in the dialog grid.</summary>
+    public bool ShowVariantSection => IsFetchingVariants || HasVariants;
+
     /// <summary>True while the resolver's variant lookup runs (shows "Fetching options…" and blocks Add).</summary>
     public bool IsFetchingVariants
     {
@@ -158,6 +161,7 @@ public class AddDownloadItemViewModel : ViewModelBase
         {
             this.RaiseAndSetIfChanged(ref _fetchingVariants, value);
             this.RaisePropertyChanged(nameof(CanDownload));
+            this.RaisePropertyChanged(nameof(ShowVariantSection));
         }
     }
 
@@ -168,6 +172,7 @@ public class AddDownloadItemViewModel : ViewModelBase
         _variantsCts?.Cancel();
         Variants.Clear();
         this.RaisePropertyChanged(nameof(HasVariants));
+        this.RaisePropertyChanged(nameof(ShowVariantSection));
 
         var urls = ParsedUrls;
         if (_getVariants == null || urls.Count != 1)
@@ -191,6 +196,7 @@ public class AddDownloadItemViewModel : ViewModelBase
                 foreach (var v in variants)
                     Variants.Add(new VariantOptionViewModel(v));
                 this.RaisePropertyChanged(nameof(HasVariants));
+                this.RaisePropertyChanged(nameof(ShowVariantSection));
             }
         }
         catch
@@ -343,7 +349,11 @@ public class AddDownloadItemViewModel : ViewModelBase
 
             if (info.HasValue)
             {
-                if (!_userTypedName && !string.IsNullOrWhiteSpace(info.Value.FileName))
+                // Only prefill a name that looks like a real file. A page URL's last path segment
+                // ("watch" from youtube.com/watch?v=…) has no extension and is junk — leave the box
+                // empty so the resolver/engine names the download properly at start.
+                if (!_userTypedName && !string.IsNullOrWhiteSpace(info.Value.FileName)
+                    && System.IO.Path.HasExtension(info.Value.FileName))
                 {
                     this.RaiseAndSetIfChanged(ref _fileName, info.Value.FileName, nameof(Filename));
                 }
