@@ -242,4 +242,21 @@ public class LogicTests
         Assert.Equal(expected, DownloadManager.LooksExpiredOrInvalid(head, totalBytes));
     }
 
+    [Theory]
+    [InlineData("https://hermes-agent.nousresearch.com/docs/", true)]  // the reported false-failure
+    [InlineData("https://host/", true)]
+    [InlineData("https://host/blog/post", true)]
+    [InlineData("https://host/page.html", true)]
+    [InlineData("https://host/index.php?id=3", true)]
+    [InlineData("https://cdn/file.zip?token=abc", false)]  // signed file link keeps the protection
+    [InlineData("https://cdn/video.mp4", false)]
+    [InlineData("ftp://host/docs/", false)]
+    [InlineData("not a url", false)]
+    [InlineData(null, false)]
+    public void Page_like_url_heuristic(string url, bool expected)
+    {
+        // Page-like URLs are EXPECTED to produce HTML, so the expired-link check must skip them.
+        Assert.Equal(expected, DownloadManager.UrlLooksLikePage(url));
+    }
+
 }

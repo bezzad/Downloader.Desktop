@@ -77,6 +77,7 @@
   "Add_Links": "链接 — 每行一个",
   "Add_LinksPlaceholder": "https://…  （每行一个，可粘贴多个链接，全部下载到下方文件夹）",
   "Add_ClipboardHint": "按 Enter 使用剪贴板中的链接",
+  "Add_HandledBy": "由 {0} 处理",
   "Add_ClipboardMultiple": "剪贴板中有 {0} 个链接",
   "Add_SaveTo": "保存到",
   "Add_ChooseFolder": "选择文件夹",

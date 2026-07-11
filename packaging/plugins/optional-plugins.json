@@ -6,5 +6,13 @@
     "name": "HLS / Video sites",
     "description": "Downloads HLS (.m3u8) streams and videos from supported sites (e.g. YouTube, x.com): expands the stream into segments and assembles them (AES-128 decrypt + concat/mux + ffmpeg remux) into a playable file. yt-dlp and ffmpeg are auto-downloaded on first use.",
     "minAppVersion": "1.7.0"
+  },
+  {
+    "id": "com.bezzad.website-zip",
+    "assembly": "Downloader.Desktop.Plugins.Website",
+    "project": "src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Website/Downloader.Desktop.Plugins.Website.csproj",
+    "name": "Website offline copy",
+    "description": "Save a web page — or a whole site — for offline reading: adds an “Offline copy (.zip)” option when you paste a page link. Pages, styles, scripts, images and fonts are captured with links rewritten for offline viewing, packaged as a single .zip. No extra tools needed.",
+    "minAppVersion": "2.1.0"
   }
 ]

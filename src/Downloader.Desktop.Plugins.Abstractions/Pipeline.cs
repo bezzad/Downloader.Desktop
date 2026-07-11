@@ -12,6 +12,12 @@ public interface ILinkResolver
     /// <summary>Fast, cheap check: does this resolver claim the link? (e.g. host == github.com)</summary>
     bool CanResolve(string url);
 
+    /// <summary>A fallback resolver claims broad/generic links (e.g. "any web page"). The host consults
+    /// fallback resolvers only when no regular resolver claims the link, so a generic plugin can never
+    /// shadow a specific one (GitHub, video sites, …). Default-implemented to false, so existing and
+    /// external plugins keep working unchanged.</summary>
+    bool IsFallback => false;
+
     /// <summary>Resolve the input into real downloadable parts + a post-process recipe.</summary>
     Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken);
 

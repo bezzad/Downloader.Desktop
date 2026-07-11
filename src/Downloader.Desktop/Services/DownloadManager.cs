@@ -358,6 +358,17 @@ public partial class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
+                // A plugin transfer provider that claims the URL (e.g. "websitezip:", "magnet:") owns the
+                // whole download — checked before link resolution so a claimed scheme never round-trips
+                // through resolvers. RunTransferAsync owns the row's terminal state.
+                var transferProvider = _plugins?.FindTransferProvider(urls[0]);
+                if (transferProvider != null)
+                {
+                    item.ResolverPluginId ??= _plugins.FindResolverPluginId(urls[0]);
+                    await RunTransferAsync(vm, transferProvider, urls[0], folder).ConfigureAwait(false);
+                    return;
+                }
+
                 // Resolve the plan: reuse a persisted one (restart / resume of a multi-part download) or
                 // ask the plugins fresh. A multi-part / post-process plan is run by the plan runner; a
                 // single-part plan just rewrites the URL + name and falls through to the normal engine path.
@@ -556,6 +567,7 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status != DownloadStatus.Running)
             return;
         vm.Download?.Pause();
+        vm.ActiveTransfer?.Pause();
         vm.Status = DownloadStatus.Paused;
         vm.Speed = 0;
         NotifyList();
@@ -606,6 +618,7 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
             return;
         vm.Download?.CancelAsync();
+        vm.TransferCancellation?.Cancel();
         vm.Status = DownloadStatus.Stopped;
         vm.Speed = 0;
         NotifyList();
@@ -632,6 +645,7 @@ public partial class DownloadManager : IDownloadManager
         try
         {
             vm.Download?.CancelAsync();
+            vm.TransferCancellation?.Cancel();
         }
         catch
         {
@@ -742,9 +756,10 @@ public partial class DownloadManager : IDownloadManager
     /// <summary>Resumes a paused item in place (if it still has a live handle) or starts it fresh.</summary>
     private void StartOrResume(DownloadItemViewModel vm)
     {
-        if (vm.Status == DownloadStatus.Paused && vm.Download != null)
+        if (vm.Status == DownloadStatus.Paused && (vm.Download != null || vm.ActiveTransfer != null))
         {
-            vm.Download.Resume();
+            vm.Download?.Resume();
+            vm.ActiveTransfer?.Resume();
             vm.Status = DownloadStatus.Running;
             EnsureUiPump();
         }
@@ -1065,9 +1080,28 @@ public partial class DownloadManager : IDownloadManager
                || s.Contains("<title");
     }
 
+    /// <summary>Pure heuristic (testable): the URL itself looks like a WEB PAGE — no extension on the last
+    /// path segment, or an HTML-ish one. For such a URL a small HTML result is the EXPECTED content, so the
+    /// expired-link check must not flag it (pasting "https://host/docs/" used to always end "Failed — link
+    /// expired"). Signed/expiring file links carry real extensions (.zip, .mp4, …) and stay protected.</summary>
+    public static bool UrlLooksLikePage(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) ||
+            (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
+            return false;
+        var last = u.AbsolutePath.TrimEnd('/').Split('/')[^1];
+        var dot = last.LastIndexOf('.');
+        var ext = dot < 0 ? "" : last[(dot + 1)..].ToLowerInvariant();
+        return ext is "" or "html" or "htm" or "php" or "asp" or "aspx" or "jsp" or "cfm" or "shtml";
+    }
+
     /// <summary>Reads the head of the just-completed file and applies <see cref="LooksExpiredOrInvalid"/>.</summary>
     private bool IsExpiredOrInvalidLink(DownloadItemViewModel vm, System.ComponentModel.AsyncCompletedEventArgs e)
     {
+        // The user asked for a page-like URL — HTML output is what that URL means, not an expired link.
+        if (UrlLooksLikePage(vm.GetItem().Urls?.FirstOrDefault()))
+            return false;
+
         var path = (e.UserState as DownloadPackage)?.FileName ?? vm.Download?.Package?.FileName;
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             return false;

@@ -221,6 +221,31 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public void Add_dialog_shows_the_claiming_plugins_badge_for_a_single_url()
+    {
+        Localizer.Instance.Load("en");
+        var config = Config.New();
+        string ResolverName(string u) => u.Contains("page") ? "Website offline copy" : null;
+        var vm = new AddDownloadItemViewModel(config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            readClipboard: () => Task.FromResult<string>(null),
+            getResolverName: ResolverName);
+
+        vm.Urls = "https://host/docs/page";
+        Assert.True(vm.HasResolver);
+        Assert.Equal("Website offline copy", vm.ResolverName);
+        Assert.Contains("Website offline copy", vm.ResolverBadgeText);
+
+        // unclaimed link → no badge
+        vm.Urls = "https://host/file.zip";
+        Assert.False(vm.HasResolver);
+
+        // multi-URL input → no badge even when a plugin would claim one of them
+        vm.Urls = "https://host/docs/page\nhttps://host/file.zip";
+        Assert.False(vm.HasResolver);
+    }
+
+    [AvaloniaFact]
     public async Task Add_dialog_shows_variants_and_blocks_download_while_fetching()
     {
         var config = Config.New();

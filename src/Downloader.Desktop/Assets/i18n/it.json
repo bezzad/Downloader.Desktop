@@ -77,6 +77,7 @@
   "Add_Links": "Link — uno per riga",
   "Add_LinksPlaceholder": "https://…  (incolla più link, uno per riga, per scaricarli tutti nella cartella sotto)",
   "Add_ClipboardHint": "Premi Invio per usare il link degli appunti",
+  "Add_HandledBy": "Gestito da {0}",
   "Add_ClipboardMultiple": "{0} link negli appunti",
   "Add_SaveTo": "Salva in",
   "Add_ChooseFolder": "Scegli una cartella",

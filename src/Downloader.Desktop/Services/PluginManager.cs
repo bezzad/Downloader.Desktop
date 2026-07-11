@@ -100,7 +100,7 @@ public sealed class PluginManager
             try
             {
                 var alc = new PluginLoadContext(dll);
-                var asm = alc.LoadFromAssemblyPath(dll);
+                var asm = alc.LoadPluginAssembly(dll);
                 var pluginTypes = SafeGetTypes(asm)
                     .Where(t => t is { IsAbstract: false, IsInterface: false } &&
                                 typeof(IDownloaderPlugin).IsAssignableFrom(t))
@@ -121,8 +121,16 @@ public sealed class PluginManager
     /// <summary>Loads the plugins bundled with the app (app dir /plugins) as built-ins.</summary>
     public void LoadBuiltIns() => LoadFromDirectory(BuiltInPluginsRoot, isBuiltIn: true);
 
-    public ILinkResolver FindResolver(string url) =>
-        Enabled().SelectMany(p => p.Resolvers).FirstOrDefault(r => Safe(() => r.CanResolve(url)));
+    /// <summary>First enabled resolver claiming the URL. Two-pass: regular resolvers win; fallback
+    /// resolvers (<see cref="ILinkResolver.IsFallback"/>, e.g. "any web page") are consulted only when no
+    /// regular resolver claims it, so a generic plugin can never shadow a specific one.</summary>
+    public ILinkResolver FindResolver(string url)
+    {
+        var claiming = Enabled().SelectMany(p => p.Resolvers)
+            .Where(r => Safe(() => r.CanResolve(url)))
+            .ToList();
+        return claiming.FirstOrDefault(r => !Safe(() => r.IsFallback)) ?? claiming.FirstOrDefault();
+    }
 
     public IPostProcessor FindPostProcessor(PostProcess plan) =>
         Enabled().SelectMany(p => p.PostProcessors).FirstOrDefault(pp => Safe(() => pp.CanProcess(plan)));
@@ -131,9 +139,25 @@ public sealed class PluginManager
         Enabled().SelectMany(p => p.TransferProviders).FirstOrDefault(tp => Safe(() => tp.CanHandle(url)));
 
     /// <summary>The id of the enabled plugin whose resolver claims <paramref name="url"/>, or null.
-    /// Recorded on the download so post-download actions can be offered by the SAME plugin later.</summary>
-    public string FindResolverPluginId(string url) =>
-        Enabled().FirstOrDefault(p => p.Resolvers.Any(r => Safe(() => r.CanResolve(url))))?.Descriptor.Id;
+    /// Recorded on the download so post-download actions can be offered by the SAME plugin later.
+    /// Same two-pass fallback ordering as <see cref="FindResolver"/>.</summary>
+    public string FindResolverPluginId(string url)
+    {
+        var resolver = FindResolver(url);
+        if (resolver == null)
+            return null;
+        return Enabled().FirstOrDefault(p => p.Resolvers.Contains(resolver))?.Descriptor.Id;
+    }
+
+    /// <summary>The display name of the enabled plugin whose resolver claims <paramref name="url"/>, or
+    /// null. Cheap + sync (CanResolve pass only) — drives the Add window's "Handled by ‹plugin›" badge.</summary>
+    public string FindResolverPluginName(string url)
+    {
+        var resolver = FindResolver(url);
+        if (resolver == null)
+            return null;
+        return Enabled().FirstOrDefault(p => p.Resolvers.Contains(resolver))?.Descriptor.Name;
+    }
 
     /// <summary>The post-download action the given plugin offers for this completed download, or null.
     /// Only the RESOLVING plugin's actions are consulted (never another plugin's).</summary>
@@ -172,19 +196,29 @@ public sealed class PluginManager
     /// window shows these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>.</summary>
     public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
     {
-        var resolver = FindResolver(url);
-        if (resolver == null)
-            return null;
-        try
+        // Only the DETECTED resolver's options are shown (same one the Add badge names) — a fallback's
+        // generic variants (e.g. "offline copy") must not pollute a video plugin's quality list. Claiming
+        // resolvers are tried in fallback order and the first NON-EMPTY answer wins; a later resolver is
+        // consulted only when the earlier one offers no choices or its lookup fails.
+        var claiming = Enabled().SelectMany(p => p.Resolvers)
+            .Where(r => Safe(() => r.CanResolve(url)))
+            .OrderBy(r => Safe(() => r.IsFallback) ? 1 : 0)
+            .ToList();
+
+        foreach (var resolver in claiming)
         {
-            var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
-            return variants is { Count: > 0 } ? variants : null;
+            try
+            {
+                var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
+                if (variants is { Count: > 0 })
+                    return variants;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                AppLog.Error($"Variant lookup failed for {url} — trying the next claiming resolver", ex);
+            }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            AppLog.Error($"Variant lookup failed for {url} — proceeding without choices", ex);
-            return null;
-        }
+        return null;
     }
 
     public void SetEnabled(string pluginId, bool enabled)
@@ -443,12 +477,25 @@ public sealed class PluginManager
         public PluginLoadContext(string pluginPath) : base(isCollectible: true)
             => _resolver = new AssemblyDependencyResolver(pluginPath);
 
+        /// <summary>
+        /// Loads a plugin DLL via <see cref="AssemblyLoadContext.LoadFromStream(Stream)"/>, NOT by path:
+        /// the runtime caches loaded images by file path, so after an update swaps the file in place,
+        /// LoadFromAssemblyPath on the same path silently returns the OLD assembly (bit the v2.0.0 HLS
+        /// 1.1.2→1.3.0 update — the new DLL was verified + extracted but the stale copy kept loading).
+        /// Stream loads bypass that cache, so a replaced file always loads its current bytes.
+        /// </summary>
+        public Assembly LoadPluginAssembly(string path)
+        {
+            using var fs = File.OpenRead(path);
+            return LoadFromStream(fs);
+        }
+
         protected override Assembly Load(AssemblyName assemblyName)
         {
             if (assemblyName.Name == SharedSdk)
                 return null; // share the host's SDK copy → unified type identity
             var path = _resolver.ResolveAssemblyToPath(assemblyName);
-            return path != null ? LoadFromAssemblyPath(path) : null;
+            return path != null ? LoadPluginAssembly(path) : null;
         }
     }
 }

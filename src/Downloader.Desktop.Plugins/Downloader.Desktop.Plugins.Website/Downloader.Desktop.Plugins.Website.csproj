@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- OPTIONAL / catalog-tier plugin ("Website offline copy": crawl a page/site + requisites, rewrite
+       links for offline viewing, package as one .zip). Built and tested as part of the solution, but
+       NEVER referenced by or staged into the app's own output — it ships only as a downloadable release
+       asset. Do NOT add a ProjectReference to this from Downloader.Desktop, and do NOT include it in the
+       app's StageBundledPlugins target.
+
+       EnableDynamicLoading emits the deps.json the host's AssemblyDependencyResolver needs. The
+       Abstractions SDK is referenced but NOT shipped with the plugin (Private=false) — the host provides
+       it so plugin types unify with the host's (shared type identity). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AssemblyName>Downloader.Desktop.Plugins.Website</AssemblyName>
+    <RootNamespace>Downloader.Desktop.Plugins.Website</RootNamespace>
+    <!-- This plugin carries its OWN version, independent of the app's VersionPrefix. Bump it whenever
+         the plugin's code changes; the catalog/update flow compares this against the running copy. -->
+    <Version>1.0.1</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Website tests live in the app's consolidated test project (under Plugins/Website). -->
+    <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

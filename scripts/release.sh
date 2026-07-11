@@ -23,7 +23,17 @@
 #   scripts/release.sh 1.3.2          # non-interactive version
 #   scripts/release.sh 1.3.2 --yes    # also skip the confirmation prompt
 #
-# Requirements: git, gh (authenticated: `gh auth status`), and shasum or sha256sum.
+# Requirements: git, gh, and shasum or sha256sum. Missing requirements are DIAGNOSED and, where
+# possible, FIXED in place (e.g. `gh auth login` runs right here; a dirty tree offers to stash)
+# instead of just aborting — the goal is that a plain `bash scripts/release.sh` always either
+# finishes or tells you exactly what to do.
+#
+# Changelog rule: the auto-generated changelog is measured from the LAST RELEASE TAG ON MAIN to
+# the new tag — never from a develop..main diff (CI issues sometimes force merging develop into
+# main BEFORE tagging, which would make that diff empty/wrong).
+#
+# At the end (on ANY exit, including failures) a per-channel report table shows what was
+# deployed: GitHub Release · curl installer · Snap Store · Homebrew · winget.
 set -euo pipefail
 
 REPO="bezzad/Downloader.Desktop"
@@ -76,6 +86,36 @@ sedi() {
 # Portable single-line base64 of a file (GNU has -w0; BSD/macOS does not).
 b64_file() { base64 < "$1" | tr -d '\n'; }
 
+# Retry a (network) command a few times — GitHub connectivity is flaky on some machines and a
+# single dropped request must not kill a half-finished release.
+retry() {
+  local i
+  for i in 1 2 3 4 5; do
+    "$@" && return 0
+    warn "attempt $i failed: $1 … retrying in 10s"
+    sleep 10
+  done
+  return 1
+}
+
+# Commit with an EXPLICIT identity so the script works on machines with no global git config
+# (a fresh tap clone has no repo-local identity either — this bit the v2.0.0 run).
+# Identity source order: current repo config → global → gh account → static fallback.
+GIT_NAME=""; GIT_EMAIL=""
+resolve_git_identity() {
+  GIT_NAME="$(git config user.name 2>/dev/null || true)"
+  GIT_EMAIL="$(git config user.email 2>/dev/null || true)"
+  if [[ -z "$GIT_NAME" || -z "$GIT_EMAIL" ]]; then
+    local login
+    login="$(gh api user --jq .login 2>/dev/null || true)"
+    GIT_NAME="${GIT_NAME:-${login:-bezzad}}"
+    GIT_EMAIL="${GIT_EMAIL:-${login:-bezzad}@users.noreply.github.com}"
+  fi
+}
+gcommit() { # gcommit <repo-dir> <message> — commit staged changes with the resolved identity
+  git -C "$1" -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" commit -q -m "$2"
+}
+
 # --- args ------------------------------------------------------------------
 # Usage: release.sh [VERSION] [--yes] [--notes-file PATH]
 VERSION=""; ASSUME_YES="no"; NOTES_FILE=""
@@ -92,13 +132,81 @@ done
 # Move to the repo root so relative paths work regardless of where it's invoked.
 cd "$(git rev-parse --show-toplevel)" || die "not inside a git repository"
 
-# --- preflight -------------------------------------------------------------
+# --- exit trap: restore the autostash + print the per-channel report --------
+# Runs on ANY exit (success or die) so a failed run still reports what shipped and
+# gives back the stashed working tree.
+STASHED="no"
+S_RELEASE="not started"; S_NOTES="not started"; S_BREW="not started"; S_WINGET="not started"
+finish() {
+  local rc=$?
+  if [[ "$STASHED" == "yes" ]]; then
+    git checkout "$DEV_BRANCH" >/dev/null 2>&1 || true
+    if git stash pop >/dev/null 2>&1; then
+      ok "restored your stashed changes on $DEV_BRANCH"
+    else
+      warn "could not restore the autostash automatically — run: git stash pop"
+    fi
+  fi
+  if [[ -n "${TAG:-}" ]]; then
+    echo
+    echo "  ── Release report (${TAG}) ──────────────────────────────────────"
+    echo "    GitHub Release : $S_RELEASE"
+    echo "    release notes  : $S_NOTES"
+    echo "    curl installer : $S_RELEASE   (serves the latest GitHub Release)"
+    echo "    Snap Store     : CI (snap.yml) — gh run list --repo $REPO --workflow Snap"
+    echo "    Homebrew       : $S_BREW"
+    echo "    winget         : $S_WINGET"
+    if [[ $rc -ne 0 ]]; then
+      echo "    exit code $rc — re-run 'scripts/release.sh ${VERSION:-}' to resume;"
+      echo "    every post-tag step is idempotent."
+    fi
+  fi
+}
+trap finish EXIT
+
+# --- preflight (diagnose AND fix, don't just abort) -------------------------
 step "Preflight checks"
-command -v gh  >/dev/null 2>&1 || die "the GitHub CLI 'gh' is required (https://cli.github.com)"
-gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
+INTERACTIVE="no"; [[ -t 0 ]] && INTERACTIVE="yes"
+
+command -v git >/dev/null 2>&1 || die "git is required — install it and re-run"
+if ! command -v gh >/dev/null 2>&1; then
+  echo "  The GitHub CLI 'gh' is required but not installed. Install it with:"
+  echo "    Linux : sudo apt install gh    (or: sudo snap install gh)"
+  echo "    macOS : brew install gh"
+  die "install gh, then re-run: scripts/release.sh"
+fi
+# gh must be logged in — if it isn't, run the login RIGHT HERE and continue, instead of aborting.
+if ! gh auth status >/dev/null 2>&1; then
+  if [[ "$INTERACTIVE" == "yes" ]]; then
+    warn "gh is not authenticated — starting 'gh auth login' now; complete it and the release continues"
+    gh auth login || die "gh login failed or was cancelled — re-run this script after logging in"
+    gh auth status >/dev/null 2>&1 || die "gh is still not authenticated — run 'gh auth login', then re-run"
+    ok "gh authenticated"
+  else
+    die "gh is not authenticated — run 'gh auth login', then re-run"
+  fi
+fi
+# Resolve the token up front: detached/background runs can't read a keyring-stored token (macOS
+# Keychain), and plain `git push` over https needs it embedded — both bit real releases.
+export GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+resolve_git_identity
+ok "git identity: $GIT_NAME <$GIT_EMAIL>"
 { command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1; } \
-  || die "need sha256sum or shasum to checksum the macOS archives"
-[[ -z "$(git status --porcelain)" ]] || die "working tree is dirty — commit or stash first"
+  || die "need sha256sum or shasum to checksum the archives — install coreutils, then re-run"
+# Dirty tree — offer to stash and continue (restored by the exit trap) instead of just failing.
+if [[ -n "$(git status --porcelain)" ]]; then
+  warn "working tree is dirty:"
+  git status --short | sed 's/^/      /'
+  if [[ "$INTERACTIVE" == "yes" ]]; then
+    read -r -p "  Stash these changes and continue? (restored when the release finishes) [y/N] " reply
+    [[ "$reply" =~ ^[Yy]$ ]] || die "commit or stash your changes, then re-run"
+    git stash push -u -m "release.sh autostash" >/dev/null
+    STASHED="yes"
+    ok "changes stashed — they'll be restored at the end (git stash pop)"
+  else
+    die "working tree is dirty — commit or stash first"
+  fi
+fi
 ok "tools present, gh authenticated, tree clean"
 
 git fetch origin --tags --quiet
@@ -117,17 +225,39 @@ if [[ -z "$VERSION" ]]; then
 fi
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version must be MAJOR.MINOR.PATCH, got '$VERSION'"
 TAG="v$VERSION"
-git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "tag $TAG already exists locally"
-git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1 && die "tag $TAG already exists on origin"
+
+# RESUME mode: if this exact tag already exists, a previous run died AFTER tagging (asset wait,
+# notes, Homebrew or winget). Every post-tag step is idempotent, so instead of dying we skip
+# bump/merge/tag and finish the remaining channels. (A DIFFERENT existing version still requires
+# deleting the tag + Release by hand — that protection is unchanged, it just doesn't block resuming.)
+RESUME="no"
+if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+   || git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
+  RESUME="yes"
+  warn "tag $TAG already exists — RESUMING the release (skipping bump/merge/tag, finishing the channels)"
+fi
+
+# Changelog baseline = the LAST RELEASE TAG, excluding the tag being (re)published. Never derive
+# it from CUR_VERSION: on a resume the csproj already carries the NEW version, so "v$CUR_VERSION"
+# would equal $TAG itself and the changelog would come out empty.
+PREV_TAG="$(git tag --list 'v*' --sort=-v:refname | grep -vx "$TAG" | head -1 || true)"
+[[ -n "$PREV_TAG" ]] && ok "changelog baseline: $PREV_TAG -> $TAG"
 
 # --- make sure develop is current and actually has something to ship -------
 step "Syncing $DEV_BRANCH"
 git checkout "$DEV_BRANCH" >/dev/null 2>&1 || die "cannot checkout $DEV_BRANCH"
-git pull --ff-only origin "$DEV_BRANCH"
-if git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
+retry git pull --ff-only origin "$DEV_BRANCH"
+if [[ "$RESUME" != "yes" ]] && git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
   AHEAD="$(git rev-list --count "origin/$MAIN_BRANCH..$DEV_BRANCH")"
-  [[ "$AHEAD" -gt 0 ]] || die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH — nothing to release"
-  ok "$DEV_BRANCH is $AHEAD commit(s) ahead of $MAIN_BRANCH"
+  if [[ "$AHEAD" -gt 0 ]]; then
+    ok "$DEV_BRANCH is $AHEAD commit(s) ahead of $MAIN_BRANCH"
+  elif [[ "$CUR_VERSION" != "$VERSION" ]]; then
+    # develop == main (e.g. it was pre-merged to verify CI) — the version-bump commit below will
+    # put develop ahead again, so this is fine. Dying here blocked the v2.0.0 release.
+    warn "$DEV_BRANCH has no commits beyond $MAIN_BRANCH — the version bump will be the release commit"
+  else
+    die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH and VersionPrefix is already $VERSION — nothing to release"
+  fi
 fi
 
 # --- release notes (mandatory: every release must say what changed) --------
@@ -146,8 +276,8 @@ elif [[ "$ASSUME_YES" != "yes" ]]; then
   while IFS= read -r line; do [[ "$line" == "." ]] && break; NOTES_BODY+="$line"$'\n'; done
 fi
 if [[ -z "${NOTES_BODY// /}" ]]; then
-  warn "no notes given — falling back to commit subjects since the last tag"
-  NOTES_BODY="$(git log --no-merges --pretty='- %s' "v$CUR_VERSION..$DEV_BRANCH" 2>/dev/null | head -40)"
+  warn "no notes given — falling back to commit subjects since the last release tag"
+  NOTES_BODY="$(git log --no-merges --pretty='- %s' "${PREV_TAG:+$PREV_TAG..}$DEV_BRANCH" 2>/dev/null | head -40)"
 fi
 [[ -n "${NOTES_BODY// /}" ]] || die "release notes are required and could not be derived — re-run with --notes-file"
 
@@ -163,33 +293,44 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
   [[ "$reply" =~ ^[Yy]$ ]] || die "aborted"
 fi
 
-# --- 1. bump the version on develop ----------------------------------------
-step "Bumping version to $VERSION on $DEV_BRANCH"
-if [[ "$CUR_VERSION" != "$VERSION" ]]; then
-  sedi "s|<VersionPrefix>$CUR_VERSION</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" "$CSPROJ"
-  grep -q "<VersionPrefix>$VERSION</VersionPrefix>" "$CSPROJ" || die "failed to bump VersionPrefix in $CSPROJ"
-  [[ -f "$SNAP_VERSION_FILE" ]] && printf '%s' "$VERSION" > "$SNAP_VERSION_FILE"
-  git add "$CSPROJ" "$SNAP_VERSION_FILE"
-  git commit -q -m "chore(release): bump version to $VERSION"
-  git push origin "$DEV_BRANCH"
-  ok "committed + pushed version bump"
+# --- 1..3. bump / merge / tag (skipped entirely when resuming a tagged release) ---
+if [[ "$RESUME" == "yes" ]]; then
+  step "Resume: $TAG already tagged — skipping bump/merge/tag"
+  S_RELEASE="already tagged (resume)"
 else
-  warn "VersionPrefix already $VERSION — no bump commit"
+  # --- 1. bump the version on develop --------------------------------------
+  step "Bumping version to $VERSION on $DEV_BRANCH"
+  if [[ "$CUR_VERSION" != "$VERSION" ]]; then
+    sedi "s|<VersionPrefix>$CUR_VERSION</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" "$CSPROJ"
+    grep -q "<VersionPrefix>$VERSION</VersionPrefix>" "$CSPROJ" || die "failed to bump VersionPrefix in $CSPROJ"
+    git add "$CSPROJ"
+    if [[ -f "$SNAP_VERSION_FILE" ]]; then
+      printf '%s' "$VERSION" > "$SNAP_VERSION_FILE"
+      git add "$SNAP_VERSION_FILE"
+    fi
+    gcommit . "chore(release): bump version to $VERSION"
+    retry git push origin "$DEV_BRANCH"
+    ok "committed + pushed version bump"
+  else
+    warn "VersionPrefix already $VERSION — no bump commit"
+  fi
+
+  # --- 2. merge develop -> main ---------------------------------------------
+  step "Merging $DEV_BRANCH -> $MAIN_BRANCH"
+  git checkout "$MAIN_BRANCH"
+  retry git pull --ff-only origin "$MAIN_BRANCH" || true
+  git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
+    merge --no-ff "$DEV_BRANCH" -m "release: $TAG (merge $DEV_BRANCH)"
+  retry git push origin "$MAIN_BRANCH"
+  ok "$MAIN_BRANCH updated"
+
+  # --- 3. tag + push (triggers release.yml + snap.yml) ----------------------
+  step "Tagging $TAG"
+  git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" tag -a "$TAG" -m "Downloader Desktop $TAG"
+  retry git push origin "$TAG"
+  ok "pushed $TAG — release.yml (GitHub assets + curl) and snap.yml (Snap Store) are now building"
+  S_RELEASE="tagged — CI building"
 fi
-
-# --- 2. merge develop -> main ----------------------------------------------
-step "Merging $DEV_BRANCH -> $MAIN_BRANCH"
-git checkout "$MAIN_BRANCH"
-git pull --ff-only origin "$MAIN_BRANCH" || true
-git merge --no-ff "$DEV_BRANCH" -m "release: $TAG (merge $DEV_BRANCH)"
-git push origin "$MAIN_BRANCH"
-ok "$MAIN_BRANCH updated"
-
-# --- 3. tag + push (triggers release.yml + snap.yml) -----------------------
-step "Tagging $TAG"
-git tag -a "$TAG" -m "Downloader Desktop $TAG"
-git push origin "$TAG"
-ok "pushed $TAG — release.yml (GitHub assets + curl) and snap.yml (Snap Store) are now building"
 
 # --- 4. wait for the GitHub Release assets ---------------------------------
 step "Waiting for the Release build to attach the macOS archives"
@@ -199,7 +340,7 @@ while :; do
   assets="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' 2>/dev/null || true)"
   grep -q '^Downloader-osx-arm64.tar.gz$' <<<"$assets" && have_arm="yes"
   grep -q '^Downloader-osx-x64.tar.gz$'   <<<"$assets" && have_x64="yes"
-  [[ "$have_arm" == "yes" && "$have_x64" == "yes" ]] && { ok "both macOS archives are attached"; break; }
+  [[ "$have_arm" == "yes" && "$have_x64" == "yes" ]] && { ok "both macOS archives are attached"; S_RELEASE="live ($TAG, all assets attached)"; break; }
   [[ $(date +%s) -ge $deadline ]] && die "timed out waiting for macOS archives — check: gh run list --repo $REPO"
   echo "    ...still building (arm64=$have_arm x64=$have_x64); rechecking in 30s"
   sleep 30
@@ -208,7 +349,7 @@ done
 # --- 4b. set the release notes (curated highlights + auto-generated changelog) ---
 step "Writing release notes for $TAG"
 AUTO_NOTES="$(gh api -X POST "repos/$REPO/releases/generate-notes" \
-  -f tag_name="$TAG" -f previous_tag_name="v$CUR_VERSION" --jq '.body' 2>/dev/null || true)"
+  -f tag_name="$TAG" ${PREV_TAG:+-f previous_tag_name="$PREV_TAG"} --jq '.body' 2>/dev/null || true)"
 NOTES_TMP="$(mktemp)"
 {
   printf '## Highlights\n\n%s\n' "$NOTES_BODY"
@@ -216,8 +357,10 @@ NOTES_TMP="$(mktemp)"
 } > "$NOTES_TMP"
 if gh release edit "$TAG" --repo "$REPO" --notes-file "$NOTES_TMP" >/dev/null 2>&1; then
   ok "release notes set"
+  S_NOTES="set (highlights + auto changelog)"
 else
   warn "could not set release notes (the release may not be created yet) — set them manually: gh release edit $TAG"
+  S_NOTES="MANUAL — gh release edit $TAG --notes-file <file>"
 fi
 rm -f "$NOTES_TMP"
 
@@ -252,12 +395,14 @@ rewrite_winget() {
 # Dedup-safe: skips if an open PR for this version already exists (avoids duplicate submissions).
 submit_winget() {
   local user fork base br dir n b64 ok_all=1
+  S_WINGET="mirror updated; PR skipped (see warnings above)"   # overridden below on success/dedup
   user="$(gh api user --jq .login 2>/dev/null)" || { warn "winget: gh user lookup failed — skipping PR"; return 0; }
   fork="$user/winget-pkgs"
   gh repo fork "$WINGET_UPSTREAM" --clone=false >/dev/null 2>&1 || true
   if gh api "search/issues?q=repo:$WINGET_UPSTREAM+is:pr+is:open+author:$user+bezzad.Downloader+$VERSION" \
        --jq '.items[].title' 2>/dev/null | grep -q "version $VERSION"; then
-    warn "winget: an open PR for $VERSION already exists — skipping (no duplicate)"; return 0
+    warn "winget: an open PR for $VERSION already exists — skipping (no duplicate)"
+    S_WINGET="open PR for $VERSION already exists"; return 0
   fi
   gh api -X POST "repos/$fork/merge-upstream" -f branch=master >/dev/null 2>&1 || true
   base="$(gh api "repos/$fork/git/refs/heads/master" --jq '.object.sha' 2>/dev/null)" \
@@ -276,34 +421,44 @@ submit_winget() {
        --body "Automated submission of bezzad.Downloader $VERSION (portable zip → \`downloader\`). Repo: https://github.com/$REPO" \
        >/dev/null 2>&1; then
     ok "winget: opened PR to $WINGET_UPSTREAM for $VERSION"
+    S_WINGET="PR opened (awaits a winget-pkgs moderator)"
   else
     warn "winget: could not open PR (a branch/PR may already exist) — check manually"
+    S_WINGET="CHECK — PR not opened: gh pr list --repo $WINGET_UPSTREAM --author @me"
   fi
 }
 
 TAP_DIR="$(mktemp -d)"
-gh repo clone "$TAP_REPO" "$TAP_DIR" -- --quiet
+# Clone with the token IN the URL: it works detached/background and on machines where gh's git
+# credential helper was never set up (a bare `git push` there dies with "could not read Username").
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  retry git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/$TAP_REPO.git" "$TAP_DIR"
+else
+  retry gh repo clone "$TAP_REPO" "$TAP_DIR" -- --quiet
+fi
 rewrite_cask "$TAP_DIR/Casks/downloader.rb"
 if [[ -n "$(git -C "$TAP_DIR" status --porcelain)" ]]; then
   git -C "$TAP_DIR" add Casks/downloader.rb
-  git -C "$TAP_DIR" commit -q -m "downloader $VERSION"
-  git -C "$TAP_DIR" push --quiet
+  gcommit "$TAP_DIR" "downloader $VERSION"
+  retry git -C "$TAP_DIR" push --quiet
   ok "pushed cask update to $TAP_REPO"
+  S_BREW="tap updated to $VERSION"
 else
   warn "tap cask already up to date"
+  S_BREW="tap already at $VERSION"
 fi
 rm -rf "$TAP_DIR"
 
 # Sync the in-repo mirror so it matches the published cask.
 step "Syncing in-repo mirror $CASK_MIRROR on $DEV_BRANCH"
 git checkout "$DEV_BRANCH"
-git pull --ff-only origin "$DEV_BRANCH" || true
+retry git pull --ff-only origin "$DEV_BRANCH" || true
 if [[ -f "$CASK_MIRROR" ]]; then
   rewrite_cask "$CASK_MIRROR"
   if [[ -n "$(git status --porcelain "$CASK_MIRROR")" ]]; then
     git add "$CASK_MIRROR"
-    git commit -q -m "chore(release): mirror cask to $VERSION"
-    git push origin "$DEV_BRANCH"
+    gcommit . "chore(release): mirror cask to $VERSION"
+    retry git push origin "$DEV_BRANCH"
     ok "mirror updated + pushed"
   else
     warn "mirror already matches"
@@ -319,8 +474,8 @@ if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
   rewrite_winget
   if [[ -n "$(git status --porcelain "$WINGET_DIR")" ]]; then
     git add "$WINGET_DIR"
-    git commit -q -m "chore(release): bump winget manifests to $VERSION"
-    git push origin "$DEV_BRANCH"
+    gcommit . "chore(release): bump winget manifests to $VERSION"
+    retry git push origin "$DEV_BRANCH"
     ok "winget mirror updated + pushed"
   else
     warn "winget mirror already matches"
@@ -328,6 +483,7 @@ if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
   submit_winget   # best-effort, dedup-checked
 else
   warn "winget: missing win-x64 sha or $WINGET_DIR — skipping"
+  S_WINGET="SKIPPED — missing win-x64 sha or $WINGET_DIR"
 fi
 
 # --- done ------------------------------------------------------------------
@@ -338,7 +494,7 @@ echo "  Verify:"
 echo "    GitHub : gh release view $TAG --repo $REPO"
 echo "    Snap   : gh run list --repo $REPO --workflow Snap   # then 'snap info downloader'"
 echo "    Curl   : curl -fsSL https://raw.githubusercontent.com/$REPO/$MAIN_BRANCH/scripts/install.sh | bash"
-echo "    Brew   : brew update && brew info --cask $TAP_REPO/downloader"
+echo "    Brew   : brew update && brew info --cask bezzad/tap/downloader"
 echo "    Winget : gh pr list --repo $WINGET_UPSTREAM --author @me   # awaits a moderator merge"
 echo
 echo "  Note: the Snap Store publish runs in CI (snap.yml). If the repo secret"

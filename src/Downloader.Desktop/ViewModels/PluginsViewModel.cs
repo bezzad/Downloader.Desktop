@@ -90,14 +90,19 @@ public class PluginsViewModel : ViewModelBase
     {
         var installed = _manager?.Plugins.Select(p => p.Id).ToHashSet() ?? new HashSet<string>();
 
+        // Entries requiring a newer app (minAppVersion) are hidden entirely: offering them would
+        // install a plugin whose host plumbing this build doesn't have (e.g. the website plugin's
+        // transfer path), so its downloads could never work.
+        var supported = _catalog.Where(c => PluginCatalogService.MeetsMinAppVersion(c.MinAppVersion)).ToList();
+
         CatalogPlugins.Clear();
-        foreach (var info in _catalog.Where(c => !installed.Contains(c.Id)))
+        foreach (var info in supported.Where(c => !installed.Contains(c.Id)))
             CatalogPlugins.Add(new CatalogPluginRowViewModel(info, AddFromCatalogAsync));
 
         // Update badges on installed rows whose catalog version is newer than the loaded one.
         foreach (var row in Plugins)
         {
-            var match = _catalog.FirstOrDefault(c => c.Id == row.Id);
+            var match = supported.FirstOrDefault(c => c.Id == row.Id);
             row.SetUpdate(match != null && PluginCatalogService.IsNewer(match.Version, _manager?.InstalledVersion(row.Id)) ? match : null);
         }
 
@@ -174,12 +179,18 @@ public class PluginsViewModel : ViewModelBase
             }
             else
             {
+                // The old copy may already be unloaded (removed just before the swap) — re-sync the lists
+                // so the row reflects reality instead of a stale "installed" entry.
+                Refresh();
+                ApplyCatalog();
                 NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], result.Error, true);
             }
         }
         catch (Exception ex)
         {
             AppLog.Error("Failed to update plugin", ex);
+            Refresh();
+            ApplyCatalog();
             NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], ex.Message, true);
         }
         finally

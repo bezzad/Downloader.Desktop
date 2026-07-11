@@ -77,6 +77,7 @@
   "Add_Links": "링크 — 한 줄에 하나",
   "Add_LinksPlaceholder": "https://…  (한 줄에 하나씩 여러 링크를 붙여넣으면 모두 아래 폴더로 다운로드됩니다)",
   "Add_ClipboardHint": "Enter를 눌러 클립보드 링크 사용",
+  "Add_HandledBy": "{0}에서 처리",
   "Add_ClipboardMultiple": "클립보드에 링크 {0}개",
   "Add_SaveTo": "저장 위치",
   "Add_ChooseFolder": "폴더 선택",

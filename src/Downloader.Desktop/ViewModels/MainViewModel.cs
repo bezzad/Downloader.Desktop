@@ -334,7 +334,8 @@ public class MainViewModel : ViewModelBase
             foreach (var descriptor in _pluginManager.Plugins.Where(p => !p.IsBuiltIn).ToList())
             {
                 var info = catalog.FirstOrDefault(c => c.Id == descriptor.Id);
-                if (info == null || !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
+                if (info == null || !PluginCatalogService.MeetsMinAppVersion(info.MinAppVersion) ||
+                    !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
                     continue;
 
                 // The in-window action lives on the Settings → Plugins row (its "Update" button, shown via
@@ -536,7 +537,8 @@ public class MainViewModel : ViewModelBase
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
             new AddDownloadItemView(),
             new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager,
-                getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct)),
+                getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct),
+                getResolverName: u => _pluginManager.FindResolverPluginName(u)),
             _config);
 
         if (result is { Count: > 0 })

@@ -77,6 +77,7 @@
   "Add_Links": "リンク — 1 行に 1 つ",
   "Add_LinksPlaceholder": "https://…  （1 行に 1 つずつ複数のリンクを貼り付けると、すべて下のフォルダーにダウンロードします）",
   "Add_ClipboardHint": "Enter を押してクリップボードのリンクを使用",
+  "Add_HandledBy": "{0} が処理します",
   "Add_ClipboardMultiple": "クリップボードに {0} 件のリンク",
   "Add_SaveTo": "保存先",
   "Add_ChooseFolder": "フォルダーを選択",

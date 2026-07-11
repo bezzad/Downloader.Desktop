@@ -77,6 +77,7 @@
   "Add_Links": "Link(s) — um por linha",
   "Add_LinksPlaceholder": "https://…  (cole vários links, um por linha, para baixar todos na pasta abaixo)",
   "Add_ClipboardHint": "Pressione Enter para usar o link da área de transferência",
+  "Add_HandledBy": "Gerido por {0}",
   "Add_ClipboardMultiple": "{0} links na área de transferência",
   "Add_SaveTo": "Salvar em",
   "Add_ChooseFolder": "Escolha uma pasta",

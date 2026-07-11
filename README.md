@@ -88,6 +88,11 @@ winget install bezzad.Downloader
 This installs the portable app and puts `Downloader` on your PATH — launch it from the Start menu or a terminal. Update later with `winget upgrade bezzad.Downloader`.
 > The short form `winget install downloader` also resolves to this package via its moniker (if another package matches first, use the full id above).
 
+**Windows (script)** — downloads the latest release, adds a Start-menu shortcut, and puts `Downloader` on your PATH. Run in PowerShell:
+```powershell
+iex (irm https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.ps1)
+```
+
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
 2. Unpack it:
@@ -110,6 +115,36 @@ Your downloads list and settings are saved automatically. Config file location:
 - **Linux:** `~/.config/Downloader/config.json`
 - **macOS:** `~/Library/Application Support/Downloader/config.json`
 - **Windows:** `%APPDATA%\Downloader\config.json`
+
+## Plugins: download more than plain files
+
+Plugins teach the app to turn links that aren't direct file URLs into real downloads — **just copy & paste the link**, the plugin does the rest. Grab **videos from YouTube, X (Twitter) and other video sites**, pull **AI models straight into Ollama**, or fetch the **right GitHub release for your OS** — all at full multi-connection speed, with pause/resume and live per-part progress.
+
+| Plugin | What it does | How it works |
+| --- | --- | --- |
+| **HLS & video sites** | Downloads **videos from YouTube, x.com (Twitter) and many other sites**, plus raw **HLS `.m3u8`** streams — you get one normal, playable video file. | Paste the **page URL** of the video (or an `.m3u8` link) exactly as you'd share it. The plugin finds the media, lets you **pick the quality** (or audio-only), downloads all the parts in parallel and assembles them into a single file. Needed tools (yt-dlp/FFmpeg) are fetched automatically on first use. *Optional — add it once under **Settings → Plugins → More plugins**.* |
+| **Website offline copy** | Saves a **web page — or a whole site — as one `.zip`** you can read offline: pages, styles, images, scripts and fonts, with links rewired to work from disk. | Paste a page link and pick **“Offline copy (.zip)”** in the Add window. The plugin crawls the page (and same-site pages it links to), grabs everything the pages need, and packs it all into a single zip — no extra tools. *Optional — add it once under **Settings → Plugins → More plugins**.* |
+| **Ollama models** | Downloads **AI models for [Ollama](https://ollama.com)** at full speed, then installs them locally in one click. | Paste an `ollama.com` model link — or just type a name like `gemma3:12b` — and download. When it finishes, click **Add to Ollama**: the model is checksum-verified and registered in your local Ollama, ready to run. *Built-in.* |
+| **GitHub Releases** | Turns a **GitHub repository link** into a download of its **latest release**, picking the right asset for your operating system. | Paste `github.com/owner/repo` (no digging through the Releases page) — the plugin looks up the newest release and downloads the asset that matches your OS. *Built-in.* |
+
+Manage plugins under **Settings → Plugins**: toggle them on/off, install optional ones with one click (downloads are checksum-verified before loading), and get an **Update** button right on the plugin when a newer version ships.
+
+### How to write your own plugin
+
+A plugin is just a **.NET class library** that references one tiny package — [`Downloader.Desktop.Plugins.Abstractions`](src/Downloader.Desktop.Plugins.Abstractions) — no app internals, no Avalonia. Every download flows through three phases, and your plugin hooks whichever it needs:
+
+```
+user input ──▶ RESOLVE ──▶ TRANSFER ──▶ POST-PROCESS ──▶ final file
+             ILinkResolver  ITransfer    IPostProcessor
+```
+
+- **Resolve** — turn a pasted link (a page, a short-link, a repo URL…) into real download URLs. The core engine still does the downloading, so you keep multipart speed, pause/resume and progress for free. *Most plugins only need this.*
+- **Transfer** — take over the byte transfer itself, only when plain HTTP can't (e.g. a torrent).
+- **Post-process** — transform the finished files (mux video+audio, verify a checksum, unpack…). You can also add a one-click **action button** on completed downloads (that's how "Add to Ollama" works).
+
+In short: implement `IDownloaderPlugin`, register your pieces in `Initialize`, build the DLL, and drop its folder into the app's `plugins/` directory — it appears in **Settings → Plugins** on the next start. The bundled [GitHub Releases plugin](src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.GitHub) implements every interface and doubles as the reference example.
+
+📖 **Full step-by-step guide:** [Writing a Downloader plugin](docs/writing-plugins.md) — project setup, each interface with code, packaging, and debugging tips.
 
 ## Browser extension
 

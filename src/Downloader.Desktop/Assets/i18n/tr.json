@@ -77,6 +77,7 @@
   "Add_Links": "Bağlantı(lar) — her satıra bir tane",
   "Add_LinksPlaceholder": "https://…  (birden çok bağlantıyı, her satıra bir tane, aşağıdaki klasöre indirmek için yapıştırın)",
   "Add_ClipboardHint": "Pano bağlantısını kullanmak için Enter'a basın",
+  "Add_HandledBy": "{0} tarafından işlenir",
   "Add_ClipboardMultiple": "Panoda {0} bağlantı",
   "Add_SaveTo": "Şuraya kaydet",
   "Add_ChooseFolder": "Bir klasör seçin",

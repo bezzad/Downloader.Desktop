@@ -116,3 +116,23 @@ If snap CI failed to publish (check the run log): download its artifact and publ
 ## Browser extension distribution (automated pieces)
 - Every `v*` release also carries `downloader-extension-chrome.zip` + `downloader-extension-firefox.zip` (release.yml `extension` job, runs post-matrix — never let it create the release or set notes).
 - **Firefox publishes itself**: `extension.yml` fires on pushes touching `src/browser-extension/**`, skips green when the manifest version already exists on AMO, else `web-ext sign --channel listed --approval-timeout 0` with secrets `AMO_JWT_ISSUER`/`AMO_JWT_SECRET`. Bumping the extension version (BOTH manifests) + pushing IS the Firefox release. Chrome/Edge stay manual: upload the chrome zip from the release page in their dashboards.
+
+## release.sh is now machine-independent + RESUMABLE (2026-07-11, post-v2.0.0)
+Five failure classes that previously needed manual rescue are fixed IN the script:
+1. **Resume**: if the requested tag already exists, the run WARNS and resumes — skips bump/merge/tag and finishes asset-wait → notes → Homebrew → winget (all idempotent). A mid-run death is recovered by simply re-running the same command. Re-releasing a *different* dead version still requires deleting the tag+Release first.
+2. **develop==main is OK** when the version differs — the bump commit becomes the release commit (pre-merging develop→main to verify CI no longer blocks).
+3. **Git identity** is resolved (repo → global → gh account → fallback) and passed explicitly (`-c user.name/email`) on every commit incl. the fresh tap clone — no global git config needed.
+4. **Token**: `GH_TOKEN` is resolved up front (`gh auth token`) and embedded in the tap clone URL — works detached/background (macOS keyring) and without `gh auth setup-git`.
+5. **retry()** (5×, 10 s) wraps every push/pull/clone — transient GitHub connectivity drops don't kill the run.
+Validated by re-running `release.sh 2.0.0` post-release: resume mode no-ops every channel cleanly.
+
+## release.sh preflight asks-and-fixes; exit report (2026-07-11)
+A bare `bash scripts/release.sh` is the intended entry point — it prompts for anything missing
+instead of aborting: version (suggests next patch), release notes (multi-line, `.` to end),
+`gh auth login` runs inline if unauthenticated, and a dirty tree offers to autostash (an EXIT
+trap restores it on `develop` afterwards — success OR failure). Non-interactive runs (no TTY)
+still die with exact instructions. The same EXIT trap prints a per-channel report table
+(GitHub Release / notes / curl / Snap / Homebrew / winget) on ANY exit, plus a "re-run to
+resume" hint on failure. Changelog baseline = `PREV_TAG` (newest `v*` tag excluding the tag
+being published) — never `v$CUR_VERSION`, which on a resume equals the new tag itself and
+yields an empty changelog.
