@@ -111,6 +111,18 @@ Your downloads list and settings are saved automatically. Config file location:
 - **macOS:** `~/Library/Application Support/Downloader/config.json`
 - **Windows:** `%APPDATA%\Downloader\config.json`
 
+## Plugins: download more than plain files
+
+Plugins teach the app to turn links that aren't direct file URLs into real downloads — **just copy & paste the link**, the plugin does the rest. Grab **videos from YouTube, X (Twitter) and other video sites**, pull **AI models straight into Ollama**, or fetch the **right GitHub release for your OS** — all at full multi-connection speed, with pause/resume and live per-part progress.
+
+| Plugin | What it does | How it works |
+| --- | --- | --- |
+| **HLS & video sites** | Downloads **videos from YouTube, x.com (Twitter) and many other sites**, plus raw **HLS `.m3u8`** streams — you get one normal, playable video file. | Paste the **page URL** of the video (or an `.m3u8` link) exactly as you'd share it. The plugin finds the media, lets you **pick the quality** (or audio-only), downloads all the parts in parallel and assembles them into a single file. Needed tools (yt-dlp/FFmpeg) are fetched automatically on first use. *Optional — add it once under **Settings → Plugins → More plugins**.* |
+| **Ollama models** | Downloads **AI models for [Ollama](https://ollama.com)** at full speed, then installs them locally in one click. | Paste an `ollama.com` model link — or just type a name like `gemma3:12b` — and download. When it finishes, click **Add to Ollama**: the model is checksum-verified and registered in your local Ollama, ready to run. *Built-in.* |
+| **GitHub Releases** | Turns a **GitHub repository link** into a download of its **latest release**, picking the right asset for your operating system. | Paste `github.com/owner/repo` (no digging through the Releases page) — the plugin looks up the newest release and downloads the asset that matches your OS. *Built-in.* |
+
+Manage plugins under **Settings → Plugins**: toggle them on/off, install optional ones with one click (downloads are checksum-verified before loading), and get an **Update** button right on the plugin when a newer version ships. Developers can build their own — see [Writing plugins](docs/writing-plugins.md).
+
 ## Browser extension
 
 A companion **browser extension** (Chrome, Edge, Firefox) sends links straight to the app:
