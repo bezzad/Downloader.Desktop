@@ -29,6 +29,7 @@ jobs:
         configuration: [ Debug, Release ]
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
 
     env:
       Solution_Name: src/Downloader.Desktop.sln
