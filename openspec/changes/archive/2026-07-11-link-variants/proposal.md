@@ -36,3 +36,6 @@ The author wants the user to choose — but as a **generic plugin-SDK mechanism*
 - `src/Downloader.Desktop/ViewModels/AddDownloadItemViewModel.cs`, `Views/AddDownloadItemView.axaml` (picker UI)
 - `src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Hls/*` (SiteExtractor, HlsResolver, YtDlp JSON cache), `.../Downloader.Desktop.Plugins.Ollama/*` (registry tags list)
 - `Assets/i18n/*.json` (16 packs), tests in `Downloader.Desktop.Tests` (SDK fakes, extractor variants, Add-VM flow)
+
+---
+**Released in v2.0.0** (2026-07-11): tag `v2.0.0`, GitHub Release with 6 binary assets + HLS plugin 1.3.0 zip + plugins-catalog.json; Snap Store latest/stable 2.0.0; Homebrew tap bumped (arm64 2409c9e9…, x64 7ec3dcee…); winget PR microsoft/winget-pkgs#400755 (awaiting moderator). Codecov badge fixed the same day (coverlet.collector added → 42%).
