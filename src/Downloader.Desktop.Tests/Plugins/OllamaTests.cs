@@ -101,6 +101,23 @@ public class OllamaLogicTests
         Assert.EndsWith("gemma3-12b.gguf", plan.SuggestedFileName);
     }
 
+    [Fact]
+    public async Task Live_tags_endpoint_returns_real_gemma3_tags()
+    {
+        // Gated live check (like YtDlpDiagnosisTests): the JSON tag list lives on ollama.com (the
+        // registry host 404s /v2/…/tags/list) — run with DLDESKTOP_NET=1 to verify against the real site.
+        if (Environment.GetEnvironmentVariable("DLDESKTOP_NET") != "1")
+            return;
+
+        using var registry = new HttpOllamaRegistry();
+        Assert.True(OllamaModelRef.TryParse("gemma3", out var model));
+
+        var tags = await registry.GetTagsAsync(model, CancellationToken.None);
+
+        Assert.Contains("latest", tags);
+        Assert.Contains("12b", tags);
+    }
+
     private sealed class StubRegistry : IOllamaRegistry
     {
         public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();

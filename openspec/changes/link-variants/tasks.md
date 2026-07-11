@@ -37,5 +37,5 @@
 
 ## 6. Wrap-up
 
-- [ ] 6.1 Full build + all tests green; live e2e: YouTube quality pick (720p + Audio only) and an Ollama tag list through the real app
-- [ ] 6.2 Update CLAUDE.md/skill notes; refresh screenshots if the Add dialog changed visibly; commit + push develop
+- [x] 6.1 Full build + all tests green; live e2e: YouTube quality pick (720p + Audio only) and an Ollama tag list through the real app
+- [x] 6.2 Update CLAUDE.md/skill notes; refresh screenshots if the Add dialog changed visibly; commit + push develop
