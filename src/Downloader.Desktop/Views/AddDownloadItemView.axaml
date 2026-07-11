@@ -90,6 +90,25 @@
                 </StackPanel>
             </StackPanel>
 
+            <!-- Resolver variants (video qualities / model tags): each checked one becomes a download. -->
+            <TextBlock Text="{i18n:Tr Add_FetchingOptions}" IsVisible="{Binding IsFetchingVariants}"
+                       Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="12" />
+            <StackPanel Spacing="4" IsVisible="{Binding HasVariants}">
+                <TextBlock Text="{i18n:Tr Add_ChooseVariant}" />
+                <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1" CornerRadius="6">
+                    <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Variants}" Margin="10 6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:VariantOptionViewModel">
+                                    <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                              Content="{Binding Label}" FontSize="12" MinHeight="26" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+
             <StackPanel Spacing="4" IsVisible="{Binding ShowQueuePicker}">
                 <TextBlock Text="{i18n:Tr Add_Queue}" />
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Queues}"

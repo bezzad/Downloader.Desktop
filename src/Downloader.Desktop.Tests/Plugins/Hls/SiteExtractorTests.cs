@@ -168,6 +168,77 @@ public class SiteExtractorTests
         Assert.Equal("https://cdn/prog720.mp4", r.PrimaryUrl);
     }
 
+    // YouTube-shaped canned JSON reused by the variant tests: 360p progressive, 720p+1080p split
+    // video-only, an HLS 1080p premux and one audio-only stream.
+    private const string VariantJson = """
+    {
+      "title": "YT clip",
+      "formats": [
+        { "format_id": "18", "url": "https://cdn/prog360.mp4", "ext": "mp4", "protocol": "https", "vcodec": "h264", "acodec": "aac", "height": 360, "tbr": 500, "filesize": 1000 },
+        { "format_id": "96", "url": "https://cdn/hls1080.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "h264", "acodec": "aac", "height": 1080, "tbr": 2500 },
+        { "format_id": "v720", "url": "https://cdn/v720.mp4", "ext": "mp4", "protocol": "https", "vcodec": "vp9", "acodec": "none", "height": 720, "tbr": 1200, "filesize": 3000 },
+        { "format_id": "v1080", "url": "https://cdn/v1080.mp4", "ext": "mp4", "protocol": "https", "vcodec": "vp9", "acodec": "none", "height": 1080, "tbr": 2000, "filesize": 5000 },
+        { "format_id": "a", "url": "https://cdn/a.m4a", "ext": "m4a", "protocol": "https", "vcodec": "none", "acodec": "opus", "tbr": 128, "filesize": 900 }
+      ]
+    }
+    """;
+
+    [Fact]
+    public void ListVariants_returns_heights_desc_plus_audio_with_default_on_best()
+    {
+        var variants = SiteExtractor.ListVariants(VariantJson);
+
+        Assert.Equal(new[] { "1080", "720", "360", "audio" }, variants.Select(v => v.Id));
+        Assert.True(variants[0].IsDefault);
+        Assert.All(variants.Skip(1), v => Assert.False(v.IsDefault));
+        Assert.Equal(5900, variants.Single(v => v.Id == "1080").ExpectedSize); // v1080 + audio
+        Assert.Equal(1000, variants.Single(v => v.Id == "360").ExpectedSize);  // combined progressive
+        Assert.Contains("Audio only", variants.Single(v => v.Id == "audio").Label);
+    }
+
+    [Fact]
+    public void ListVariants_offers_no_choice_for_a_single_quality_without_audio()
+    {
+        const string json = """
+        {
+          "title": "One",
+          "formats": [
+            { "format_id": "p", "url": "https://cdn/only.mp4", "ext": "mp4", "protocol": "https", "vcodec": "h264", "acodec": "aac", "height": 480 }
+          ]
+        }
+        """;
+        Assert.Empty(SiteExtractor.ListVariants(json));
+    }
+
+    [Fact]
+    public void Select_pins_to_the_requested_height()
+    {
+        var r = SiteExtractor.Select(VariantJson, "720");
+
+        Assert.Equal(ExtractionKind.VideoAudio, r.Kind); // only a split stream exists at 720
+        Assert.Equal("https://cdn/v720.mp4", r.VideoUrl);
+        Assert.Equal("https://cdn/a.m4a", r.AudioUrl);
+    }
+
+    [Fact]
+    public void Select_audio_variant_returns_the_best_audio_stream()
+    {
+        var r = SiteExtractor.Select(VariantJson, "audio");
+
+        Assert.Equal(ExtractionKind.Progressive, r.Kind);
+        Assert.Equal("https://cdn/a.m4a", r.PrimaryUrl);
+        Assert.EndsWith(".m4a", r.FileName);
+    }
+
+    [Fact]
+    public void Select_null_variant_keeps_the_automatic_pick()
+    {
+        var r = SiteExtractor.Select(VariantJson, null);
+
+        Assert.Equal(ExtractionKind.Hls, r.Kind); // 1080p HLS beats the 360p progressive
+        Assert.Equal("https://cdn/hls1080.m3u8", r.PrimaryUrl);
+    }
+
     [Fact]
     public void Select_sanitizes_title_into_filename()
     {

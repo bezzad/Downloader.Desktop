@@ -270,5 +270,7 @@
   "Plugins_Adding": "Ekleniyor…",
   "Plugins_Update": "Güncelle",
   "Plugins_UpdateAvailable": "Güncelleme mevcut",
-  "Plugins_AddFailed": "Eklenti eklenemedi"
+  "Plugins_AddFailed": "Eklenti eklenemedi",
+  "Add_FetchingOptions": "Seçenekler alınıyor…",
+  "Add_ChooseVariant": "Neyi indireceğinizi seçin"
 }

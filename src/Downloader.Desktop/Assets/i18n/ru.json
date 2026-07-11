@@ -270,5 +270,7 @@
   "Plugins_Adding": "Добавление…",
   "Plugins_Update": "Обновить",
   "Plugins_UpdateAvailable": "Доступно обновление",
-  "Plugins_AddFailed": "Не удалось добавить плагин"
+  "Plugins_AddFailed": "Не удалось добавить плагин",
+  "Add_FetchingOptions": "Получение вариантов…",
+  "Add_ChooseVariant": "Выберите, что скачать"
 }

@@ -13,6 +13,14 @@ public sealed partial class OllamaModelRef
     public string Model { get; }
     public string Tag { get; }
 
+    /// <summary>True when the input carried a tag (":12b"); false when <see cref="Tag"/> is the implied
+    /// "latest" default — that's when the host may offer the model's tag list as selectable variants.</summary>
+    public bool HasExplicitTag { get; private init; }
+
+    /// <summary>The same model with a different tag (for resolving a user-chosen variant).</summary>
+    public OllamaModelRef WithTag(string tag) =>
+        new(Namespace, Model, tag) { HasExplicitTag = true };
+
     /// <summary>"library/gemma3:12b" style display / manifest path pieces.</summary>
     public string PathNamespaceModel => $"{Namespace}/{Model}";
     public override string ToString() => $"{PathNamespaceModel}:{Tag}";
@@ -81,7 +89,10 @@ public sealed partial class OllamaModelRef
             return false;
         var ns = m.Groups["ns"].Success ? m.Groups["ns"].Value : "library";
         var tag = m.Groups["tag"].Success ? m.Groups["tag"].Value : "latest";
-        modelRef = new OllamaModelRef(ns.ToLowerInvariant(), m.Groups["model"].Value.ToLowerInvariant(), tag);
+        modelRef = new OllamaModelRef(ns.ToLowerInvariant(), m.Groups["model"].Value.ToLowerInvariant(), tag)
+        {
+            HasExplicitTag = m.Groups["tag"].Success,
+        };
         return true;
     }
 }

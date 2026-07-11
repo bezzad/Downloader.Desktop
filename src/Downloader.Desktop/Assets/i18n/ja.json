@@ -270,5 +270,7 @@
   "Plugins_Adding": "追加中…",
   "Plugins_Update": "更新",
   "Plugins_UpdateAvailable": "更新があります",
-  "Plugins_AddFailed": "プラグインを追加できませんでした"
+  "Plugins_AddFailed": "プラグインを追加できませんでした",
+  "Add_FetchingOptions": "オプションを取得中…",
+  "Add_ChooseVariant": "ダウンロードする項目を選択"
 }

@@ -270,5 +270,7 @@
   "Plugins_Adding": "추가 중…",
   "Plugins_Update": "업데이트",
   "Plugins_UpdateAvailable": "업데이트 사용 가능",
-  "Plugins_AddFailed": "플러그인을 추가할 수 없습니다"
+  "Plugins_AddFailed": "플러그인을 추가할 수 없습니다",
+  "Add_FetchingOptions": "옵션을 가져오는 중…",
+  "Add_ChooseVariant": "다운로드할 항목 선택"
 }

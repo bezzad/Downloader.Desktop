@@ -270,5 +270,7 @@
   "Plugins_Adding": "जोड़ा जा रहा है…",
   "Plugins_Update": "अपडेट करें",
   "Plugins_UpdateAvailable": "अपडेट उपलब्ध है",
-  "Plugins_AddFailed": "प्लगइन जोड़ा नहीं जा सका"
+  "Plugins_AddFailed": "प्लगइन जोड़ा नहीं जा सका",
+  "Add_FetchingOptions": "विकल्प प्राप्त हो रहे हैं…",
+  "Add_ChooseVariant": "चुनें कि क्या डाउनलोड करना है"
 }

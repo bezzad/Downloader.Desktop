@@ -270,5 +270,7 @@
   "Plugins_Adding": "正在添加…",
   "Plugins_Update": "更新",
   "Plugins_UpdateAvailable": "有可用更新",
-  "Plugins_AddFailed": "无法添加插件"
+  "Plugins_AddFailed": "无法添加插件",
+  "Add_FetchingOptions": "正在获取选项…",
+  "Add_ChooseVariant": "选择要下载的内容"
 }

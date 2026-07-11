@@ -364,7 +364,7 @@ public partial class DownloadManager : IDownloadManager
                 var persisted = PersistedPlan.FromJson(item.PlanJson);
                 if (persisted == null)
                 {
-                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath).ConfigureAwait(false);
+                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath, item.VariantId).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
                         // Remember WHICH plugin resolved this link so its post-download action (e.g.
@@ -455,15 +455,16 @@ public partial class DownloadManager : IDownloadManager
     /// (real part URLs + post-process recipe). Returns null when no plugin claims it, there's no plugin
     /// manager, or resolving fails.</summary>
     public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
-        string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null)
+        string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null,
+        string variantId = null)
     {
         if (_plugins == null)
             return null;
         try
         {
-            var options = string.IsNullOrEmpty(cookieFilePath)
+            var options = string.IsNullOrEmpty(cookieFilePath) && string.IsNullOrEmpty(variantId)
                 ? null
-                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath };
+                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath, VariantId = variantId };
             return await _plugins.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)

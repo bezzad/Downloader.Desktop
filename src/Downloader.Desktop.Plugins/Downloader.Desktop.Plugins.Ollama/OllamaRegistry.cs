@@ -52,6 +52,11 @@ public interface IOllamaRegistry
     Task<OllamaManifest> GetManifestAsync(OllamaModelRef model, CancellationToken ct);
     string BlobUrl(OllamaModelRef model, string digest);
     Task DownloadBlobAsync(OllamaModelRef model, string digest, string destinationPath, CancellationToken ct);
+
+    /// <summary>The model's available tags (registry <c>/v2/&lt;name&gt;/tags/list</c>), so the host can
+    /// offer them as variants when the user pasted a tag-less reference. Empty on none.</summary>
+    Task<IReadOnlyList<string>> GetTagsAsync(OllamaModelRef model, CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
 }
 
 /// <summary>Talks to the real registry (default <c>https://registry.ollama.ai</c>; the base URL is
@@ -85,6 +90,23 @@ public sealed class HttpOllamaRegistry : IOllamaRegistry, IDisposable
 
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         return OllamaManifest.Parse(json);
+    }
+
+    public async Task<IReadOnlyList<string>> GetTagsAsync(OllamaModelRef model, CancellationToken ct)
+    {
+        var url = $"{_baseUrl}/v2/{model.PathNamespaceModel}/tags/list";
+        using var resp = await _http.GetAsync(url, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+            return Array.Empty<string>(); // no tag list is not an error — the direct resolve still works
+        var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Array)
+            return Array.Empty<string>();
+        return tags.EnumerateArray()
+            .Select(t => t.GetString())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t!)
+            .ToList();
     }
 
     public string BlobUrl(OllamaModelRef model, string digest) =>

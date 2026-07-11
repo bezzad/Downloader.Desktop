@@ -534,7 +534,10 @@ public class MainViewModel : ViewModelBase
     {
         // Always open the dialog; URLs can be typed there if the top box was empty.
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
-            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager), _config);
+            new AddDownloadItemView(),
+            new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager,
+                getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct)),
+            _config);
 
         if (result is { Count: > 0 })
         {

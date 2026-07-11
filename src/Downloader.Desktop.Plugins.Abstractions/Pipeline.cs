@@ -21,6 +21,39 @@ public interface ILinkResolver
     /// override this.</summary>
     Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
         => ResolveAsync(url, cancellationToken);
+
+    /// <summary>List the selectable variants behind this link (video qualities, model tags, release
+    /// assets, …) so the host can let the user pick before downloading. Null/empty = this link offers no
+    /// choices and the host resolves it directly. Default-implemented so existing resolvers and external
+    /// plugins keep working unchanged; a chosen variant comes back via
+    /// <see cref="ResolveOptions.VariantId"/>.</summary>
+    Task<IReadOnlyList<LinkVariant>?> GetVariantsAsync(string url, ResolveOptions? options, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<LinkVariant>?>(null);
+}
+
+/// <summary>One selectable variant behind a link (a quality, a model tag, an asset…).</summary>
+public sealed class LinkVariant
+{
+    /// <summary>Resolver-defined stable key (e.g. "1080", "audio", "gemma3:12b") — round-trips through
+    /// <see cref="ResolveOptions.VariantId"/> and persists on the download for retries.</summary>
+    public required string Id { get; init; }
+
+    /// <summary>User-facing label (e.g. "1080p (≈460 MB)").</summary>
+    public required string Label { get; init; }
+
+    public string? Description { get; init; }
+
+    /// <summary>Approximate size in bytes when known (display only).</summary>
+    public long? ExpectedSize { get; init; }
+
+    /// <summary>Pre-checked in the picker; what a variant-less resolve would pick.</summary>
+    public bool IsDefault { get; init; }
+
+    /// <summary>When the variant IS a distinct, independently-resolvable link (an Ollama tag, a release
+    /// asset…), the input the host should use INSTEAD of the pasted one — the created download carries
+    /// this as its URL and no <see cref="ResolveOptions.VariantId"/>. Null for facet variants (e.g. a
+    /// video quality) where the original link plus the variant id drive the resolve.</summary>
+    public string? SubstituteUrl { get; init; }
 }
 
 /// <summary>Optional per-request inputs for a resolve call. All members are optional/nullable.</summary>
@@ -29,6 +62,9 @@ public sealed class ResolveOptions
     /// <summary>Path to a temporary Netscape-format cookie file (from a live browser session handed over by
     /// the extension) to try before any on-disk browser cookie store. Null = none supplied.</summary>
     public string? CookieFilePath { get; init; }
+
+    /// <summary>The <see cref="LinkVariant.Id"/> the user chose, or null for the resolver's default pick.</summary>
+    public string? VariantId { get; init; }
 }
 
 /// <summary>The result of resolving: the real parts to download + how to combine them afterwards.</summary>

@@ -270,5 +270,7 @@
   "Plugins_Adding": "Əlavə edilir…",
   "Plugins_Update": "Yenilə",
   "Plugins_UpdateAvailable": "Yeniləmə mövcuddur",
-  "Plugins_AddFailed": "Plagin əlavə edilə bilmədi"
+  "Plugins_AddFailed": "Plagin əlavə edilə bilmədi",
+  "Add_FetchingOptions": "Seçimlər alınır…",
+  "Add_ChooseVariant": "Nəyi endirəcəyinizi seçin"
 }

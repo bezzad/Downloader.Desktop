@@ -34,6 +34,9 @@ public class AddDownloadItemViewModel : ViewModelBase
     private bool _resolving;
     private bool _userTypedName;
     private CancellationTokenSource _resolveCts;
+    private readonly Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> _getVariants;
+    private bool _fetchingVariants;
+    private CancellationTokenSource _variantsCts;
 
     public AddDownloadItemViewModel(
         Config config,
@@ -41,10 +44,12 @@ public class AddDownloadItemViewModel : ViewModelBase
         Func<string, DownloadConfiguration, Task<(string FileName, long FileSize)?>> resolveFileInfo = null,
         TimeSpan? resolveDebounce = null,
         Func<Task<string>> readClipboard = null,
-        IDownloadManager manager = null)
+        IDownloadManager manager = null,
+        Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> getVariants = null)
     {
         _config = config;
         _manager = manager;
+        _getVariants = getVariants;
         _resolveFileInfo = resolveFileInfo ?? DefaultResolveFileInfoAsync;
         _readClipboard = readClipboard ?? DefaultReadClipboardAsync;
         _resolveDebounce = resolveDebounce ?? TimeSpan.FromMilliseconds(600);
@@ -62,7 +67,10 @@ public class AddDownloadItemViewModel : ViewModelBase
         CancelAddQueueCommand = ReactiveCommand.Create(() => { NewQueueName = string.Empty; IsAddingQueue = false; });
 
         if (!string.IsNullOrWhiteSpace(_urls))
+        {
             TriggerResolve();
+            TriggerVariantLookup();
+        }
 
         // Only offer a clipboard suggestion when the dialog opens with no seed URL ("user have no any
         // link added before"). Exposed as a task so tests can await the async probe deterministically.
@@ -109,6 +117,7 @@ public class AddDownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
             this.RaisePropertyChanged(nameof(LinksPlaceholder));
             TriggerResolve();
+            TriggerVariantLookup();
         }
     }
 
@@ -128,7 +137,72 @@ public class AddDownloadItemViewModel : ViewModelBase
         s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
         s.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
-    public bool CanDownload => ParsedUrls.Count > 0;
+    /// <summary>Adding is blocked while a variant lookup is in flight (author's decision: on links whose
+    /// resolver offers choices — video qualities, model tags — the user must see them before starting).
+    /// Non-claimed links finish the lookup near-instantly, so plain adds are unaffected.</summary>
+    public bool CanDownload => ParsedUrls.Count > 0 && !IsFetchingVariants;
+
+    // ---- Resolver variants (quality / model-tag picker) ----
+
+    /// <summary>The selectable variants the claiming resolver offered for the single entered link
+    /// (empty = none). Mutated in place so the ItemsControl stays bound.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<VariantOptionViewModel> Variants { get; } = new();
+
+    public bool HasVariants => Variants.Count > 0;
+
+    /// <summary>True while the resolver's variant lookup runs (shows "Fetching options…" and blocks Add).</summary>
+    public bool IsFetchingVariants
+    {
+        get => _fetchingVariants;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _fetchingVariants, value);
+            this.RaisePropertyChanged(nameof(CanDownload));
+        }
+    }
+
+    /// <summary>Kick (or clear) the variant lookup for the current input. Only a single URL is looked up;
+    /// editing the input cancels the previous lookup. Failure/none quietly falls back to a plain add.</summary>
+    private async void TriggerVariantLookup()
+    {
+        _variantsCts?.Cancel();
+        Variants.Clear();
+        this.RaisePropertyChanged(nameof(HasVariants));
+
+        var urls = ParsedUrls;
+        if (_getVariants == null || urls.Count != 1)
+        {
+            IsFetchingVariants = false;
+            return;
+        }
+
+        var url = urls[0];
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90)); // safety valve — never wedge Add
+        _variantsCts = cts;
+        try
+        {
+            IsFetchingVariants = true;
+            var variants = await _getVariants(url, cts.Token).ConfigureAwait(true);
+            if (cts.IsCancellationRequested || ParsedUrls is not [var current] || current != url)
+                return;
+
+            if (variants is { Count: > 0 })
+            {
+                foreach (var v in variants)
+                    Variants.Add(new VariantOptionViewModel(v));
+                this.RaisePropertyChanged(nameof(HasVariants));
+            }
+        }
+        catch
+        {
+            // lookup failure = no choices; the add proceeds with the resolver's default pick
+        }
+        finally
+        {
+            if (_variantsCts == cts)
+                IsFetchingVariants = false;
+        }
+    }
 
     /// <summary>True when more than one URL is entered (file name field is then ignored).</summary>
     public bool IsMultiple => ParsedUrls.Count > 1;
@@ -375,9 +449,18 @@ public class AddDownloadItemViewModel : ViewModelBase
 
     private void StartDownload()
     {
+        var items = BuildItems();
+        if (items.Count > 0)
+            View.Close(items);
+    }
+
+    /// <summary>The download descriptors the current dialog state produces (one per URL, or one per
+    /// checked variant of a single variant-capable link). Internal seam so tests don't need a window.</summary>
+    internal List<DownloadItem> BuildItems()
+    {
         var urls = ParsedUrls;
         if (urls.Count == 0)
-            return;
+            return new List<DownloadItem>();
 
         var folder = string.IsNullOrWhiteSpace(StorageFolderPath)
             ? _config?.Settings?.DefaultSavePath
@@ -389,6 +472,30 @@ public class AddDownloadItemViewModel : ViewModelBase
             _config.Settings.DefaultSavePath = folder;
 
         var single = urls.Count == 1;
+
+        // A single link whose resolver offered variants: one download per CHECKED variant. A variant that
+        // IS its own link (Ollama tag) substitutes the URL; a facet variant (video quality) keeps the
+        // original link and persists the variant id so retries re-resolve the same choice. None checked
+        // (or no variants) = plain add with the resolver's default pick.
+        var chosen = single ? Variants.Where(v => v.IsChecked).ToList() : new List<VariantOptionViewModel>();
+        if (chosen.Count > 0)
+        {
+            var vGroup = chosen.Count > 1 ? $"Batch · {DateTime.Now:dd MMM HH:mm}" : null;
+            var variantItems = chosen.Select(v => new DownloadItem
+            {
+                Urls = new List<string> { v.SubstituteUrl ?? urls[0].Trim() },
+                SaveFolder = folder,
+                // The resolver names each variant distinctly; a typed name only applies to a lone pick.
+                FileName = chosen.Count == 1 && !string.IsNullOrWhiteSpace(Filename) ? Filename.Trim() : null,
+                VariantId = v.SubstituteUrl == null ? v.Id : null,
+                Group = vGroup,
+                QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
+                Status = DownloadStatus.Created,
+                LastTry = DateTime.Now
+            }).ToList();
+            return variantItems;
+        }
+
         // Tag a multi-URL add as one group so the list can show them together (#13).
         var group = single ? null : $"Batch · {DateTime.Now:dd MMM HH:mm}";
         var items = urls.Select(u => new DownloadItem
@@ -403,6 +510,30 @@ public class AddDownloadItemViewModel : ViewModelBase
             LastTry = DateTime.Now
         }).ToList();
 
-        View.Close(items);
+        return items;
+    }
+}
+
+/// <summary>One selectable resolver variant row in the Add dialog (checkbox + label).</summary>
+public class VariantOptionViewModel : ViewModelBase
+{
+    private bool _isChecked;
+
+    public VariantOptionViewModel(Plugins.LinkVariant variant)
+    {
+        Id = variant.Id;
+        Label = variant.Label;
+        SubstituteUrl = variant.SubstituteUrl;
+        _isChecked = variant.IsDefault;
+    }
+
+    public string Id { get; }
+    public string Label { get; }
+    public string SubstituteUrl { get; }
+
+    public bool IsChecked
+    {
+        get => _isChecked;
+        set => this.RaiseAndSetIfChanged(ref _isChecked, value);
     }
 }

@@ -270,5 +270,7 @@
   "Plugins_Adding": "در حال افزودن…",
   "Plugins_Update": "به‌روزرسانی",
   "Plugins_UpdateAvailable": "به‌روزرسانی موجود است",
-  "Plugins_AddFailed": "افزودن پلاگین ناموفق بود"
+  "Plugins_AddFailed": "افزودن پلاگین ناموفق بود",
+  "Add_FetchingOptions": "در حال دریافت گزینه‌ها…",
+  "Add_ChooseVariant": "انتخاب کنید چه چیزی دانلود شود"
 }

@@ -270,5 +270,7 @@
   "Plugins_Adding": "Wird hinzugefügt…",
   "Plugins_Update": "Aktualisieren",
   "Plugins_UpdateAvailable": "Update verfügbar",
-  "Plugins_AddFailed": "Plugin konnte nicht hinzugefügt werden"
+  "Plugins_AddFailed": "Plugin konnte nicht hinzugefügt werden",
+  "Add_FetchingOptions": "Optionen werden geladen…",
+  "Add_ChooseVariant": "Wählen Sie, was heruntergeladen wird"
 }
