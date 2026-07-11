@@ -221,6 +221,111 @@ public class AppTests
     }
 
     [AvaloniaFact]
+    public async Task Add_dialog_shows_variants_and_blocks_download_while_fetching()
+    {
+        var config = Config.New();
+        var gate = new TaskCompletionSource<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>();
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            getVariants: (_, _) => gate.Task);
+
+        vm.Urls = "https://video.example/watch?v=1";
+        Assert.True(vm.IsFetchingVariants);
+        Assert.False(vm.CanDownload); // author's decision: wait for the list on variant-capable links
+
+        gate.SetResult(new[]
+        {
+            new Downloader.Desktop.Plugins.LinkVariant { Id = "1080", Label = "1080p", IsDefault = true },
+            new Downloader.Desktop.Plugins.LinkVariant { Id = "audio", Label = "Audio only" },
+        });
+        await Task.Delay(50);
+
+        Assert.False(vm.IsFetchingVariants);
+        Assert.True(vm.CanDownload);
+        Assert.True(vm.HasVariants);
+        Assert.True(vm.Variants.Single(v => v.Id == "1080").IsChecked);  // default pre-checked
+        Assert.False(vm.Variants.Single(v => v.Id == "audio").IsChecked);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_builds_one_item_per_checked_variant()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            getVariants: (_, _) => Task.FromResult<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(new[]
+            {
+                new Downloader.Desktop.Plugins.LinkVariant { Id = "720", Label = "720p", IsDefault = true },
+                new Downloader.Desktop.Plugins.LinkVariant { Id = "audio", Label = "Audio only" },
+                new Downloader.Desktop.Plugins.LinkVariant { Id = "12b", Label = "gemma3:12b", SubstituteUrl = "gemma3:12b" },
+            }));
+
+        vm.Urls = "https://video.example/watch?v=1";
+        await Task.Delay(80);
+        Assert.True(vm.HasVariants);
+        foreach (var v in vm.Variants)
+            v.IsChecked = true;
+
+        var items = vm.BuildItems();
+
+        Assert.Equal(3, items.Count);
+        // Facet variants keep the pasted URL + persist the variant id.
+        Assert.Equal("https://video.example/watch?v=1", items[0].Urls[0]);
+        Assert.Equal("720", items[0].VariantId);
+        Assert.Equal("audio", items[1].VariantId);
+        // A substitute-URL variant becomes its own link with NO variant id.
+        Assert.Equal("gemma3:12b", items[2].Urls[0]);
+        Assert.Null(items[2].VariantId);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_variant_lookup_failure_falls_back_to_plain_add()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            getVariants: (_, _) => Task.FromException<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(
+                new InvalidOperationException("network down")));
+
+        vm.Urls = "https://video.example/watch?v=1";
+        await Task.Delay(50);
+
+        Assert.False(vm.IsFetchingVariants);
+        Assert.False(vm.HasVariants);
+        Assert.True(vm.CanDownload);
+
+        var items = vm.BuildItems();
+        Assert.Single(items);
+        Assert.Null(items[0].VariantId); // default pick
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_editing_the_url_clears_stale_variants()
+    {
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            getVariants: (url, _) => Task.FromResult<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(
+                url.Contains("video")
+                    ? new[] { new Downloader.Desktop.Plugins.LinkVariant { Id = "720", Label = "720p", IsDefault = true } }
+                    : null));
+
+        vm.Urls = "https://video.example/watch?v=1";
+        await Task.Delay(50);
+        Assert.True(vm.HasVariants);
+
+        vm.Urls = "https://plain.example/file.zip";
+        await Task.Delay(50);
+        Assert.False(vm.HasVariants);
+        Assert.True(vm.CanDownload);
+        Assert.Null(vm.BuildItems()[0].VariantId);
+    }
+
+    [AvaloniaFact]
     public async Task Add_dialog_updates_auto_filename_when_single_url_changes()
     {
         var config = Config.New();
@@ -287,6 +392,22 @@ public class AppTests
 
         await Task.Delay(50);
         Assert.Equal("prefilled.iso", vm.Filename);
+    }
+
+    [AvaloniaFact]
+    public async Task Add_dialog_ignores_extensionless_probe_names()
+    {
+        // youtube.com/watch?v=… probes to the page-path segment "watch" — not a file name. The box must
+        // stay empty so the resolver/engine names the download at start.
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config,
+            "https://www.youtube.com/watch?v=abc123",
+            (_, _) => Task.FromResult<(string, long)?>(("watch", 0)),
+            TimeSpan.Zero);
+
+        await Task.Delay(50);
+        Assert.Equal(string.Empty, vm.Filename);
     }
 
     [AvaloniaFact]
@@ -382,6 +503,26 @@ public class AppTests
         Assert.False(vm.ShowClipboardSuggestion);
         Assert.True(vm.CanDownload);
         view.Close();
+    }
+
+    [AvaloniaFact]
+    public void Add_dialog_esc_closes_it()
+    {
+        // Esc must close the Add-link dialog like every other custom-chrome dialog (no native chrome
+        // means no built-in close-on-Esc).
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero);
+        var view = new Views.AddDownloadItemView { DataContext = vm };
+        vm.View = view;
+        view.Show();
+
+        var closed = false;
+        view.Closed += (_, _) => closed = true;
+        view.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None,
+            Avalonia.Input.PhysicalKey.Escape, null);
+
+        Assert.True(closed);
     }
 
     [AvaloniaFact]

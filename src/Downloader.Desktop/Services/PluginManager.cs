@@ -167,6 +167,26 @@ public sealed class PluginManager
             : await resolver.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The selectable variants the claiming enabled resolver offers for this link (qualities,
+    /// model tags, …), or null when no resolver claims it / it has no choices / the lookup fails. The Add
+    /// window shows these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>.</summary>
+    public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
+    {
+        var resolver = FindResolver(url);
+        if (resolver == null)
+            return null;
+        try
+        {
+            var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
+            return variants is { Count: > 0 } ? variants : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AppLog.Error($"Variant lookup failed for {url} — proceeding without choices", ex);
+            return null;
+        }
+    }
+
     public void SetEnabled(string pluginId, bool enabled)
     {
         lock (_gate)

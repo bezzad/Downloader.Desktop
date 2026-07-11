@@ -32,6 +32,9 @@ public class NotchTests
     [AvaloniaFact]
     public void Notch_vm_lists_top_rows_with_overflow_and_total_speed()
     {
+        // OverflowText goes through Localizer — load the pack explicitly or the assertion sees the raw
+        // "Notch_More" key whenever no earlier test happened to load it (order-dependent CI flake).
+        Localizer.Instance.Load("en");
         var (manager, _) = NewManager();
         for (var i = 0; i < 5; i++)
         {
@@ -47,6 +50,7 @@ public class NotchTests
         Assert.True(notch.HasActivity);
         Assert.StartsWith("↓", notch.TotalSpeedText);
         Assert.Matches(@"\d", notch.TimeText); // live clock text
+        Assert.False(notch.ShowCollapsedClock); // downloading → speed replaces the clock (author's spec)
     }
 
     [AvaloniaFact]
@@ -57,6 +61,8 @@ public class NotchTests
         Assert.False(notch.HasRows);
         Assert.False(notch.HasOverflow);
         Assert.False(notch.HasActivity); // no speed chip in the pill when nothing runs
+        if (!NotchViewModel.IsMac)
+            Assert.True(notch.ShowCollapsedClock); // idle → the clock shows (instead of a speed)
     }
 
     [AvaloniaFact]

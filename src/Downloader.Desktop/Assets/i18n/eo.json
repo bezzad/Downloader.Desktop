@@ -8,6 +8,7 @@
   "Nav_Active": "Aktivaj",
   "Nav_Completed": "Finitaj",
   "Nav_Failed": "Malsukcesaj / haltigitaj",
+  "Nav_Downloads": "Elŝutoj",
   "Nav_Queues": "Atendovicoj",
   "Nav_Scheduler": "Planilo",
   "Nav_Plugins": "Kromaĵoj",
@@ -269,5 +270,7 @@
   "Plugins_Adding": "Aldonante…",
   "Plugins_Update": "Ĝisdatigi",
   "Plugins_UpdateAvailable": "Ĝisdatigo disponebla",
-  "Plugins_AddFailed": "Ne eblis aldoni la kromaĵon"
+  "Plugins_AddFailed": "Ne eblis aldoni la kromaĵon",
+  "Add_FetchingOptions": "Prenas opciojn…",
+  "Add_ChooseVariant": "Elektu kion elŝuti"
 }

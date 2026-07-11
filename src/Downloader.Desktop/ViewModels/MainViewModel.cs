@@ -47,10 +47,12 @@ public class MainViewModel : ViewModelBase
         ShowQueuedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Queued));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
-        // Management pages open as dialogs over the always-downloads main view (the left rail was removed).
-        ShowQueuesCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Queues, Localizer.Instance["Nav_Queues"], _config));
-        ShowSchedulerCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Scheduler, Localizer.Instance["Nav_Scheduler"], _config));
-        ShowSettingViewCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.ShowPage(Settings, Localizer.Instance["Nav_Settings"], _config));
+        // Management pages open in-window: the central ContentControl swaps between the downloads
+        // list and Queues/Scheduler/Settings; the toolbar's Downloads button returns to the list.
+        ShowDownloadsCommand = ReactiveCommand.Create(() => Navigate(NavSection.Downloads));
+        ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
+        ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
+        ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         DonateCommand = ReactiveCommand.Create(() =>
@@ -90,6 +92,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowQueuedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
+    public ICommand ShowDownloadsCommand { get; }
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
@@ -139,6 +142,7 @@ public class MainViewModel : ViewModelBase
     public bool IsQueuedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Queued;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
+    public bool IsDownloadsSelected => _section == NavSection.Downloads;
     public bool IsQueuesSelected => _section == NavSection.Queues;
     public bool IsSchedulerSelected => _section == NavSection.Scheduler;
     public bool IsSettingsSelected => _section == NavSection.Settings;
@@ -175,6 +179,10 @@ public class MainViewModel : ViewModelBase
         _pluginManager.LoadFromDirectory(Services.PluginManager.PluginsRoot);
         foreach (var id in _config.DisabledPlugins ?? new System.Collections.Generic.List<string>())
             _pluginManager.SetEnabled(id, false);
+
+        // Self-heal plugin binary dependencies (yt-dlp/deno/ffmpeg…): an install-time fetch that was
+        // interrupted (app closed, network drop) otherwise never retries and the plugin half-works.
+        _ = Task.Run(EnsurePluginDependenciesAsync);
 
         // Plugins loaded AFTER the download list: re-raise post-download-action offers on completed
         // items so their row buttons (e.g. "Add to Ollama") appear without needing a status change.
@@ -213,11 +221,6 @@ public class MainViewModel : ViewModelBase
         if (View is not Window window)
             return;
 
-        // Focus-aware notification routing: any window active ⇒ in-app toasts; unfocused/tray ⇒ OS.
-        NotificationService.SetFocused(window.IsActive);
-        window.Activated += (_, _) => NotificationService.SetFocused(true);
-        window.Deactivated += (_, _) => NotificationService.SetFocused(false);
-
         TrayService.Init(window, Quit);
         TrayService.NotificationsToggled = enabled =>
         {
@@ -246,9 +249,6 @@ public class MainViewModel : ViewModelBase
             {
                 e.Cancel = true;
                 window.Hide();
-                // Hidden to tray: route notifications to the OS. macOS doesn't fire Deactivated on Hide,
-                // so set this explicitly (the visibility check in NotificationService backs it up).
-                NotificationService.SetFocused(false);
             }
         };
 
@@ -308,7 +308,6 @@ public class MainViewModel : ViewModelBase
             Environment.GetCommandLineArgs().Contains("--minimized"))
         {
             window.Hide();
-            NotificationService.SetFocused(false); // started hidden in tray ⇒ OS notifications
         }
 
         if (_config.Settings.AutoUpdate)
@@ -338,9 +337,11 @@ public class MainViewModel : ViewModelBase
                 if (info == null || !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
                     continue;
 
+                // The in-window action lives on the Settings → Plugins row (its "Update" button, shown via
+                // PluginRowViewModel.UpdateAvailable) — the notification just points the user there.
                 var title = Localizer.Instance["Plugins_UpdateAvailable"];
                 var message = $"{descriptor.Name} → v{info.Version}";
-                NotificationService.ShowAction(title, message, () => _ = AcceptPluginUpdateAsync(info));
+                NotificationService.Notify(title, message, false);
             }
         }
         catch (Exception ex)
@@ -349,19 +350,25 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Accept an offered optional-plugin update from the startup notification: swap it, then inform.</summary>
-    private async Task AcceptPluginUpdateAsync(Models.CatalogPluginInfo info)
+    /// <summary>Background retry of any enabled plugin's missing binary dependencies (resumable — a
+    /// half-downloaded archive from an interrupted install is picked up, a corrupt one replaced).
+    /// Failure-tolerant: offline just logs and the next launch tries again.</summary>
+    private async Task EnsurePluginDependenciesAsync()
     {
-        var result = await PluginCatalogService.InstallOrUpdateAsync(_pluginManager, info).ConfigureAwait(true);
-        if (result.Success)
+        foreach (var descriptor in _pluginManager.Plugins.Where(p => p.IsEnabled).ToList())
         {
-            foreach (var vm in _downloadManager.Items)
-                vm.RaisePostActionChanged(); // refresh any post-download actions the updated plugin offers
-            NotificationService.Inform(Localizer.Instance["Plugins_Installed"], result.Plugin?.Name ?? info.Name, false);
-        }
-        else
-        {
-            NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], result.Error, true);
+            try
+            {
+                var deps = _pluginManager.GetRuntimeDependencies(descriptor.Id);
+                if (deps.Count == 0)
+                    continue;
+                await PluginDependencyInstaller.EnsureAllAsync(deps, null, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error($"Dependency check for plugin {descriptor.Id} failed", ex);
+            }
         }
     }
 
@@ -512,6 +519,7 @@ public class MainViewModel : ViewModelBase
 
     private void RaiseNavFlags()
     {
+        this.RaisePropertyChanged(nameof(IsDownloadsSelected));
         this.RaisePropertyChanged(nameof(IsAllSelected));
         this.RaisePropertyChanged(nameof(IsActiveSelected));
         this.RaisePropertyChanged(nameof(IsQueuedSelected));
@@ -526,7 +534,10 @@ public class MainViewModel : ViewModelBase
     {
         // Always open the dialog; URLs can be typed there if the top box was empty.
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
-            new AddDownloadItemView(), new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager), _config);
+            new AddDownloadItemView(),
+            new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager,
+                getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct)),
+            _config);
 
         if (result is { Count: > 0 })
         {

@@ -8,6 +8,7 @@
   "Nav_Active": "فعال",
   "Nav_Completed": "تکمیل‌شده",
   "Nav_Failed": "ناموفق / متوقف",
+  "Nav_Downloads": "دانلودها",
   "Nav_Queues": "صف‌ها",
   "Nav_Scheduler": "زمان‌بند",
   "Nav_Plugins": "افزونه‌ها",
@@ -269,5 +270,7 @@
   "Plugins_Adding": "در حال افزودن…",
   "Plugins_Update": "به‌روزرسانی",
   "Plugins_UpdateAvailable": "به‌روزرسانی موجود است",
-  "Plugins_AddFailed": "افزودن پلاگین ناموفق بود"
+  "Plugins_AddFailed": "افزودن پلاگین ناموفق بود",
+  "Add_FetchingOptions": "در حال دریافت گزینه‌ها…",
+  "Add_ChooseVariant": "انتخاب کنید چه چیزی دانلود شود"
 }

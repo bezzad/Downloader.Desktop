@@ -8,6 +8,7 @@
   "Nav_Active": "نشطة",
   "Nav_Completed": "مكتملة",
   "Nav_Failed": "فاشلة / متوقفة",
+  "Nav_Downloads": "التنزيلات",
   "Nav_Queues": "قوائم الانتظار",
   "Nav_Scheduler": "المجدول",
   "Nav_Plugins": "الإضافات",
@@ -269,5 +270,7 @@
   "Plugins_Adding": "جارٍ الإضافة…",
   "Plugins_Update": "تحديث",
   "Plugins_UpdateAvailable": "يتوفر تحديث",
-  "Plugins_AddFailed": "تعذّر إضافة الإضافة"
+  "Plugins_AddFailed": "تعذّر إضافة الإضافة",
+  "Add_FetchingOptions": "جارٍ جلب الخيارات…",
+  "Add_ChooseVariant": "اختر ما تريد تنزيله"
 }

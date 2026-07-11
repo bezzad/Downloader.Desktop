@@ -117,6 +117,10 @@ public class DownloadItem
     /// action (e.g. "Add to Ollama") can be offered on the completed item — even after a restart.</summary>
     public string ResolverPluginId { get; set; }
 
+    /// <summary>The resolver variant the user chose in the Add window (e.g. "720", "audio",
+    /// "gemma3:12b"), persisted so a retry/restart re-resolves the SAME variant. Null = default pick.</summary>
+    public string VariantId { get; set; }
+
     /// <summary>Transient path to a temp Netscape cookie file supplied by the browser extension for THIS
     /// attempt (a signed-in session for a site like YouTube). Never persisted — cookies are secrets — and
     /// deleted right after the resolve attempt. Null for normal downloads.</summary>

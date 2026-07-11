@@ -49,8 +49,8 @@
                            Width="17" Height="17" Margin="0 0 8 0" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Text="{Binding TotalPercentText}" Foreground="#4FC3F7"
                                FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="White" HorizontalAlignment="Center"
-                               FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="White" HorizontalAlignment="Right"
+                               Margin="0 0 10 0" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="3" Text="{Binding TotalSpeedText}" Foreground="#7FE3C6"
                                FontSize="13" VerticalAlignment="Center" />
                 </Grid>

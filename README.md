@@ -6,7 +6,7 @@
 [![Release Pipeline](https://img.shields.io/github/actions/workflow/status/bezzad/Downloader.Desktop/release.yml?label=release)](https://github.com/bezzad/Downloader.Desktop/actions/workflows/release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/bezzad/Downloader.Desktop?display_name=tag)](https://github.com/bezzad/Downloader.Desktop/releases)
 [![Downloads](https://img.shields.io/github/downloads/bezzad/Downloader.Desktop/total)](https://github.com/bezzad/Downloader.Desktop/releases)
-[![Coverage (planned)](https://img.shields.io/badge/coverage-coming%20soon-lightgrey)](https://github.com/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml)
+[![codecov](https://codecov.io/github/bezzad/Downloader.Desktop/graph/badge.svg)](https://codecov.io/github/bezzad/Downloader.Desktop)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea44f)](https://github.com/bezzad/Downloader.Desktop/releases)
 

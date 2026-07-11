@@ -35,4 +35,15 @@ public class YtDlpArgsTests
         Assert.Contains("-J", args);
         Assert.Contains("\"https://youtu.be/x\"", args);
     }
+
+    [Fact]
+    public void Missing_formats_is_detected_from_ytdlp_stderr()
+    {
+        // The signature of an unsolved YouTube "n challenge" (no JS runtime): cookies pass the sign-in
+        // wall but only storyboards exist, so -J's default selection fails with this exact error.
+        Assert.True(YtDlpBinary.MissingFormats(
+            "ERROR: [youtube] abc: Requested format is not available. Use --list-formats ..."));
+        Assert.False(YtDlpBinary.MissingFormats("ERROR: [youtube] abc: Sign in to confirm you're not a bot."));
+        Assert.False(YtDlpBinary.MissingFormats(""));
+    }
 }

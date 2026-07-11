@@ -52,6 +52,9 @@
 
     <Window.DataTemplates>
         <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
+        <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
+        <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
+        <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
     </Window.DataTemplates>
 
     <Panel>
@@ -121,6 +124,123 @@
             </Grid>
         </Border>
 
+        <!-- ===== Action toolbar (visible on every page) =====
+             Left: page navigation (Home / Settings / Scheduler / Queues — current one highlighted).
+             Right: the downloads-list actions (selected-rows group + queue group), shown only on
+             the Downloads page. -->
+        <Border DockPanel.Dock="Top" Padding="5 4"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 0 1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+            <!-- Page navigation, pinned left -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <Button Classes="tool" Classes.selected="{Binding IsDownloadsSelected}"
+                        Command="{Binding ShowDownloadsCommand}" ToolTip.Tip="{i18n:Tr Nav_Downloads}"
+                        VerticalAlignment="Stretch">
+                    <PathIcon Data="{DynamicResource HomeRegular}" HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                </Button>
+                <Button Classes="tool" Classes.selected="{Binding IsSettingsSelected}"
+                        Command="{Binding ShowSettingViewCommand}" ToolTip.Tip="{i18n:Tr Nav_Settings}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource SettingsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Settings}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Classes.selected="{Binding IsSchedulerSelected}"
+                        Command="{Binding ShowSchedulerCommand}" ToolTip.Tip="{i18n:Tr Nav_Scheduler}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ClockRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Scheduler}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Classes.selected="{Binding IsQueuesSelected}"
+                        Command="{Binding ShowQueuesCommand}" ToolTip.Tip="{i18n:Tr Nav_Queues}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource TabsRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Nav_Queues}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- Downloads-list actions, pinned right; hidden on the Settings/Scheduler/Queues pages -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                        IsVisible="{Binding IsDownloadsSelected}">
+                <Button Classes="tool" Command="{Binding Downloads.StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource PlayRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Start}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.PauseSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Pause}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource PauseRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Pause}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.StopSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Stop}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Stop}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource DeleteRegular}" HorizontalAlignment="Center" Foreground="#E5594F" />
+                        <TextBlock Text="{i18n:Tr Action_Remove}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
+
+                <!-- Start a whole queue (selection-independent): pick which queue from the dropdown -->
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Action_StartQueue}">
+                    <Button.Flyout>
+                        <MenuFlyout ItemsSource="{Binding Downloads.StartQueueTargets}">
+                            <MenuFlyout.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
+                                              BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Name}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </ControlTheme>
+                            </MenuFlyout.ItemContainerTheme>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource PlayStackRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_StartQueue}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Stop a whole queue (selection-independent): pick which queue from the dropdown -->
+                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Action_StopQueue}">
+                    <Button.Flyout>
+                        <MenuFlyout ItemsSource="{Binding Downloads.StopQueueTargets}">
+                            <MenuFlyout.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
+                                              BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Name}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </ControlTheme>
+                            </MenuFlyout.ItemContainerTheme>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource StopStackRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_StopQueue}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Stop every item, regardless of queue or selection -->
+                <Button Classes="tool" Command="{Binding Downloads.StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource StopAllRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- ===== Status bar ===== -->
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource SystemChromeLowColor}"
                 BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 1 0 0"
@@ -172,7 +292,7 @@
             </Grid>
         </Border>
 
-        <!-- ===== Central content (always the downloads list; Queues/Scheduler/Settings open as dialogs) ===== -->
+        <!-- ===== Central content: the downloads list or a management page (see the nav buttons) ===== -->
         <ContentControl Content="{Binding CurrentPage}" />
     </DockPanel>
     </Border>

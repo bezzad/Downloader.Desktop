@@ -20,8 +20,8 @@ namespace Downloader.Desktop.Services;
 /// remove every raw <c>'</c> from the text — so it can't break out of that PowerShell string either.
 ///
 /// Unverifiable on this (macOS/Linux) dev box or in CI (no Windows runner) — needs manual
-/// confirmation on an actual Windows machine. On any failure this returns false so the caller falls
-/// back to the in-app toast, same contract as every other <c>TryNative</c> branch.
+/// confirmation on an actual Windows machine. On any failure this returns false and the notification
+/// is simply skipped (there is no in-app fallback), same contract as the other native branches.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class WindowsNotifier

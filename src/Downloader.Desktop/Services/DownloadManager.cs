@@ -364,7 +364,7 @@ public partial class DownloadManager : IDownloadManager
                 var persisted = PersistedPlan.FromJson(item.PlanJson);
                 if (persisted == null)
                 {
-                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath).ConfigureAwait(false);
+                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath, item.VariantId).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
                         // Remember WHICH plugin resolved this link so its post-download action (e.g.
@@ -455,15 +455,16 @@ public partial class DownloadManager : IDownloadManager
     /// (real part URLs + post-process recipe). Returns null when no plugin claims it, there's no plugin
     /// manager, or resolving fails.</summary>
     public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
-        string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null)
+        string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null,
+        string variantId = null)
     {
         if (_plugins == null)
             return null;
         try
         {
-            var options = string.IsNullOrEmpty(cookieFilePath)
+            var options = string.IsNullOrEmpty(cookieFilePath) && string.IsNullOrEmpty(variantId)
                 ? null
-                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath };
+                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath, VariantId = variantId };
             return await _plugins.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -1112,13 +1113,12 @@ public partial class DownloadManager : IDownloadManager
         if (label == null)
             return;
         vm.RaisePostActionChanged();
-        // The button carries the action's own name ("Add to Ollama") and the message says what clicking
-        // does — a generic "Open" button read as open/unzip the file (author-reported confusion).
-        NotificationService.ShowAction(
+        // The in-window action lives on the completed row (its action button, shown via
+        // PostDownloadActionLabel) — the notification just tells the user it's available.
+        NotificationService.Notify(
             label,
             string.Format(Localizer.Instance["PostAction_OfferMsg"], vm.FileName ?? vm.Url, label),
-            () => _ = RunPostDownloadAction(vm),
-            actionText: label);
+            isError: false);
     }
 
     /// <summary>

@@ -114,6 +114,16 @@
             <Setter Property="Height" Value="18" />
             <Setter Property="Width" Value="18" />
         </Style>
+        <!-- Current page's nav button (Downloads/Queues/Scheduler/Settings): translucent accent fill -->
+        <Style Selector="Button.tool.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <Style Selector="Button.tool.selected PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <Style Selector="Button.tool.selected TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
 
         <!-- About-dialog content section button (icon + title/subtitle, looks like a flat card) -->
         <Style Selector="Button.about">

@@ -15,7 +15,7 @@ namespace Downloader.Desktop.Services;
 /// Implemented with P/Invoke into <c>/usr/lib/libobjc.dylib</c> so it needs no extra NuGet package
 /// and no <c>net*-macos</c> workload (the CI release builds plain net10.0). It is AOT/trim-safe.
 /// NSUserNotification is deprecated by Apple but still functions on current macOS and is the only
-/// dependency-free option; on any failure the caller falls back to the in-app toast.
+/// dependency-free option; on any failure the notification is simply skipped (there is no in-app toast).
 /// </summary>
 [SupportedOSPlatform("macos")]
 internal static class MacNotifier
@@ -35,8 +35,8 @@ internal static class MacNotifier
     private static extern IntPtr objc_msgSend(IntPtr receiver, IntPtr selector, IntPtr arg1);
 
     /// <summary>
-    /// Delivers a notification. Returns false if the native call could not be made, so the caller
-    /// can fall back to the in-app toast.
+    /// Delivers a notification. Returns false if the native call could not be made (the caller then
+    /// simply skips it — there is no in-app fallback).
     /// </summary>
     public static bool TryNotify(string title, string subtitle, string message)
     {

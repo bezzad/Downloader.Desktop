@@ -60,20 +60,4 @@ public class DialogHelperTests
         Assert.Equal(700, config.WindowSizes[DialogHelper.DetailsWindowKey].Width);
         Assert.Equal(500, config.WindowSizes[DialogHelper.DetailsWindowKey].Height);
     }
-
-    [AvaloniaFact]
-    public void PageDialog_key_is_shared_across_settings_and_queues()
-    {
-        // PageDialogView hosts Queues/Scheduler/Settings; all three share one remembered size
-        // (DialogHelper.PageDialogWindowKey), never one key per page.
-        var config = Config.New();
-        var settingsWindow = new Window { Width = 900, Height = 640 };
-        DialogHelper.SavePersistedSize(settingsWindow, DialogHelper.PageDialogWindowKey, config);
-
-        var queuesWindow = new Window { MinWidth = 560, MinHeight = 420 };
-        DialogHelper.ApplyPersistedSize(queuesWindow, DialogHelper.PageDialogWindowKey, config);
-
-        Assert.Equal(900, queuesWindow.Width);
-        Assert.Equal(640, queuesWindow.Height);
-    }
 }

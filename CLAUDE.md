@@ -41,7 +41,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
-- **Downloader 5.8.0** NuGet package (the core download engine — not in this repo).
+- **Downloader 5.9.4** NuGet package (the core download engine — not in this repo).
 - DI via `Microsoft.Extensions.DependencyInjection`; logging via `Microsoft.Extensions.Logging`.
 - macOS `.app` bundling via `Dotnet.Bundle`.
 - `Nullable` is **disabled** in the app csproj (enabled in `Directory.Build.props` but overridden).
@@ -53,7 +53,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - `Downloader.Desktop.Plugins/` — the first-party plugins, in **two tiers** (all first-party plugin source now lives in THIS repo — the former separate `bezzad/Downloader.Plugins` repo was consolidated in; it is deleted only after the author confirms this works):
   - **BUILT-IN** (bundled, disable-only, not removable, updates with the app): `Downloader.Desktop.Plugins.GitHub` (GitHub Releases resolver; the former `samples/Downloader.Desktop.SamplePlugin`, same id `com.bezzad.github-releases`) and `Downloader.Desktop.Plugins.Ollama` (`gemma3:12b` / ollama.com links → model blob download + "Add to Ollama" install; id `com.bezzad.ollama-models`). Staged into the app output's `plugins/` folder at build/publish by the app csproj's `StageBundledPlugins` target — an **explicit per-plugin allow-list**, NOT a wildcard, so optional plugins in the same folder are never bundled.
   - **OPTIONAL / catalog tier** (NOT bundled, NOT referenced by the app, absent on a fresh install; installed on demand from Settings → Plugins): `Downloader.Desktop.Plugins.Hls` (HLS/`.m3u8` + video-site downloads via yt-dlp/ffmpeg; id `com.bezzad.hls`). It's in the solution for build/test only. At release time `scripts/build-plugins.sh` (run by `release.yml`) zips it + generates `plugins-catalog.json` (from `packaging/plugins/optional-plugins.json` + the built version/sha256) and attaches both to the same `vX.Y.Z` release. The app fetches that catalog (`Services/PluginCatalogService`), shows uninstalled ones under "More plugins", and on **Add** downloads → **verifies sha256 before load** (`PluginManager.InstallFromZipAsync`) → installs into `PluginsRoot` as a normal removable plugin. Update checks compare installed vs catalog version and prompt (never auto). Isolation is guarded by `PluginIsolationTests` + a `release.yml` publish grep. Its own version lives in its csproj `<Version>` (single source; `HlsPlugin.Version` derives from the assembly).
-  - The `samples/` folder no longer exists. Loaded at runtime by `Services/PluginManager` (collectible `AssemblyLoadContext`). Docs: `docs/plugins-architecture.md` + `docs/writing-plugins.md`. **UI nav model:** no left rail — the main view is always the downloads list; Queues/Scheduler/Settings open as dialogs (`Views/PageDialogView` via `DialogHelper.ShowPage`); Plugins live in a collapsible Settings section.
+  - The `samples/` folder no longer exists. Loaded at runtime by `Services/PluginManager` (collectible `AssemblyLoadContext`). Docs: `docs/plugins-architecture.md` + `docs/writing-plugins.md`. **UI nav model:** no left rail and no page dialogs — the toolbar (bulk actions + page nav) lives in `MainWindow` and the central `ContentControl` swaps `MainViewModel.CurrentPage` between Downloads/Queues/Scheduler/Settings (an icon-only list button returns to Downloads); only Add-link (and Details/About) remain modal windows (`PageDialogView` was deleted 2026-07-10); Plugins live in a collapsible Settings section.
 - `Downloader.Desktop/`
   - `Program.cs` — Avalonia entrypoint (`BuildAvaloniaApp`, classic desktop lifetime).
   - `App.axaml(.cs)` — app bootstrap, **DI registration in `ConfigureServices()`**, platform guard (desktop-only), shutdown-save hook (`DesktopOnShutdownRequested`, currently commented out).
@@ -179,6 +179,7 @@ Keep this list current as items land.
 - Git user: `bezzad`. Main branch: `main`.
 - C#: `LangVersion=latest`, file-scoped namespaces, `Avalonia`/`ReactiveUI` idioms (`RaiseAndSetIfChanged`, `ReactiveCommand.CreateFromTask`).
 - **Code style — Clean Code, KISS, as simple as possible**: smallest change that solves the actual problem, no speculative abstractions/layers/config knobs, no dead code, prefer readability over cleverness. Standing rule, applies to every task without being repeated.
+- **Plugin versions — bump on every plugin code change (standing rule).** Whenever a plugin's source changes (`src/Downloader.Desktop.Plugins/*`), bump that plugin's csproj `<Version>` (semver: fixes = patch, behavior/features = minor) in the same session as the change. The catalog update check compares installed vs catalog version — a stale version means users never receive the fix. The csproj `<Version>` is the single source (runtime `Version` derives from the assembly).
 - **Logging — ALWAYS use the standard `Microsoft.Extensions.Logging.ILogger`** (`LogInformation`/`LogWarning`/`LogError`), never a custom `Log(string)` API or `Console.WriteLine`. This is the .NET standard and what the `Downloader` engine, `Downloader.Desktop`, and the plugin SDK all use, so everything flows into one log. The app bridges `ILogger` → the app log file via `AppLog.Factory` (`ILoggerFactory`); pass that factory to anything that takes one (e.g. `new DownloadService(cfg, AppLog.Factory)`), and the plugin SDK exposes `IPluginContext.Logger` (an `ILogger`). Standing rule.
 - Keep this file updated when structure changes to minimize re-exploration.
 
@@ -255,3 +256,9 @@ non-interactively). The manual steps below are the fallback / what the script do
    merge (the CLA is already signed for `bezzad`).
 5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
 6. Record the release in the relevant OpenSpec change (or a short release note in the archive) — version, tag, commit hashes, tap commit, winget PR # — per the workflow above.
+
+## Token-efficient builds & tests (MANDATORY)
+
+- **`dotnet build`**: always run with `-v q --nologo` (e.g. `dotnet build Downloader.Desktop.sln -v q --nologo`). Only re-run without `-v q` if you need to inspect a specific error in detail.
+- **`dotnet test`**: always run with `-v q --nologo`. On failure, re-run ONLY the failing test(s) with `--filter FullyQualifiedName~<TestName>` instead of the whole suite.
+- **Long-running commands** (`dotnet test`, `dotnet build`, `npm test`, Playwright, `gh run watch`): run them with `run_in_background: true` and wait for the completion notification — never poll in a `while … sleep` loop, and never dump their full output into context. After completion, read only the tail / failure section of the output.

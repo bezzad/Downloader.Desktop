@@ -245,9 +245,11 @@ public class PlanRunnerTests
     public async Task Parallel_segments_actually_download_concurrently()
     {
         // Author-reported: segments appeared to download serially. Prove the bounded-parallel loop
-        // really overlaps requests: a slow server (250 ms/request) tracks the max in-flight count.
+        // really overlaps requests: a slow server tracks the max in-flight count. ANY overlap (>=2)
+        // proves parallelism — a serial loop can never overlap — while demanding >=3 was flaky on
+        // loaded CI runners (macOS Release saw 2 when engine startups staggered past the window).
         var parts = Enumerable.Range(0, 8).ToDictionary(i => $"p{i}.ts", i => Bytes($"P{i}", 2000));
-        using var server = new LoopbackServer(parts) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
+        using var server = new LoopbackServer(parts) { ResponseDelay = TimeSpan.FromMilliseconds(500) };
         var dir = TempDir();
         try
         {
@@ -261,8 +263,8 @@ public class PlanRunnerTests
             await new DownloadManager().ExecutePlanAsync(plan, dir, "c.bin", null,
                 _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None);
 
-            Assert.True(server.MaxConcurrent >= 3,
-                $"expected >=3 overlapping segment requests, saw {server.MaxConcurrent} — the parallel path is not engaging");
+            Assert.True(server.MaxConcurrent >= 2,
+                $"expected overlapping segment requests, saw max {server.MaxConcurrent} in flight — the parallel path is not engaging");
         }
         finally { TryDelete(dir); }
     }

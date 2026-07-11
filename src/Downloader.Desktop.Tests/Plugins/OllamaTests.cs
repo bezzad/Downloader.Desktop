@@ -54,6 +54,91 @@ public class OllamaLogicTests
     }
 
     [Fact]
+    public void Tracks_whether_the_tag_was_explicit()
+    {
+        Assert.True(OllamaModelRef.TryParse("gemma3:12b", out var tagged));
+        Assert.True(tagged.HasExplicitTag);
+
+        Assert.True(OllamaModelRef.TryParse("gemma3", out var bare));
+        Assert.False(bare.HasExplicitTag);
+        Assert.Equal("latest", bare.Tag);
+
+        var retagged = bare.WithTag("4b");
+        Assert.Equal("4b", retagged.Tag);
+        Assert.True(retagged.HasExplicitTag);
+    }
+
+    [Fact]
+    public async Task Tagless_reference_lists_registry_tags_as_variants_with_substitute_urls()
+    {
+        var resolver = new OllamaResolver(new StubRegistry { Tags = new[] { "latest", "4b", "12b" } });
+
+        var variants = await ((ILinkResolver)resolver).GetVariantsAsync("gemma3", null, CancellationToken.None);
+
+        Assert.NotNull(variants);
+        Assert.Equal(new[] { "latest", "4b", "12b" }, variants.Select(v => v.Id));
+        Assert.Equal("gemma3:12b", variants.Single(v => v.Id == "12b").SubstituteUrl);
+        Assert.True(variants.Single(v => v.Id == "latest").IsDefault);
+    }
+
+    [Fact]
+    public async Task Tagged_reference_offers_no_variants()
+    {
+        var resolver = new OllamaResolver(new StubRegistry { Tags = new[] { "latest", "4b" } });
+        Assert.Null(await ((ILinkResolver)resolver).GetVariantsAsync("gemma3:4b", null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Resolve_with_variant_id_uses_that_tag()
+    {
+        var stub = new StubRegistry { Tags = Array.Empty<string>() };
+        var resolver = new OllamaResolver(stub);
+
+        var plan = await ((ILinkResolver)resolver).ResolveAsync(
+            "gemma3", new ResolveOptions { VariantId = "12b" }, CancellationToken.None);
+
+        Assert.Equal("12b", stub.LastManifestModel.Tag);
+        Assert.EndsWith("gemma3-12b.gguf", plan.SuggestedFileName);
+    }
+
+    [Fact]
+    public async Task Live_tags_endpoint_returns_real_gemma3_tags()
+    {
+        // Gated live check (like YtDlpDiagnosisTests): the JSON tag list lives on ollama.com (the
+        // registry host 404s /v2/…/tags/list) — run with DLDESKTOP_NET=1 to verify against the real site.
+        if (Environment.GetEnvironmentVariable("DLDESKTOP_NET") != "1")
+            return;
+
+        using var registry = new HttpOllamaRegistry();
+        Assert.True(OllamaModelRef.TryParse("gemma3", out var model));
+
+        var tags = await registry.GetTagsAsync(model, CancellationToken.None);
+
+        Assert.Contains("latest", tags);
+        Assert.Contains("12b", tags);
+    }
+
+    private sealed class StubRegistry : IOllamaRegistry
+    {
+        public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+        public OllamaModelRef LastManifestModel { get; private set; }
+
+        public Task<OllamaManifest> GetManifestAsync(OllamaModelRef model, CancellationToken ct)
+        {
+            LastManifestModel = model;
+            return Task.FromResult(OllamaManifest.Parse("""
+                { "layers": [ { "mediaType": "application/vnd.ollama.image.model", "digest": "sha256:x", "size": 10 } ] }
+                """));
+        }
+
+        public string BlobUrl(OllamaModelRef model, string digest) => $"https://reg/{model}/{digest}";
+        public Task DownloadBlobAsync(OllamaModelRef model, string digest, string destinationPath, CancellationToken ct)
+            => Task.CompletedTask;
+        public Task<IReadOnlyList<string>> GetTagsAsync(OllamaModelRef model, CancellationToken ct)
+            => Task.FromResult(Tags);
+    }
+
+    [Fact]
     public void Rejects_urls_paths_and_file_names()
     {
         foreach (var input in new[]

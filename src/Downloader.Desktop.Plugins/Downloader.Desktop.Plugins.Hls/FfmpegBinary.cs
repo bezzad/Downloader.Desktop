@@ -28,7 +28,9 @@ public sealed class FfmpegBinary : IFfmpeg
     public FfmpegBinary(string dataDirectory, HttpClient? http = null, ILogger? logger = null)
     {
         _dataDir = dataDirectory;
-        _http = http ?? new HttpClient();
+        // Infinite timeout: the default 100 s covers the whole body read and truncates a large static
+        // build on slow links (see YtDlpBinary). Cancellation comes from the caller's token.
+        _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _log = logger ?? NullLogger.Instance;
     }
 
@@ -95,10 +97,20 @@ public sealed class FfmpegBinary : IFfmpeg
 
         _log.LogInformation("ffmpeg not found; downloading a static build into {Dir}", _dataDir);
         var archive = ArchivePath(_dataDir);
-        await using (var fs = File.Create(archive))
-        await using (var stream = await _http.GetStreamAsync(ResolveDownloadUrl(), cancellationToken).ConfigureAwait(false))
-            await stream.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
-        await FinishInstallAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
+            await using (var fs = File.Create(archive))
+            await using (var stream = await _http.GetStreamAsync(ResolveDownloadUrl(), cancellationToken).ConfigureAwait(false))
+                await stream.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
+            await FinishInstallAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Never leave a partial archive behind — it would poison every later attempt.
+            try { File.Delete(archive); } catch (IOException) { }
+            throw;
+        }
         return _resolved = cached;
     }
 
@@ -143,7 +155,17 @@ public sealed class FfmpegBinary : IFfmpeg
         var archive = ArchivePath(_dataDir);
         var targetExe = TargetExePath(_dataDir);
 
-        Extract(archive, binDir);
+        try
+        {
+            Extract(archive, binDir);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A truncated/corrupt archive (interrupted download) must not survive — delete it so the
+            // next attempt re-downloads instead of failing on the same bad file forever.
+            try { File.Delete(archive); } catch (IOException) { }
+            throw new InvalidOperationException("The downloaded FFmpeg archive was corrupt; it will be re-downloaded on the next attempt.", ex);
+        }
         try { File.Delete(archive); } catch (IOException) { }
 
         var found = Directory.EnumerateFiles(binDir, ExeName, SearchOption.AllDirectories).FirstOrDefault()

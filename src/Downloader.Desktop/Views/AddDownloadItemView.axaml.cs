@@ -18,6 +18,20 @@ public partial class AddDownloadItemView : Window
         UrlBox.AddHandler(KeyDownEvent, OnUrlBoxKeyDown, RoutingStrategies.Tunnel);
     }
 
+    /// <summary>Esc closes the dialog (standard dialog behavior, since there is no native chrome).
+    /// Not reached when the inline queue-name editor handles Esc first (it cancels that row).</summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+            return;
+        }
+
+        base.OnKeyDown(e);
+    }
+
     /// <summary>Enter in the inline queue-name box confirms the new queue; Esc cancels the row.</summary>
     private void OnQueueNameKeyDown(object sender, KeyEventArgs e)
     {

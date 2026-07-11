@@ -14,6 +14,8 @@
 			<StreamGeometry x:Key="SearchRegular">M10 2.75a7.25 7.25 0 0 1 5.63 11.82l4.9 4.9a.75.75 0 0 1-1.06 1.06l-4.9-4.9A7.25 7.25 0 1 1 10 2.75Zm0 1.5a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5Z</StreamGeometry>
 			<!-- Chain/link for the URL box (#7) -->
 			<StreamGeometry x:Key="LinkRegular">M9.25 7a.75.75 0 0 1 0 1.5H7A3.5 3.5 0 0 0 7 15.5h2.25a.75.75 0 0 1 0 1.5H7a5 5 0 0 1 0-10h2.25ZM14.75 7a5 5 0 0 1 0 10H12.5a.75.75 0 0 1 0-1.5h2.25a3.5 3.5 0 1 0 0-7H12.5a.75.75 0 0 1 0-1.5h2.25ZM8 11.25h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1 0-1.5Z</StreamGeometry>
+			<!-- Home: back to the downloads list (toolbar nav, pinned right) -->
+			<StreamGeometry x:Key="HomeRegular">M12,2.7 L21.2,10.4 L20,11.9 L19,11.05 L19,20 L13.7,20 L13.7,14.2 L10.3,14.2 L10.3,20 L5,20 L5,11.05 L4,11.9 L2.8,10.4 Z</StreamGeometry>
 			<!-- "All downloads" – a 2x2 grid, distinct from the hamburger menu toggle (#20) -->
 			<StreamGeometry x:Key="AppsListRegular">M3,3 L11,3 L11,11 L3,11 Z M13,3 L21,3 L21,11 L13,11 Z M3,13 L11,13 L11,21 L3,21 Z M13,13 L21,13 L21,21 L13,21 Z</StreamGeometry>
 			<!-- Drag handle: six dots (2 columns x 3 rows) for reordering rows by dragging -->

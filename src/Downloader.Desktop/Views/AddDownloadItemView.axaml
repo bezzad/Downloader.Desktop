@@ -8,7 +8,7 @@
         xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
         xmlns:services="clr-namespace:Downloader.Desktop.Services"
         mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="460"
-        Width="560" Height="460"
+        Width="560" Height="560"
         MinWidth="480" MinHeight="360"
         CanResize="True"
         FontSize="{StaticResource DefaultFontSize}"
@@ -27,7 +27,7 @@
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
     <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Add_Title}" ShowMinMax="False" />
-    <Grid Margin="28 18 28 28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <Grid Margin="28 18 28 28" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
@@ -103,8 +103,33 @@
             </StackPanel>
         </StackPanel>
 
+        <!-- Resolver variants (video qualities / model tags): own star row so the list takes exactly the
+             remaining height and scrolls inside it — it can never overlap the action buttons below. -->
+        <Grid Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" RowDefinitions="Auto,*" Margin="0 10 0 0"
+              IsVisible="{Binding ShowVariantSection}">
+            <StackPanel Grid.Row="0" Spacing="4">
+                <TextBlock Text="{i18n:Tr Add_FetchingOptions}" IsVisible="{Binding IsFetchingVariants}"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="12" />
+                <TextBlock Text="{i18n:Tr Add_ChooseVariant}" IsVisible="{Binding HasVariants}" Margin="0 0 0 4" />
+            </StackPanel>
+            <Border Grid.Row="1" BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+                    CornerRadius="6" VerticalAlignment="Top"
+                    IsVisible="{Binding HasVariants}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Variants}" Margin="10 6">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="viewModels:VariantOptionViewModel">
+                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                          Content="{Binding Label}" FontSize="12" MinHeight="26" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
         <!-- Actions: [inline new-queue name row when adding] … [Add queue] [Add] -->
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0 16 0 0">
             <!-- Inline queue-name entry (shown by the Add-queue button; Enter confirms). -->
             <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsAddingQueue}">

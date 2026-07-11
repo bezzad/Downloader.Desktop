@@ -9,114 +9,9 @@
              x:Class="Downloader.Desktop.Views.DownloadsView"
              x:DataType="vm:DownloadsViewModel">
 
-    <!-- Tight to the edges (#8): minimal padding, no surrounding card/border -->
-    <DockPanel Margin="5">
-        <!-- Action toolbar: square buttons, icon on top + label below. The first group acts on the
-             selected rows (disabled when nothing is checked); the second group is selection-independent. -->
-        <Border DockPanel.Dock="Top" Margin="0 0 0 6">
-            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                <Button Classes="tool" Command="{Binding StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource PlayRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Action_Start}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="tool" Command="{Binding PauseSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Pause}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource PauseRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Action_Pause}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="tool" Command="{Binding StopSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Stop}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Action_Stop}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="tool" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource DeleteRegular}" HorizontalAlignment="Center" Foreground="#E5594F" />
-                        <TextBlock Text="{i18n:Tr Action_Remove}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-
-                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
-
-                <!-- Start a whole queue (selection-independent): pick which queue from the dropdown (#2) -->
-                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Action_StartQueue}">
-                    <Button.Flyout>
-                        <MenuFlyout ItemsSource="{Binding StartQueueTargets}">
-                            <MenuFlyout.ItemContainerTheme>
-                                <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
-                                              BasedOn="{StaticResource {x:Type MenuItem}}">
-                                    <Setter Property="Header" Value="{Binding Name}" />
-                                    <Setter Property="Command" Value="{Binding Command}" />
-                                </ControlTheme>
-                            </MenuFlyout.ItemContainerTheme>
-                        </MenuFlyout>
-                    </Button.Flyout>
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource PlayStackRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Action_StartQueue}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-
-                <!-- Stop a whole queue (selection-independent): pick which queue from the dropdown (#3) -->
-                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Action_StopQueue}">
-                    <Button.Flyout>
-                        <MenuFlyout ItemsSource="{Binding StopQueueTargets}">
-                            <MenuFlyout.ItemContainerTheme>
-                                <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
-                                              BasedOn="{StaticResource {x:Type MenuItem}}">
-                                    <Setter Property="Header" Value="{Binding Name}" />
-                                    <Setter Property="Command" Value="{Binding Command}" />
-                                </ControlTheme>
-                            </MenuFlyout.ItemContainerTheme>
-                        </MenuFlyout>
-                    </Button.Flyout>
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource StopStackRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Action_StopQueue}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-
-                <!-- Stop every item, regardless of queue or selection (#4) -->
-                <Button Classes="tool" Command="{Binding StopAllCommand}" ToolTip.Tip="{i18n:Tr Action_StopAll}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource StopAllRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-
-                <!-- Open the Queues manager (dialog). Nav lives here now (the left rail was removed). -->
-                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Queues}"
-                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowQueuesCommand}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource TabsRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Nav_Queues}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-
-                <Border Width="1" Margin="6 6" Background="{DynamicResource SystemBaseLowColor}" />
-
-                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Scheduler}"
-                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSchedulerCommand}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource ClockRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Nav_Scheduler}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="tool" ToolTip.Tip="{i18n:Tr Nav_Settings}"
-                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSettingViewCommand}">
-                    <StackPanel Orientation="Vertical" Spacing="3">
-                        <PathIcon Data="{DynamicResource SettingsRegular}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{i18n:Tr Nav_Settings}" HorizontalAlignment="Center" FontSize="11" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-        </Border>
-
-        <Panel>
+    <!-- Tight to the edges (#8): minimal padding, no surrounding card/border.
+         The action toolbar lives in MainWindow now (visible on every page), not here. -->
+    <Panel Margin="5">
         <DataGrid x:Name="Root"
                   ItemsSource="{Binding ItemsView}"
                   DoubleTapped="OnRowDoubleTapped"
@@ -324,6 +219,5 @@
         <!-- Drag overlay: hosts the floating "ghost" snapshot of the row being dragged so it visibly
              sticks under the cursor (the OS DragDrop session shows no moving visual on X11). -->
         <Canvas x:Name="DragOverlay" IsHitTestVisible="False" ClipToBounds="False" />
-        </Panel>
-    </DockPanel>
+    </Panel>
 </UserControl>

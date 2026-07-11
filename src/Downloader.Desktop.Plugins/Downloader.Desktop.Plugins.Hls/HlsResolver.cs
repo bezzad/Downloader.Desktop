@@ -62,21 +62,60 @@ public sealed class HlsResolver : ILinkResolver
     {
         // A direct media/playlist link is parsed straight away — yt-dlp is never invoked for it.
         if (!UrlLooksLikeHls(url) && IsSupportedSite(url))
-            return await ResolveViaExtractionAsync(url, options?.CookieFilePath, cancellationToken).ConfigureAwait(false);
+            return await ResolveViaExtractionAsync(url, options?.CookieFilePath, options?.VariantId, cancellationToken)
+                .ConfigureAwait(false);
 
         return await BuildHlsPlanAsync(url, SuggestFileName(url), headers: null, cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>The selectable qualities (+ audio-only) behind a video page URL, so the host's Add window
+    /// can offer a picker. Null for direct .m3u8 links (no yt-dlp involved) and non-extraction inputs.
+    /// The extraction is cached so the subsequent resolve of the chosen variant doesn't re-run yt-dlp.</summary>
+    public async Task<IReadOnlyList<LinkVariant>?> GetVariantsAsync(
+        string url, ResolveOptions? options, CancellationToken cancellationToken)
+    {
+        if (UrlLooksLikeHls(url) || !IsSupportedSite(url) || _ytDlp is null)
+            return null;
+
+        var json = await ExtractCachedAsync(url, options?.CookieFilePath, cancellationToken).ConfigureAwait(false);
+        var variants = SiteExtractor.ListVariants(json);
+        return variants.Count > 0 ? variants : null;
+    }
+
+    // One extraction serves both the variant listing and the resolve that follows it (yt-dlp takes
+    // 5–20 s). Short-lived on purpose: extracted stream URLs are signed/expiring, so anything beyond
+    // bridging list→start within one Add flow must re-extract.
+    private readonly object _cacheGate = new();
+    private (string Url, bool HadCookies, string Json, DateTimeOffset At)? _lastExtraction;
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
+
+    private async Task<string> ExtractCachedAsync(string url, string? cookieFilePath, CancellationToken ct)
+    {
+        var hadCookies = !string.IsNullOrEmpty(cookieFilePath);
+        lock (_cacheGate)
+        {
+            if (_lastExtraction is { } c && c.Url == url && c.HadCookies == hadCookies
+                && DateTimeOffset.UtcNow - c.At < CacheTtl)
+                return c.Json;
+        }
+
+        var json = await _ytDlp!.ExtractJsonAsync(url, cookieFilePath, ct).ConfigureAwait(false);
+        lock (_cacheGate)
+            _lastExtraction = (url, hadCookies, json, DateTimeOffset.UtcNow);
+        return json;
+    }
+
     /// <summary>Extract a site page URL with yt-dlp and build a plan from the chosen format(s).</summary>
-    private async Task<DownloadPlan> ResolveViaExtractionAsync(string url, string cookieFilePath, CancellationToken ct)
+    private async Task<DownloadPlan> ResolveViaExtractionAsync(
+        string url, string? cookieFilePath, string? variantId, CancellationToken ct)
     {
         if (_ytDlp is null)
             throw new InvalidOperationException(
                 "Video extraction is unavailable for this link (yt-dlp is not configured).");
 
-        var json = await _ytDlp.ExtractJsonAsync(url, cookieFilePath, ct).ConfigureAwait(false);
-        var result = SiteExtractor.Select(json); // throws a clear message on no-media / bad JSON
+        var json = await ExtractCachedAsync(url, cookieFilePath, ct).ConfigureAwait(false);
+        var result = SiteExtractor.Select(json, variantId); // throws a clear message on no-media / bad JSON
 
         switch (result.Kind)
         {

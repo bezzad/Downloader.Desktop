@@ -8,6 +8,7 @@
   "Nav_Active": "Actifs",
   "Nav_Completed": "Terminés",
   "Nav_Failed": "Échoués / arrêtés",
+  "Nav_Downloads": "Téléchargements",
   "Nav_Queues": "Files d’attente",
   "Nav_Scheduler": "Planificateur",
   "Nav_Plugins": "Extensions",
@@ -269,5 +270,7 @@
   "Plugins_Adding": "Ajout…",
   "Plugins_Update": "Mettre à jour",
   "Plugins_UpdateAvailable": "Mise à jour disponible",
-  "Plugins_AddFailed": "Impossible d'ajouter le plugin"
+  "Plugins_AddFailed": "Impossible d'ajouter le plugin",
+  "Add_FetchingOptions": "Récupération des options…",
+  "Add_ChooseVariant": "Choisissez quoi télécharger"
 }
