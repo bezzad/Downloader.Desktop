@@ -76,6 +76,36 @@ sedi() {
 # Portable single-line base64 of a file (GNU has -w0; BSD/macOS does not).
 b64_file() { base64 < "$1" | tr -d '\n'; }
 
+# Retry a (network) command a few times — GitHub connectivity is flaky on some machines and a
+# single dropped request must not kill a half-finished release.
+retry() {
+  local i
+  for i in 1 2 3 4 5; do
+    "$@" && return 0
+    warn "attempt $i failed: $1 … retrying in 10s"
+    sleep 10
+  done
+  return 1
+}
+
+# Commit with an EXPLICIT identity so the script works on machines with no global git config
+# (a fresh tap clone has no repo-local identity either — this bit the v2.0.0 run).
+# Identity source order: current repo config → global → gh account → static fallback.
+GIT_NAME=""; GIT_EMAIL=""
+resolve_git_identity() {
+  GIT_NAME="$(git config user.name 2>/dev/null || true)"
+  GIT_EMAIL="$(git config user.email 2>/dev/null || true)"
+  if [[ -z "$GIT_NAME" || -z "$GIT_EMAIL" ]]; then
+    local login
+    login="$(gh api user --jq .login 2>/dev/null || true)"
+    GIT_NAME="${GIT_NAME:-${login:-bezzad}}"
+    GIT_EMAIL="${GIT_EMAIL:-${login:-bezzad}@users.noreply.github.com}"
+  fi
+}
+gcommit() { # gcommit <repo-dir> <message> — commit staged changes with the resolved identity
+  git -C "$1" -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" commit -q -m "$2"
+}
+
 # --- args ------------------------------------------------------------------
 # Usage: release.sh [VERSION] [--yes] [--notes-file PATH]
 VERSION=""; ASSUME_YES="no"; NOTES_FILE=""
@@ -95,7 +125,12 @@ cd "$(git rev-parse --show-toplevel)" || die "not inside a git repository"
 # --- preflight -------------------------------------------------------------
 step "Preflight checks"
 command -v gh  >/dev/null 2>&1 || die "the GitHub CLI 'gh' is required (https://cli.github.com)"
+# Resolve the token up front: detached/background runs can't read a keyring-stored token (macOS
+# Keychain), and plain `git push` over https needs it embedded — both bit real releases.
+export GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
+resolve_git_identity
+ok "git identity: $GIT_NAME <$GIT_EMAIL>"
 { command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1; } \
   || die "need sha256sum or shasum to checksum the macOS archives"
 [[ -z "$(git status --porcelain)" ]] || die "working tree is dirty — commit or stash first"
@@ -117,17 +152,33 @@ if [[ -z "$VERSION" ]]; then
 fi
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version must be MAJOR.MINOR.PATCH, got '$VERSION'"
 TAG="v$VERSION"
-git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "tag $TAG already exists locally"
-git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1 && die "tag $TAG already exists on origin"
+
+# RESUME mode: if this exact tag already exists, a previous run died AFTER tagging (asset wait,
+# notes, Homebrew or winget). Every post-tag step is idempotent, so instead of dying we skip
+# bump/merge/tag and finish the remaining channels. (A DIFFERENT existing version still requires
+# deleting the tag + Release by hand — that protection is unchanged, it just doesn't block resuming.)
+RESUME="no"
+if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+   || git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
+  RESUME="yes"
+  warn "tag $TAG already exists — RESUMING the release (skipping bump/merge/tag, finishing the channels)"
+fi
 
 # --- make sure develop is current and actually has something to ship -------
 step "Syncing $DEV_BRANCH"
 git checkout "$DEV_BRANCH" >/dev/null 2>&1 || die "cannot checkout $DEV_BRANCH"
-git pull --ff-only origin "$DEV_BRANCH"
-if git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
+retry git pull --ff-only origin "$DEV_BRANCH"
+if [[ "$RESUME" != "yes" ]] && git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
   AHEAD="$(git rev-list --count "origin/$MAIN_BRANCH..$DEV_BRANCH")"
-  [[ "$AHEAD" -gt 0 ]] || die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH — nothing to release"
-  ok "$DEV_BRANCH is $AHEAD commit(s) ahead of $MAIN_BRANCH"
+  if [[ "$AHEAD" -gt 0 ]]; then
+    ok "$DEV_BRANCH is $AHEAD commit(s) ahead of $MAIN_BRANCH"
+  elif [[ "$CUR_VERSION" != "$VERSION" ]]; then
+    # develop == main (e.g. it was pre-merged to verify CI) — the version-bump commit below will
+    # put develop ahead again, so this is fine. Dying here blocked the v2.0.0 release.
+    warn "$DEV_BRANCH has no commits beyond $MAIN_BRANCH — the version bump will be the release commit"
+  else
+    die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH and VersionPrefix is already $VERSION — nothing to release"
+  fi
 fi
 
 # --- release notes (mandatory: every release must say what changed) --------
@@ -163,33 +214,42 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
   [[ "$reply" =~ ^[Yy]$ ]] || die "aborted"
 fi
 
-# --- 1. bump the version on develop ----------------------------------------
-step "Bumping version to $VERSION on $DEV_BRANCH"
-if [[ "$CUR_VERSION" != "$VERSION" ]]; then
-  sedi "s|<VersionPrefix>$CUR_VERSION</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" "$CSPROJ"
-  grep -q "<VersionPrefix>$VERSION</VersionPrefix>" "$CSPROJ" || die "failed to bump VersionPrefix in $CSPROJ"
-  [[ -f "$SNAP_VERSION_FILE" ]] && printf '%s' "$VERSION" > "$SNAP_VERSION_FILE"
-  git add "$CSPROJ" "$SNAP_VERSION_FILE"
-  git commit -q -m "chore(release): bump version to $VERSION"
-  git push origin "$DEV_BRANCH"
-  ok "committed + pushed version bump"
+# --- 1..3. bump / merge / tag (skipped entirely when resuming a tagged release) ---
+if [[ "$RESUME" == "yes" ]]; then
+  step "Resume: $TAG already tagged — skipping bump/merge/tag"
 else
-  warn "VersionPrefix already $VERSION — no bump commit"
+  # --- 1. bump the version on develop --------------------------------------
+  step "Bumping version to $VERSION on $DEV_BRANCH"
+  if [[ "$CUR_VERSION" != "$VERSION" ]]; then
+    sedi "s|<VersionPrefix>$CUR_VERSION</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" "$CSPROJ"
+    grep -q "<VersionPrefix>$VERSION</VersionPrefix>" "$CSPROJ" || die "failed to bump VersionPrefix in $CSPROJ"
+    git add "$CSPROJ"
+    if [[ -f "$SNAP_VERSION_FILE" ]]; then
+      printf '%s' "$VERSION" > "$SNAP_VERSION_FILE"
+      git add "$SNAP_VERSION_FILE"
+    fi
+    gcommit . "chore(release): bump version to $VERSION"
+    retry git push origin "$DEV_BRANCH"
+    ok "committed + pushed version bump"
+  else
+    warn "VersionPrefix already $VERSION — no bump commit"
+  fi
+
+  # --- 2. merge develop -> main ---------------------------------------------
+  step "Merging $DEV_BRANCH -> $MAIN_BRANCH"
+  git checkout "$MAIN_BRANCH"
+  retry git pull --ff-only origin "$MAIN_BRANCH" || true
+  git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
+    merge --no-ff "$DEV_BRANCH" -m "release: $TAG (merge $DEV_BRANCH)"
+  retry git push origin "$MAIN_BRANCH"
+  ok "$MAIN_BRANCH updated"
+
+  # --- 3. tag + push (triggers release.yml + snap.yml) ----------------------
+  step "Tagging $TAG"
+  git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" tag -a "$TAG" -m "Downloader Desktop $TAG"
+  retry git push origin "$TAG"
+  ok "pushed $TAG — release.yml (GitHub assets + curl) and snap.yml (Snap Store) are now building"
 fi
-
-# --- 2. merge develop -> main ----------------------------------------------
-step "Merging $DEV_BRANCH -> $MAIN_BRANCH"
-git checkout "$MAIN_BRANCH"
-git pull --ff-only origin "$MAIN_BRANCH" || true
-git merge --no-ff "$DEV_BRANCH" -m "release: $TAG (merge $DEV_BRANCH)"
-git push origin "$MAIN_BRANCH"
-ok "$MAIN_BRANCH updated"
-
-# --- 3. tag + push (triggers release.yml + snap.yml) -----------------------
-step "Tagging $TAG"
-git tag -a "$TAG" -m "Downloader Desktop $TAG"
-git push origin "$TAG"
-ok "pushed $TAG — release.yml (GitHub assets + curl) and snap.yml (Snap Store) are now building"
 
 # --- 4. wait for the GitHub Release assets ---------------------------------
 step "Waiting for the Release build to attach the macOS archives"
@@ -282,12 +342,18 @@ submit_winget() {
 }
 
 TAP_DIR="$(mktemp -d)"
-gh repo clone "$TAP_REPO" "$TAP_DIR" -- --quiet
+# Clone with the token IN the URL: it works detached/background and on machines where gh's git
+# credential helper was never set up (a bare `git push` there dies with "could not read Username").
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  retry git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/$TAP_REPO.git" "$TAP_DIR"
+else
+  retry gh repo clone "$TAP_REPO" "$TAP_DIR" -- --quiet
+fi
 rewrite_cask "$TAP_DIR/Casks/downloader.rb"
 if [[ -n "$(git -C "$TAP_DIR" status --porcelain)" ]]; then
   git -C "$TAP_DIR" add Casks/downloader.rb
-  git -C "$TAP_DIR" commit -q -m "downloader $VERSION"
-  git -C "$TAP_DIR" push --quiet
+  gcommit "$TAP_DIR" "downloader $VERSION"
+  retry git -C "$TAP_DIR" push --quiet
   ok "pushed cask update to $TAP_REPO"
 else
   warn "tap cask already up to date"
@@ -297,13 +363,13 @@ rm -rf "$TAP_DIR"
 # Sync the in-repo mirror so it matches the published cask.
 step "Syncing in-repo mirror $CASK_MIRROR on $DEV_BRANCH"
 git checkout "$DEV_BRANCH"
-git pull --ff-only origin "$DEV_BRANCH" || true
+retry git pull --ff-only origin "$DEV_BRANCH" || true
 if [[ -f "$CASK_MIRROR" ]]; then
   rewrite_cask "$CASK_MIRROR"
   if [[ -n "$(git status --porcelain "$CASK_MIRROR")" ]]; then
     git add "$CASK_MIRROR"
-    git commit -q -m "chore(release): mirror cask to $VERSION"
-    git push origin "$DEV_BRANCH"
+    gcommit . "chore(release): mirror cask to $VERSION"
+    retry git push origin "$DEV_BRANCH"
     ok "mirror updated + pushed"
   else
     warn "mirror already matches"
@@ -319,8 +385,8 @@ if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
   rewrite_winget
   if [[ -n "$(git status --porcelain "$WINGET_DIR")" ]]; then
     git add "$WINGET_DIR"
-    git commit -q -m "chore(release): bump winget manifests to $VERSION"
-    git push origin "$DEV_BRANCH"
+    gcommit . "chore(release): bump winget manifests to $VERSION"
+    retry git push origin "$DEV_BRANCH"
     ok "winget mirror updated + pushed"
   else
     warn "winget mirror already matches"
