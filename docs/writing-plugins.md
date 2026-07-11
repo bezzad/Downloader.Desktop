@@ -118,8 +118,8 @@ First-party plugins live in `src/Downloader.Desktop.Plugins/` and ship two ways 
 | Interface | Purpose | Implement when |
 |---|---|---|
 | `IDownloaderPlugin` | Entry point; registers contributions in `Initialize`. | Always. |
-| `ILinkResolver` | input → `DownloadPlan` (real URLs + recipe). | You turn pages/links into downloads. |
-| `ITransferProvider` / `ITransfer` | Own a non-HTTP download (torrent…). | The engine can't fetch it over HTTP. |
+| `ILinkResolver` | input → `DownloadPlan` (real URLs + recipe). Optional: `GetVariantsAsync` lists user-pickable variants; `IsFallback` (default `false`) marks a resolver that claims broad/generic links — fallbacks are consulted only when no regular resolver claims the URL, so they can never shadow a specific plugin. | You turn pages/links into downloads. |
+| `ITransferProvider` / `ITransfer` | Own a whole download the engine can't do (a torrent, a site crawl…). The host runs your `ITransfer` end-to-end: `ProgressChanged` drives the row, `Pause()`/`Resume()` are called by the row buttons, the `StartAsync` cancellation token trips on Stop/Remove, and the returned path becomes the finished file. Tip: claim a dedicated URL scheme (the Website plugin uses `websitezip:`) and hand it out via a `SubstituteUrl` variant. | The core HTTP engine can't fetch it. |
 | `IPostProcessor` | Combine/transform downloaded files. | You need mux/concat/decrypt/checksum. |
 | `IPostDownloadAction` | A user-initiated action offered on a completed download your resolver produced (e.g. "Add to Ollama"): `Label`, `CanOffer(sourceUrl, filePath)`, `ExecuteAsync`. Shown as a button on the completion notification and the finished row; runs only on click; never modify the downloaded file. | You want a one-click follow-up on the finished file. |
 | `IPluginContext` | Given to `Initialize`: register*, `DataDirectory`, `Logger` (`ILogger`). | — |

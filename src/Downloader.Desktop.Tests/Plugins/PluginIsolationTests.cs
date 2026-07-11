@@ -14,10 +14,14 @@ namespace Downloader.Desktop.Tests.Plugins;
 /// </summary>
 public class PluginIsolationTests
 {
-    private const string OptionalPluginAssembly = "Downloader.Desktop.Plugins.Hls";
+    private static readonly string[] OptionalPluginAssemblies =
+    {
+        "Downloader.Desktop.Plugins.Hls",
+        "Downloader.Desktop.Plugins.Website",
+    };
 
     [Fact]
-    public void App_csproj_never_references_the_optional_Hls_plugin()
+    public void App_csproj_never_references_an_optional_plugin()
     {
         var csproj = FindRepoFile(Path.Combine("Downloader.Desktop", "Downloader.Desktop.csproj"));
         Assert.True(File.Exists(csproj), $"app csproj not found (looked at {csproj})");
@@ -28,8 +32,9 @@ public class PluginIsolationTests
         var markup = System.Text.RegularExpressions.Regex.Replace(
             File.ReadAllText(csproj), "<!--.*?-->", string.Empty,
             System.Text.RegularExpressions.RegexOptions.Singleline);
-        Assert.False(markup.Contains(OptionalPluginAssembly, StringComparison.OrdinalIgnoreCase),
-            $"{OptionalPluginAssembly} must not be referenced or staged by the app csproj — optional plugins ship as release assets, never bundled.");
+        foreach (var assembly in OptionalPluginAssemblies)
+            Assert.False(markup.Contains(assembly, StringComparison.OrdinalIgnoreCase),
+                $"{assembly} must not be referenced or staged by the app csproj — optional plugins ship as release assets, never bundled.");
     }
 
     [Fact]
@@ -44,7 +49,8 @@ public class PluginIsolationTests
         var dlls = Directory.GetFiles(pluginsDir, "*.dll").Select(Path.GetFileName).ToList();
         Assert.Contains("Downloader.Desktop.Plugins.GitHub.dll", dlls);
         Assert.Contains("Downloader.Desktop.Plugins.Ollama.dll", dlls);
-        Assert.DoesNotContain(dlls, f => f!.Contains(OptionalPluginAssembly, StringComparison.OrdinalIgnoreCase));
+        foreach (var assembly in OptionalPluginAssemblies)
+            Assert.DoesNotContain(dlls, f => f!.Contains(assembly, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Walk up from the test output to the repo's <c>src</c> dir and resolve a file under it.</summary>

@@ -39,6 +39,9 @@
              TEST project is fine — the isolation rule only bars the APP project from referencing it
              (guarded by PluginIsolationTests). -->
         <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Hls\Downloader.Desktop.Plugins.Hls.csproj" />
+        <!-- The optional Website plugin is compile-referenced the same way: its tests (Plugins/Website/)
+             call internal types (SiteCrawler, LinkExtractor, LocalPathMapper, …) directly. -->
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Website\Downloader.Desktop.Plugins.Website.csproj" />
     </ItemGroup>
 
     <!-- HLS plugin test fixtures (sample playlists) → <testout>/Fixtures, where TestFixtures.Dir reads them. -->

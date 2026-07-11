@@ -110,4 +110,17 @@ public class PluginCatalogTests
         Assert.Empty(PluginCatalogService.ParseCatalog("not json", new Dictionary<string, string>()));
         Assert.Empty(PluginCatalogService.ParseCatalog("{}", new Dictionary<string, string>())); // object, not array
     }
+
+    [Fact]
+    public void MeetsMinAppVersion_gates_on_the_running_app_version()
+    {
+        var app = new System.Version(2, 1, 0);
+        Assert.True(PluginCatalogService.MeetsMinAppVersion("2.1.0", app));
+        Assert.True(PluginCatalogService.MeetsMinAppVersion("1.7.0", app));
+        Assert.False(PluginCatalogService.MeetsMinAppVersion("2.2.0", app));
+        // empty / garbage minimums are permissive
+        Assert.True(PluginCatalogService.MeetsMinAppVersion("", app));
+        Assert.True(PluginCatalogService.MeetsMinAppVersion(null, app));
+        Assert.True(PluginCatalogService.MeetsMinAppVersion("not-a-version", app));
+    }
 }

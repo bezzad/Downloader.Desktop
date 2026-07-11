@@ -34,6 +34,13 @@ public class DownloadItemViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _download, value);
     }
 
+    /// <summary>The live plugin transfer handle while a plugin-owned transfer (e.g. website crawl) runs;
+    /// null otherwise. Transient — pause/resume route here when set instead of <see cref="Download"/>.</summary>
+    public Plugins.ITransfer ActiveTransfer { get; set; }
+
+    /// <summary>Cancels the running plugin transfer (the transfer path's equivalent of engine CancelAsync).</summary>
+    public System.Threading.CancellationTokenSource TransferCancellation { get; set; }
+
     // --- UI update coalescing (perf) ---
     // The engine raises progress events very frequently from background threads. Instead of marshaling
     // every event to the UI thread, handlers stage the latest values here (no UI touch); a single

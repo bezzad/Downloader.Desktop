@@ -153,6 +153,15 @@ public static class PluginCatalogService
         return remote != null && local != null && remote > local;
     }
 
+    /// <summary>True when this app is new enough for a catalog entry's <c>minAppVersion</c> (a plugin can
+    /// require host plumbing a newer app introduced — e.g. the website plugin needs the transfer path).
+    /// An empty/unparsable minimum is permissive. Pure for tests via <paramref name="appVersion"/>.</summary>
+    public static bool MeetsMinAppVersion(string minAppVersion, Version appVersion = null)
+    {
+        var min = UpdateService.Normalize(minAppVersion);
+        return min == null || (appVersion ?? UpdateService.CurrentVersion) >= min;
+    }
+
     /// <summary>
     /// Install (or update) an optional plugin from a catalog entry: if a copy is already loaded it is
     /// unloaded first (update swap), then the asset is downloaded to a temp file and handed to

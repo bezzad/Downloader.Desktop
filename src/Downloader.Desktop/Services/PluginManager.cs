@@ -121,8 +121,16 @@ public sealed class PluginManager
     /// <summary>Loads the plugins bundled with the app (app dir /plugins) as built-ins.</summary>
     public void LoadBuiltIns() => LoadFromDirectory(BuiltInPluginsRoot, isBuiltIn: true);
 
-    public ILinkResolver FindResolver(string url) =>
-        Enabled().SelectMany(p => p.Resolvers).FirstOrDefault(r => Safe(() => r.CanResolve(url)));
+    /// <summary>First enabled resolver claiming the URL. Two-pass: regular resolvers win; fallback
+    /// resolvers (<see cref="ILinkResolver.IsFallback"/>, e.g. "any web page") are consulted only when no
+    /// regular resolver claims it, so a generic plugin can never shadow a specific one.</summary>
+    public ILinkResolver FindResolver(string url)
+    {
+        var claiming = Enabled().SelectMany(p => p.Resolvers)
+            .Where(r => Safe(() => r.CanResolve(url)))
+            .ToList();
+        return claiming.FirstOrDefault(r => !Safe(() => r.IsFallback)) ?? claiming.FirstOrDefault();
+    }
 
     public IPostProcessor FindPostProcessor(PostProcess plan) =>
         Enabled().SelectMany(p => p.PostProcessors).FirstOrDefault(pp => Safe(() => pp.CanProcess(plan)));
@@ -131,9 +139,15 @@ public sealed class PluginManager
         Enabled().SelectMany(p => p.TransferProviders).FirstOrDefault(tp => Safe(() => tp.CanHandle(url)));
 
     /// <summary>The id of the enabled plugin whose resolver claims <paramref name="url"/>, or null.
-    /// Recorded on the download so post-download actions can be offered by the SAME plugin later.</summary>
-    public string FindResolverPluginId(string url) =>
-        Enabled().FirstOrDefault(p => p.Resolvers.Any(r => Safe(() => r.CanResolve(url))))?.Descriptor.Id;
+    /// Recorded on the download so post-download actions can be offered by the SAME plugin later.
+    /// Same two-pass fallback ordering as <see cref="FindResolver"/>.</summary>
+    public string FindResolverPluginId(string url)
+    {
+        var resolver = FindResolver(url);
+        if (resolver == null)
+            return null;
+        return Enabled().FirstOrDefault(p => p.Resolvers.Contains(resolver))?.Descriptor.Id;
+    }
 
     /// <summary>The post-download action the given plugin offers for this completed download, or null.
     /// Only the RESOLVING plugin's actions are consulted (never another plugin's).</summary>
@@ -172,19 +186,38 @@ public sealed class PluginManager
     /// window shows these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>.</summary>
     public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
     {
-        var resolver = FindResolver(url);
-        if (resolver == null)
-            return null;
-        try
+        // ALL claiming resolvers contribute (regular ones first, so their default pre-check wins) —
+        // e.g. a video page can offer HLS qualities AND a fallback "offline copy" variant together.
+        // One resolver's failed lookup never suppresses another's variants.
+        var claiming = Enabled().SelectMany(p => p.Resolvers)
+            .Where(r => Safe(() => r.CanResolve(url)))
+            .OrderBy(r => Safe(() => r.IsFallback) ? 1 : 0)
+            .ToList();
+
+        var merged = new List<LinkVariant>();
+        foreach (var resolver in claiming)
         {
-            var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
-            return variants is { Count: > 0 } ? variants : null;
+            try
+            {
+                var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
+                if (variants is { Count: > 0 })
+                    merged.AddRange(merged.Count == 0
+                        ? variants
+                        // a later resolver's variants join the list unchecked — the first list's default wins
+                        : variants.Select(v => v.IsDefault
+                            ? new LinkVariant
+                            {
+                                Id = v.Id, Label = v.Label, Description = v.Description,
+                                ExpectedSize = v.ExpectedSize, IsDefault = false, SubstituteUrl = v.SubstituteUrl
+                            }
+                            : v));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                AppLog.Error($"Variant lookup failed for {url} — proceeding without this resolver's choices", ex);
+            }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            AppLog.Error($"Variant lookup failed for {url} — proceeding without choices", ex);
-            return null;
-        }
+        return merged.Count > 0 ? merged : null;
     }
 
     public void SetEnabled(string pluginId, bool enabled)

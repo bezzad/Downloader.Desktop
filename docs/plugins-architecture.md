@@ -109,7 +109,20 @@ possible future hardening step. The manual open-folder/file-picker path is for p
      (`video.assembling.mp4`, never `video.mp4.assembling`), and a playlist-derived final name
      (`.m3u8`/`.m3u`) is normalized to `.mp4` (or the plugin's suggested extension) when the plan has
      a post-process step — ffmpeg picks its muxer from the output extension.
-  - Still deferred: the `ITransfer` path (torrent — no plugin uses it yet).
+  - **The `ITransfer` path is now LIVE** (website-offline-zip-plugin change): when an enabled plugin's
+    `ITransferProvider` claims an item's URL (checked in `DownloadManager.Start` BEFORE link resolution,
+    so a dedicated scheme like `websitezip:` never round-trips through resolvers), the plugin's
+    `ITransfer` owns the whole download — progress flows through the normal staging pump,
+    Pause/Resume/Cancel route to the transfer (`DownloadItemViewModel.ActiveTransfer` /
+    `TransferCancellation`), the queue cap applies, and the returned path becomes the Completed file
+    (`DownloadManager.Transfers.cs`). First consumer: the optional **Website offline copy** plugin
+    (`com.bezzad.website-zip`, crawl → offline rewrite → zip). Torrent can reuse this as-is.
+  - **Fallback resolvers**: `ILinkResolver.IsFallback` (default false) lets a generic resolver (e.g.
+    "any web page") claim broadly without shadowing specific plugins — `PluginManager.FindResolver` is
+    two-pass (regular resolvers first), and `GetVariantsAsync` merges variants from ALL claiming
+    resolvers (regular first; their default pre-check wins). A catalog entry's `minAppVersion` is now
+    enforced (`PluginCatalogService.MeetsMinAppVersion`) so plugins needing newer host plumbing are
+    hidden from older apps.
 
 ## Breaking changes
 - New project `Downloader.Desktop.Plugins.Abstractions` added to the solution; app references it.

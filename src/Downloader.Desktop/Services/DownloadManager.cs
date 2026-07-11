@@ -358,6 +358,17 @@ public partial class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
+                // A plugin transfer provider that claims the URL (e.g. "websitezip:", "magnet:") owns the
+                // whole download — checked before link resolution so a claimed scheme never round-trips
+                // through resolvers. RunTransferAsync owns the row's terminal state.
+                var transferProvider = _plugins?.FindTransferProvider(urls[0]);
+                if (transferProvider != null)
+                {
+                    item.ResolverPluginId ??= _plugins.FindResolverPluginId(urls[0]);
+                    await RunTransferAsync(vm, transferProvider, urls[0], folder).ConfigureAwait(false);
+                    return;
+                }
+
                 // Resolve the plan: reuse a persisted one (restart / resume of a multi-part download) or
                 // ask the plugins fresh. A multi-part / post-process plan is run by the plan runner; a
                 // single-part plan just rewrites the URL + name and falls through to the normal engine path.
@@ -556,6 +567,7 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status != DownloadStatus.Running)
             return;
         vm.Download?.Pause();
+        vm.ActiveTransfer?.Pause();
         vm.Status = DownloadStatus.Paused;
         vm.Speed = 0;
         NotifyList();
@@ -606,6 +618,7 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
             return;
         vm.Download?.CancelAsync();
+        vm.TransferCancellation?.Cancel();
         vm.Status = DownloadStatus.Stopped;
         vm.Speed = 0;
         NotifyList();
@@ -632,6 +645,7 @@ public partial class DownloadManager : IDownloadManager
         try
         {
             vm.Download?.CancelAsync();
+            vm.TransferCancellation?.Cancel();
         }
         catch
         {
@@ -742,9 +756,10 @@ public partial class DownloadManager : IDownloadManager
     /// <summary>Resumes a paused item in place (if it still has a live handle) or starts it fresh.</summary>
     private void StartOrResume(DownloadItemViewModel vm)
     {
-        if (vm.Status == DownloadStatus.Paused && vm.Download != null)
+        if (vm.Status == DownloadStatus.Paused && (vm.Download != null || vm.ActiveTransfer != null))
         {
-            vm.Download.Resume();
+            vm.Download?.Resume();
+            vm.ActiveTransfer?.Resume();
             vm.Status = DownloadStatus.Running;
             EnsureUiPump();
         }

@@ -334,7 +334,8 @@ public class MainViewModel : ViewModelBase
             foreach (var descriptor in _pluginManager.Plugins.Where(p => !p.IsBuiltIn).ToList())
             {
                 var info = catalog.FirstOrDefault(c => c.Id == descriptor.Id);
-                if (info == null || !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
+                if (info == null || !PluginCatalogService.MeetsMinAppVersion(info.MinAppVersion) ||
+                    !PluginCatalogService.IsNewer(info.Version, descriptor.Version))
                     continue;
 
                 // The in-window action lives on the Settings → Plugins row (its "Update" button, shown via

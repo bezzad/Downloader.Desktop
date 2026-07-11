@@ -80,4 +80,27 @@ public class PluginCatalogViewModelTests
         Assert.Contains(row, vm.CatalogPlugins);      // still offered — the add didn't succeed
         Assert.Empty(pm.Plugins);                     // nothing loaded
     }
+
+    [AvaloniaFact]
+    public void Catalog_entries_requiring_a_newer_app_are_hidden()
+    {
+        Localizer.Instance.Load("en");
+        var pm = new PluginManager();
+        var vm = new PluginsViewModel(pm, Config.New());
+
+        var tooNew = Entry("com.test.future", "1.0.0");
+        var supported = Entry("com.test.now", "1.0.0");
+        vm.SetCatalogForTest(new List<CatalogPluginInfo>
+        {
+            new()
+            {
+                Id = tooNew.Id, Name = tooNew.Name, Description = "d", Version = tooNew.Version,
+                AssetName = tooNew.AssetName, AssetUrl = tooNew.AssetUrl, Sha256 = "abc",
+                MinAppVersion = "999.0.0", // far beyond any running build
+            },
+            supported,
+        });
+
+        Assert.Equal("com.test.now", Assert.Single(vm.CatalogPlugins).Id);
+    }
 }
