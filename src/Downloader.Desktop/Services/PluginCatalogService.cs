@@ -172,17 +172,18 @@ public static class PluginCatalogService
         if (manager == null || info == null)
             return PluginInstallResult.Fail("Nothing to install.");
 
-        // Update swap: drop the currently-loaded copy so the loader will accept the new one (registration
-        // is idempotent by id, so a still-loaded old copy would block the reload).
-        if (manager.IsInstalled(info.Id))
-            manager.RemovePlugin(info.Id);
-
         var tmp = Path.Combine(Path.GetTempPath(), $"plugin-dl-{Guid.NewGuid():N}.zip");
         PluginInstallResult result;
         try
         {
             if (!await DownloadAssetAsync(info, tmp, ct).ConfigureAwait(false))
                 return PluginInstallResult.Fail("Could not download the plugin. Please check your connection and try again.");
+            // Update swap: drop the currently-loaded copy so the loader will accept the new one
+            // (registration is idempotent by id, so a still-loaded old copy would block the reload).
+            // Done only AFTER the download succeeded — removing first meant a failed download left the
+            // plugin silently uninstalled behind a stale "installed" row.
+            if (manager.IsInstalled(info.Id))
+                manager.RemovePlugin(info.Id);
             result = await manager.InstallFromZipAsync(tmp, info.Sha256, info.Id, ct).ConfigureAwait(false);
         }
         finally

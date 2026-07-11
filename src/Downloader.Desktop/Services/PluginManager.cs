@@ -100,7 +100,7 @@ public sealed class PluginManager
             try
             {
                 var alc = new PluginLoadContext(dll);
-                var asm = alc.LoadFromAssemblyPath(dll);
+                var asm = alc.LoadPluginAssembly(dll);
                 var pluginTypes = SafeGetTypes(asm)
                     .Where(t => t is { IsAbstract: false, IsInterface: false } &&
                                 typeof(IDownloaderPlugin).IsAssignableFrom(t))
@@ -443,12 +443,25 @@ public sealed class PluginManager
         public PluginLoadContext(string pluginPath) : base(isCollectible: true)
             => _resolver = new AssemblyDependencyResolver(pluginPath);
 
+        /// <summary>
+        /// Loads a plugin DLL via <see cref="AssemblyLoadContext.LoadFromStream(Stream)"/>, NOT by path:
+        /// the runtime caches loaded images by file path, so after an update swaps the file in place,
+        /// LoadFromAssemblyPath on the same path silently returns the OLD assembly (bit the v2.0.0 HLS
+        /// 1.1.2→1.3.0 update — the new DLL was verified + extracted but the stale copy kept loading).
+        /// Stream loads bypass that cache, so a replaced file always loads its current bytes.
+        /// </summary>
+        public Assembly LoadPluginAssembly(string path)
+        {
+            using var fs = File.OpenRead(path);
+            return LoadFromStream(fs);
+        }
+
         protected override Assembly Load(AssemblyName assemblyName)
         {
             if (assemblyName.Name == SharedSdk)
                 return null; // share the host's SDK copy → unified type identity
             var path = _resolver.ResolveAssemblyToPath(assemblyName);
-            return path != null ? LoadFromAssemblyPath(path) : null;
+            return path != null ? LoadPluginAssembly(path) : null;
         }
     }
 }

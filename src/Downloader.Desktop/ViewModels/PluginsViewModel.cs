@@ -174,12 +174,18 @@ public class PluginsViewModel : ViewModelBase
             }
             else
             {
+                // The old copy may already be unloaded (removed just before the swap) — re-sync the lists
+                // so the row reflects reality instead of a stale "installed" entry.
+                Refresh();
+                ApplyCatalog();
                 NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], result.Error, true);
             }
         }
         catch (Exception ex)
         {
             AppLog.Error("Failed to update plugin", ex);
+            Refresh();
+            ApplyCatalog();
             NotificationService.Inform(Localizer.Instance["Plugins_AddFailed"], ex.Message, true);
         }
         finally
