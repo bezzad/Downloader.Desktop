@@ -88,6 +88,11 @@ winget install bezzad.Downloader
 This installs the portable app and puts `Downloader` on your PATH — launch it from the Start menu or a terminal. Update later with `winget upgrade bezzad.Downloader`.
 > The short form `winget install downloader` also resolves to this package via its moniker (if another package matches first, use the full id above).
 
+**Windows (script)** — downloads the latest release, adds a Start-menu shortcut, and puts `Downloader` on your PATH. Run in PowerShell:
+```powershell
+iex (irm https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.ps1)
+```
+
 ### Manual download
 1. Download the build for your operating system from the [Releases](https://github.com/bezzad/Downloader.Desktop/releases) page.
 2. Unpack it:
