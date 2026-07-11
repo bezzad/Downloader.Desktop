@@ -125,3 +125,14 @@ Five failure classes that previously needed manual rescue are fixed IN the scrip
 4. **Token**: `GH_TOKEN` is resolved up front (`gh auth token`) and embedded in the tap clone URL — works detached/background (macOS keyring) and without `gh auth setup-git`.
 5. **retry()** (5×, 10 s) wraps every push/pull/clone — transient GitHub connectivity drops don't kill the run.
 Validated by re-running `release.sh 2.0.0` post-release: resume mode no-ops every channel cleanly.
+
+## release.sh preflight asks-and-fixes; exit report (2026-07-11)
+A bare `bash scripts/release.sh` is the intended entry point — it prompts for anything missing
+instead of aborting: version (suggests next patch), release notes (multi-line, `.` to end),
+`gh auth login` runs inline if unauthenticated, and a dirty tree offers to autostash (an EXIT
+trap restores it on `develop` afterwards — success OR failure). Non-interactive runs (no TTY)
+still die with exact instructions. The same EXIT trap prints a per-channel report table
+(GitHub Release / notes / curl / Snap / Homebrew / winget) on ANY exit, plus a "re-run to
+resume" hint on failure. Changelog baseline = `PREV_TAG` (newest `v*` tag excluding the tag
+being published) — never `v$CUR_VERSION`, which on a resume equals the new tag itself and
+yields an empty changelog.
