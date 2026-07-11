@@ -24,4 +24,4 @@
 ## 4. Packaging, isolation, docs
 
 - [x] 4.1 Extend `PluginIsolationTests` + verify the app csproj never references/stages the Website plugin; add it to `scripts/build-plugins.sh` and `packaging/plugins/optional-plugins.json` (catalog description)
-- [ ] 4.2 Update docs (`docs/plugins-architecture.md` note on the now-consumed transfer path, README plugins table) + CLAUDE.md/SKILL.md notes; full build + all tests green; commit on `develop`
+- [x] 4.2 Update docs (`docs/plugins-architecture.md` note on the now-consumed transfer path, README plugins table) + CLAUDE.md/SKILL.md notes; full build + all tests green; commit on `develop`
