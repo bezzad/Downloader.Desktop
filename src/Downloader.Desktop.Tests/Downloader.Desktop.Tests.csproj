@@ -14,6 +14,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="coverlet.collector" Version="10.0.1">
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+          <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
         <PackageReference Include="xunit.v3" Version="3.2.2" />
         <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
@@ -25,8 +29,7 @@
         <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
         <!-- Build the GitHub plugin (but DON'T reference it for compilation) so the loader integration
              test can load it from disk as a real external DLL. -->
-        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj"
-                          ReferenceOutputAssembly="false" Private="false" />
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj" ReferenceOutputAssembly="false" Private="false" />
         <!-- The Ollama plugin IS compile-referenced: its pure logic (claim parsing, manifest parsing,
              installer) is unit-tested directly. ALC loading is already covered by the GitHub plugin test. -->
         <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj" />
@@ -57,12 +60,9 @@
             <SamplePluginBin>$(MSBuildThisFileDirectory)..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\bin\$(Configuration)\net10.0</SamplePluginBin>
         </PropertyGroup>
         <ItemGroup>
-            <SamplePluginDll Include="$(SamplePluginBin)\**\Downloader.Desktop.Plugins.GitHub.dll"
-                             Exclude="$(SamplePluginBin)\**\ref\**" />
+            <SamplePluginDll Include="$(SamplePluginBin)\**\Downloader.Desktop.Plugins.GitHub.dll" Exclude="$(SamplePluginBin)\**\ref\**" />
         </ItemGroup>
-        <Error Condition="'@(SamplePluginDll)' == ''"
-               Text="StageSamplePlugin: Downloader.Desktop.Plugins.GitHub.dll not found under $(SamplePluginBin) (searched recursively, excluding ref/). The plugin loader integration test would fail. Ensure the GitHub plugin project built for the '$(Configuration)' configuration." />
-        <Copy SourceFiles="@(SamplePluginDll)" DestinationFolder="$(OutDir)plugins-sample"
-              SkipUnchangedFiles="true" />
+        <Error Condition="'@(SamplePluginDll)' == ''" Text="StageSamplePlugin: Downloader.Desktop.Plugins.GitHub.dll not found under $(SamplePluginBin) (searched recursively, excluding ref/). The plugin loader integration test would fail. Ensure the GitHub plugin project built for the '$(Configuration)' configuration." />
+        <Copy SourceFiles="@(SamplePluginDll)" DestinationFolder="$(OutDir)plugins-sample" SkipUnchangedFiles="true" />
     </Target>
 </Project>
