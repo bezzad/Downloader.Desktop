@@ -109,7 +109,7 @@ internal sealed class WebsiteTransfer : ITransfer
         {
             Percentage = _lastPercentage,
             BytesReceived = bytes,
-            TotalBytes = bytes, // real total is unknowable up front — show what's been captured
+            TotalBytes = 0, // real total is unknowable while crawling — the app shows no size until done
             BytesPerSecond = Math.Max(0, speed)
         });
     }

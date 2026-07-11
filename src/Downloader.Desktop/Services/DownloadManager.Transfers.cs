@@ -27,13 +27,19 @@ public partial class DownloadManager
         {
             vm.ActiveTransfer = transfer;
             vm.TransferCancellation = cts;
+            // A transfer's real total is unknown until it finishes (a crawl keeps discovering documents) —
+            // drop any pre-resolved/stale size so the row shows "—" until completion sets the final size.
+            vm.Size = null;
         });
         transfer.ProgressChanged += (_, p) =>
         {
             // Same rule as engine events: staged values are dropped unless Running, so a paused row
-            // keeps its last fill. Percentage is 0..100 like the engine's.
+            // keeps its last fill. Percentage is 0..100 like the engine's. TotalBytes is passed only
+            // when it's a real known total, not a running byte counter (a growing "total" would be
+            // latched by the row's first flush and shown as a bogus frozen size).
             if (vm.Status == DownloadStatus.Running)
-                vm.StageProgress(p.Percentage, p.BytesPerSecond, p.BytesReceived, p.TotalBytes);
+                vm.StageProgress(p.Percentage, p.BytesPerSecond, p.BytesReceived,
+                    p.TotalBytes > p.BytesReceived ? p.TotalBytes : 0);
         };
 
         try

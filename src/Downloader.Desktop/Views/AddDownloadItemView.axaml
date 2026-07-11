@@ -66,10 +66,12 @@
                     CornerRadius="9"
                     Background="{DynamicResource RowSelectionBrush}">
                 <StackPanel Orientation="Horizontal" Spacing="5">
+                    <!-- Base-high (not accent) foreground: the accent color has no contrast against the
+                         translucent accent pill in dark theme. -->
                     <PathIcon Data="{StaticResource AppsListRegular}" Width="10" Height="10"
-                              Foreground="{DynamicResource SystemAccentColor}" />
+                              Foreground="{DynamicResource SystemBaseHighColor}" />
                     <TextBlock Text="{Binding ResolverBadgeText}" FontSize="11"
-                               Foreground="{DynamicResource SystemAccentColor}" />
+                               Foreground="{DynamicResource SystemBaseHighColor}" />
                 </StackPanel>
             </Border>
         </Panel>

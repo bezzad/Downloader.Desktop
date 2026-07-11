@@ -123,6 +123,23 @@ public class TransferPathTests
     }
 
     [AvaloniaFact]
+    public void A_running_byte_counter_reported_as_total_never_becomes_a_frozen_size()
+    {
+        var (manager, provider) = NewManager();
+        var vm = AddAndStart(manager);
+
+        // The fake reports TotalBytes == BytesReceived (a running counter, like a site crawl). The first
+        // flush used to latch that as the item's Size — the row then showed e.g. "32 KB" forever while
+        // downloaded bytes kept growing past it. An unknown total must show no size until completion.
+        provider.Created.Single().RaiseProgress(10, 32_000);
+        PumpUntil(() => { Dispatcher.UIThread.RunJobs(); vm.FlushProgress(); return vm.Downloaded == 32_000; },
+            "staged progress to flush");
+
+        Assert.Null(vm.Size);
+        manager.Cancel(vm);
+    }
+
+    [AvaloniaFact]
     public void Transfer_failure_marks_the_item_failed_with_the_message()
     {
         var (manager, provider) = NewManager();

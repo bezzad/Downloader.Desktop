@@ -196,38 +196,29 @@ public sealed class PluginManager
     /// window shows these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>.</summary>
     public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
     {
-        // ALL claiming resolvers contribute (regular ones first, so their default pre-check wins) —
-        // e.g. a video page can offer HLS qualities AND a fallback "offline copy" variant together.
-        // One resolver's failed lookup never suppresses another's variants.
+        // Only the DETECTED resolver's options are shown (same one the Add badge names) — a fallback's
+        // generic variants (e.g. "offline copy") must not pollute a video plugin's quality list. Claiming
+        // resolvers are tried in fallback order and the first NON-EMPTY answer wins; a later resolver is
+        // consulted only when the earlier one offers no choices or its lookup fails.
         var claiming = Enabled().SelectMany(p => p.Resolvers)
             .Where(r => Safe(() => r.CanResolve(url)))
             .OrderBy(r => Safe(() => r.IsFallback) ? 1 : 0)
             .ToList();
 
-        var merged = new List<LinkVariant>();
         foreach (var resolver in claiming)
         {
             try
             {
                 var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
                 if (variants is { Count: > 0 })
-                    merged.AddRange(merged.Count == 0
-                        ? variants
-                        // a later resolver's variants join the list unchecked — the first list's default wins
-                        : variants.Select(v => v.IsDefault
-                            ? new LinkVariant
-                            {
-                                Id = v.Id, Label = v.Label, Description = v.Description,
-                                ExpectedSize = v.ExpectedSize, IsDefault = false, SubstituteUrl = v.SubstituteUrl
-                            }
-                            : v));
+                    return variants;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                AppLog.Error($"Variant lookup failed for {url} — proceeding without this resolver's choices", ex);
+                AppLog.Error($"Variant lookup failed for {url} — trying the next claiming resolver", ex);
             }
         }
-        return merged.Count > 0 ? merged : null;
+        return null;
     }
 
     public void SetEnabled(string pluginId, bool enabled)

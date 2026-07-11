@@ -119,8 +119,9 @@ possible future hardening step. The manual open-folder/file-picker path is for p
     (`com.bezzad.website-zip`, crawl → offline rewrite → zip). Torrent can reuse this as-is.
   - **Fallback resolvers**: `ILinkResolver.IsFallback` (default false) lets a generic resolver (e.g.
     "any web page") claim broadly without shadowing specific plugins — `PluginManager.FindResolver` is
-    two-pass (regular resolvers first), and `GetVariantsAsync` merges variants from ALL claiming
-    resolvers (regular first; their default pre-check wins). A catalog entry's `minAppVersion` is now
+    two-pass (regular resolvers first), and `GetVariantsAsync` shows only the DETECTED resolver's
+    variants (first non-empty answer in fallback order — a fallback's generic variant never pollutes a
+    specific plugin's quality list). A catalog entry's `minAppVersion` is now
     enforced (`PluginCatalogService.MeetsMinAppVersion`) so plugins needing newer host plumbing are
     hidden from older apps.
 

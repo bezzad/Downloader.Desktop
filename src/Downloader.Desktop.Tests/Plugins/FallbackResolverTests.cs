@@ -77,21 +77,33 @@ public class FallbackResolverTests
     }
 
     [Fact]
-    public async Task Variants_merge_across_claiming_resolvers_with_the_specific_default_winning()
+    public async Task Only_the_detected_resolvers_variants_are_shown_never_a_fallbacks_extras()
     {
         var pm = new PluginManager();
         var specific = new StubResolver { Variants = new[] { Variant("1080", isDefault: true), Variant("720") } };
-        // the fallback marks its variant default too — it must be demoted in the merged list
+        // the fallback also claims — its generic variant must NOT pollute the specific plugin's list
         var fallback = new StubResolver { Fallback = true, Variants = new[] { Variant("zip", isDefault: true, substitute: "websitezip:x") } };
         pm.RegisterPlugin(new StubPlugin("test.fallback", fallback));
         pm.RegisterPlugin(new StubPlugin("test.specific", specific));
 
-        var merged = await pm.GetVariantsAsync("https://video.site/watch", CancellationToken.None);
+        var shown = await pm.GetVariantsAsync("https://video.site/watch", CancellationToken.None);
 
-        Assert.Equal(new[] { "1080", "720", "zip" }, merged.Select(v => v.Id));
-        Assert.True(merged[0].IsDefault);
-        Assert.False(merged[2].IsDefault);
-        Assert.Equal("websitezip:x", merged[2].SubstituteUrl);
+        Assert.Equal(new[] { "1080", "720" }, shown.Select(v => v.Id));
+        Assert.True(shown[0].IsDefault);
+    }
+
+    [Fact]
+    public async Task Fallback_variants_appear_when_the_specific_resolver_offers_none()
+    {
+        var pm = new PluginManager();
+        var specific = new StubResolver { Variants = null }; // claims, but has no choices to offer
+        var fallback = new StubResolver { Fallback = true, Variants = new[] { Variant("zip", substitute: "websitezip:x") } };
+        pm.RegisterPlugin(new StubPlugin("test.fallback", fallback));
+        pm.RegisterPlugin(new StubPlugin("test.specific", specific));
+
+        var shown = await pm.GetVariantsAsync("https://blog.example.com/post", CancellationToken.None);
+
+        Assert.Equal("zip", Assert.Single(shown).Id);
     }
 
     [Fact]
