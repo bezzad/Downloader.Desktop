@@ -49,10 +49,13 @@
                            Width="17" Height="17" Margin="0 0 8 0" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Text="{Binding TotalPercentText}" Foreground="#4FC3F7"
                                FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="White" HorizontalAlignment="Right"
+                    <!-- Same one-stat-at-a-time rule as collapsed: while anything downloads the speed
+                         replaces the clock; the clock returns only when the island is idle. -->
+                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" IsVisible="{Binding !HasActivity}"
+                               Foreground="White" HorizontalAlignment="Right"
                                Margin="0 0 10 0" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="3" Text="{Binding TotalSpeedText}" Foreground="#7FE3C6"
-                               FontSize="13" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding TotalSpeedText}" IsVisible="{Binding HasActivity}"
+                               Foreground="#7FE3C6" FontSize="13" VerticalAlignment="Center" />
                 </Grid>
 
                 <ItemsControl ItemsSource="{Binding RunningRows}" IsVisible="{Binding HasRows}">
