@@ -32,6 +32,9 @@ public class NotchTests
     [AvaloniaFact]
     public void Notch_vm_lists_top_rows_with_overflow_and_total_speed()
     {
+        // OverflowText goes through Localizer — load the pack explicitly or the assertion sees the raw
+        // "Notch_More" key whenever no earlier test happened to load it (order-dependent CI flake).
+        Localizer.Instance.Load("en");
         var (manager, _) = NewManager();
         for (var i = 0; i < 5; i++)
         {
