@@ -121,7 +121,24 @@ Plugins teach the app to turn links that aren't direct file URLs into real downl
 | **Ollama models** | Downloads **AI models for [Ollama](https://ollama.com)** at full speed, then installs them locally in one click. | Paste an `ollama.com` model link — or just type a name like `gemma3:12b` — and download. When it finishes, click **Add to Ollama**: the model is checksum-verified and registered in your local Ollama, ready to run. *Built-in.* |
 | **GitHub Releases** | Turns a **GitHub repository link** into a download of its **latest release**, picking the right asset for your operating system. | Paste `github.com/owner/repo` (no digging through the Releases page) — the plugin looks up the newest release and downloads the asset that matches your OS. *Built-in.* |
 
-Manage plugins under **Settings → Plugins**: toggle them on/off, install optional ones with one click (downloads are checksum-verified before loading), and get an **Update** button right on the plugin when a newer version ships. Developers can build their own — see [Writing plugins](docs/writing-plugins.md).
+Manage plugins under **Settings → Plugins**: toggle them on/off, install optional ones with one click (downloads are checksum-verified before loading), and get an **Update** button right on the plugin when a newer version ships.
+
+### How to write your own plugin
+
+A plugin is just a **.NET class library** that references one tiny package — [`Downloader.Desktop.Plugins.Abstractions`](src/Downloader.Desktop.Plugins.Abstractions) — no app internals, no Avalonia. Every download flows through three phases, and your plugin hooks whichever it needs:
+
+```
+user input ──▶ RESOLVE ──▶ TRANSFER ──▶ POST-PROCESS ──▶ final file
+             ILinkResolver  ITransfer    IPostProcessor
+```
+
+- **Resolve** — turn a pasted link (a page, a short-link, a repo URL…) into real download URLs. The core engine still does the downloading, so you keep multipart speed, pause/resume and progress for free. *Most plugins only need this.*
+- **Transfer** — take over the byte transfer itself, only when plain HTTP can't (e.g. a torrent).
+- **Post-process** — transform the finished files (mux video+audio, verify a checksum, unpack…). You can also add a one-click **action button** on completed downloads (that's how "Add to Ollama" works).
+
+In short: implement `IDownloaderPlugin`, register your pieces in `Initialize`, build the DLL, and drop its folder into the app's `plugins/` directory — it appears in **Settings → Plugins** on the next start. The bundled [GitHub Releases plugin](src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.GitHub) implements every interface and doubles as the reference example.
+
+📖 **Full step-by-step guide:** [Writing a Downloader plugin](docs/writing-plugins.md) — project setup, each interface with code, packaging, and debugging tips.
 
 ## Browser extension
 
