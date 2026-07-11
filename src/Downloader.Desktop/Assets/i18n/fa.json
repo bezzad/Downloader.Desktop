@@ -77,6 +77,7 @@
   "Add_Links": "پیوند(ها) — هر کدام در یک خط",
   "Add_LinksPlaceholder": "https://…  (چند پیوند را، هر کدام در یک خط، بچسبانید تا همه در پوشهٔ زیر دانلود شوند)",
   "Add_ClipboardHint": "برای استفاده از پیوند کلیپ‌بورد Enter بزنید",
+  "Add_HandledBy": "توسط {0} مدیریت می‌شود",
   "Add_ClipboardMultiple": "{0} پیوند در کلیپ‌بورد",
   "Add_SaveTo": "ذخیره در",
   "Add_ChooseFolder": "یک پوشه انتخاب کنید",

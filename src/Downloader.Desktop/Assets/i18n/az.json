@@ -77,6 +77,7 @@
   "Add_Links": "Link(lər) — hər sətirdə bir",
   "Add_LinksPlaceholder": "https://…  (bir neçə linki, hər sətirdə bir, aşağıdakı qovluğa endirmək üçün yapışdırın)",
   "Add_ClipboardHint": "Lövhə keçidini istifadə etmək üçün Enter basın",
+  "Add_HandledBy": "{0} tərəfindən idarə olunur",
   "Add_ClipboardMultiple": "Lövhədə {0} keçid",
   "Add_SaveTo": "Buraya yadda saxla",
   "Add_ChooseFolder": "Qovluq seçin",

@@ -77,6 +77,7 @@
   "Add_Links": "Link(s) — einer pro Zeile",
   "Add_LinksPlaceholder": "https://…  (mehrere Links, einer pro Zeile, einfügen, um alle in den Ordner unten herunterzuladen)",
   "Add_ClipboardHint": "Enter drücken, um den Link aus der Zwischenablage zu verwenden",
+  "Add_HandledBy": "Wird von {0} verarbeitet",
   "Add_ClipboardMultiple": "{0} Links in der Zwischenablage",
   "Add_SaveTo": "Speichern unter",
   "Add_ChooseFolder": "Ordner wählen",

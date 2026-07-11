@@ -109,6 +109,18 @@ public class FallbackResolverTests
     }
 
     [Fact]
+    public void Resolver_plugin_name_lookup_respects_fallback_ordering()
+    {
+        var pm = new PluginManager();
+        pm.RegisterPlugin(new StubPlugin("test.fallback", new StubResolver { Fallback = true }));
+        pm.RegisterPlugin(new StubPlugin("test.specific", new StubResolver { Claims = u => u.Contains("github.com") }));
+
+        Assert.Equal("test.specific", pm.FindResolverPluginName("https://github.com/o/r"));
+        Assert.Equal("test.fallback", pm.FindResolverPluginName("https://blog.example.com/post"));
+        Assert.Null(new PluginManager().FindResolverPluginName("https://x/"));
+    }
+
+    [Fact]
     public async Task No_claiming_resolver_or_no_variants_returns_null()
     {
         var pm = new PluginManager();

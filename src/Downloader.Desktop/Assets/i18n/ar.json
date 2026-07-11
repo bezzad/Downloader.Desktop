@@ -77,6 +77,7 @@
   "Add_Links": "الرابط (الروابط) — رابط في كل سطر",
   "Add_LinksPlaceholder": "https://…  (الصق عدة روابط، كل رابط في سطر، لتنزيلها جميعًا في المجلد أدناه)",
   "Add_ClipboardHint": "اضغط Enter لاستخدام رابط الحافظة",
+  "Add_HandledBy": "تتم معالجته بواسطة {0}",
   "Add_ClipboardMultiple": "{0} روابط في الحافظة",
   "Add_SaveTo": "الحفظ في",
   "Add_ChooseFolder": "اختر مجلدًا",

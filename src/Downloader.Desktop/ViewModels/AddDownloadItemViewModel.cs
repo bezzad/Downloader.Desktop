@@ -35,6 +35,8 @@ public class AddDownloadItemViewModel : ViewModelBase
     private bool _userTypedName;
     private CancellationTokenSource _resolveCts;
     private readonly Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> _getVariants;
+    private readonly Func<string, string> _getResolverName;
+    private string _resolverName;
     private bool _fetchingVariants;
     private CancellationTokenSource _variantsCts;
 
@@ -45,11 +47,13 @@ public class AddDownloadItemViewModel : ViewModelBase
         TimeSpan? resolveDebounce = null,
         Func<Task<string>> readClipboard = null,
         IDownloadManager manager = null,
-        Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> getVariants = null)
+        Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> getVariants = null,
+        Func<string, string> getResolverName = null)
     {
         _config = config;
         _manager = manager;
         _getVariants = getVariants;
+        _getResolverName = getResolverName;
         _resolveFileInfo = resolveFileInfo ?? DefaultResolveFileInfoAsync;
         _readClipboard = readClipboard ?? DefaultReadClipboardAsync;
         _resolveDebounce = resolveDebounce ?? TimeSpan.FromMilliseconds(600);
@@ -71,6 +75,7 @@ public class AddDownloadItemViewModel : ViewModelBase
             TriggerResolve();
             TriggerVariantLookup();
         }
+        RefreshResolverBadge();
 
         // Only offer a clipboard suggestion when the dialog opens with no seed URL ("user have no any
         // link added before"). Exposed as a task so tests can await the async probe deterministically.
@@ -118,6 +123,7 @@ public class AddDownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(LinksPlaceholder));
             TriggerResolve();
             TriggerVariantLookup();
+            RefreshResolverBadge();
         }
     }
 
@@ -141,6 +147,40 @@ public class AddDownloadItemViewModel : ViewModelBase
     /// resolver offers choices — video qualities, model tags — the user must see them before starting).
     /// Non-claimed links finish the lookup near-instantly, so plain adds are unaffected.</summary>
     public bool CanDownload => ParsedUrls.Count > 0 && !IsFetchingVariants;
+
+    // ---- Resolver badge ("Handled by <plugin>") ----
+
+    /// <summary>The display name of the plugin whose resolver claims the single pasted URL, or null.
+    /// Cheap + sync (CanResolve pass only) so it updates live per keystroke; no badge for multi-URL
+    /// input or unclaimed links (those are plain engine downloads).</summary>
+    public string ResolverName
+    {
+        get => _resolverName;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _resolverName, value);
+            this.RaisePropertyChanged(nameof(HasResolver));
+            this.RaisePropertyChanged(nameof(ResolverBadgeText));
+        }
+    }
+
+    public bool HasResolver => !string.IsNullOrWhiteSpace(_resolverName);
+
+    /// <summary>Localized badge text, e.g. "Handled by Website offline copy".</summary>
+    public string ResolverBadgeText => HasResolver
+        ? string.Format(Localizer.Instance["Add_HandledBy"], _resolverName)
+        : string.Empty;
+
+    private void RefreshResolverBadge()
+    {
+        string name = null;
+        if (_getResolverName != null && ParsedUrls is [var single])
+        {
+            try { name = _getResolverName(single); }
+            catch { /* a broken plugin claim must not break typing in the Add box */ }
+        }
+        ResolverName = name;
+    }
 
     // ---- Resolver variants (quality / model-tag picker) ----
 

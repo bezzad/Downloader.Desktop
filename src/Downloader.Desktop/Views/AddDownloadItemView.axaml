@@ -57,6 +57,21 @@
                        VerticalAlignment="Bottom" HorizontalAlignment="Right"
                        Margin="0 0 8 6" FontSize="11"
                        Foreground="{DynamicResource SystemBaseMediumColor}" />
+            <!-- Resolver badge: names the plugin whose resolver claims the pasted link, so the user
+                 knows this won't be (only) a plain file download. Sync/cheap — updates per keystroke. -->
+            <Border IsHitTestVisible="False"
+                    IsVisible="{Binding HasResolver}"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                    Margin="8 0 0 6" Padding="7 2"
+                    CornerRadius="9"
+                    Background="{DynamicResource RowSelectionBrush}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <PathIcon Data="{StaticResource AppsListRegular}" Width="10" Height="10"
+                              Foreground="{DynamicResource SystemAccentColor}" />
+                    <TextBlock Text="{Binding ResolverBadgeText}" FontSize="11"
+                               Foreground="{DynamicResource SystemAccentColor}" />
+                </StackPanel>
+            </Border>
         </Panel>
 
         <!-- Save folder -->

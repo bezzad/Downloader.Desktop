@@ -537,7 +537,8 @@ public class MainViewModel : ViewModelBase
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
             new AddDownloadItemView(),
             new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager,
-                getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct)),
+                getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct),
+                getResolverName: u => _pluginManager.FindResolverPluginName(u)),
             _config);
 
         if (result is { Count: > 0 })

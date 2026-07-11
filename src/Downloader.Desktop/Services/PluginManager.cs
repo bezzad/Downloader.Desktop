@@ -149,6 +149,16 @@ public sealed class PluginManager
         return Enabled().FirstOrDefault(p => p.Resolvers.Contains(resolver))?.Descriptor.Id;
     }
 
+    /// <summary>The display name of the enabled plugin whose resolver claims <paramref name="url"/>, or
+    /// null. Cheap + sync (CanResolve pass only) — drives the Add window's "Handled by ‹plugin›" badge.</summary>
+    public string FindResolverPluginName(string url)
+    {
+        var resolver = FindResolver(url);
+        if (resolver == null)
+            return null;
+        return Enabled().FirstOrDefault(p => p.Resolvers.Contains(resolver))?.Descriptor.Name;
+    }
+
     /// <summary>The post-download action the given plugin offers for this completed download, or null.
     /// Only the RESOLVING plugin's actions are consulted (never another plugin's).</summary>
     public IPostDownloadAction FindPostDownloadAction(string pluginId, string sourceUrl, string filePath)

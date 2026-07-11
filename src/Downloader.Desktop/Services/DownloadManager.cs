@@ -1080,9 +1080,28 @@ public partial class DownloadManager : IDownloadManager
                || s.Contains("<title");
     }
 
+    /// <summary>Pure heuristic (testable): the URL itself looks like a WEB PAGE — no extension on the last
+    /// path segment, or an HTML-ish one. For such a URL a small HTML result is the EXPECTED content, so the
+    /// expired-link check must not flag it (pasting "https://host/docs/" used to always end "Failed — link
+    /// expired"). Signed/expiring file links carry real extensions (.zip, .mp4, …) and stay protected.</summary>
+    public static bool UrlLooksLikePage(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) ||
+            (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
+            return false;
+        var last = u.AbsolutePath.TrimEnd('/').Split('/')[^1];
+        var dot = last.LastIndexOf('.');
+        var ext = dot < 0 ? "" : last[(dot + 1)..].ToLowerInvariant();
+        return ext is "" or "html" or "htm" or "php" or "asp" or "aspx" or "jsp" or "cfm" or "shtml";
+    }
+
     /// <summary>Reads the head of the just-completed file and applies <see cref="LooksExpiredOrInvalid"/>.</summary>
     private bool IsExpiredOrInvalidLink(DownloadItemViewModel vm, System.ComponentModel.AsyncCompletedEventArgs e)
     {
+        // The user asked for a page-like URL — HTML output is what that URL means, not an expired link.
+        if (UrlLooksLikePage(vm.GetItem().Urls?.FirstOrDefault()))
+            return false;
+
         var path = (e.UserState as DownloadPackage)?.FileName ?? vm.Download?.Package?.FileName;
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             return false;
