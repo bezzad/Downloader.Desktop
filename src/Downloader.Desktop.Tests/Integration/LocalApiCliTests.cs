@@ -19,7 +19,7 @@ public class LocalApiCliLogicTests
 {
     // ---------------- ApiAddRequest ----------------
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void AddRequest_parses_full_json_body()
     {
         var req = ApiAddRequest.FromJson(
@@ -34,7 +34,7 @@ public class LocalApiCliLogicTests
         Assert.False(req.Start);
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("""{"filename":"a.zip"}""")]                 // no url
     [InlineData("""{"url":"ftp://host/file.zip"}""")]        // non-http scheme
     [InlineData("""{"url":"not a url"}""")]
@@ -44,14 +44,14 @@ public class LocalApiCliLogicTests
         Assert.NotNull(ApiAddRequest.FromJson(json).Error);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void AddRequest_rejects_relative_path()
     {
         var req = ApiAddRequest.FromJson("""{"url":"https://host/f.zip","path":"downloads/sub"}""");
         Assert.Contains("path", req.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void AddRequest_parses_query_form_and_start_flag()
     {
         var req = ApiAddRequest.FromQuery(new Uri(
@@ -66,7 +66,7 @@ public class LocalApiCliLogicTests
             "http://127.0.0.1:15151/api/add?url=https%3A%2F%2Fhost%2Ff.zip")).Start); // default
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void AddRequest_json_round_trips()
     {
         var src = new ApiAddRequest { Url = "https://host/f.zip", Filename = "f.zip", Start = false };
@@ -77,7 +77,7 @@ public class LocalApiCliLogicTests
         Assert.False(round.Start);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ExtractIdFromJson_reads_id_and_tolerates_garbage()
     {
         Assert.Equal("abc", LocalApiService.ExtractIdFromJson("""{"id":"abc"}"""));
@@ -87,7 +87,7 @@ public class LocalApiCliLogicTests
 
     // ---------------- BuildItem ----------------
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void BuildItem_fills_defaults_and_resolves_queue_by_name()
     {
         var config = Config.New();
@@ -102,7 +102,7 @@ public class LocalApiCliLogicTests
         Assert.Null(item.FileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void BuildItem_unknown_queue_falls_back_to_default()
     {
         var config = Config.New();
@@ -112,7 +112,7 @@ public class LocalApiCliLogicTests
 
     // ---------------- CliParser ----------------
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Cli_add_parses_all_options()
     {
         Assert.True(CliParser.TryParse(
@@ -125,7 +125,7 @@ public class LocalApiCliLogicTests
         Assert.False(cmd.Add.Start);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Cli_usage_errors_are_reported()
     {
         var badInvocations = new[]
@@ -144,7 +144,7 @@ public class LocalApiCliLogicTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Cli_control_verbs_take_a_guid()
     {
         var id = Guid.NewGuid().ToString();
@@ -156,7 +156,7 @@ public class LocalApiCliLogicTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Cli_non_verbs_fall_through_to_gui()
     {
         var guiLaunches = new[]
@@ -172,14 +172,14 @@ public class LocalApiCliLogicTests
 
     // ---------------- Config migration ----------------
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Integration_toggle_defaults_on_for_new_configs()
     {
         Assert.True(Config.New().Settings.EnableBrowserIntegration);
         Assert.Equal(Config.CurrentSchemaVersion, Config.New().SchemaVersion);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Old_config_is_migrated_to_enabled_once()
     {
         var old = new Config { Settings = DownloadSettings.New() };
@@ -191,7 +191,7 @@ public class LocalApiCliLogicTests
         Assert.Equal(Config.CurrentSchemaVersion, old.SchemaVersion);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void User_choice_after_migration_is_respected()
     {
         var cfg = Config.New();
@@ -223,7 +223,7 @@ public class LocalApiEndToEndTests
     private static Task<HttpResponseMessage> Get(HttpClient client, string pathAndQuery) =>
         Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.EffectivePort}{pathAndQuery}"));
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Api_add_list_control_and_legacy_endpoints_work()
     {
         var manager = new DownloadManager();
@@ -285,7 +285,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Start_falls_back_to_next_port_when_preferred_is_taken()
     {
         // Occupy the preferred port so the service must fall back. If 15151 is ALREADY taken (e.g. a real
@@ -324,7 +324,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Start_retries_in_background_until_a_port_frees_up()
     {
         // The reported bug: a transient startup condition (all ports momentarily busy) left the API
@@ -370,7 +370,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void SingleInstance_lock_port_is_outside_the_api_range()
     {
         // The single-instance/CLI lock binds LockPort at startup; if it were inside the API's fallback
@@ -379,7 +379,7 @@ public class LocalApiEndToEndTests
         Assert.DoesNotContain(SingleInstanceService.LockPort, LocalApiService.PortRange);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Start_prefers_the_persisted_effective_port()
     {
         // A config that remembers a non-default port from a previous run should bind that one first.

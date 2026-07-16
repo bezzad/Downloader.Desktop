@@ -29,7 +29,7 @@ public class SpeedLimitTests
         return manager;
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Global_change_reaches_a_running_item_without_a_custom_limit()
     {
         var manager = StartedItem(out var vm, out _);
@@ -39,7 +39,7 @@ public class SpeedLimitTests
         Assert.Equal(Global, vm.Configuration.MaximumBytesPerSecond);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Custom_limited_running_item_is_untouched_by_a_global_change()
     {
         var manager = StartedItem(out var vm, out _);
@@ -52,7 +52,7 @@ public class SpeedLimitTests
         Assert.Equal(Custom, vm.Configuration.MaximumBytesPerSecond);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Custom_limit_survives_stop_resume_and_restart()
     {
         var manager1 = new DownloadManager();
@@ -81,7 +81,7 @@ public class SpeedLimitTests
         Assert.Equal(Custom, vm2.Configuration.MaximumBytesPerSecond); // used the custom cap, not the global
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Reverting_to_global_reapplies_current_global_and_resubscribes()
     {
         var manager = new DownloadManager();

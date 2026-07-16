@@ -116,7 +116,7 @@ public class CaptureScreenshots
         frame!.Save(Path.Combine(OutDir, file));
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Capture()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_CAPTURE") != "1")

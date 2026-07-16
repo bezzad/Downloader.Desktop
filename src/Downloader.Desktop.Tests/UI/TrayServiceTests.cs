@@ -25,7 +25,7 @@ namespace Downloader.Desktop.Tests.UI;
 /// </summary>
 public class TrayServiceTests
 {
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Enable_builds_a_menu_with_open_notifications_and_quit()
     {
         var window = new Window();
@@ -46,7 +46,7 @@ public class TrayServiceTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Tray_icon_bitmap_is_downscaled_to_64x64_not_the_full_size_app_icon()
     {
         // The 1080x1080 app PNG previously made some Linux SNI hosts render the icon but fail to attach

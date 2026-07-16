@@ -13,7 +13,7 @@ namespace Downloader.Desktop.Tests.Plugins.Hls;
 /// </summary>
 public class PluginLoadTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Plugin_loads_in_host_mirroring_context_and_exposes_metadata()
     {
         var dll = Path.Combine(AppContext.BaseDirectory, "Downloader.Desktop.Plugins.Hls.dll");
@@ -41,7 +41,7 @@ public class PluginLoadTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Initialize_registers_a_resolver_and_a_post_processor()
     {
         var ctx = new FakeContext();

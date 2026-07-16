@@ -49,7 +49,7 @@ public class FallbackResolverTests
     private static LinkVariant Variant(string vid, bool isDefault = false, string substitute = null) =>
         new() { Id = vid, Label = vid, IsDefault = isDefault, SubstituteUrl = substitute };
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Specific_resolver_wins_over_a_fallback_that_also_claims()
     {
         var pm = new PluginManager();
@@ -63,7 +63,7 @@ public class FallbackResolverTests
         Assert.Equal("test.specific", pm.FindResolverPluginId("https://github.com/owner/repo"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Fallback_handles_urls_no_specific_resolver_claims()
     {
         var pm = new PluginManager();
@@ -76,7 +76,7 @@ public class FallbackResolverTests
         Assert.Equal("test.fallback", pm.FindResolverPluginId("https://blog.example.com/post"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Only_the_detected_resolvers_variants_are_shown_never_a_fallbacks_extras()
     {
         var pm = new PluginManager();
@@ -92,7 +92,7 @@ public class FallbackResolverTests
         Assert.True(shown[0].IsDefault);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Fallback_variants_appear_when_the_specific_resolver_offers_none()
     {
         var pm = new PluginManager();
@@ -106,7 +106,7 @@ public class FallbackResolverTests
         Assert.Equal("zip", Assert.Single(shown).Id);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task One_failing_variant_lookup_does_not_hide_the_others()
     {
         var pm = new PluginManager();
@@ -120,7 +120,7 @@ public class FallbackResolverTests
         Assert.Equal("zip", Assert.Single(merged).Id);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Resolver_plugin_name_lookup_respects_fallback_ordering()
     {
         var pm = new PluginManager();
@@ -132,7 +132,7 @@ public class FallbackResolverTests
         Assert.Null(new PluginManager().FindResolverPluginName("https://x/"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task No_claiming_resolver_or_no_variants_returns_null()
     {
         var pm = new PluginManager();

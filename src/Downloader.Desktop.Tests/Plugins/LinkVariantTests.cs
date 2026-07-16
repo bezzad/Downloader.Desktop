@@ -17,7 +17,7 @@ namespace Downloader.Desktop.Tests.Plugins;
 /// </summary>
 public class LinkVariantTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Host_returns_the_claiming_resolvers_variants()
     {
         var pm = new PluginManager();
@@ -30,7 +30,7 @@ public class LinkVariantTests
         Assert.True(variants[0].IsDefault);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Host_returns_null_when_no_resolver_claims_the_link()
     {
         var pm = new PluginManager();
@@ -39,7 +39,7 @@ public class LinkVariantTests
         Assert.Null(await pm.GetVariantsAsync("https://unclaimed.example/x", CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Host_returns_null_for_a_disabled_plugin()
     {
         var pm = new PluginManager();
@@ -49,7 +49,7 @@ public class LinkVariantTests
         Assert.Null(await pm.GetVariantsAsync("variant://video", CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Host_swallows_a_variant_lookup_failure()
     {
         var pm = new PluginManager();
@@ -58,14 +58,14 @@ public class LinkVariantTests
         Assert.Null(await pm.GetVariantsAsync("variant://video", CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Resolver_without_the_override_reports_no_variants()
     {
         ILinkResolver plain = new PlainResolver();
         Assert.Null(await plain.GetVariantsAsync("anything", null, CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Chosen_variant_id_reaches_the_resolver_through_the_manager()
     {
         var plugin = new VariantPlugin();

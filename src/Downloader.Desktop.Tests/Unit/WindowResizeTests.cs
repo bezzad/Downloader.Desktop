@@ -20,7 +20,7 @@ public class WindowResizeTests
     private static WindowResize.Result Compute(WindowEdge edge, PixelPoint pointer) =>
         WindowResize.Compute(edge, StartPointer, StartPos, StartW, StartH, pointer, Scale, MinW, MinH, MaxW, MaxH);
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(WindowEdge.East, 300, 0)]
     [InlineData(WindowEdge.West, -250, 0)]
     [InlineData(WindowEdge.North, 0, -200)]
@@ -49,7 +49,7 @@ public class WindowResizeTests
         Assert.Equal(single.Height, stepped.Height, 6);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void West_keeps_the_right_edge_fixed()
     {
         var r = Compute(WindowEdge.West, new PixelPoint(StartPointer.X - 120, StartPointer.Y));
@@ -59,7 +59,7 @@ public class WindowResizeTests
         Assert.Equal(StartW + 120, r.Width, 6); // dragging left grows the window
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Min_size_clamp_still_pins_the_opposite_edge()
     {
         // Drag the west edge far past the min width; the right edge must not move.
@@ -68,7 +68,7 @@ public class WindowResizeTests
         Assert.Equal(StartPos.X + StartW, r.Position.X + r.Width, 6);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ClampOnScreen_pulls_a_runaway_window_back()
     {
         var screen = new[] { new PixelRect(0, 0, 1920, 1080) };

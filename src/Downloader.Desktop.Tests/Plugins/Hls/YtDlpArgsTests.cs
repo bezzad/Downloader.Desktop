@@ -11,7 +11,7 @@ namespace Downloader.Desktop.Tests.Plugins.Hls;
 /// </summary>
 public class YtDlpArgsTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Supplied_cookie_file_uses_cookies_flag_not_browser_store()
     {
         var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: "/tmp/c.txt", cookieBrowser: null, denoPath: null);
@@ -19,7 +19,7 @@ public class YtDlpArgsTests
         Assert.DoesNotContain("--cookies-from-browser", args);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Browser_store_path_uses_cookies_from_browser()
     {
         var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: null, cookieBrowser: "chrome", denoPath: null);
@@ -27,7 +27,7 @@ public class YtDlpArgsTests
         Assert.DoesNotContain("--cookies \"", args);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Anonymous_attempt_has_neither_cookie_source()
     {
         var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: null, cookieBrowser: null, denoPath: null);
@@ -36,7 +36,7 @@ public class YtDlpArgsTests
         Assert.Contains("\"https://youtu.be/x\"", args);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Missing_formats_is_detected_from_ytdlp_stderr()
     {
         // The signature of an unsolved YouTube "n challenge" (no JS runtime): cookies pass the sign-in

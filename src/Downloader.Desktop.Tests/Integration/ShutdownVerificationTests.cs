@@ -25,7 +25,7 @@ namespace Downloader.Desktop.Tests.Integration;
 /// </summary>
 public class ShutdownVerificationTests
 {
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Completing_a_real_download_shows_a_cancelable_shutdown_dialog_and_never_powers_off()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_VERIFY") != "1")
@@ -86,7 +86,7 @@ public class ShutdownVerificationTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Countdown_reaching_zero_triggers_power_off()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_VERIFY") != "1")

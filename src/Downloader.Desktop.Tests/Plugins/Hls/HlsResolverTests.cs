@@ -7,7 +7,7 @@ namespace Downloader.Desktop.Tests.Plugins.Hls;
 
 public class HlsResolverTests
 {
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("https://cdn.example.com/v/index.m3u8", true)]
     [InlineData("https://cdn.example.com/v/index.M3U8?token=abc&x=1", true)]
     [InlineData("https://cdn.example.com/v/playlist.m3u", true)]
@@ -20,7 +20,7 @@ public class HlsResolverTests
         Assert.Equal(expected, resolver.CanResolve(url));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void CanResolve_uses_content_type_probe_when_url_is_ambiguous()
     {
         var resolver = new HlsResolver(probe: new FakeProbe(isHls: true));
@@ -30,7 +30,7 @@ public class HlsResolverTests
         Assert.False(noProbe.CanResolve("https://cdn.example.com/stream?id=42"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_builds_plan_from_media_playlist()
     {
         const string media =
@@ -56,7 +56,7 @@ public class HlsResolverTests
         Assert.All(recipe.Segments, s => Assert.False(s.Encrypted));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_follows_master_to_best_variant()
     {
         const string master =
@@ -78,7 +78,7 @@ public class HlsResolverTests
         Assert.Equal(server.Url("high/b.ts"), plan.Parts[1].Url);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_carries_aes_key_and_iv_and_init_segment()
     {
         const string media =

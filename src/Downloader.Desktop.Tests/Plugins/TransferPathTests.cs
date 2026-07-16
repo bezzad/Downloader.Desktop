@@ -92,7 +92,7 @@ public class TransferPathTests
         return vm;
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Transfer_backed_item_completes_with_the_produced_file()
     {
         var (manager, provider) = NewManager();
@@ -122,7 +122,7 @@ public class TransferPathTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void A_running_byte_counter_reported_as_total_never_becomes_a_frozen_size()
     {
         var (manager, provider) = NewManager();
@@ -139,7 +139,7 @@ public class TransferPathTests
         manager.Cancel(vm);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Transfer_failure_marks_the_item_failed_with_the_message()
     {
         var (manager, provider) = NewManager();
@@ -152,7 +152,7 @@ public class TransferPathTests
         Assert.Null(vm.ActiveTransfer);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Pause_and_resume_route_to_the_transfer()
     {
         var (manager, provider) = NewManager();
@@ -171,7 +171,7 @@ public class TransferPathTests
         Assert.Single(provider.Created);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Cancel_stops_the_transfer_and_keeps_the_row_stopped()
     {
         var (manager, provider) = NewManager();
@@ -188,7 +188,7 @@ public class TransferPathTests
         Assert.Null(vm.ErrorMessage);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Transfers_obey_the_queue_concurrency_cap()
     {
         var (manager, provider) = NewManager(cap: 1);

@@ -8,7 +8,7 @@ namespace Downloader.Desktop.Tests.UI;
 
 public class DialogHelperTests
 {
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void ApplyPersistedSize_clamps_below_minimum_up_to_minimum()
     {
         var config = Config.New();
@@ -21,7 +21,7 @@ public class DialogHelperTests
         Assert.Equal(360, window.Height);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void ApplyPersistedSize_clamps_above_screen_working_area_down_to_it()
     {
         var config = Config.New();
@@ -36,7 +36,7 @@ public class DialogHelperTests
         Assert.True(window.Height <= screen.WorkingArea.Height);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void ApplyPersistedSize_is_noop_when_no_saved_size()
     {
         var config = Config.New();
@@ -48,7 +48,7 @@ public class DialogHelperTests
         Assert.Equal(460, window.Height);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void SavePersistedSize_writes_current_size_under_the_given_key()
     {
         var config = Config.New();

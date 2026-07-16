@@ -10,7 +10,7 @@ namespace Downloader.Desktop.Tests.Plugins.Hls;
 /// </summary>
 public class SiteExtractionResolverTests
 {
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("https://x.com/user/status/123", true)]
     [InlineData("https://twitter.com/user/status/123", true)]
     [InlineData("https://www.twitter.com/user/status/123", true)]
@@ -27,7 +27,7 @@ public class SiteExtractionResolverTests
         Assert.Equal(expected, resolver.CanResolve(url));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_progressive_site_builds_single_combined_part()
     {
         var json = """
@@ -52,7 +52,7 @@ public class SiteExtractionResolverTests
         Assert.Equal(PostProcessKind.None, plan.PostProcess.Kind);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_video_plus_audio_site_builds_two_parts_with_mux()
     {
         var json = """
@@ -81,7 +81,7 @@ public class SiteExtractionResolverTests
         Assert.Equal("DASH video.mp4", plan.SuggestedFileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_hls_site_reuses_segment_pipeline()
     {
         const string media =
@@ -106,7 +106,7 @@ public class SiteExtractionResolverTests
         Assert.Equal("HLS tweet.mp4", plan.SuggestedFileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_direct_m3u8_does_not_invoke_ytdlp()
     {
         const string media =
@@ -123,7 +123,7 @@ public class SiteExtractionResolverTests
         Assert.Equal(PostProcessKind.Concat, plan.PostProcess.Kind);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_no_media_throws_clear_error()
     {
         var resolver = new HlsResolver(ytDlp: new StubYtDlp("""{ "title": "x", "formats": [] }"""));
@@ -132,7 +132,7 @@ public class SiteExtractionResolverTests
         Assert.Contains("No downloadable video", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_surfaces_provisioning_failure()
     {
         var resolver = new HlsResolver(ytDlp: new ThrowingYtDlp());

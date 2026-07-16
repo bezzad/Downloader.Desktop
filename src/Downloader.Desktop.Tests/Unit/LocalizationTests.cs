@@ -8,7 +8,7 @@ namespace Downloader.Desktop.Tests.Unit;
 /// <summary>i18n tests — run under the Avalonia headless runtime because translations load via AssetLoader.</summary>
 public class LocalizationTests
 {
-    [AvaloniaTheory]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("en")]
     [InlineData("fa")]
     [InlineData("es")]
@@ -44,7 +44,7 @@ public class LocalizationTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Rtl_languages_flip_flow_direction()
     {
         Localizer.Instance.Load("fa");
@@ -55,7 +55,7 @@ public class LocalizationTests
         Assert.Equal(FlowDirection.LeftToRight, Localizer.Instance.FlowDirection);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Unknown_key_falls_back_to_itself()
     {
         Localizer.Instance.Load("en");

@@ -21,7 +21,7 @@ public class OllamaLogicTests
 {
     // ---- 4.1 claim matrix ----
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Claims_bare_names_and_library_urls()
     {
         foreach (var input in new[]
@@ -37,7 +37,7 @@ public class OllamaLogicTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Defaults_namespace_and_tag()
     {
         Assert.True(OllamaModelRef.TryParse("gemma3:1b", out var r));
@@ -53,7 +53,7 @@ public class OllamaLogicTests
         Assert.Equal("12b", r3.Tag);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Tracks_whether_the_tag_was_explicit()
     {
         Assert.True(OllamaModelRef.TryParse("gemma3:12b", out var tagged));
@@ -68,7 +68,7 @@ public class OllamaLogicTests
         Assert.True(retagged.HasExplicitTag);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Tagless_reference_lists_registry_tags_as_variants_with_substitute_urls()
     {
         var resolver = new OllamaResolver(new StubRegistry { Tags = new[] { "latest", "4b", "12b" } });
@@ -81,14 +81,14 @@ public class OllamaLogicTests
         Assert.True(variants.Single(v => v.Id == "latest").IsDefault);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Tagged_reference_offers_no_variants()
     {
         var resolver = new OllamaResolver(new StubRegistry { Tags = new[] { "latest", "4b" } });
         Assert.Null(await ((ILinkResolver)resolver).GetVariantsAsync("gemma3:4b", null, CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Resolve_with_variant_id_uses_that_tag()
     {
         var stub = new StubRegistry { Tags = Array.Empty<string>() };
@@ -101,7 +101,7 @@ public class OllamaLogicTests
         Assert.EndsWith("gemma3-12b.gguf", plan.SuggestedFileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Live_tags_endpoint_returns_real_gemma3_tags()
     {
         // Gated live check (like YtDlpDiagnosisTests): the JSON tag list lives on ollama.com (the
@@ -138,7 +138,7 @@ public class OllamaLogicTests
             => Task.FromResult(Tags);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Rejects_urls_paths_and_file_names()
     {
         foreach (var input in new[]
@@ -167,7 +167,7 @@ public class OllamaLogicTests
     }
     """;
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Parses_manifest_and_picks_the_model_layer()
     {
         var m = OllamaManifest.Parse(ManifestJson);
@@ -181,7 +181,7 @@ public class OllamaLogicTests
         Assert.DoesNotContain("sha256:modelhash", metadata);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Manifest_without_model_layer_is_a_clear_error()
     {
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -193,7 +193,7 @@ public class OllamaLogicTests
 /// <summary>Registry + installer against a loopback fake registry / temp store dirs.</summary>
 public class OllamaIntegrationTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Resolves_a_model_to_its_blob_url_with_size_and_gguf_name()
     {
         var model = Bytes("MODEL", 4096);
@@ -210,7 +210,7 @@ public class OllamaIntegrationTests
         Assert.Equal("gemma3-1b.gguf", plan.SuggestedFileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Unknown_model_is_a_clear_not_found_error()
     {
         using var server = new FakeRegistry(Bytes("X", 10), notFound: true);
@@ -220,7 +220,7 @@ public class OllamaIntegrationTests
         Assert.Contains("not found", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Installer_happy_path_builds_the_store_and_keeps_the_original_file()
     {
         var model = Bytes("WEIGHTS", 8192);
@@ -250,7 +250,7 @@ public class OllamaIntegrationTests
         finally { TryDelete(work); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Installer_digest_mismatch_writes_no_manifest()
     {
         using var server = new FakeRegistry(Bytes("REAL", 4096));
@@ -414,7 +414,7 @@ public class BuiltInAndPostActionTests
         public void Initialize(IPluginContext context) => context.RegisterPostDownloadAction(_action);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void BuiltIn_plugins_are_flagged_and_not_removable()
     {
         var pm = new PluginManager();
@@ -428,7 +428,7 @@ public class BuiltInAndPostActionTests
         Assert.False(pm.Plugins.Single().IsEnabled);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void User_plugins_remain_removable()
     {
         var pm = new PluginManager();
@@ -437,7 +437,7 @@ public class BuiltInAndPostActionTests
         Assert.Empty(pm.Plugins);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Action_is_offered_only_by_the_resolving_plugin_for_matching_input()
     {
         var pm = new PluginManager();
@@ -456,7 +456,7 @@ public class BuiltInAndPostActionTests
         finally { File.Delete(tmp); }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Manager_offers_label_on_completed_item_and_runs_only_on_click()
     {
         var action = new FakeAction();
@@ -492,7 +492,7 @@ public class BuiltInAndPostActionTests
         finally { File.Delete(file); }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Failing_action_surfaces_a_friendly_item_error()
     {
         var action = new FakeAction { ShouldFail = true };
@@ -527,7 +527,7 @@ public class BuiltInAndPostActionTests
         finally { File.Delete(file); }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Bare_model_name_is_claimed_by_an_enabled_resolver_and_rejected_when_disabled()
     {
         var pm = new PluginManager();

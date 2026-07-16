@@ -31,7 +31,7 @@ public class PluginCatalogTests
         return zip;
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Install_from_zip_with_matching_checksum_loads_the_plugin()
     {
         var zip = BuildSampleZip();
@@ -50,7 +50,7 @@ public class PluginCatalogTests
         Assert.True(File.Exists(Path.Combine(root, "com.bezzad.github-releases", "Downloader.Desktop.Plugins.GitHub.dll")));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Install_from_zip_with_wrong_checksum_does_not_extract_or_load()
     {
         var zip = BuildSampleZip();
@@ -65,7 +65,7 @@ public class PluginCatalogTests
         Assert.Empty(Directory.GetFileSystemEntries(root));         // nothing extracted — folder untouched
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void IsNewer_only_true_when_catalog_version_is_strictly_greater()
     {
         Assert.True(PluginCatalogService.IsNewer("1.2.0", "1.1.2"));
@@ -76,7 +76,7 @@ public class PluginCatalogTests
         Assert.False(PluginCatalogService.IsNewer("1.2.0", ""));      // unparsable installed
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ParseCatalog_maps_entries_and_resolves_asset_urls()
     {
         const string json = """
@@ -104,14 +104,14 @@ public class PluginCatalogTests
         Assert.Equal("1.7.0", e.MinAppVersion);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ParseCatalog_tolerates_malformed_json()
     {
         Assert.Empty(PluginCatalogService.ParseCatalog("not json", new Dictionary<string, string>()));
         Assert.Empty(PluginCatalogService.ParseCatalog("{}", new Dictionary<string, string>())); // object, not array
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void MeetsMinAppVersion_gates_on_the_running_app_version()
     {
         var app = new System.Version(2, 1, 0);

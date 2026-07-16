@@ -17,7 +17,7 @@ namespace Downloader.Desktop.Tests.Integration;
 /// </summary>
 public class IntegrationTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Downloads_a_small_file_end_to_end_and_matches_bytes()
     {
         var payload = new byte[256 * 1024];
