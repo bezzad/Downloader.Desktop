@@ -140,8 +140,29 @@ Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
 ```bash
 dotnet build Downloader.Desktop.sln                                   # 0 warnings / 0 errors expected
 dotnet run  --project Downloader.Desktop/Downloader.Desktop.csproj    # launch the GUI (needs a desktop session)
-dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj  # all tests (foldered: Unit/ Integration/ UI/ Plugins/ + Plugins/Hls/)
+# ALWAYS run the suite bounded (standing rule — see note below):
+timeout -k 30 900 dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -v q --nologo \
+  --blame-hang --blame-hang-timeout 180s --blame-crash   # all tests (Unit/ Integration/ UI/ Plugins/ + Plugins/Hls/)
 ```
+**Test runs MUST be bounded (learned the hard way, 2026-07-16):** a `dotnet test` host can hang/die silently
+right after "A total of 1 test files matched" and sit alive for HOURS; every subsequent `dotnet test` then
+contends with it (same bin/obj + MSBuild node locks) and freezes at the same spot — looking like "tests
+hang" when it's really a stale sibling process. Three layers, all standing: (1) every test attribute carries
+`Timeout = TestTimeouts.DefaultMs` (60s; `TestTimeouts.SlowMs`=180s for genuinely slow ones — the port-range
+binder needs it on macOS CI ~1m17s), see `TestSupport/TimedAttributes.cs`; (2) `--blame-hang
+--blame-hang-timeout 180s --blame-crash` makes VSTest kill+dump a stuck host and NAME the culprit test;
+(3) `timeout -k 30 900` hard-caps the whole command. Before re-running a "hung" suite, first
+`pkill -f "dotnet test"; pkill -f testhost` — a leftover host is the usual cause of the next freeze.
+
+**Root cause of the in-host hang itself (diagnosed from the hang dump, 2026-07-17):** xunit.v3 ran test
+COLLECTIONS in parallel; 8 workers from 8 classes sat blocked in `AvaloniaTestCase.Run` awaiting the shared
+headless dispatcher while NO dispatcher thread existed anymore — a parallel-collection race on the suite's
+shared statics killed the session thread, and per-test `Timeout` can't fire when the dispatcher that would
+run the test is dead. Fixed by `[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]` in
+`TestSupport/TestAppBuilder.cs` — parallelism bought nothing (AvaloniaFacts serialize through the one
+dispatcher; the suite runs in seconds). Don't re-enable it. Analyze future hang dumps with
+`dotnet-dump analyze <dmp> -c pstacks`; the in-flight tests are the `Completed="False"` rows in the blame
+`Sequence_*.xml`.
 Headless smoke check (no display interaction): `timeout 10 dotnet run --project Downloader.Desktop/Downloader.Desktop.csproj` — a clean 10s run (SIGTERM/143) with no exceptions means it launched OK. Note: empty-list startup does NOT exercise row/file-kind icons.
 
 ## Regenerate README screenshots
