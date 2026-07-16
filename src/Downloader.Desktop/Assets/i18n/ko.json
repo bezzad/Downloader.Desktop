@@ -86,6 +86,8 @@
   "Add_Resolving": "확인 중…",
   "Add_Queue": "대기열",
   "Add_Download": "다운로드",
+  "Add_BulkSummary": "{0}개 링크 추가 준비됨",
+  "Add_BulkClear": "지우기",
   "Tooltip_Browse": "찾아보기",
   "Settings_Title": "설정",
   "Settings_Reset": "기본값으로 재설정",

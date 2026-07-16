@@ -39,6 +39,12 @@ public class AddDownloadItemViewModel : ViewModelBase
     private string _resolverName;
     private bool _fetchingVariants;
     private CancellationTokenSource _variantsCts;
+    private IReadOnlyList<string> _parsed = Array.Empty<string>();
+
+    /// <summary>Above this many links the modal shows a compact summary instead of an editable box —
+    /// Avalonia's multi-line TextBox lays out ALL lines (no virtualization), so rendering thousands
+    /// freezes the UI. Normal multi-adds (a few dozen) stay editable.</summary>
+    public const int BulkPreviewThreshold = 200;
 
     public AddDownloadItemViewModel(
         Config config,
@@ -63,9 +69,11 @@ public class AddDownloadItemViewModel : ViewModelBase
             : DownloadSettings.New().DefaultSavePath;
         _fileName = string.Empty;
         _selectedQueue = config?.DefaultQueue;
+        _parsed = SplitUrls(_urls);
 
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
         StartDownloadCommand = ReactiveCommand.Create(StartDownload);
+        ClearUrlsCommand = ReactiveCommand.Create(() => { Urls = string.Empty; });
         AddQueueCommand = ReactiveCommand.Create(() => { IsAddingQueue = true; });
         ConfirmAddQueueCommand = ReactiveCommand.Create(ConfirmAddQueue);
         CancelAddQueueCommand = ReactiveCommand.Create(() => { NewQueueName = string.Empty; IsAddingQueue = false; });
@@ -115,10 +123,15 @@ public class AddDownloadItemViewModel : ViewModelBase
         set
         {
             this.RaiseAndSetIfChanged(ref _urls, value);
+            // Parse once per change (cheap) and cache — the getters below used to re-split on every read.
+            _parsed = SplitUrls(value);
             this.RaisePropertyChanged(nameof(CanDownload));
             this.RaisePropertyChanged(nameof(IsMultiple));
             this.RaisePropertyChanged(nameof(IsSingleLink));
             this.RaisePropertyChanged(nameof(IsFilenameEnabled));
+            this.RaisePropertyChanged(nameof(LinkCount));
+            this.RaisePropertyChanged(nameof(IsBulk));
+            this.RaisePropertyChanged(nameof(BulkSummaryText));
             this.RaisePropertyChanged(nameof(ShowClipboardSuggestion));
             this.RaisePropertyChanged(nameof(LinksPlaceholder));
             TriggerResolve();
@@ -131,13 +144,30 @@ public class AddDownloadItemViewModel : ViewModelBase
     // batch into the single-line top box (which can collapse new lines to spaces) still splits (#19).
     private static readonly char[] UrlSeparators = { '\n', '\r', '\t', ' ', ',', ';' };
 
+    /// <summary>Count the links in raw text (same splitting the dialog uses) — lets the paste handlers
+    /// decide whether a paste is "bulk" without laying it out in a TextBox first.</summary>
+    public static int CountUrls(string raw) => SplitUrls(raw).Count;
+
     private static IReadOnlyList<string> SplitUrls(string raw) =>
         (raw ?? string.Empty)
         .Split(UrlSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Where(u => u.Length > 0)
         .ToList();
 
-    private IReadOnlyList<string> ParsedUrls => SplitUrls(_urls);
+    private IReadOnlyList<string> ParsedUrls => _parsed;
+
+    /// <summary>Number of links currently entered.</summary>
+    public int LinkCount => _parsed.Count;
+
+    /// <summary>True for a large paste: the editable box is replaced by a summary chip so Avalonia
+    /// never lays out thousands of lines (the ~10 s freeze). See <see cref="BulkPreviewThreshold"/>.</summary>
+    public bool IsBulk => _parsed.Count > BulkPreviewThreshold;
+
+    /// <summary>Summary shown in bulk mode, e.g. "2000 links ready to add".</summary>
+    public string BulkSummaryText => string.Format(Localizer.Instance["Add_BulkSummary"], _parsed.Count);
+
+    /// <summary>Clears the entered links (returns from bulk summary to the editable box).</summary>
+    public ICommand ClearUrlsCommand { get; }
 
     private static bool IsHttpUrl(string s) =>
         s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||

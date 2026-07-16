@@ -86,6 +86,8 @@
   "Add_Resolving": "Résolution…",
   "Add_Queue": "File d’attente",
   "Add_Download": "Télécharger",
+  "Add_BulkSummary": "{0} liens prêts à ajouter",
+  "Add_BulkClear": "Effacer",
   "Tooltip_Browse": "Parcourir",
   "Settings_Title": "Paramètres",
   "Settings_Reset": "Réinitialiser",

@@ -86,6 +86,8 @@
   "Add_Resolving": "Определение…",
   "Add_Queue": "Очередь",
   "Add_Download": "Загрузить",
+  "Add_BulkSummary": "{0} ссылок готовы к добавлению",
+  "Add_BulkClear": "Очистить",
   "Tooltip_Browse": "Обзор",
   "Settings_Title": "Настройки",
   "Settings_Reset": "Сбросить по умолчанию",

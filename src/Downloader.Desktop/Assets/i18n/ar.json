@@ -86,6 +86,8 @@
   "Add_Resolving": "جارٍ الحل…",
   "Add_Queue": "قائمة الانتظار",
   "Add_Download": "تنزيل",
+  "Add_BulkSummary": "{0} رابط جاهز للإضافة",
+  "Add_BulkClear": "مسح",
   "Tooltip_Browse": "استعراض",
   "Settings_Title": "الإعدادات",
   "Settings_Reset": "إعادة التعيين",

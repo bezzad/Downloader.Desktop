@@ -2,11 +2,13 @@
 
 Each task is TDD: write the failing test first, make it pass, keep build + full `dotnet test` green, commit to `develop`, push, and confirm the GitHub Actions run is green before starting the next task.
 
-## 1. Async Add-modal (task #1)
+## 1. Responsive Add-modal on huge paste (task #1)
 
-- [ ] 1.1 Write a test proving the bulk-paste parse/validate does not run on the UI thread (e.g. `AddDownloadItemViewModel` exposes an awaitable parse seam; assert it completes without dispatcher work / that a large list is parsed on a background thread). Use the sample file's shape (~2000 lines, dupes, blanks).
-- [ ] 1.2 Move multi-URL parse/dedupe/validate into `Task.Run`; marshal only the final list + counts to the UI thread; keep single-URL debounced resolve off-thread. Make 1.1 pass.
-- [ ] 1.3 Verify no per-URL network probe happens for a multi-URL paste (test asserts the resolve seam is not invoked per item). Build + full tests green; commit/push; wait for green CI.
+Root cause corrected during apply: the freeze is Avalonia's non-virtualized multi-line `TextBox` laying out thousands of lines, not parsing (see design.md). Fix = don't render a large list in an editable box.
+
+- [x] 1.1 Write tests on `AddDownloadItemViewModel`: a large seeded list (~2000, sample-shaped, blanks) sets `IsBulk=true` + correct `LinkCount`; `BulkSummaryText` shows the count; the injected resolve seam is NOT invoked for the bulk list (no per-link probing); `BuildItems()` still yields one item per link; `ClearUrls` empties the input and `IsBulk` returns false. A small list keeps `IsBulk=false`.
+- [x] 1.2 Implement the cached parse + `LinkCount`/`IsBulk`/`BulkSummaryText`/`ClearUrls`; in `AddDownloadItemView` bind the editable box to `!IsBulk` and add the summary chip + Clear; add i18n keys in all 16 packs. Make 1.1 pass.
+- [x] 1.3 Intercept `Ctrl+V`/`Shift+Insert` on the modal's `UrlBox` (tunnel → set `Urls`, `Handled`), and route a large top-bar paste into the Add dialog via `MainViewModel.OpenAddWithText`; keep small pastes unchanged. Build + full tests green; regenerate the Add-dialog screenshot if applicable; commit/push; wait for green CI.
 
 ## 2. Release memory on completion (task #11)
 

@@ -86,6 +86,8 @@
   "Add_Resolving": "Risoluzione…",
   "Add_Queue": "Coda",
   "Add_Download": "Scarica",
+  "Add_BulkSummary": "{0} link pronti da aggiungere",
+  "Add_BulkClear": "Cancella",
   "Tooltip_Browse": "Sfoglia",
   "Settings_Title": "Impostazioni",
   "Settings_Reset": "Ripristina predefiniti",

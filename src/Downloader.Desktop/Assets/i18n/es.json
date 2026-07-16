@@ -86,6 +86,8 @@
   "Add_Resolving": "Resolviendo…",
   "Add_Queue": "Cola",
   "Add_Download": "Descargar",
+  "Add_BulkSummary": "{0} enlaces listos para agregar",
+  "Add_BulkClear": "Borrar",
   "Tooltip_Browse": "Examinar",
   "Settings_Title": "Ajustes",
   "Settings_Reset": "Restablecer valores",

@@ -86,6 +86,8 @@
   "Add_Resolving": "Çözümleniyor…",
   "Add_Queue": "Kuyruk",
   "Add_Download": "İndir",
+  "Add_BulkSummary": "{0} bağlantı eklenmeye hazır",
+  "Add_BulkClear": "Temizle",
   "Tooltip_Browse": "Gözat",
   "Settings_Title": "Ayarlar",
   "Settings_Reset": "Varsayılanlara sıfırla",

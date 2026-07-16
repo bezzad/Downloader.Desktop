@@ -76,7 +76,7 @@
                     <!-- AcceptsReturn so pasting multiple URLs (one per line) keeps the line breaks;
                          a single-line box would strip them and merge the URLs (#2). Enter still triggers
                          Add (handled in code-behind); Shift+Enter inserts a new line. -->
-                    <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
+                    <TextBox x:Name="TopUrlBox" Grid.Column="0" Text="{Binding DownloadUrl}"
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
                              AcceptsReturn="True" TextWrapping="NoWrap"
                              KeyDown="OnUrlBoxKeyDown"

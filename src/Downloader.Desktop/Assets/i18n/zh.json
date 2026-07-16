@@ -86,6 +86,8 @@
   "Add_Resolving": "正在解析…",
   "Add_Queue": "队列",
   "Add_Download": "下载",
+  "Add_BulkSummary": "{0} 个链接待添加",
+  "Add_BulkClear": "清除",
   "Tooltip_Browse": "浏览",
   "Settings_Title": "设置",
   "Settings_Reset": "恢复默认",

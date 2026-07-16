@@ -86,6 +86,8 @@
   "Add_Resolving": "हल किया जा रहा है…",
   "Add_Queue": "क़तार",
   "Add_Download": "डाउनलोड",
+  "Add_BulkSummary": "{0} लिंक जोड़ने के लिए तैयार",
+  "Add_BulkClear": "साफ़ करें",
   "Tooltip_Browse": "ब्राउज़ करें",
   "Settings_Title": "सेटिंग्स",
   "Settings_Reset": "डिफ़ॉल्ट पर रीसेट करें",

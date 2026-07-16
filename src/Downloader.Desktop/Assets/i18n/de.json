@@ -86,6 +86,8 @@
   "Add_Resolving": "Wird aufgelöst…",
   "Add_Queue": "Warteschlange",
   "Add_Download": "Herunterladen",
+  "Add_BulkSummary": "{0} Links bereit zum Hinzufügen",
+  "Add_BulkClear": "Löschen",
   "Tooltip_Browse": "Durchsuchen",
   "Settings_Title": "Einstellungen",
   "Settings_Reset": "Auf Standard zurücksetzen",

@@ -37,7 +37,7 @@ public class MainViewModel : ViewModelBase
         _downloadManager = downloadManager ?? throw new ArgumentNullException(nameof(downloadManager));
         _pluginManager = pluginManager ?? new PluginManager();
 
-        AddDownloadItemCommand = ReactiveCommand.CreateFromTask(AddDownloadItem);
+        AddDownloadItemCommand = ReactiveCommand.CreateFromTask(() => AddDownloadItem());
         StartAllCommand = ReactiveCommand.Create(() => _downloadManager.StartAll());
         StopAllCommand = ReactiveCommand.Create(() => _downloadManager.StopAll());
         ClearAllCommand = ReactiveCommand.Create(() => _downloadManager.ClearCompleted());
@@ -531,12 +531,18 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsSettingsSelected));
     }
 
-    private async Task AddDownloadItem()
+    /// <summary>Open the Add dialog seeded with the given text WITHOUT routing it through the top-bar box —
+    /// used for a large paste, so the top box never lays out thousands of lines (the freeze). The top box
+    /// stays empty.</summary>
+    public Task OpenAddWithText(string text) => AddDownloadItem(text);
+
+    private async Task AddDownloadItem(string seed = null)
     {
+        var url = seed ?? _downloadUrl;
         // Always open the dialog; URLs can be typed there if the top box was empty.
         var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
             new AddDownloadItemView(),
-            new AddDownloadItemViewModel(_config, _downloadUrl, manager: _downloadManager,
+            new AddDownloadItemViewModel(_config, url, manager: _downloadManager,
                 getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct),
                 getResolverName: u => _pluginManager.FindResolverPluginName(u)),
             _config);

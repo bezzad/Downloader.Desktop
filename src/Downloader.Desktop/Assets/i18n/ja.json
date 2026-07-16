@@ -86,6 +86,8 @@
   "Add_Resolving": "解決中…",
   "Add_Queue": "キュー",
   "Add_Download": "ダウンロード",
+  "Add_BulkSummary": "{0} 件のリンクを追加できます",
+  "Add_BulkClear": "クリア",
   "Tooltip_Browse": "参照",
   "Settings_Title": "設定",
   "Settings_Reset": "既定値にリセット",

@@ -86,6 +86,8 @@
   "Add_Resolving": "Solvante…",
   "Add_Queue": "Atendovico",
   "Add_Download": "Elŝuti",
+  "Add_BulkSummary": "{0} ligiloj pretaj por aldoni",
+  "Add_BulkClear": "Vakigi",
   "Tooltip_Browse": "Foliumi",
   "Settings_Title": "Agordoj",
   "Settings_Reset": "Reagordi defaŭltojn",

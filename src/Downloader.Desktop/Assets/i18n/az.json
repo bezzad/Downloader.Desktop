@@ -86,6 +86,8 @@
   "Add_Resolving": "Həll olunur…",
   "Add_Queue": "Növbə",
   "Add_Download": "Endir",
+  "Add_BulkSummary": "{0} keçid əlavə etməyə hazırdır",
+  "Add_BulkClear": "Təmizlə",
   "Tooltip_Browse": "Gözdən keçir",
   "Settings_Title": "Tənzimləmələr",
   "Settings_Reset": "Defolt dəyərlərə qaytar",

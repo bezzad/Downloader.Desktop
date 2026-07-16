@@ -86,6 +86,8 @@
   "Add_Resolving": "Resolvendo…",
   "Add_Queue": "Fila",
   "Add_Download": "Baixar",
+  "Add_BulkSummary": "{0} links prontos para adicionar",
+  "Add_BulkClear": "Limpar",
   "Tooltip_Browse": "Procurar",
   "Settings_Title": "Configurações",
   "Settings_Reset": "Restaurar padrões",

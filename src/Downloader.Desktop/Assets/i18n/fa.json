@@ -86,6 +86,8 @@
   "Add_Resolving": "در حال یافتن…",
   "Add_Queue": "صف",
   "Add_Download": "دانلود",
+  "Add_BulkSummary": "{0} لینک آماده افزودن",
+  "Add_BulkClear": "پاک کردن",
   "Tooltip_Browse": "انتخاب",
   "Settings_Title": "تنظیمات",
   "Settings_Reset": "بازنشانی به پیش‌فرض",
