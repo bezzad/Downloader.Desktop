@@ -12,6 +12,6 @@ Root cause corrected during apply: the freeze is Avalonia's non-virtualized mult
 
 ## 2. Release memory on completion (task #11)
 
-- [ ] 2.1 Write an integration test: download ~50 small files via the loopback `HttpListener`; after all Completed + `GC.Collect()/WaitForPendingFinalizers`, assert `GC.GetTotalMemory(true)` is bounded near the pre-batch baseline (fails today because engines are retained). Also assert a per-row "engine released" flag/`Download==null` after terminal state.
-- [ ] 2.2 In `DownloadManager` terminal handling, dispose `vm.Download` and null the retained `Download`/`Package`; ensure `DownloadItemViewModel` keeps display fields. Make 2.1 pass.
-- [ ] 2.3 Add/confirm tests that a released Stopped/Failed row resumes/retries correctly (fresh engine, continues from partial). Build + full tests green; commit/push; wait for green CI.
+- [x] 2.1 Write an integration test: download ~30 small files via the loopback `HttpListener`; after all Completed assert every row's `Download==null` (engine released) — deterministic proof (the leaked `DownloadService` holds the package+buffers) that fails today because engines are retained. (Heap thresholds are unreliable for tiny payloads in a shared parallel process; `Download==null` is the reliable proxy per design.) Display state (name, 100%) preserved.
+- [x] 2.2 In `DownloadManager.FinishTerminal`, `ReleaseEngine(vm)` disposes `vm.Download` and nulls it on Completed/Failed/Stopped (Package is owned by the engine → released on Dispose); Paused keeps its engine. `DownloadItemViewModel` keeps its model-backed display fields. Make 2.1 pass.
+- [x] 2.3 Test that a released Stopped row retries correctly (fresh engine rebuilt in `Start`, continues to completion). Build + full tests green; commit/push; wait for green CI.

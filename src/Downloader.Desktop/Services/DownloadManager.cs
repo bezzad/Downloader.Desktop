@@ -1133,10 +1133,31 @@ public partial class DownloadManager : IDownloadManager
     /// </summary>
     private void FinishTerminal(DownloadItemViewModel vm)
     {
+        // Release the engine as soon as the row reaches an end state (Completed/Failed/Stopped) — this is
+        // the fix for the reported leak (#11): thousands of finished rows each kept their DownloadService
+        // (package + chunk buffers) alive, so memory climbed to GBs and only a restart cleared it. Paused
+        // is NOT terminal, so its engine is kept for Resume (and the engine's Pause() never fires this).
+        if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
+            ReleaseEngine(vm);
+
         TryStartNextInQueue(vm.GetItem().QueueId);
         if (vm.Status == DownloadStatus.Completed)
             MaybeAllCompleted();
         NotifyList();
+    }
+
+    /// <summary>Dispose a finished row's engine so its package + buffers can be garbage-collected. The row's
+    /// display/resume state (name, size, downloaded, progress, status, folder, urls) is model-backed on the
+    /// VM and survives; a later Resume/Retry rebuilds a fresh DownloadService in <see cref="Start"/> exactly
+    /// like a first start (engine auto-resume + the on-disk .download file continue the bytes).</summary>
+    private static void ReleaseEngine(DownloadItemViewModel vm)
+    {
+        var engine = vm.Download;
+        if (engine == null)
+            return;
+        vm.Download = null; // drop the reference first so no late staged flush touches a disposed instance
+        try { engine.Dispose(); }
+        catch { /* best-effort — releasing memory must never surface an error to the user */ }
     }
 
     /// <summary>If the resolving plugin offers an action for this completed item (e.g. "Add to Ollama"),
