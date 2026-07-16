@@ -324,7 +324,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)] // binds every port via HttpListener — slow on macOS CI (~1m17s)
     public void Start_retries_in_background_until_a_port_frees_up()
     {
         // The reported bug: a transient startup condition (all ports momentarily busy) left the API
