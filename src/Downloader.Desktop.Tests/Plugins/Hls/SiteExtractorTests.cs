@@ -287,6 +287,7 @@ public class YtDlpCookieRetryTests
     [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies-from-browser", true)]
     [InlineData("ERROR: This video is age-restricted; log in to watch", true)]
+    [InlineData("ERROR: [twitter] 643211948184596480: No video could be found in this tweet", true)]
     [InlineData("ERROR: Unsupported URL: https://example.com", false)]
     [InlineData("", false)]
     public void NeedsCookies_detects_signin_errors(string stderr, bool expected) =>

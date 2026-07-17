@@ -262,6 +262,9 @@ public class MainViewModel : ViewModelBase
         // Keep the OS autostart entry in sync with the setting on every launch.
         StartupService.Apply(_config.Settings.RunAtStartup);
 
+        // winget/portable installs create no Start-menu entry — self-register one (Windows, first run).
+        StartMenuShortcut.EnsureOnWindows();
+
         // Local API + browser integration: extension links open the Add dialog pre-filled; the
         // /api routes act on the manager directly (silent adds from scripts and the CLI).
         LocalApiService.OnUrlCaptured = CaptureUrl;

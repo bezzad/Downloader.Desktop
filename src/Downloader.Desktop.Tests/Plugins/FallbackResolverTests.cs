@@ -107,17 +107,21 @@ public class FallbackResolverTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task One_failing_variant_lookup_does_not_hide_the_others()
+    public async Task A_failing_specific_lookup_offers_no_variants_instead_of_anothers()
     {
+        // The x.com report: the HLS resolver claimed the link (and the badge named it) but its quality
+        // lookup FAILED — falling through to the Website fallback showed "Offline copy (.zip)" under a
+        // video plugin's badge. A failure must yield NO variants (plain add; the real error surfaces
+        // when the download runs), never another plugin's options.
         var pm = new PluginManager();
         var broken = new StubResolver { ThrowOnVariants = true };
-        var working = new StubResolver { Fallback = true, Variants = new[] { Variant("zip") } };
+        var fallback = new StubResolver { Fallback = true, Variants = new[] { Variant("zip") } };
         pm.RegisterPlugin(new StubPlugin("test.broken", broken));
-        pm.RegisterPlugin(new StubPlugin("test.working", working));
+        pm.RegisterPlugin(new StubPlugin("test.fallback", fallback));
 
-        var merged = await pm.GetVariantsAsync("https://site/page", CancellationToken.None);
+        var shown = await pm.GetVariantsAsync("https://site/page", CancellationToken.None);
 
-        Assert.Equal("zip", Assert.Single(merged).Id);
+        Assert.Null(shown);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

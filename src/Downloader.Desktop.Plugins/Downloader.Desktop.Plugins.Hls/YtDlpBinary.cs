@@ -228,7 +228,12 @@ public sealed class YtDlpBinary : IYtDlp
         if (string.IsNullOrWhiteSpace(stderr)) return false;
         var lower = stderr.ToLowerInvariant();
         return lower.Contains("--cookies") || lower.Contains("sign in") || lower.Contains("log in")
-               || lower.Contains("login required") || lower.Contains("age");
+               || lower.Contains("login required") || lower.Contains("age")
+               // x.com/Twitter: anonymous (guest-token) GraphQL no longer returns tweet media, and
+               // yt-dlp surfaces that as "No video could be found in this tweet" instead of a
+               // sign-in error — a logged-in browser session DOES see the media, so retry with
+               // cookies-from-browser exactly like the explicit sign-in cases.
+               || lower.Contains("no video could be found in this tweet");
     }
 
     /// <summary>Browsers to source cookies from, most common first (yt-dlp fails fast when one is absent).</summary>
