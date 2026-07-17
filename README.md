@@ -81,6 +81,11 @@ sudo snap install downloader
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
 
+**Arch Linux** ([AUR](https://aur.archlinux.org/packages/downloader-bin)):
+```bash
+yay -S downloader-bin
+```
+
 **Windows** ([winget](https://learn.microsoft.com/windows/package-manager/winget/)):
 ```powershell
 winget install bezzad.Downloader
