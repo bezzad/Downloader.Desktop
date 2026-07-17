@@ -29,3 +29,10 @@ Every modal dialog SHALL have a border/background/elevation clearly distinct fro
 #### Scenario: An open modal is visually distinguishable
 - **WHEN** a modal dialog (e.g. About) is open over the main window
 - **THEN** the modal has a distinct border/background/elevation from the main window, making it obvious a foreground dialog is active
+
+### Requirement: Modal chrome is refined and corner-true
+Modal dialogs SHALL use a 1px accent border and their inner content SHALL be clipped to the rounded corners so no square edge overhangs the arc.
+
+#### Scenario: Top corners match bottom corners
+- **WHEN** any modal is open
+- **THEN** all four corners render the same rounded arc with no square content poking through
