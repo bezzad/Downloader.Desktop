@@ -216,6 +216,39 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Queue_cards_collapse_and_expand_individually_and_all_at_once()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        manager.AddQueue("Media");
+        manager.AddQueue("Docs");
+
+        var page = new QueuesViewModel(config, manager);
+        Assert.Equal(3, page.Queues.Count);
+        Assert.All(page.Queues, q => Assert.True(q.IsExpanded)); // expanded by default
+
+        // One row toggles independently and the "all collapsed" flag follows the whole set.
+        page.Queues[0].IsExpanded = false;
+        Assert.False(page.Queues[0].IsExpanded);
+        Assert.True(page.Queues[1].IsExpanded);
+        Assert.False(page.AllCollapsed);
+
+        page.AllCollapsed = true;   // toolbar toggle → collapse all
+        Assert.All(page.Queues, q => Assert.False(q.IsExpanded));
+        Assert.True(page.AllCollapsed);
+
+        page.AllCollapsed = false;  // toolbar toggle → expand all
+        Assert.All(page.Queues, q => Assert.True(q.IsExpanded));
+        Assert.False(page.AllCollapsed);
+
+        // Collapsing every row by hand flips the aggregate flag too.
+        foreach (var q in page.Queues)
+            q.IsExpanded = false;
+        Assert.True(page.AllCollapsed);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Removing_a_queue_reassigns_its_items()
     {
         var manager = new DownloadManager();

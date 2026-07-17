@@ -67,6 +67,23 @@ public class QueuesViewModel : ViewModelBase
     public IEnumerable<DownloadQueue> QueuesOtherThan(QueueRowViewModel self) =>
         Queues.Where(r => !ReferenceEquals(r, self)).Select(r => r.Queue).ToList();
 
+    /// <summary>Toolbar collapse/expand-all (#10): true when every queue card is collapsed. Setting it
+    /// folds/unfolds all cards, so a user with many long queues can jump to the one they want.
+    /// In-session only (not persisted), like the Settings sections.</summary>
+    public bool AllCollapsed
+    {
+        get => Queues.Count > 0 && Queues.All(q => !q.IsExpanded);
+        set
+        {
+            foreach (var row in Queues)
+                row.IsExpanded = !value;
+            this.RaisePropertyChanged();
+        }
+    }
+
+    /// <summary>Called by rows when their own expander toggles, so the toolbar toggle tracks the set.</summary>
+    internal void RaiseAllCollapsedChanged() => this.RaisePropertyChanged(nameof(AllCollapsed));
+
     /// <summary>When the set of queues changes, rebuild each card's item list so move-targets stay current.</summary>
     private void RaiseQueuesChanged()
     {
@@ -85,6 +102,20 @@ public class QueueRowViewModel : ViewModelBase
     public DownloadQueue Queue { get; }
     public ObservableCollection<QueueItemViewModel> Items { get; } = new();
     public ICommand RemoveCommand { get; }
+
+    private bool _isExpanded = true;
+
+    /// <summary>Whether this card's item list is unfolded (#10). The header (name, stats, toggle,
+    /// cap) stays visible either way; collapsing hides only the list. Default expanded.</summary>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _isExpanded, value);
+            _parent?.RaiseAllCollapsedChanged();
+        }
+    }
 
     public QueueRowViewModel(DownloadQueue queue, IDownloadManager manager, QueuesViewModel parent, Config config = null)
     {
