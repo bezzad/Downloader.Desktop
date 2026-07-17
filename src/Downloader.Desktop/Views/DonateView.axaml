@@ -1,0 +1,79 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Downloader.Desktop.Views"
+        xmlns:vm="using:Downloader.Desktop.ViewModels"
+        xmlns:services="using:Downloader.Desktop.Services"
+        xmlns:i18n="using:Downloader.Desktop.Markup"
+        x:Class="Downloader.Desktop.Views.DonateView"
+        x:DataType="vm:DonateViewModel"
+        Width="480" SizeToContent="Height" CanResize="False"
+        Background="Transparent" TransparencyLevelHint="Transparent"
+        ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="-1"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="Donate">
+
+    <Panel>
+    <!-- Distinct modal chrome (#17): a 1px live-accent border sets dialogs apart from the
+         neutral-bordered main window, so users see a foreground modal is open. -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+    <!-- Avalonia clips children to the RECT, not the corner radius — this inner
+         rounded border is what keeps square content (the title bar) out of the arc. -->
+    <Border CornerRadius="9" ClipToBounds="True">
+    <DockPanel>
+        <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Donate_Title}" ShowMinMax="False" />
+        <StackPanel Margin="22 16 22 20" Spacing="14">
+            <Grid ColumnDefinitions="Auto,*">
+                <PathIcon Grid.Column="0" Data="{StaticResource HeartRegular}" Foreground="#E5594F"
+                          Height="18" VerticalAlignment="Top" Margin="0 2 10 0" />
+                <TextBlock Grid.Column="1" Text="{i18n:Tr Donate_ThankYou}" TextWrapping="Wrap" />
+            </Grid>
+
+            <!-- Liberapay (recurring) -->
+            <Border Classes="card" Padding="14 12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Liberapay" FontWeight="SemiBold" />
+                        <TextBlock Text="{i18n:Tr Donate_Liberapay_Hint}" FontSize="11"
+                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="accent" Padding="14 7" VerticalAlignment="Center"
+                            Content="{i18n:Tr Donate_Open}" Command="{Binding OpenLiberapayCommand}" />
+                </Grid>
+            </Border>
+
+            <!-- USDT (copy in-app) -->
+            <Border Classes="card" Padding="14 12">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Network}" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0" Text="{Binding Usdt, Mode=OneWay}" IsReadOnly="True"
+                                 FontSize="12" VerticalContentAlignment="Center" CornerRadius="6" />
+                        <Button Grid.Column="1" Margin="8 0 0 0" Padding="12 7" VerticalAlignment="Center"
+                                Command="{Binding CopyUsdtCommand}">
+                            <Panel>
+                                <TextBlock Text="{i18n:Tr Donate_Copy}" IsVisible="{Binding !Copied}" />
+                                <TextBlock Text="{i18n:Tr Donate_Copied}" IsVisible="{Binding Copied}" />
+                            </Panel>
+                        </Button>
+                    </Grid>
+                    <TextBlock Text="{i18n:Tr Donate_Usdt_Warn}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Non-monetary help -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{i18n:Tr Donate_OtherWays}" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Padding="12 6" Content="{i18n:Tr Donate_Star}"
+                        Command="{Binding OpenRepoCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </StackPanel>
+    </DockPanel>
+    </Border>
+    </Border>
+    </Panel>
+</Window>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -53,10 +54,29 @@ public class QueuesViewModel : ViewModelBase
         RaiseQueuesChanged();
     }
 
-    public void Remove(QueueRowViewModel row)
+    /// <summary>Seam for the destructive-removal confirmation (title, message) → confirmed?
+    /// Defaults to the modal Yes/No dialog; tests substitute it.</summary>
+    public Func<string, string, Task<bool>> ConfirmRemoval { get; set; } = DialogHelper.Confirm;
+
+    public async Task Remove(QueueRowViewModel row)
     {
         if (Queues.Count <= 1)
             return;
+
+        // Deleting a queue that still has unfinished downloads is destructive enough to confirm —
+        // the downloads themselves survive (they move to the default queue), but their place in
+        // this queue's order/cap is lost.
+        var unfinished = _manager.Items.Count(i =>
+            i.GetItem().QueueId == row.Queue.Id && i.Status != DownloadStatus.Completed);
+        if (unfinished > 0)
+        {
+            var confirmed = await ConfirmRemoval(
+                Localizer.Instance["Queues_RemoveTitle"],
+                string.Format(Localizer.Instance["Queues_RemoveConfirm"], row.Name, unfinished));
+            if (!confirmed)
+                return;
+        }
+
         _manager.RemoveQueue(row.Queue);
         row.Detach();
         Queues.Remove(row);
@@ -128,7 +148,7 @@ public class QueueRowViewModel : ViewModelBase
         _manager = manager;
         _parent = parent;
         _config = config;
-        RemoveCommand = ReactiveCommand.Create(() => _parent.Remove(this));
+        RemoveCommand = ReactiveCommand.CreateFromTask(() => _parent.Remove(this));
 
         if (_manager != null)
         {

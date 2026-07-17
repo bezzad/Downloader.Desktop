@@ -353,6 +353,43 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Removing_a_queue_with_unfinished_items_requires_confirmation()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var media = manager.AddQueue("Media");
+        var item = manager.Add(new DownloadItem { Urls = new() { "https://host/a.bin" }, QueueId = media.Id }, autoStart: false);
+
+        var page = new QueuesViewModel(config, manager);
+        var mediaRow = page.Queues.First(r => r.Queue.Id == media.Id);
+
+        // Unfinished item + user declines → queue stays.
+        var asked = 0;
+        page.ConfirmRemoval = (_, _) => { asked++; return Task.FromResult(false); };
+        await page.Remove(mediaRow);
+        Assert.Equal(1, asked);
+        Assert.Contains(page.Queues, r => r.Queue.Id == media.Id);
+
+        // User accepts → queue removed, its item reassigned to the default queue.
+        page.ConfirmRemoval = (_, _) => Task.FromResult(true);
+        await page.Remove(mediaRow);
+        Assert.DoesNotContain(page.Queues, r => r.Queue.Id == media.Id);
+        Assert.Equal(config.DefaultQueue.Id, item.GetItem().QueueId);
+
+        // A queue with only finished items removes without asking.
+        var docs = manager.AddQueue("Docs");
+        var done = manager.Add(new DownloadItem { Urls = new() { "https://host/b.bin" }, QueueId = docs.Id }, autoStart: false);
+        done.Status = DownloadStatus.Completed;
+        var page2 = new QueuesViewModel(config, manager);
+        var askedAgain = false;
+        page2.ConfirmRemoval = (_, _) => { askedAgain = true; return Task.FromResult(true); };
+        await page2.Remove(page2.Queues.First(r => r.Queue.Id == docs.Id));
+        Assert.False(askedAgain);
+        Assert.DoesNotContain(page2.Queues, r => r.Queue.Id == docs.Id);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Page_views_are_created_once_and_reused_across_navigation()
     {
         var manager = new DownloadManager();

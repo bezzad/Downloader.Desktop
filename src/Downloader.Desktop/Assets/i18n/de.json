@@ -243,6 +243,8 @@
   "Queues_Paused": "Pausiert",
   "Queues_ToggleTip": "Diese ganze Warteschlange pausieren oder ausführen",
   "Queues_DeleteTip": "Warteschlange löschen (ihre Downloads werden in eine andere verschoben)",
+  "Queues_RemoveTitle": "Warteschlange entfernen?",
+  "Queues_RemoveConfirm": "„{0}“ hat noch {1} unfertige Downloads. Trotzdem entfernen? Die Downloads wandern in die Standard-Warteschlange.",
   "Queues_RunSameTime": "Gleichzeitig ausführen:",
   "Queues_Empty": "Noch keine Downloads in dieser Warteschlange.",
   "Queues_MoveUp": "Nach oben (früher starten)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "Update verfügbar",
   "Plugins_AddFailed": "Plugin konnte nicht hinzugefügt werden",
   "Add_FetchingOptions": "Optionen werden geladen…",
-  "Add_ChooseVariant": "Wählen Sie, was heruntergeladen wird"
+  "Add_ChooseVariant": "Wählen Sie, was heruntergeladen wird",
+  "Confirm_Yes": "Ja",
+  "Confirm_No": "Abbrechen",
+  "Donate_Title": "Downloader unterstützen",
+  "Donate_ThankYou": "Downloader ist kostenlos und Open Source, gebaut in meiner Freizeit. Wenn es dir Zeit spart, unterstütze es gern — danke! 🙏",
+  "Donate_Liberapay_Hint": "Regelmäßige oder einmalige Unterstützung",
+  "Donate_Open": "Öffnen",
+  "Donate_Copy": "Kopieren",
+  "Donate_Copied": "Kopiert!",
+  "Donate_Usdt_Warn": "Netzwerk vor dem Senden prüfen — auf dem falschen Netzwerk gesendete Beträge können verloren gehen.",
+  "Donate_OtherWays": "Kein Geld nötig — Sterne, Fehlerberichte und Übersetzungen helfen genauso.",
+  "Donate_Star": "Auf GitHub sternen"
 }

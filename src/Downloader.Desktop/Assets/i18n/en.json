@@ -243,6 +243,8 @@
   "Queues_Paused": "Paused",
   "Queues_ToggleTip": "Pause or run this whole queue",
   "Queues_DeleteTip": "Delete queue (its downloads move to another queue)",
+  "Queues_RemoveTitle": "Remove queue?",
+  "Queues_RemoveConfirm": "“{0}” still has {1} unfinished download(s). Remove the queue anyway? Its downloads move to the default queue.",
   "Queues_RunSameTime": "Run at the same time:",
   "Queues_Empty": "No downloads in this queue yet.",
   "Queues_MoveUp": "Move up (start sooner)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "Update available",
   "Plugins_AddFailed": "Couldn't add the plugin",
   "Add_FetchingOptions": "Fetching options…",
-  "Add_ChooseVariant": "Choose what to download"
+  "Add_ChooseVariant": "Choose what to download",
+  "Confirm_Yes": "Yes",
+  "Confirm_No": "Cancel",
+  "Donate_Title": "Support Downloader",
+  "Donate_ThankYou": "Downloader is free and open source, built in my spare time. If it saves you time, consider supporting it — thank you! 🙏",
+  "Donate_Liberapay_Hint": "Recurring or one-time support",
+  "Donate_Open": "Open",
+  "Donate_Copy": "Copy",
+  "Donate_Copied": "Copied!",
+  "Donate_Usdt_Warn": "Double-check the network before sending — funds sent on the wrong network may be lost.",
+  "Donate_OtherWays": "No money needed — starring the project, reporting bugs and translating help just as much.",
+  "Donate_Star": "Star on GitHub"
 }

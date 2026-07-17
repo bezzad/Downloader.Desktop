@@ -243,6 +243,8 @@
   "Queues_Paused": "रुकी हुई",
   "Queues_ToggleTip": "इस पूरी क़तार को रोकें या चलाएँ",
   "Queues_DeleteTip": "क़तार हटाएँ (इसके डाउनलोड दूसरी क़तार में चले जाते हैं)",
+  "Queues_RemoveTitle": "कतार हटाएँ?",
+  "Queues_RemoveConfirm": "“{0}” में अभी {1} अधूरे डाउनलोड हैं। फिर भी हटाएँ? इसके डाउनलोड डिफ़ॉल्ट कतार में चले जाएँगे।",
   "Queues_RunSameTime": "एक साथ चलाएँ:",
   "Queues_Empty": "इस क़तार में अभी कोई डाउनलोड नहीं।",
   "Queues_MoveUp": "ऊपर ले जाएँ (पहले शुरू करें)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "अपडेट उपलब्ध है",
   "Plugins_AddFailed": "प्लगइन जोड़ा नहीं जा सका",
   "Add_FetchingOptions": "विकल्प प्राप्त हो रहे हैं…",
-  "Add_ChooseVariant": "चुनें कि क्या डाउनलोड करना है"
+  "Add_ChooseVariant": "चुनें कि क्या डाउनलोड करना है",
+  "Confirm_Yes": "हाँ",
+  "Confirm_No": "रद्द करें",
+  "Donate_Title": "Downloader का समर्थन करें",
+  "Donate_ThankYou": "यह ऐप मुफ़्त और ओपन सोर्स है, खाली समय में बनाया गया। अगर यह आपका समय बचाता है तो समर्थन करें — धन्यवाद! 🙏",
+  "Donate_Liberapay_Hint": "नियमित या एक बार समर्थन",
+  "Donate_Open": "खोलें",
+  "Donate_Copy": "कॉपी",
+  "Donate_Copied": "कॉपी हो गया!",
+  "Donate_Usdt_Warn": "भेजने से पहले नेटवर्क जाँच लें — गलत नेटवर्क पर भेजी राशि खो सकती है।",
+  "Donate_OtherWays": "पैसे ज़रूरी नहीं — स्टार, बग रिपोर्ट और अनुवाद भी उतनी ही मदद करते हैं।",
+  "Donate_Star": "GitHub पर स्टार"
 }

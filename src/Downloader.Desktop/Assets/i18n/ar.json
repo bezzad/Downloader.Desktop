@@ -243,6 +243,8 @@
   "Queues_Paused": "متوقفة مؤقتًا",
   "Queues_ToggleTip": "إيقاف أو تشغيل هذه القائمة بالكامل",
   "Queues_DeleteTip": "حذف القائمة (تنتقل تنزيلاتها إلى قائمة أخرى)",
+  "Queues_RemoveTitle": "إزالة قائمة الانتظار؟",
+  "Queues_RemoveConfirm": "لا يزال لدى “{0}” {1} تنزيل(ات) غير مكتملة. هل تريد إزالة القائمة على أي حال؟ ستنتقل تنزيلاتها إلى القائمة الافتراضية.",
   "Queues_RunSameTime": "التشغيل في وقت واحد:",
   "Queues_Empty": "لا توجد تنزيلات في هذه القائمة بعد.",
   "Queues_MoveUp": "نقل لأعلى (بدء أبكر)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "يتوفر تحديث",
   "Plugins_AddFailed": "تعذّر إضافة الإضافة",
   "Add_FetchingOptions": "جارٍ جلب الخيارات…",
-  "Add_ChooseVariant": "اختر ما تريد تنزيله"
+  "Add_ChooseVariant": "اختر ما تريد تنزيله",
+  "Confirm_Yes": "نعم",
+  "Confirm_No": "إلغاء",
+  "Donate_Title": "ادعم Downloader",
+  "Donate_ThankYou": "التطبيق مجاني ومفتوح المصدر ويُطوَّر في وقت فراغي. إن كان يوفر وقتك ففكر في دعمه — شكرًا! 🙏",
+  "Donate_Liberapay_Hint": "دعم دوري أو لمرة واحدة",
+  "Donate_Open": "فتح",
+  "Donate_Copy": "نسخ",
+  "Donate_Copied": "تم النسخ!",
+  "Donate_Usdt_Warn": "تحقق من الشبكة قبل الإرسال — قد تضيع الأموال المرسلة عبر شبكة خاطئة.",
+  "Donate_OtherWays": "لا حاجة للمال — النجمة والإبلاغ عن الأخطاء والترجمة تساعد أيضًا.",
+  "Donate_Star": "نجمة على GitHub"
 }

@@ -243,6 +243,8 @@
   "Queues_Paused": "已暂停",
   "Queues_ToggleTip": "暂停或运行整个队列",
   "Queues_DeleteTip": "删除队列（其下载将移至另一个队列）",
+  "Queues_RemoveTitle": "移除队列？",
+  "Queues_RemoveConfirm": "“{0}”还有 {1} 个未完成的下载。仍要移除吗？其下载将移动到默认队列。",
   "Queues_RunSameTime": "同时运行：",
   "Queues_Empty": "此队列中暂无下载。",
   "Queues_MoveUp": "上移（更早开始）",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "有可用更新",
   "Plugins_AddFailed": "无法添加插件",
   "Add_FetchingOptions": "正在获取选项…",
-  "Add_ChooseVariant": "选择要下载的内容"
+  "Add_ChooseVariant": "选择要下载的内容",
+  "Confirm_Yes": "是",
+  "Confirm_No": "取消",
+  "Donate_Title": "支持 Downloader",
+  "Donate_ThankYou": "Downloader 免费且开源，是我在业余时间开发的。如果它为你节省了时间，欢迎支持 — 谢谢！🙏",
+  "Donate_Liberapay_Hint": "定期或一次性支持",
+  "Donate_Open": "打开",
+  "Donate_Copy": "复制",
+  "Donate_Copied": "已复制！",
+  "Donate_Usdt_Warn": "发送前请核对网络 — 发错网络的资金可能无法找回。",
+  "Donate_OtherWays": "不花钱也能帮忙 — 点星、报告问题和翻译同样重要。",
+  "Donate_Star": "在 GitHub 加星"
 }

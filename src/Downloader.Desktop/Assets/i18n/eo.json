@@ -243,6 +243,8 @@
   "Queues_Paused": "Paŭzita",
   "Queues_ToggleTip": "Paŭzi aŭ ruli ĉi tiun tutan vicon",
   "Queues_DeleteTip": "Forigi vicon (ĝiaj elŝutoj moviĝas al alia vico)",
+  "Queues_RemoveTitle": "Ĉu forigi vicon?",
+  "Queues_RemoveConfirm": "“{0}” ankoraŭ havas {1} nefinitajn elŝutojn. Ĉu tamen forigi? Ĝiaj elŝutoj moviĝos al la defaŭlta vico.",
   "Queues_RunSameTime": "Ruli samtempe:",
   "Queues_Empty": "Ankoraŭ neniuj elŝutoj en ĉi tiu vico.",
   "Queues_MoveUp": "Movi supren (komenci pli frue)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "Ĝisdatigo disponebla",
   "Plugins_AddFailed": "Ne eblis aldoni la kromaĵon",
   "Add_FetchingOptions": "Prenas opciojn…",
-  "Add_ChooseVariant": "Elektu kion elŝuti"
+  "Add_ChooseVariant": "Elektu kion elŝuti",
+  "Confirm_Yes": "Jes",
+  "Confirm_No": "Nuligi",
+  "Donate_Title": "Subtenu Downloader",
+  "Donate_ThankYou": "La programo estas senpaga kaj malfermitkoda, farata en mia libera tempo. Se ĝi ŝparas vian tempon, konsideru subteni ĝin — dankon! 🙏",
+  "Donate_Liberapay_Hint": "Ripeta aŭ unufoja subteno",
+  "Donate_Open": "Malfermi",
+  "Donate_Copy": "Kopii",
+  "Donate_Copied": "Kopiita!",
+  "Donate_Usdt_Warn": "Rekontrolu la reton antaŭ sendo — mono sendita per malĝusta reto povas perdiĝi.",
+  "Donate_OtherWays": "Mono ne necesas — steloj, cimraportoj kaj tradukoj same helpas.",
+  "Donate_Star": "Steli en GitHub"
 }

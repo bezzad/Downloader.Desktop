@@ -243,6 +243,8 @@
   "Queues_Paused": "Pausada",
   "Queues_ToggleTip": "Pausar ou executar esta fila inteira",
   "Queues_DeleteTip": "Excluir fila (seus downloads vão para outra fila)",
+  "Queues_RemoveTitle": "Remover a fila?",
+  "Queues_RemoveConfirm": "“{0}” ainda tem {1} download(s) por terminar. Remover mesmo assim? Os downloads passam para a fila padrão.",
   "Queues_RunSameTime": "Executar ao mesmo tempo:",
   "Queues_Empty": "Nenhum download nesta fila ainda.",
   "Queues_MoveUp": "Mover para cima (iniciar antes)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "Atualização disponível",
   "Plugins_AddFailed": "Não foi possível adicionar o plugin",
   "Add_FetchingOptions": "Obtendo opções…",
-  "Add_ChooseVariant": "Escolha o que baixar"
+  "Add_ChooseVariant": "Escolha o que baixar",
+  "Confirm_Yes": "Sim",
+  "Confirm_No": "Cancelar",
+  "Donate_Title": "Apoie o Downloader",
+  "Donate_ThankYou": "O Downloader é gratuito e de código aberto, feito no meu tempo livre. Se ele economiza seu tempo, considere apoiar — obrigado! 🙏",
+  "Donate_Liberapay_Hint": "Apoio recorrente ou único",
+  "Donate_Open": "Abrir",
+  "Donate_Copy": "Copiar",
+  "Donate_Copied": "Copiado!",
+  "Donate_Usdt_Warn": "Confira a rede antes de enviar — fundos enviados pela rede errada podem se perder.",
+  "Donate_OtherWays": "Não precisa de dinheiro — estrelas, relatos de bugs e traduções ajudam igualmente.",
+  "Donate_Star": "Estrela no GitHub"
 }

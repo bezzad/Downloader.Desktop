@@ -223,5 +223,10 @@ public class CaptureScreenshots
         var about = new AboutView { DataContext = new AboutViewModel() };
         about.Show();
         Save(about, "about-dark.png");
+
+        // In-app Donate modal (replaces the browser round-trip to Donate.md).
+        var donate = new DonateView { DataContext = new DonateViewModel() };
+        donate.Show();
+        Save(donate, "donate-dark.png");
     }
 }

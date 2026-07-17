@@ -243,6 +243,8 @@
   "Queues_Paused": "En pausa",
   "Queues_ToggleTip": "Pausar o ejecutar toda esta cola",
   "Queues_DeleteTip": "Eliminar cola (sus descargas pasan a otra cola)",
+  "Queues_RemoveTitle": "¿Eliminar la cola?",
+  "Queues_RemoveConfirm": "“{0}” aún tiene {1} descarga(s) sin terminar. ¿Eliminarla igualmente? Sus descargas pasarán a la cola predeterminada.",
   "Queues_RunSameTime": "Ejecutar a la vez:",
   "Queues_Empty": "Aún no hay descargas en esta cola.",
   "Queues_MoveUp": "Subir (empezar antes)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "Actualización disponible",
   "Plugins_AddFailed": "No se pudo añadir el complemento",
   "Add_FetchingOptions": "Obteniendo opciones…",
-  "Add_ChooseVariant": "Elige qué descargar"
+  "Add_ChooseVariant": "Elige qué descargar",
+  "Confirm_Yes": "Sí",
+  "Confirm_No": "Cancelar",
+  "Donate_Title": "Apoya a Downloader",
+  "Donate_ThankYou": "Downloader es gratuito y de código abierto, hecho en mi tiempo libre. Si te ahorra tiempo, considera apoyarlo — ¡gracias! 🙏",
+  "Donate_Liberapay_Hint": "Apoyo recurrente o puntual",
+  "Donate_Open": "Abrir",
+  "Donate_Copy": "Copiar",
+  "Donate_Copied": "¡Copiado!",
+  "Donate_Usdt_Warn": "Verifica la red antes de enviar — los fondos enviados por la red equivocada pueden perderse.",
+  "Donate_OtherWays": "No hace falta dinero — dar una estrella, reportar errores y traducir ayudan igual.",
+  "Donate_Star": "Estrella en GitHub"
 }

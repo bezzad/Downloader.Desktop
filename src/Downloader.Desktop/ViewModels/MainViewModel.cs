@@ -56,12 +56,9 @@ public class MainViewModel : ViewModelBase
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
         ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
-        DonateCommand = ReactiveCommand.Create(() =>
-        {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                { FileName = AboutViewModel.DonateUrl, UseShellExecute = true }); }
-            catch { /* best-effort */ }
-        });
+        // In-app Donate modal — opening a browser page gave no visible feedback ("it sound like
+        // do nothing"); the modal shows the channels right in the app (USDT copies in-app).
+        DonateCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowDonate);
         ApplyUpdateCommand = ReactiveCommand.Create(UpdateFlow.ApplyAndRestart);
         UpdateFlow.Changed += OnUpdateStateChanged;
 

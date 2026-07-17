@@ -243,6 +243,8 @@
   "Queues_Paused": "一時停止中",
   "Queues_ToggleTip": "このキュー全体を一時停止または実行",
   "Queues_DeleteTip": "キューを削除（そのダウンロードは別のキューに移動します）",
+  "Queues_RemoveTitle": "キューを削除しますか？",
+  "Queues_RemoveConfirm": "「{0}」には未完了のダウンロードが {1} 件あります。それでも削除しますか？ ダウンロードは既定のキューに移動します。",
   "Queues_RunSameTime": "同時に実行:",
   "Queues_Empty": "このキューにはまだダウンロードがありません。",
   "Queues_MoveUp": "上へ（早く開始）",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "更新があります",
   "Plugins_AddFailed": "プラグインを追加できませんでした",
   "Add_FetchingOptions": "オプションを取得中…",
-  "Add_ChooseVariant": "ダウンロードする項目を選択"
+  "Add_ChooseVariant": "ダウンロードする項目を選択",
+  "Confirm_Yes": "はい",
+  "Confirm_No": "キャンセル",
+  "Donate_Title": "Downloader を支援",
+  "Donate_ThankYou": "Downloader は無料のオープンソースで、余暇に開発しています。役立っていたら支援をご検討ください — ありがとう！🙏",
+  "Donate_Liberapay_Hint": "継続または単発の支援",
+  "Donate_Open": "開く",
+  "Donate_Copy": "コピー",
+  "Donate_Copied": "コピーしました！",
+  "Donate_Usdt_Warn": "送金前にネットワークを確認してください — 誤ったネットワークへの送金は失われる可能性があります。",
+  "Donate_OtherWays": "お金でなくても大丈夫 — スター、バグ報告、翻訳も同じくらい助けになります。",
+  "Donate_Star": "GitHub でスター"
 }

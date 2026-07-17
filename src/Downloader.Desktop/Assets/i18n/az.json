@@ -243,6 +243,8 @@
   "Queues_Paused": "Fasilədə",
   "Queues_ToggleTip": "Bu növbənin hamısını fasilə et və ya işə sal",
   "Queues_DeleteTip": "Növbəni sil (endirmələri başqa növbəyə köçürülür)",
+  "Queues_RemoveTitle": "Növbə silinsin?",
+  "Queues_RemoveConfirm": "“{0}” hələ {1} bitməmiş endirməyə malikdir. Yenə də silinsin? Endirmələri əsas növbəyə keçəcək.",
   "Queues_RunSameTime": "Eyni anda işlət:",
   "Queues_Empty": "Bu növbədə hələ endirmə yoxdur.",
   "Queues_MoveUp": "Yuxarı köçür (daha tez başlasın)",
@@ -282,5 +284,16 @@
   "Plugins_UpdateAvailable": "Yeniləmə mövcuddur",
   "Plugins_AddFailed": "Plagin əlavə edilə bilmədi",
   "Add_FetchingOptions": "Seçimlər alınır…",
-  "Add_ChooseVariant": "Nəyi endirəcəyinizi seçin"
+  "Add_ChooseVariant": "Nəyi endirəcəyinizi seçin",
+  "Confirm_Yes": "Bəli",
+  "Confirm_No": "Ləğv et",
+  "Donate_Title": "Downloader-i dəstəklə",
+  "Donate_ThankYou": "Tətbiq pulsuz və açıq mənbədir, boş vaxtımda hazırlanır. Vaxtınıza qənaət edirsə, dəstək olun — təşəkkürlər! 🙏",
+  "Donate_Liberapay_Hint": "Dövri və ya birdəfəlik dəstək",
+  "Donate_Open": "Aç",
+  "Donate_Copy": "Kopyala",
+  "Donate_Copied": "Kopyalandı!",
+  "Donate_Usdt_Warn": "Göndərməzdən əvvəl şəbəkəni yoxlayın — yanlış şəbəkəyə göndərilən vəsait itə bilər.",
+  "Donate_OtherWays": "Pul lazım deyil — ulduz, xəta bildirişi və tərcümə də eyni qədər kömək edir.",
+  "Donate_Star": "GitHub-da ulduzla"
 }
