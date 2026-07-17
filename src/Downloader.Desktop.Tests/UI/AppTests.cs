@@ -137,6 +137,68 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Header_sort_cycles_asc_desc_none_and_none_restores_master_order()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        // Master order (= queue priority) deliberately differs from both sorted orders.
+        manager.Add(new DownloadItem { Url = "https://host/m.bin", FileName = "m.bin" }, autoStart: false);
+        manager.Add(new DownloadItem { Url = "https://host/a.bin", FileName = "a.bin" }, autoStart: false);
+        manager.Add(new DownloadItem { Url = "https://host/z.bin", FileName = "z.bin" }, autoStart: false);
+
+        var view = new DownloadsViewModel(manager);
+        string[] Names() => view.ItemsView.Cast<DownloadItemViewModel>().Select(i => i.FileName).ToArray();
+
+        Assert.Null(view.SortPath); // unsorted by default → master order
+        Assert.Equal(new[] { "m.bin", "a.bin", "z.bin" }, Names());
+
+        view.CycleSort("FileName"); // 1st click → ascending
+        Assert.Equal("FileName", view.SortPath);
+        Assert.Equal(System.ComponentModel.ListSortDirection.Ascending, view.SortDirection);
+        Assert.Equal(new[] { "a.bin", "m.bin", "z.bin" }, Names());
+
+        view.CycleSort("FileName"); // 2nd click → descending
+        Assert.Equal(System.ComponentModel.ListSortDirection.Descending, view.SortDirection);
+        Assert.Equal(new[] { "z.bin", "m.bin", "a.bin" }, Names());
+
+        view.CycleSort("FileName"); // 3rd click → none (master order back, drag-reorder works again)
+        Assert.Null(view.SortPath);
+        Assert.Equal(new[] { "m.bin", "a.bin", "z.bin" }, Names());
+
+        // Clicking a different column while sorted starts that column ascending.
+        view.CycleSort("FileName");
+        view.CycleSort("Size");
+        Assert.Equal("Size", view.SortPath);
+        Assert.Equal(System.ComponentModel.ListSortDirection.Ascending, view.SortDirection);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Clearing_the_sort_enables_drag_reorder_from_the_current_view()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var m = manager.Add(new DownloadItem { Url = "https://host/m.bin", FileName = "m.bin" }, autoStart: false);
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.bin", FileName = "a.bin" }, autoStart: false);
+
+        var view = new DownloadsViewModel(manager);
+        view.CycleSort("FileName");
+        Assert.NotNull(view.SortPath);
+
+        // The grip's drag-start calls ClearSort() so the drop reorders the master list, not a sorted view.
+        view.ClearSort();
+        Assert.Null(view.SortPath);
+        Assert.Empty(view.ItemsView.SortDescriptions);
+
+        view.Reorder(a, m, placeAfter: false); // drag "a" above "m"
+        // Master order (= pump priority) is the real invariant; the app refreshes the view via
+        // MainViewModel.OnListChanged → Downloads.Refresh(), mirrored here.
+        Assert.Equal(new[] { "a.bin", "m.bin" }, manager.Items.Select(i => i.FileName).ToArray());
+        view.Refresh();
+        Assert.Equal(new[] { "a.bin", "m.bin" },
+            view.ItemsView.Cast<DownloadItemViewModel>().Select(i => i.FileName).ToArray());
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Status_bar_total_downloaded_sums_all_items()
     {
         var manager = new DownloadManager();

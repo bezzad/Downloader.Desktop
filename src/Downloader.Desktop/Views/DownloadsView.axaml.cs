@@ -26,6 +26,17 @@ public partial class DownloadsView : UserControl
         InitializeComponent();
         _queueColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "QueueName");
         DataContextChanged += (_, _) => HookQueueColumn();
+        // Tri-state sorting (#12): cancel the DataGrid's built-in 2-state sort and let the VM cycle
+        // Asc → Desc → None instead (None = master order, where drag-to-reorder works). The header
+        // glyph stays right because the grid renders it from the view's SortDescriptions.
+        Root.Sorting += OnColumnSorting;
+    }
+
+    private void OnColumnSorting(object sender, DataGridColumnEventArgs e)
+    {
+        e.Handled = true; // suppress the built-in Asc/Desc-only toggle
+        if (DataContext is DownloadsViewModel vm)
+            vm.CycleSort(e.Column.SortMemberPath);
     }
 
     private void HookQueueColumn()
@@ -63,6 +74,11 @@ public partial class DownloadsView : UserControl
         _sourceRow = c.FindAncestorOfType<DataGridRow>();
         if (_sourceRow is null)
             return;
+
+        // Dragging reorders the MASTER list, which only makes sense unsorted — auto-clear an active
+        // sort (visually stable: the rows keep the order they were just shown in) so the drop sticks.
+        if (DataContext is DownloadsViewModel pageVm)
+            pageVm.ClearSort();
 
         _dragRow = vm;
         _sourceRow.Classes.Add("dragging");
