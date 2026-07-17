@@ -50,12 +50,6 @@
         </Style>
     </Window.Styles>
 
-    <Window.DataTemplates>
-        <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
-        <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
-        <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
-        <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
-    </Window.DataTemplates>
 
     <Panel>
     <!-- Rounded window: transparent window + clipped rounded root border (#11) -->
@@ -305,8 +299,10 @@
             </Grid>
         </Border>
 
-        <!-- ===== Central content: the downloads list or a management page (see the nav buttons) ===== -->
-        <ContentControl Content="{Binding CurrentPage}" />
+        <!-- ===== Central content: the downloads list or a management page. Views are cached and
+             reused across navigation (PageViewCache, wired in code-behind) — a DataTemplate here
+             would rebuild the whole page on every swap. ===== -->
+        <ContentControl x:Name="PageHost" />
     </DockPanel>
     </Border>
     <v:ResizeGrips />

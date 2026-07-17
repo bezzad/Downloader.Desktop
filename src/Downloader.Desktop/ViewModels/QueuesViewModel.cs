@@ -106,13 +106,18 @@ public class QueueRowViewModel : ViewModelBase
     private bool _isExpanded = true;
 
     /// <summary>Whether this card's item list is unfolded (#10). The header (name, stats, toggle,
-    /// cap) stays visible either way; collapsing hides only the list. Default expanded.</summary>
+    /// cap) stays visible either way; collapsing hides only the list. Default expanded.
+    /// Collapsing also DROPS the item wrappers (lazy build — with 2k downloads, building rows for
+    /// collapsed queues was a large share of the Queues-page hang); expanding rebuilds them.</summary>
     public bool IsExpanded
     {
         get => _isExpanded;
         set
         {
+            if (_isExpanded == value)
+                return;
             this.RaiseAndSetIfChanged(ref _isExpanded, value);
+            RebuildItems();
             _parent?.RaiseAllCollapsedChanged();
         }
     }
@@ -147,16 +152,38 @@ public class QueueRowViewModel : ViewModelBase
         RefreshStats();
     }
 
-    /// <summary>Rebuilds the queue's item wrappers from the manager (order = pump priority).</summary>
+    /// <summary>Rebuilds the queue's item wrappers from the manager (order = pump priority).
+    /// Lazy + reusing: a collapsed card holds no wrappers at all, and when the queue's membership/order
+    /// hasn't changed the existing wrappers are kept (no churn on every stats/list tick).</summary>
     public void RebuildItems()
     {
+        if (!IsExpanded)
+        {
+            if (Items.Count > 0)
+                Items.Clear();
+            RaiseEmptiness();
+            return;
+        }
+
         var mine = _manager?.Items.Where(i => i.GetItem().QueueId == Queue.Id).ToList()
                    ?? new List<DownloadItemViewModel>();
+
+        // Same rows in the same order → keep the wrappers (and their bound UI) as-is.
+        if (Items.Count == mine.Count && !Items.Where((w, idx) => !ReferenceEquals(w.Item, mine[idx])).Any())
+        {
+            RaiseEmptiness();
+            return;
+        }
 
         Items.Clear();
         foreach (var vm in mine)
             Items.Add(new QueueItemViewModel(vm, _manager, this));
 
+        RaiseEmptiness();
+    }
+
+    private void RaiseEmptiness()
+    {
         this.RaisePropertyChanged(nameof(IsEmpty));
         this.RaisePropertyChanged(nameof(HasItems));
     }

@@ -7,6 +7,9 @@ namespace Downloader.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly PageViewCache _pages = new();
+    private ViewModels.MainViewModel _vm;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -14,6 +17,26 @@ public partial class MainWindow : Window
         // Intercept paste (tunnel) on the top box: a large list would freeze the UI if the multi-line
         // TextBox laid it out. Small pastes insert normally; a large paste opens the Add dialog directly.
         TopUrlBox.AddHandler(KeyDownEvent, OnTopUrlBoxPaste, RoutingStrategies.Tunnel);
+
+        // Page views are cached + reused across navigation (see PageViewCache) — swap the cached
+        // control on CurrentPage changes instead of letting a DataTemplate rebuild the page.
+        DataContextChanged += (_, _) =>
+        {
+            if (_vm != null)
+                _vm.PropertyChanged -= OnVmPropertyChanged;
+            _vm = DataContext as ViewModels.MainViewModel;
+            if (_vm != null)
+            {
+                _vm.PropertyChanged += OnVmPropertyChanged;
+                PageHost.Content = _pages.GetView(_vm.CurrentPage);
+            }
+        };
+    }
+
+    private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.CurrentPage))
+            PageHost.Content = _pages.GetView(_vm?.CurrentPage);
     }
 
     private async void OnTopUrlBoxPaste(object sender, KeyEventArgs e)

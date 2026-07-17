@@ -264,20 +264,72 @@ public partial class DownloadManager : IDownloadManager
 
     public DownloadItemViewModel Add(DownloadItem item, bool autoStart)
     {
+        var vm = AddCore(item, probeName: true);
+        if (autoStart)
+            PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
+        NotifyList();
+        return vm;
+    }
+
+    /// <summary>How many rows a bulk add appends per UI-thread slice before yielding.</summary>
+    internal const int AddSliceSize = 50;
+
+    /// <summary>
+    /// Adds many items without freezing the UI (the 2k-link "Download → 2 min hang"): rows are appended
+    /// in slices of <see cref="AddSliceSize"/>, notifications fire once per slice (not per row), the
+    /// queue pump runs once per slice, and a 1 ms await between slices lets the dispatcher breathe —
+    /// the caller can close the Add dialog first and watch the rows stream in. Large batches also skip
+    /// the per-item network name probe (mirror of the Add dialog's no-probing rule); names resolve when
+    /// each download actually starts.
+    /// </summary>
+    public async Task AddRangeAsync(IReadOnlyList<DownloadItem> items, bool autoStart)
+    {
+        if (items == null || items.Count == 0)
+            return;
+
+        var probeNames = items.Count <= AddSliceSize; // small adds keep today's instant name preview
+        var queues = new HashSet<string>();
+        for (var i = 0; i < items.Count; i += AddSliceSize)
+        {
+            var end = Math.Min(i + AddSliceSize, items.Count);
+            RunBatch(() =>
+            {
+                for (var j = i; j < end; j++)
+                {
+                    var item = items[j];
+                    AddCore(item, probeNames);
+                    queues.Add(item.QueueId);
+                }
+            });
+            if (autoStart)
+                foreach (var q in queues)
+                    PumpQueue(q);
+            await Task.Delay(1); // yield the UI thread between slices
+        }
+    }
+
+    private DownloadItemViewModel AddCore(DownloadItem item, bool probeName)
+    {
         if (string.IsNullOrWhiteSpace(item.QueueId) && _config != null)
             item.QueueId = _config.DefaultQueue.Id;
 
         var vm = new DownloadItemViewModel(item, this);
         Items.Add(vm);
-        if (autoStart)
-            PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
 
-        // Resolve a display name in the background so items still waiting on a queue slot show their
-        // file name instead of "Fetching name…" until they actually start (#4).
         if (string.IsNullOrWhiteSpace(item.FileName))
-            _ = ResolvePreviewNameAsync(vm);
+        {
+            // Free, instant: any name embedded in the URL — so no row ever shows "Fetching name…"
+            // even in a huge batch where the network probe is skipped.
+            var quick = UrlResolver.NameFromUrl(item.Url);
+            if (!string.IsNullOrWhiteSpace(quick))
+                vm.PreviewName = quick;
+            // Full name+size probe in the background (#4) — single adds only; a 2k batch must not
+            // fire 2k probes.
+            if (probeName)
+                _ = ResolvePreviewNameAsync(vm);
+        }
 
-        NotifyList();
+        NotifyList(); // coalesced to once per slice inside RunBatch
         return vm;
     }
 

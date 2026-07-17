@@ -556,11 +556,11 @@ public class MainViewModel : ViewModelBase
 
         if (result is { Count: > 0 })
         {
-            foreach (var item in result)
-                _downloadManager.Add(item, autoStart: true);
-
             DownloadUrl = string.Empty;
             SelectFilter(StatusFilter.All);
+            // The dialog is already closed — stream the rows in UI-yielding slices so a 2k-link add
+            // never freezes the window (the user watches them appear; order/timing doesn't matter).
+            await _downloadManager.AddRangeAsync(result, autoStart: true);
         }
     }
 

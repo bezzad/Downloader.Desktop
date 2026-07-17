@@ -218,6 +218,27 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Bulk_add_streams_in_slices_and_coalesces_notifications()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        var listChanged = 0;
+        manager.ListChanged += () => listChanged++;
+
+        var items = Enumerable.Range(0, 500)
+            .Select(i => new DownloadItem { Urls = new() { $"https://10.255.255.1/f{i}.bin" }, SaveFolder = "/tmp" })
+            .ToList();
+
+        await manager.AddRangeAsync(items, autoStart: false);
+
+        Assert.Equal(500, manager.Items.Count);
+        // The point of the fix (#bulk-add hang): notifications are per SLICE, not per item — 500
+        // adds must not fire 500 full list/stats refreshes.
+        Assert.InRange(listChanged, 1, 25);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void First_activation_shows_a_hidden_window()
     {
         var window = new Window { Width = 300, Height = 200, WindowState = WindowState.Minimized };
@@ -329,6 +350,57 @@ public class AppTests
         page.Remove(page.Schedules[0]);
         page.NewScheduleCommand.Execute(null);
         Assert.Equal(new[] { "Schedule 2", "Schedule 1" }, page.Schedules.Select(s => s.Name).ToArray());
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Page_views_are_created_once_and_reused_across_navigation()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var cache = new Views.PageViewCache();
+        var downloads = new DownloadsViewModel(manager);
+        var queues = new QueuesViewModel(config, manager);
+
+        var v1 = cache.GetView(downloads);
+        var q1 = cache.GetView(queues);
+        Assert.IsType<Views.DownloadsView>(v1);
+        Assert.IsType<Views.QueuesView>(q1);
+        Assert.Same(downloads, v1.DataContext);
+
+        // Navigating away and back must return the SAME instance — no page rebuild, state preserved.
+        Assert.Same(v1, cache.GetView(downloads));
+        Assert.Same(q1, cache.GetView(queues));
+        Assert.NotSame(v1, q1);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Queue_item_wrappers_build_lazily_and_are_reused()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        for (var i = 0; i < 20; i++)
+            manager.Add(new DownloadItem { Urls = new() { $"https://host/f{i}.bin" }, FileName = $"f{i}.bin" }, autoStart: false);
+
+        var page = new QueuesViewModel(config, manager);
+        var row = page.Queues[0];
+        Assert.Equal(20, row.Items.Count); // expanded (default) → wrappers built
+
+        // A list change that does NOT alter this queue's membership must REUSE the wrappers
+        // (rebuilding 2k wrappers on every tick was part of the Queues-page hang).
+        var before = row.Items[0];
+        manager.RaiseStatsForTest();
+        row.RebuildItems();
+        Assert.Same(before, row.Items[0]);
+
+        // Collapsing drops the wrappers entirely (nothing to render); expanding rebuilds them.
+        row.IsExpanded = false;
+        Assert.Empty(row.Items);
+        Assert.True(row.HasItems); // aggregate stats still reflect the real membership
+        row.IsExpanded = true;
+        Assert.Equal(20, row.Items.Count);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
