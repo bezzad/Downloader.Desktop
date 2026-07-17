@@ -216,6 +216,27 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void New_schedules_get_distinct_numbered_names()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var page = new SchedulerViewModel(config, manager);
+        page.NewScheduleCommand.Execute(null);
+        page.NewScheduleCommand.Execute(null);
+
+        // Numbered — NOT the "New schedule" button label, so item and action can't be confused (#14).
+        Assert.Equal("Schedule 1", page.Schedules[0].Name);
+        Assert.Equal("Schedule 2", page.Schedules[1].Name);
+
+        // The next number skips names already in use (delete #1, add again → smallest free = 1).
+        page.Remove(page.Schedules[0]);
+        page.NewScheduleCommand.Execute(null);
+        Assert.Equal(new[] { "Schedule 2", "Schedule 1" }, page.Schedules.Select(s => s.Name).ToArray());
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Queue_cards_collapse_and_expand_individually_and_all_at_once()
     {
         var manager = new DownloadManager();

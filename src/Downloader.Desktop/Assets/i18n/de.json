@@ -249,6 +249,7 @@
   "Queues_MoveTo": "In andere Warteschlange verschieben",
   "Sched_Title": "Zeitplaner",
   "Sched_Add": "Neuer Zeitplan",
+  "Sched_DefaultName": "Zeitplan {0}",
   "Sched_Desc": "Eine Warteschlange automatisch zu festgelegten Zeiten starten und stoppen.",
   "Sched_Enabled": "Aktiviert",
   "Sched_On": "Ein",

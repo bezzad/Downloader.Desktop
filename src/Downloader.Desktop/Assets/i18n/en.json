@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Move to another queue",
   "Sched_Title": "Scheduler",
   "Sched_Add": "New schedule",
+  "Sched_DefaultName": "Schedule {0}",
   "Sched_Desc": "Start and stop a queue automatically at set times.",
   "Sched_Enabled": "Enabled",
   "Sched_On": "On",

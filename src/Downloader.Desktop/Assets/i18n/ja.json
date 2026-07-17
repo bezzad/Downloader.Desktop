@@ -249,6 +249,7 @@
   "Queues_MoveTo": "別のキューに移動",
   "Sched_Title": "スケジューラー",
   "Sched_Add": "新しいスケジュール",
+  "Sched_DefaultName": "スケジュール {0}",
   "Sched_Desc": "設定した時刻にキューを自動的に開始・停止します。",
   "Sched_Enabled": "有効",
   "Sched_On": "オン",

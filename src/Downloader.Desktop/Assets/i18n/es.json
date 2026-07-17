@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Mover a otra cola",
   "Sched_Title": "Programador",
   "Sched_Add": "Añadir programación",
+  "Sched_DefaultName": "Programación {0}",
   "Sched_Desc": "Inicia y detén una cola automáticamente a horas fijas.",
   "Sched_Enabled": "Activado",
   "Sched_On": "Activado",

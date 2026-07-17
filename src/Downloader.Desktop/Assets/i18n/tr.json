@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Başka bir kuyruğa taşı",
   "Sched_Title": "Zamanlayıcı",
   "Sched_Add": "Yeni zamanlama",
+  "Sched_DefaultName": "Zamanlama {0}",
   "Sched_Desc": "Belirlenen saatlerde bir kuyruğu otomatik başlat ve durdur.",
   "Sched_Enabled": "Etkin",
   "Sched_On": "Açık",

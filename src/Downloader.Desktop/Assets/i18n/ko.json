@@ -249,6 +249,7 @@
   "Queues_MoveTo": "다른 대기열로 이동",
   "Sched_Title": "스케줄러",
   "Sched_Add": "새 일정",
+  "Sched_DefaultName": "일정 {0}",
   "Sched_Desc": "설정한 시간에 대기열을 자동으로 시작하고 정지합니다.",
   "Sched_Enabled": "사용",
   "Sched_On": "켜짐",

@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Mover para outra fila",
   "Sched_Title": "Agendador",
   "Sched_Add": "Novo agendamento",
+  "Sched_DefaultName": "Agendamento {0}",
   "Sched_Desc": "Inicia e para uma fila automaticamente em horários definidos.",
   "Sched_Enabled": "Ativado",
   "Sched_On": "Sim",

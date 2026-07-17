@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Movi al alia vico",
   "Sched_Title": "Planilo",
   "Sched_Add": "Aldoni planon",
+  "Sched_DefaultName": "Plano {0}",
   "Sched_Desc": "Aŭtomate startigu kaj haltigu vicon je fiksitaj horoj.",
   "Sched_Enabled": "Ŝaltita",
   "Sched_On": "Ŝaltita",

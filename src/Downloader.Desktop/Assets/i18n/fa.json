@@ -249,6 +249,7 @@
   "Queues_MoveTo": "انتقال به صف دیگر",
   "Sched_Title": "زمان‌بند",
   "Sched_Add": "افزودن زمان‌بندی",
+  "Sched_DefaultName": "زمان‌بندی {0}",
   "Sched_Desc": "یک صف را به‌طور خودکار در زمان‌های مشخص شروع و متوقف کنید.",
   "Sched_Enabled": "فعال",
   "Sched_On": "روشن",

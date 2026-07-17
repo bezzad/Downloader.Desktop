@@ -249,6 +249,7 @@
   "Queues_MoveTo": "दूसरी क़तार में ले जाएँ",
   "Sched_Title": "शेड्यूलर",
   "Sched_Add": "नया शेड्यूल",
+  "Sched_DefaultName": "शेड्यूल {0}",
   "Sched_Desc": "निर्धारित समय पर क़तार स्वतः शुरू और बंद करें।",
   "Sched_Enabled": "सक्षम",
   "Sched_On": "चालू",

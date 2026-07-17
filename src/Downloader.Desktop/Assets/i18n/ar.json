@@ -249,6 +249,7 @@
   "Queues_MoveTo": "نقل إلى قائمة أخرى",
   "Sched_Title": "المجدول",
   "Sched_Add": "إضافة جدولة",
+  "Sched_DefaultName": "الجدولة {0}",
   "Sched_Desc": "ابدأ وأوقف قائمة انتظار تلقائيًا في أوقات محددة.",
   "Sched_Enabled": "مُفعّل",
   "Sched_On": "مُفعّل",

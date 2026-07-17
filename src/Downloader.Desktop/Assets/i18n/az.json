@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Başqa növbəyə köçür",
   "Sched_Title": "Planlayıcı",
   "Sched_Add": "Yeni cədvəl",
+  "Sched_DefaultName": "Cədvəl {0}",
   "Sched_Desc": "Müəyyən vaxtlarda növbəni avtomatik başlat və dayandır.",
   "Sched_Enabled": "Aktiv",
   "Sched_On": "Açıq",

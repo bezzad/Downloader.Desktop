@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Déplacer vers une autre file",
   "Sched_Title": "Planificateur",
   "Sched_Add": "Ajouter une planification",
+  "Sched_DefaultName": "Planification {0}",
   "Sched_Desc": "Démarrez et arrêtez une file automatiquement à des heures définies.",
   "Sched_Enabled": "Activé",
   "Sched_On": "Activé",

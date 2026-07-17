@@ -249,6 +249,7 @@
   "Queues_MoveTo": "Sposta in un'altra coda",
   "Sched_Title": "Pianificazione",
   "Sched_Add": "Nuova pianificazione",
+  "Sched_DefaultName": "Pianificazione {0}",
   "Sched_Desc": "Avvia e ferma una coda automaticamente a orari prestabiliti.",
   "Sched_Enabled": "Abilitata",
   "Sched_On": "Sì",
