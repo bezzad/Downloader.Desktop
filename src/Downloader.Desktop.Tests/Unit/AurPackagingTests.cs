@@ -15,8 +15,9 @@ public class AurPackagingTests
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Pkgbuild_and_srcinfo_are_publish_ready_and_in_lockstep()
     {
-        var pkgbuild = File.ReadAllText(FindRepoFile(Path.Combine("packaging", "aur", "PKGBUILD")));
-        var srcinfo = File.ReadAllText(FindRepoFile(Path.Combine("packaging", "aur", ".SRCINFO")));
+        // Normalize CRLF: a Windows git checkout (autocrlf) otherwise breaks the $-anchored matches.
+        var pkgbuild = File.ReadAllText(FindRepoFile(Path.Combine("packaging", "aur", "PKGBUILD"))).Replace("\r", "");
+        var srcinfo = File.ReadAllText(FindRepoFile(Path.Combine("packaging", "aur", ".SRCINFO"))).Replace("\r", "");
 
         var pkgVer = Regex.Match(pkgbuild, @"^pkgver=([0-9]+\.[0-9]+\.[0-9]+)$", RegexOptions.Multiline);
         Assert.True(pkgVer.Success, "PKGBUILD must declare a semver pkgver");
