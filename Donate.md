@@ -15,9 +15,8 @@ Thank you! 🙏
 ## Tether (USDT)
 
 | Network | Address |
-|---------|---------|
-| **Tether (BEP20 — BNB Smart Chain)** | `0xfa03a3e6db41e6c78009d7611becd29a04cf37a7` |
-| **Tether (TRC20 — TRON)** | `TBqa8n4nKsqV8k4FCMRjqaKdGWSo3m9ZCU` |
+|--------|---------|
+| **Tether (BEP20 — BNB Smart Chain)** | `0xFF6B6524BA90Fb7b0C5d5bE1D71903CBF0f8198a` |
 
 > ⚠️ Please double-check the network before sending. Funds sent on the wrong network may be lost.
 
