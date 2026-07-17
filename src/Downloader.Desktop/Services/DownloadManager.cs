@@ -358,6 +358,12 @@ public partial class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
+                // The user may stop/remove the row while this off-thread setup runs (Stop right after
+                // Add): Cancel then finds no engine handle to cancel and just marks the row Stopped —
+                // so never start an engine for a row that's no longer Running.
+                if (vm.Status != DownloadStatus.Running)
+                    return;
+
                 // A plugin transfer provider that claims the URL (e.g. "websitezip:", "magnet:") owns the
                 // whole download — checked before link resolution so a claimed scheme never round-trips
                 // through resolvers. RunTransferAsync owns the row's terminal state.
@@ -417,6 +423,14 @@ public partial class DownloadManager : IDownloadManager
                 var download = new DownloadService(configuration, AppLog.Factory);
                 // Subscribe before starting so no early event is missed (handlers marshal to UI themselves).
                 Attach(vm, download);
+
+                // Re-check after the (slow) redirect resolution: a Stop that arrived meanwhile marked
+                // the row Stopped without an engine to cancel — release this one instead of starting it.
+                if (vm.Status != DownloadStatus.Running)
+                {
+                    ReleaseEngine(vm);
+                    return;
+                }
 
                 if (!string.IsNullOrWhiteSpace(fileName))
                     await download.DownloadFileTaskAsync(urls, Path.Combine(folder ?? string.Empty, fileName))
