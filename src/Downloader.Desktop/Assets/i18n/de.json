@@ -31,6 +31,8 @@
   "Status_Queued": "in Warteschlange",
   "Status_Done": "fertig",
   "Status_Failed": "fehlgeschlagen",
+  "Status_Stopped": "gestoppt",
+  "Status_TotalDownloaded": "Bisher insgesamt heruntergeladen",
   "Grid_SelectAll": "Alle auswählen",
   "Action_Start": "Starten",
   "Action_Pause": "Pause",

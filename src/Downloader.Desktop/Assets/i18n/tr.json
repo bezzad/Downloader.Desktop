@@ -31,6 +31,8 @@
   "Status_Queued": "kuyrukta",
   "Status_Done": "tamam",
   "Status_Failed": "başarısız",
+  "Status_Stopped": "durduruldu",
+  "Status_TotalDownloaded": "Şimdiye kadar toplam indirilen",
   "Grid_SelectAll": "Tümünü seç",
   "Action_Start": "Başlat",
   "Action_Pause": "Duraklat",

@@ -31,6 +31,8 @@
   "Status_Queued": "в очереди",
   "Status_Done": "готово",
   "Status_Failed": "ошибки",
+  "Status_Stopped": "остановлены",
+  "Status_TotalDownloaded": "Всего загружено на данный момент",
   "Grid_SelectAll": "Выбрать всё",
   "Action_Start": "Старт",
   "Action_Pause": "Пауза",

@@ -31,6 +31,8 @@
   "Status_Queued": "क़तार में",
   "Status_Done": "पूर्ण",
   "Status_Failed": "विफल",
+  "Status_Stopped": "रुके हुए",
+  "Status_TotalDownloaded": "अब तक कुल डाउनलोड",
   "Grid_SelectAll": "सभी चुनें",
   "Action_Start": "शुरू करें",
   "Action_Pause": "रोकें",

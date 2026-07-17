@@ -45,6 +45,7 @@ public class MainViewModel : ViewModelBase
         ShowAllCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.All));
         ShowActiveCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Active));
         ShowQueuedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Queued));
+        ShowStoppedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Stopped));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
         // Management pages open in-window: the central ContentControl swaps between the downloads
@@ -90,6 +91,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowAllCommand { get; }
     public ICommand ShowActiveCommand { get; }
     public ICommand ShowQueuedCommand { get; }
+    public ICommand ShowStoppedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
     public ICommand ShowDownloadsCommand { get; }
@@ -140,6 +142,7 @@ public class MainViewModel : ViewModelBase
     public bool IsAllSelected => _section == NavSection.Downloads && _filter == StatusFilter.All;
     public bool IsActiveSelected => _section == NavSection.Downloads && _filter == StatusFilter.Active;
     public bool IsQueuedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Queued;
+    public bool IsStoppedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Stopped;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
     public bool IsDownloadsSelected => _section == NavSection.Downloads;
@@ -149,6 +152,11 @@ public class MainViewModel : ViewModelBase
 
     // ---- Status bar ----
     public string TotalSpeedText => FormatSpeed(_downloadManager.TotalSpeed);
+
+    /// <summary>Cumulative bytes downloaded across all rows, human-readable (#18). Recomputed on the
+    /// stats pump — a single O(n) sum per 250 ms tick, negligible next to the per-row flush.</summary>
+    public string TotalDownloadedText =>
+        DownloadItemViewModel.FormatBytes(_downloadManager.Items.Sum(i => i.Downloaded));
     public int ActiveCount => _downloadManager.ActiveCount;
     public int QueuedCount => _downloadManager.QueuedCount;
     public int CompletedCount => _downloadManager.CompletedCount;
@@ -156,9 +164,11 @@ public class MainViewModel : ViewModelBase
     // ---- Footer filter counts (each matches its StatusFilter bucket exactly, so the buttons are disjoint) ----
     public int AllCount => _downloadManager.Items.Count;
     public int ActiveFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Running or DownloadStatus.Paused);
+        i.Status is DownloadStatus.Running);
     public int QueuedFilterCount => _downloadManager.Items.Count(i =>
         i.Status is DownloadStatus.Created or DownloadStatus.None);
+    public int StoppedFilterCount => _downloadManager.Items.Count(i =>
+        i.Status is DownloadStatus.Paused or DownloadStatus.Stopped);
     public int CompletedFilterCount => _downloadManager.Items.Count(i => i.Status == DownloadStatus.Completed);
     public int FailedFilterCount => _downloadManager.Items.Count(i =>
         i.Status is DownloadStatus.Failed);
@@ -478,12 +488,14 @@ public class MainViewModel : ViewModelBase
     private void OnStatsChanged()
     {
         this.RaisePropertyChanged(nameof(TotalSpeedText));
+        this.RaisePropertyChanged(nameof(TotalDownloadedText));
         this.RaisePropertyChanged(nameof(ActiveCount));
         this.RaisePropertyChanged(nameof(QueuedCount));
         this.RaisePropertyChanged(nameof(CompletedCount));
         this.RaisePropertyChanged(nameof(AllCount));
         this.RaisePropertyChanged(nameof(ActiveFilterCount));
         this.RaisePropertyChanged(nameof(QueuedFilterCount));
+        this.RaisePropertyChanged(nameof(StoppedFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
     }
@@ -524,6 +536,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsAllSelected));
         this.RaisePropertyChanged(nameof(IsActiveSelected));
         this.RaisePropertyChanged(nameof(IsQueuedSelected));
+        this.RaisePropertyChanged(nameof(IsStoppedSelected));
         this.RaisePropertyChanged(nameof(IsCompletedSelected));
         this.RaisePropertyChanged(nameof(IsFailedSelected));
         this.RaisePropertyChanged(nameof(IsQueuesSelected));

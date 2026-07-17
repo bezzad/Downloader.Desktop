@@ -250,6 +250,12 @@
                     <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14"
                               Foreground="{DynamicResource SystemAccentColor}" />
                     <TextBlock Text="{Binding TotalSpeedText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <!-- Cumulative downloaded bytes across all rows (#18), beside the speed. -->
+                    <TextBlock Text="·" Opacity="0.5" VerticalAlignment="Center" />
+                    <PathIcon Data="{StaticResource CheckmarkRegular}" Height="14" Opacity="0.7"
+                              Foreground="{DynamicResource SystemAccentColor}" />
+                    <TextBlock Text="{Binding TotalDownloadedText}" VerticalAlignment="Center"
+                               ToolTip.Tip="{i18n:Tr Status_TotalDownloaded}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -272,6 +278,13 @@
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <TextBlock Text="{Binding QueuedFilterCount}" />
                             <TextBlock Text="{i18n:Tr Status_Queued}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="filterpill" Classes.active="{Binding IsStoppedSelected}"
+                            Command="{Binding ShowStoppedCommand}" ToolTip.Tip="{i18n:Tr Status_Stopped}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding StoppedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Stopped}" />
                         </StackPanel>
                     </Button>
                     <Button Classes="filterpill" Classes.active="{Binding IsCompletedSelected}"

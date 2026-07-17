@@ -31,6 +31,8 @@
   "Status_Queued": "queued",
   "Status_Done": "done",
   "Status_Failed": "failed",
+  "Status_Stopped": "stopped",
+  "Status_TotalDownloaded": "Total downloaded so far",
   "Grid_SelectAll": "Select all",
   "Action_Start": "Start",
   "Action_Pause": "Pause",

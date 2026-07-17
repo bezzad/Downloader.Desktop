@@ -31,6 +31,8 @@
   "Status_Queued": "en file",
   "Status_Done": "terminés",
   "Status_Failed": "échecs",
+  "Status_Stopped": "arrêtés",
+  "Status_TotalDownloaded": "Total téléchargé jusqu’ici",
   "Grid_SelectAll": "Tout sélectionner",
   "Action_Start": "Démarrer",
   "Action_Pause": "Pause",

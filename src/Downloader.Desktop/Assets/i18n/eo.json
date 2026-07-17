@@ -31,6 +31,8 @@
   "Status_Queued": "envicigitaj",
   "Status_Done": "pretaj",
   "Status_Failed": "malsukcesaj",
+  "Status_Stopped": "haltigitaj",
+  "Status_TotalDownloaded": "Entute elŝutita ĝis nun",
   "Grid_SelectAll": "Elekti ĉion",
   "Action_Start": "Komenci",
   "Action_Pause": "Paŭzi",

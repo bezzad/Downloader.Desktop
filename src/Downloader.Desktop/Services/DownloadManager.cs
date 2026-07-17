@@ -708,6 +708,9 @@ public partial class DownloadManager : IDownloadManager
 
     private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
 
+    /// <summary>Test seam: fire the stats pump event so status-bar readouts recompute.</summary>
+    public void RaiseStatsForTest() => StatsChanged?.Invoke();
+
     /// <summary>Test seam: runs the same post-completion bookkeeping the engine's completed handler does,
     /// without a real download (mark Completed → pump the queue → maybe raise all-complete).</summary>
     public void RaiseCompletedForTest(DownloadItemViewModel vm)

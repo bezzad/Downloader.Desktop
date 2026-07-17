@@ -247,12 +247,15 @@ public class DownloadsViewModel : ViewModelBase
                 return false;
         }
 
+        // Buckets are disjoint (see StatusFilter docs): a Paused item lives in Stopped, not Active,
+        // so no row ever matches two pills and the pill counts sum to the total.
         return _filter switch
         {
-            StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused,
+            StatusFilter.Active => vm.Status is DownloadStatus.Running,
             StatusFilter.Queued => vm.Status is DownloadStatus.Created or DownloadStatus.None,
+            StatusFilter.Stopped => vm.Status is DownloadStatus.Paused or DownloadStatus.Stopped,
             StatusFilter.Completed => vm.Status == DownloadStatus.Completed,
-            // Failed = real failures only. User-Stopped items are NOT failures — they show under All.
+            // Failed = real failures only. User-Stopped items are NOT failures — they show under Stopped.
             StatusFilter.Failed => vm.Status is DownloadStatus.Failed,
             _ => true
         };

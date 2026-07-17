@@ -31,6 +31,8 @@
   "Status_Queued": "排队中",
   "Status_Done": "已完成",
   "Status_Failed": "失败",
+  "Status_Stopped": "已停止",
+  "Status_TotalDownloaded": "迄今为止总下载量",
   "Grid_SelectAll": "全选",
   "Action_Start": "开始",
   "Action_Pause": "暂停",

@@ -31,6 +31,8 @@
   "Status_Queued": "növbədə",
   "Status_Done": "hazır",
   "Status_Failed": "uğursuz",
+  "Status_Stopped": "dayandırılıb",
+  "Status_TotalDownloaded": "İndiyədək endirilən ümumi həcm",
   "Grid_SelectAll": "Hamısını seç",
   "Action_Start": "Başlat",
   "Action_Pause": "Fasilə",

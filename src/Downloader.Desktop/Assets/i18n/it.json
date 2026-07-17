@@ -31,6 +31,8 @@
   "Status_Queued": "in coda",
   "Status_Done": "completati",
   "Status_Failed": "falliti",
+  "Status_Stopped": "fermati",
+  "Status_TotalDownloaded": "Totale scaricato finora",
   "Grid_SelectAll": "Seleziona tutto",
   "Action_Start": "Avvia",
   "Action_Pause": "Pausa",

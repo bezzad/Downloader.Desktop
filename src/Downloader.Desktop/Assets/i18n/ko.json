@@ -31,6 +31,8 @@
   "Status_Queued": "대기 중",
   "Status_Done": "완료",
   "Status_Failed": "실패",
+  "Status_Stopped": "중지됨",
+  "Status_TotalDownloaded": "지금까지 총 다운로드",
   "Grid_SelectAll": "모두 선택",
   "Action_Start": "시작",
   "Action_Pause": "일시정지",

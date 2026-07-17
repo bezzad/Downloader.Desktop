@@ -31,6 +31,8 @@
   "Status_Queued": "در صف",
   "Status_Done": "انجام‌شده",
   "Status_Failed": "ناموفق",
+  "Status_Stopped": "متوقف‌شده",
+  "Status_TotalDownloaded": "مجموع دانلودشده تاکنون",
   "Grid_SelectAll": "انتخاب همه",
   "Action_Start": "شروع",
   "Action_Pause": "مکث",

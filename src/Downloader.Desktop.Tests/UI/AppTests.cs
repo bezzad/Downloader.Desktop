@@ -93,6 +93,67 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Stopped_filter_lists_paused_and_stopped_and_buckets_are_disjoint()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        // One item per status → every bucket must own exactly its statuses, disjointly.
+        var byStatus = new Dictionary<DownloadStatus, DownloadItemViewModel>();
+        foreach (var s in new[]
+                 {
+                     DownloadStatus.Running, DownloadStatus.Paused, DownloadStatus.Stopped,
+                     DownloadStatus.Failed, DownloadStatus.Completed, DownloadStatus.Created, DownloadStatus.None
+                 })
+        {
+            var vm = manager.Add(new DownloadItem { Url = $"https://host/{s}.bin", FileName = $"{s}.bin" }, autoStart: false);
+            vm.Status = s;
+            byStatus[s] = vm;
+        }
+
+        var view = new DownloadsViewModel(manager);
+        int CountFor(StatusFilter f)
+        {
+            view.Filter = f;
+            return view.ItemsView.Count;
+        }
+
+        // The Stopped bucket owns Paused + Stopped (the user's "where did my paused items go" fix, #2).
+        view.Filter = StatusFilter.Stopped;
+        var stoppedSet = view.ItemsView.Cast<DownloadItemViewModel>().Select(i => i.Status).ToHashSet();
+        Assert.Equal(new HashSet<DownloadStatus> { DownloadStatus.Paused, DownloadStatus.Stopped }, stoppedSet);
+
+        // Disjoint + jointly exhaustive: the five buckets sum to the total.
+        var total = CountFor(StatusFilter.Active) + CountFor(StatusFilter.Queued) + CountFor(StatusFilter.Stopped)
+                    + CountFor(StatusFilter.Completed) + CountFor(StatusFilter.Failed);
+        Assert.Equal(manager.Items.Count, total);
+        Assert.Equal(manager.Items.Count, CountFor(StatusFilter.All));
+
+        // Active narrowed to Running only; Failed owns Failed only.
+        view.Filter = StatusFilter.Active;
+        Assert.Equal(DownloadStatus.Running, Assert.Single(view.ItemsView.Cast<DownloadItemViewModel>()).Status);
+        view.Filter = StatusFilter.Failed;
+        Assert.Equal(DownloadStatus.Failed, Assert.Single(view.ItemsView.Cast<DownloadItemViewModel>()).Status);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Status_bar_total_downloaded_sums_all_items()
+    {
+        var manager = new DownloadManager();
+        var main = new MainViewModel(new StubFileService(), manager);
+        manager.Initialize(Config.New());
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.bin", FileName = "a.bin" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.bin", FileName = "b.bin" }, autoStart: false);
+        a.Downloaded = 512 * 1024;        // 0.5 MB
+        b.Downloaded = 1536 * 1024;       // 1.5 MB
+
+        manager.RaiseStatsForTest();
+
+        Assert.Equal(DownloadItemViewModel.FormatBytes(2 * 1024 * 1024), main.TotalDownloadedText);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Removing_a_queue_reassigns_its_items()
     {
         var manager = new DownloadManager();
@@ -1271,5 +1332,11 @@ public class AppTests
         var (url, name) = await manager.ResolveViaPluginsAsync("repo://owner/app", "n.bin", default);
         Assert.Equal("repo://owner/app", url);
         Assert.Equal("n.bin", name);
+    }
+
+    private sealed class StubFileService : IFileService
+    {
+        public Task<Config> LoadFromFileAsync() => Task.FromResult(Config.New());
+        public Task SaveToFileAsync(Config itemToSave) => Task.CompletedTask;
     }
 }

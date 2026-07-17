@@ -31,6 +31,8 @@
   "Status_Queued": "في الانتظار",
   "Status_Done": "منتهية",
   "Status_Failed": "فشلت",
+  "Status_Stopped": "متوقفة",
+  "Status_TotalDownloaded": "إجمالي ما تم تنزيله حتى الآن",
   "Grid_SelectAll": "تحديد الكل",
   "Action_Start": "بدء",
   "Action_Pause": "إيقاف مؤقت",
