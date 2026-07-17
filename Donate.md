@@ -6,6 +6,12 @@ keep the project alive and improving.
 
 Thank you! 🙏
 
+## GitHub Sponsors (recurring or one-off)
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2?logo=githubsponsors)](https://github.com/sponsors/bezzad)
+
+<https://github.com/sponsors/bezzad>
+
 ## Liberapay (recurring)
 
 [![Donate using Liberapay](https://liberapay.com/assets/widgets/donate.svg)](https://liberapay.com/bezzad/donate)

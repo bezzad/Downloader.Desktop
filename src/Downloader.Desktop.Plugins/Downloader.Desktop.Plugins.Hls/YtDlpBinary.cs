@@ -62,6 +62,21 @@ public sealed class YtDlpBinary : IYtDlp
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
             return stdout;
 
+        // x.com/Twitter: the guest-token GraphQL API intermittently returns no media for public tweets
+        // ("No video could be found in this tweet"). yt-dlp's syndication API is a cookie-free public
+        // endpoint that still serves them — try it BEFORE reading browser cookies (which can hang on the
+        // macOS keychain / Chrome app-bound encryption and need a signed-in session). Public tweets extract
+        // fine this way with no sign-in, so this is the reliable fix for "some x.com links won't download".
+        if (IsTwitter(url))
+        {
+            _log.LogInformation("Retrying {Url} via the Twitter syndication API (cookie-free)", url);
+            var (so, se, scode) = await RunAsync(exe, BuildArgs(url, null, null, deno, SyndicationArgs), cancellationToken)
+                .ConfigureAwait(false);
+            if (scode == 0 && !string.IsNullOrWhiteSpace(so))
+                return so;
+            _log.LogWarning("Syndication API extraction also failed (exit {Code}): {Err}", scode, Tail(se));
+        }
+
         // Some sites (notably YouTube) refuse anonymous extraction ("Sign in to confirm you're not a
         // bot") — retry with the cookies of each browser installed on this machine until one works.
         if (NeedsCookies(stderr))
@@ -95,11 +110,29 @@ public sealed class YtDlpBinary : IYtDlp
 
     // -J: dump a single JSON object, no download. --no-warnings keeps stdout clean JSON.
     // A supplied cookie FILE (--cookies) wins over reading a browser's on-disk store (--cookies-from-browser).
-    internal static string BuildArgs(string url, string? cookieFile, string? cookieBrowser, string? denoPath) =>
+    internal static string BuildArgs(string url, string? cookieFile, string? cookieBrowser, string? denoPath,
+        string? extractorArgs = null) =>
         (denoPath is null ? "" : $"--js-runtimes \"deno:{denoPath}\" ")
         + (cookieFile is null ? "" : $"--cookies \"{cookieFile}\" ")
         + (cookieBrowser is null ? "" : $"--cookies-from-browser {cookieBrowser} ")
+        + (string.IsNullOrEmpty(extractorArgs) ? "" : $"--extractor-args \"{extractorArgs}\" ")
         + $"-J --no-warnings --no-playlist \"{url}\"";
+
+    /// <summary>yt-dlp extractor-args that route x.com/Twitter through the cookie-free public syndication API.</summary>
+    internal const string SyndicationArgs = "twitter:api=syndication";
+
+    /// <summary>True when the URL is an x.com / twitter.com page (incl. subdomains like mobile.twitter.com),
+    /// without matching look-alikes (e.g. x.com.evil.com).</summary>
+    internal static bool IsTwitter(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
+        var host = u.Host;
+        if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)) host = host[4..];
+        return host.Equals("x.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("twitter.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".x.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".twitter.com", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Resolve deno (yt-dlp's JS-challenge runtime): cached → PATH → downloaded on first use.
     /// Best-effort — returns null (and extraction proceeds without it) when provisioning fails.</summary>

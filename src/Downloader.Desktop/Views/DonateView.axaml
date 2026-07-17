@@ -31,6 +31,21 @@
                 <TextBlock Grid.Column="1" Text="{i18n:Tr Donate_ThankYou}" TextWrapping="Wrap" />
             </Grid>
 
+            <!-- GitHub Sponsors (recurring) -->
+            <Border Classes="card" Padding="14 12">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <PathIcon Grid.Column="0" Data="{StaticResource HeartRegular}" Foreground="#DB61A2"
+                              Height="16" VerticalAlignment="Center" Margin="0 0 10 0" />
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="GitHub Sponsors" FontWeight="SemiBold" />
+                        <TextBlock Text="{i18n:Tr Donate_Sponsors_Hint}" FontSize="11"
+                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="accent" Padding="14 7" VerticalAlignment="Center"
+                            Content="{i18n:Tr Donate_Open}" Command="{Binding OpenSponsorsCommand}" />
+                </Grid>
+            </Border>
+
             <!-- Liberapay (recurring) -->
             <Border Classes="card" Padding="14 12">
                 <Grid ColumnDefinitions="*,Auto">

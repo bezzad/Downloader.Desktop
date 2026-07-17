@@ -209,6 +209,13 @@ public class LogicTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Donate_links_include_github_sponsors()
+    {
+        Assert.Equal("https://github.com/sponsors/bezzad", DonateViewModel.GitHubSponsorsUrl);
+        Assert.StartsWith("https://liberapay.com/bezzad", DonateViewModel.LiberapayUrl);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Localizer_lists_all_shipped_languages()
     {
         // The 9 original packs + the 7 added in Round 15.

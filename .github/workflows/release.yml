@@ -179,6 +179,108 @@ jobs:
           fail_on_unmatched_files: true
           # No generate_release_notes here either — the release exists by now; notes are handled below.
 
+  # Debian package + signed APT repo on GitHub Pages, so users can `apt install downloader`.
+  # Requires: repo Settings → Pages → Source = "GitHub Actions", and an APT_GPG_PRIVATE_KEY secret
+  # (the armored private key whose public half is packaging/apt/pubkey.gpg).
+  deb:
+    name: Debian package + APT repo
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      # Job-level so step `if:` can gate on it (step-scoped env isn't visible to its own `if`).
+      APT_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packaging tools
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+
+      - name: Download the released linux-x64 tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p pub
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            -p 'Downloader-linux-x64.tar.gz' -O linux.tar.gz
+          tar -xzf linux.tar.gz -C pub
+
+      - name: Build the .deb
+        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/build-deb.sh pub
+
+      - name: Attach the .deb to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Downloader_*_amd64.deb
+          fail_on_unmatched_files: true
+
+      - name: Import the APT signing key
+        if: env.APT_KEY != ''
+        run: |
+          export GNUPGHOME="$(mktemp -d)"; chmod 700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          printf '%s' "$APT_KEY" | gpg --batch --import
+
+      - name: Build the signed APT repo
+        if: env.APT_KEY != ''
+        run: |
+          mkdir -p _site
+          cp packaging/apt/pubkey.gpg _site/pubkey.gpg
+          echo '<!doctype html><meta charset=utf-8><title>Downloader APT repo</title><h1>Downloader APT repository</h1><p>See <a href="https://github.com/bezzad/Downloader.Desktop#-linux">install instructions</a>.</p>' > _site/index.html
+          APT_GPG_PUBKEY=packaging/apt/pubkey.gpg ./scripts/build-apt-repo.sh _site/apt dist/Downloader_*_amd64.deb
+
+      - name: Upload Pages artifact
+        if: env.APT_KEY != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        if: env.APT_KEY != ''
+        uses: actions/deploy-pages@v4
+
+  # Windows MSIX package (self-signed, for sideload testing). Store submission is author-gated and done
+  # from Partner Center (see packaging/msix/README.md); this only produces + uploads the .msix artifact.
+  msix:
+    name: Windows MSIX (self-signed)
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the released win-x64 zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" -p 'Downloader-win-x64.zip' -O win.zip
+          Expand-Archive win.zip -DestinationPath pub -Force
+        shell: pwsh
+
+      - name: Build + self-sign the MSIX
+        run: ./scripts/build-msix.ps1 -Version ($env:GITHUB_REF_NAME.TrimStart('v')) -PublishDir pub
+        shell: pwsh
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Downloader-msix
+          path: |
+            dist/msix/*.msix
+            dist/msix/*.cer
+
   # Single post-matrix job that guarantees notes WITHOUT the create-race above: it runs once after all
   # builds and only fills in GitHub's auto "What's Changed" if the body is still empty — so it never
   # clobbers the curated notes that scripts/release.sh sets.

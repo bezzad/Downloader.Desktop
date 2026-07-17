@@ -11,6 +11,7 @@ namespace Downloader.Desktop.ViewModels;
 /// </summary>
 public class DonateViewModel : ViewModelBase
 {
+    public const string GitHubSponsorsUrl = "https://github.com/sponsors/bezzad";
     public const string LiberapayUrl = "https://liberapay.com/bezzad/donate";
     public const string RepoUrl = "https://github.com/bezzad/Downloader.Desktop";
     public const string UsdtAddress = "0xFF6B6524BA90Fb7b0C5d5bE1D71903CBF0f8198a";
@@ -20,6 +21,7 @@ public class DonateViewModel : ViewModelBase
 
     public DonateViewModel()
     {
+        OpenSponsorsCommand = ReactiveCommand.Create(() => Open(GitHubSponsorsUrl));
         OpenLiberapayCommand = ReactiveCommand.Create(() => Open(LiberapayUrl));
         OpenRepoCommand = ReactiveCommand.Create(() => Open(RepoUrl));
         CopyUsdtCommand = ReactiveCommand.CreateFromTask(async () =>
@@ -42,6 +44,7 @@ public class DonateViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref _copied, value);
     }
 
+    public ICommand OpenSponsorsCommand { get; }
     public ICommand OpenLiberapayCommand { get; }
     public ICommand OpenRepoCommand { get; }
     public ICommand CopyUsdtCommand { get; }
