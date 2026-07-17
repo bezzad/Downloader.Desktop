@@ -13,18 +13,20 @@
          overflow behind the window when it's narrower than the panel); the page padding lives on the inner
          StackPanel margin (not ScrollViewer.Padding) so the bottom gap is part of the scrollable extent and
          the last card is fully reachable at scroll end. Mirrors the QueuesView fix. -->
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="14" Margin="28 22">
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="{i18n:Tr Sched_Title}" FontSize="22" FontWeight="SemiBold" />
-                    <TextBlock Text="{i18n:Tr Sched_Desc}"
-                               Foreground="{DynamicResource SystemBaseMediumColor}" />
-                </StackPanel>
-                <Button Grid.Column="1" Classes="accent" Content="{i18n:Tr Sched_Add}" Padding="14 8"
-                        VerticalAlignment="Center" Command="{Binding NewScheduleCommand}" />
-            </Grid>
+    <!-- Sticky page header (#7): title + New-schedule stay pinned while the cards scroll. -->
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="28 22 28 8">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{i18n:Tr Sched_Title}" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock Text="{i18n:Tr Sched_Desc}"
+                           Foreground="{DynamicResource SystemBaseMediumColor}" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="accent" Content="{i18n:Tr Sched_Add}" Padding="14 8"
+                    VerticalAlignment="Center" Command="{Binding NewScheduleCommand}" />
+        </Grid>
 
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="14" Margin="28 8 28 22">
             <ItemsControl ItemsSource="{Binding Schedules}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -79,4 +81,5 @@
             </ItemsControl>
         </StackPanel>
     </ScrollViewer>
+    </DockPanel>
 </UserControl>

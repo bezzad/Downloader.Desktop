@@ -92,6 +92,7 @@
   "Add_BulkClear": "Cancella",
   "Tooltip_Browse": "Sfoglia",
   "Settings_Title": "Impostazioni",
+  "Settings_SearchPlaceholder": "Cerca impostazioni…",
   "Settings_Reset": "Ripristina predefiniti",
   "Settings_ResetTip": "Ripristina ogni impostazione al valore predefinito",
   "Sec_General": "GENERALE",

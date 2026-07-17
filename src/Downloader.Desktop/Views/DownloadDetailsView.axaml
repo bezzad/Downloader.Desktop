@@ -21,7 +21,9 @@
         Title="{Binding WindowTitle}">
 
     <Panel>
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+    <!-- Distinct modal chrome (#17): a 2px live-accent border sets dialogs apart from the
+         neutral-bordered main window, so users see a foreground modal is open. -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="2"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
     <!-- Title bar shows the live "{percent}% {file name}" caption (next to the app icon). -->

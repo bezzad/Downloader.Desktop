@@ -92,6 +92,7 @@
   "Add_BulkClear": "Effacer",
   "Tooltip_Browse": "Parcourir",
   "Settings_Title": "Paramètres",
+  "Settings_SearchPlaceholder": "Rechercher un réglage…",
   "Settings_Reset": "Réinitialiser",
   "Settings_ResetTip": "Restaurer tous les paramètres à leurs valeurs par défaut",
   "Sec_General": "GÉNÉRAL",

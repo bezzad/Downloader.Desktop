@@ -92,6 +92,7 @@
   "Add_BulkClear": "Borrar",
   "Tooltip_Browse": "Examinar",
   "Settings_Title": "Ajustes",
+  "Settings_SearchPlaceholder": "Buscar ajustes…",
   "Settings_Reset": "Restablecer valores",
   "Settings_ResetTip": "Restaurar todos los ajustes a sus valores predeterminados",
   "Sec_General": "GENERAL",

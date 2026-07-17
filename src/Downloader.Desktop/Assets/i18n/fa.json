@@ -92,6 +92,7 @@
   "Add_BulkClear": "پاک کردن",
   "Tooltip_Browse": "انتخاب",
   "Settings_Title": "تنظیمات",
+  "Settings_SearchPlaceholder": "جستجوی تنظیمات…",
   "Settings_Reset": "بازنشانی به پیش‌فرض",
   "Settings_ResetTip": "بازگرداندن همهٔ تنظیمات به مقادیر پیش‌فرض",
   "Sec_General": "عمومی",

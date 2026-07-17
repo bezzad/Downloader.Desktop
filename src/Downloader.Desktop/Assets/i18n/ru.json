@@ -92,6 +92,7 @@
   "Add_BulkClear": "Очистить",
   "Tooltip_Browse": "Обзор",
   "Settings_Title": "Настройки",
+  "Settings_SearchPlaceholder": "Поиск настроек…",
   "Settings_Reset": "Сбросить по умолчанию",
   "Settings_ResetTip": "Восстановить все настройки до значений по умолчанию",
   "Sec_General": "ОБЩИЕ",

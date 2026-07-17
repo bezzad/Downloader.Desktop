@@ -92,6 +92,7 @@
   "Add_BulkClear": "Temizle",
   "Tooltip_Browse": "Gözat",
   "Settings_Title": "Ayarlar",
+  "Settings_SearchPlaceholder": "Ayarlarda ara…",
   "Settings_Reset": "Varsayılanlara sıfırla",
   "Settings_ResetTip": "Her ayarı varsayılan değerine geri yükle",
   "Sec_General": "GENEL",

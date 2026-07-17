@@ -92,6 +92,7 @@
   "Add_BulkClear": "Löschen",
   "Tooltip_Browse": "Durchsuchen",
   "Settings_Title": "Einstellungen",
+  "Settings_SearchPlaceholder": "Einstellungen durchsuchen…",
   "Settings_Reset": "Auf Standard zurücksetzen",
   "Settings_ResetTip": "Jede Einstellung auf ihren Standardwert zurücksetzen",
   "Sec_General": "ALLGEMEIN",

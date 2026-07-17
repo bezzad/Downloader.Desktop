@@ -92,6 +92,7 @@
   "Add_BulkClear": "Limpar",
   "Tooltip_Browse": "Procurar",
   "Settings_Title": "Configurações",
+  "Settings_SearchPlaceholder": "Pesquisar configurações…",
   "Settings_Reset": "Restaurar padrões",
   "Settings_ResetTip": "Restaurar todas as configurações para o valor padrão",
   "Sec_General": "GERAL",

@@ -92,6 +92,7 @@
   "Add_BulkClear": "クリア",
   "Tooltip_Browse": "参照",
   "Settings_Title": "設定",
+  "Settings_SearchPlaceholder": "設定を検索…",
   "Settings_Reset": "既定値にリセット",
   "Settings_ResetTip": "すべての設定を既定値に戻します",
   "Sec_General": "一般",

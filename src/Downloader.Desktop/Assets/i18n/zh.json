@@ -92,6 +92,7 @@
   "Add_BulkClear": "清除",
   "Tooltip_Browse": "浏览",
   "Settings_Title": "设置",
+  "Settings_SearchPlaceholder": "搜索设置…",
   "Settings_Reset": "恢复默认",
   "Settings_ResetTip": "将每项设置恢复为默认值",
   "Sec_General": "常规",

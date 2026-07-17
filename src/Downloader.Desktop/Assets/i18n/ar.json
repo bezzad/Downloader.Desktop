@@ -92,6 +92,7 @@
   "Add_BulkClear": "مسح",
   "Tooltip_Browse": "استعراض",
   "Settings_Title": "الإعدادات",
+  "Settings_SearchPlaceholder": "ابحث في الإعدادات…",
   "Settings_Reset": "إعادة التعيين",
   "Settings_ResetTip": "استعادة كل الإعدادات إلى قيمها الافتراضية",
   "Sec_General": "عام",

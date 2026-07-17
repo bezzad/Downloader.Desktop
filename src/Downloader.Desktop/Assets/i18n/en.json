@@ -92,6 +92,7 @@
   "Add_BulkClear": "Clear",
   "Tooltip_Browse": "Browse",
   "Settings_Title": "Settings",
+  "Settings_SearchPlaceholder": "Search settings…",
   "Settings_Reset": "Reset to defaults",
   "Settings_ResetTip": "Restore every setting to its default value",
   "Sec_General": "GENERAL",

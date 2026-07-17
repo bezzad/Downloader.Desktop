@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Downloader;
@@ -213,6 +215,52 @@ public class AppTests
         manager.RaiseStatsForTest();
 
         Assert.Equal(DownloadItemViewModel.FormatBytes(2 * 1024 * 1024), main.TotalDownloadedText);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Settings_sections_are_expanders_expanded_by_default_and_search_filters_options()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var view = new Views.SettingView { DataContext = new SettingViewModel(config, manager) };
+        var window = new Window { Content = view };
+        window.Show();
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<StackPanel>()
+                .First(p => p.Name == "SectionsPanel");
+            var sections = panel.Children.OfType<Expander>().ToList();
+
+            // #16: every section (incl. Plugins and Advanced) is a collapsible Expander, expanded by default.
+            Assert.True(sections.Count >= 6, $"expected >= 6 section expanders, got {sections.Count}");
+            Assert.All(sections, s => Assert.True(s.IsExpanded, $"'{s.Header}' should start expanded"));
+
+            // #15: searching narrows to matching rows/sections; "notif" lives in General + Notifications.
+            view.ApplyFilter("notif");
+            var visible = sections.Where(s => s.IsVisible).Select(s => s.Header?.ToString()).ToList();
+            Assert.Contains(visible, h => h?.Contains("Notification", StringComparison.OrdinalIgnoreCase) == true);
+            Assert.DoesNotContain(visible, h => h?.Contains("Logging", StringComparison.OrdinalIgnoreCase) == true);
+
+            // Matching rows stay, non-matching rows in a visible section hide.
+            var general = sections.First(s =>
+                s.Header?.ToString()?.Contains("General", StringComparison.OrdinalIgnoreCase) == true);
+            Assert.True(general.IsVisible); // holds the notifications master switch
+            var generalRows = general.GetLogicalDescendants().OfType<Grid>()
+                .Where(g => g.Classes.Contains("field")).ToList();
+            Assert.Contains(generalRows, r => r.IsVisible);
+            Assert.Contains(generalRows, r => !r.IsVisible);
+
+            // Clearing restores everything.
+            view.ApplyFilter("");
+            Assert.All(sections, s => Assert.True(s.IsVisible));
+            Assert.All(generalRows, r => Assert.True(r.IsVisible));
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

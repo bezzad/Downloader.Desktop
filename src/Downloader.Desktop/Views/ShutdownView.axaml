@@ -21,7 +21,9 @@
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Shutting down">
 
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+    <!-- Distinct modal chrome (#17): a 2px live-accent border sets dialogs apart from the
+         neutral-bordered main window, so users see a foreground modal is open. -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="2"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
         <DockPanel>
             <v:TitleBar DockPanel.Dock="Top" Title="{Binding Title}" ShowMinMax="False" />

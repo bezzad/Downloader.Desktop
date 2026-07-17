@@ -218,5 +218,10 @@ public class CaptureScreenshots
         };
         upd.Show();
         Save(upd, "update-dialog-dark.png");
+
+        // About dialog — verifies the distinct modal chrome (#17: accent border vs the main window).
+        var about = new AboutView { DataContext = new AboutViewModel() };
+        about.Show();
+        Save(about, "about-dark.png");
     }
 }
