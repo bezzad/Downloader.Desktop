@@ -58,3 +58,19 @@ in `packaging/msix/README.md`). Not submitted (external, author-gated).
 - Actual GitHub Sponsors enrollment (bank/Stripe) — author only.
 - Microsoft Store submission + Partner Center registration — author only.
 - Enabling GitHub Pages on the repo (Settings → Pages → GitHub Actions) — author only.
+
+## Released in v2.2.0 (2026-07-18)
+
+- Tag `v2.2.0` on `main` (release commit `82bc441`); GitHub Release live with all assets incl.
+  `Downloader_2.2.0_amd64.deb`. Notes: curated Highlights + auto changelog.
+- **APT repo LIVE** at https://bezzad.github.io/Downloader.Desktop/apt (Pages, build_type=workflow).
+  Verified end-to-end: `InRelease` signature validates against the served `pubkey.gpg`; the pooled
+  `.deb` is reachable; `Packages` lists `downloader 2.2.0`.
+- MSIX self-signed artifact built by the `msix` job. Homebrew tap → 2.2.0; winget PR
+  microsoft/winget-pkgs#403950; AUR `downloader-bin` 2.2.0; Snap published.
+- **CI fix during the release:** the `deb` job first failed at the `github-pages` environment gate —
+  it only allowed the `main` branch but a release runs on the tag `refs/tags/v2.2.0`, which blocked the
+  whole job (including the `.deb` attach). Fixed by adding a `v*` **tag** deployment-branch policy to
+  the `github-pages` environment (`POST .../environments/github-pages/deployment-branch-policies`,
+  `{name:"v*",type:"tag"}`) — a one-time repo-config change that also unblocks every future tag release;
+  no workflow edit needed. Re-ran the `deb` job → `.deb` attached + Pages deployed.
