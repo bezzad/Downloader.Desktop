@@ -11,7 +11,20 @@ namespace Downloader.Desktop.Tests.Unit;
 /// <summary>Pure-logic unit tests (no Avalonia runtime needed).</summary>
 public class LogicTests
 {
-    [Theory]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void CountUrls_counts_links_and_ignores_blanks()
+    {
+        Assert.Equal(0, AddDownloadItemViewModel.CountUrls(""));
+        Assert.Equal(0, AddDownloadItemViewModel.CountUrls(null));
+        Assert.Equal(1, AddDownloadItemViewModel.CountUrls("https://h/a.zip"));
+        Assert.Equal(3, AddDownloadItemViewModel.CountUrls("https://h/a\n\nhttps://h/b\n  \nhttps://h/c\n"));
+
+        // A huge paste is above the bulk threshold → the paste handlers route it to bulk mode.
+        var big = string.Join("\n", System.Linq.Enumerable.Range(0, 2000).Select(i => $"https://h/f{i}.mp4"));
+        Assert.True(AddDownloadItemViewModel.CountUrls(big) > AddDownloadItemViewModel.BulkPreviewThreshold);
+    }
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("v1.1.0", true)]   // newer minor
     [InlineData("v2.0.0", true)]   // newer major
     [InlineData("v1.0.1", true)]   // newer patch
@@ -26,7 +39,7 @@ public class LogicTests
         Assert.Equal(expected, UpdateService.IsNewer(tag, new Version(1, 0, 0)));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void UpdateService_reports_a_real_patch_version_and_ignores_its_own_release()
     {
         // Regression (#update-false-alarm): AssemblyVersion used to be pinned to major.minor.0.0, so the
@@ -39,7 +52,7 @@ public class LogicTests
             "The next patch up should still register as an update.");
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void UpdateService_ExpectedAssetName_matches_release_naming()
     {
         var name = UpdateService.ExpectedAssetName();
@@ -47,7 +60,7 @@ public class LogicTests
         Assert.True(name.EndsWith(".zip") || name.EndsWith(".tar.gz"), name);
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("movie.mp4", "video")]
     [InlineData("clip.MKV", "video")]
     [InlineData("song.mp3", "audio")]
@@ -63,7 +76,7 @@ public class LogicTests
         Assert.Equal(expected, DownloadItemViewModel.GetFileKind(name));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ToConfiguration_maps_core_options()
     {
         var settings = new DownloadSettings
@@ -83,7 +96,7 @@ public class LogicTests
         Assert.Equal(long.MaxValue, cfg.MaximumBytesPerSecond);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ToConfiguration_clamps_out_of_range_values()
     {
         var settings = new DownloadSettings { ChunkCount = 0, BlockTimeout = 1, HttpClientTimeout = 1 };
@@ -94,13 +107,13 @@ public class LogicTests
         Assert.True(cfg.HttpClientTimeout >= 1000);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void DefaultFileExistPolicy_is_IgnoreDownload()
     {
         Assert.Equal(FileExistPolicy.IgnoreDownload, new DownloadSettings().FileExistPolicy);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Config_New_has_settings_and_default_queue()
     {
         var cfg = Config.New();
@@ -110,7 +123,7 @@ public class LogicTests
         Assert.NotNull(cfg.Downloads);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Config_round_trips_through_json()
     {
         var cfg = Config.New();
@@ -125,11 +138,11 @@ public class LogicTests
         Assert.Equal("file.zip", back.Downloads[0].FileName);
     }
 
-    // NOTE: Chunk_status_text_tracks_progress moved to AppTests as an [AvaloniaFact] — it reads
+    // NOTE: Chunk_status_text_tracks_progress moved to AppTests as an [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)] — it reads
     // Localizer strings, which are only loaded under the Avalonia headless runtime (AssetLoader). As a
-    // plain [Fact] it was order-dependent and flaky on CI (got the raw "State_Pending" key).
+    // plain [Fact(Timeout = TestTimeouts.DefaultMs)] it was order-dependent and flaky on CI (got the raw "State_Pending" key).
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("http://127.0.0.1:15151/add?url=https%3A%2F%2Fhost%2Ffile.zip", "https://host/file.zip")]
     [InlineData("http://127.0.0.1:15151/add?foo=1&url=https://host/a.bin", "https://host/a.bin")]
     [InlineData("http://127.0.0.1:15151/add?url=", null)]
@@ -139,7 +152,7 @@ public class LogicTests
         Assert.Equal(expected, LocalApiService.ExtractUrl(new System.Uri(requestUri)));
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(45, "45s")]
     [InlineData(83, "1m 23s")]
     [InlineData(3900, "1h 5m")]
@@ -149,14 +162,14 @@ public class LogicTests
         Assert.Equal(expected, DownloadItemViewModel.FormatDuration(seconds));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void FormatDuration_handles_non_finite()
     {
         Assert.Equal("—", DownloadItemViewModel.FormatDuration(double.PositiveInfinity));
         Assert.Equal("—", DownloadItemViewModel.FormatDuration(double.NaN));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void LooksAlreadyDownloaded_only_for_ignore_policy_and_existing_file()
     {
         var tmp = System.IO.Path.GetTempFileName(); // a real, existing file
@@ -175,7 +188,7 @@ public class LogicTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void SingleInstance_FirstUrl_picks_the_first_http_arg()
     {
         Assert.Equal("https://host/a.zip",
@@ -186,7 +199,7 @@ public class LogicTests
         Assert.Null(SingleInstanceService.FirstUrl(null));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void About_links_are_wellformed()
     {
         Assert.StartsWith("https://github.com/bezzad", AboutViewModel.RepoUrl);
@@ -195,7 +208,14 @@ public class LogicTests
         Assert.Contains("@", AboutViewModel.Email);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Donate_links_include_github_sponsors()
+    {
+        Assert.Equal("https://github.com/sponsors/bezzad", DonateViewModel.GitHubSponsorsUrl);
+        Assert.StartsWith("https://liberapay.com/bezzad", DonateViewModel.LiberapayUrl);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Localizer_lists_all_shipped_languages()
     {
         // The 9 original packs + the 7 added in Round 15.
@@ -204,7 +224,7 @@ public class LogicTests
             Assert.Contains(Localizer.Languages, l => l.Code == code);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void DownloadItem_FilePath_combines_folder_and_name()
     {
         var item = new DownloadItem { SaveFolder = "/tmp/dl", FileName = "a.bin" };
@@ -215,7 +235,7 @@ public class LogicTests
         Assert.Equal("/tmp/dl", noName.FilePath);
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(401_000_000L, 2_000_000L, true)]    // resumed 382MB file "completed" at 2MB -> corrupted
     [InlineData(401_000_000L, 400_000_000L, true)]  // resumed but finished smaller than known -> corrupted
     [InlineData(100L, 60L, true)]                   // resumed, finished smaller than known -> corrupted
@@ -228,7 +248,7 @@ public class LogicTests
         Assert.Equal(expected, DownloadManager.LooksCorruptedAfterResume(knownSize, final));
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("<!DOCTYPE html><html><head><title>403</title></head>", 1_200L, true)]   // expired -> HTML error page
     [InlineData("  <html><body>Access denied</body></html>", 800L, true)]                 // anti-bot HTML
     [InlineData("<?xml version=\"1.0\"?><error/>", 500L, true)]                            // XML error body
@@ -242,7 +262,7 @@ public class LogicTests
         Assert.Equal(expected, DownloadManager.LooksExpiredOrInvalid(head, totalBytes));
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("https://hermes-agent.nousresearch.com/docs/", true)]  // the reported false-failure
     [InlineData("https://host/", true)]
     [InlineData("https://host/blog/post", true)]

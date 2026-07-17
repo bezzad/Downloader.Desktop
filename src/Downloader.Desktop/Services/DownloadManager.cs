@@ -264,20 +264,72 @@ public partial class DownloadManager : IDownloadManager
 
     public DownloadItemViewModel Add(DownloadItem item, bool autoStart)
     {
+        var vm = AddCore(item, probeName: true);
+        if (autoStart)
+            PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
+        NotifyList();
+        return vm;
+    }
+
+    /// <summary>How many rows a bulk add appends per UI-thread slice before yielding.</summary>
+    internal const int AddSliceSize = 50;
+
+    /// <summary>
+    /// Adds many items without freezing the UI (the 2k-link "Download → 2 min hang"): rows are appended
+    /// in slices of <see cref="AddSliceSize"/>, notifications fire once per slice (not per row), the
+    /// queue pump runs once per slice, and a 1 ms await between slices lets the dispatcher breathe —
+    /// the caller can close the Add dialog first and watch the rows stream in. Large batches also skip
+    /// the per-item network name probe (mirror of the Add dialog's no-probing rule); names resolve when
+    /// each download actually starts.
+    /// </summary>
+    public async Task AddRangeAsync(IReadOnlyList<DownloadItem> items, bool autoStart)
+    {
+        if (items == null || items.Count == 0)
+            return;
+
+        var probeNames = items.Count <= AddSliceSize; // small adds keep today's instant name preview
+        var queues = new HashSet<string>();
+        for (var i = 0; i < items.Count; i += AddSliceSize)
+        {
+            var end = Math.Min(i + AddSliceSize, items.Count);
+            RunBatch(() =>
+            {
+                for (var j = i; j < end; j++)
+                {
+                    var item = items[j];
+                    AddCore(item, probeNames);
+                    queues.Add(item.QueueId);
+                }
+            });
+            if (autoStart)
+                foreach (var q in queues)
+                    PumpQueue(q);
+            await Task.Delay(1); // yield the UI thread between slices
+        }
+    }
+
+    private DownloadItemViewModel AddCore(DownloadItem item, bool probeName)
+    {
         if (string.IsNullOrWhiteSpace(item.QueueId) && _config != null)
             item.QueueId = _config.DefaultQueue.Id;
 
         var vm = new DownloadItemViewModel(item, this);
         Items.Add(vm);
-        if (autoStart)
-            PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
 
-        // Resolve a display name in the background so items still waiting on a queue slot show their
-        // file name instead of "Fetching name…" until they actually start (#4).
         if (string.IsNullOrWhiteSpace(item.FileName))
-            _ = ResolvePreviewNameAsync(vm);
+        {
+            // Free, instant: any name embedded in the URL — so no row ever shows "Fetching name…"
+            // even in a huge batch where the network probe is skipped.
+            var quick = UrlResolver.NameFromUrl(item.Url);
+            if (!string.IsNullOrWhiteSpace(quick))
+                vm.PreviewName = quick;
+            // Full name+size probe in the background (#4) — single adds only; a 2k batch must not
+            // fire 2k probes.
+            if (probeName)
+                _ = ResolvePreviewNameAsync(vm);
+        }
 
-        NotifyList();
+        NotifyList(); // coalesced to once per slice inside RunBatch
         return vm;
     }
 
@@ -358,6 +410,12 @@ public partial class DownloadManager : IDownloadManager
         {
             await Task.Run(async () =>
             {
+                // The user may stop/remove the row while this off-thread setup runs (Stop right after
+                // Add): Cancel then finds no engine handle to cancel and just marks the row Stopped —
+                // so never start an engine for a row that's no longer Running.
+                if (vm.Status != DownloadStatus.Running)
+                    return;
+
                 // A plugin transfer provider that claims the URL (e.g. "websitezip:", "magnet:") owns the
                 // whole download — checked before link resolution so a claimed scheme never round-trips
                 // through resolvers. RunTransferAsync owns the row's terminal state.
@@ -417,6 +475,14 @@ public partial class DownloadManager : IDownloadManager
                 var download = new DownloadService(configuration, AppLog.Factory);
                 // Subscribe before starting so no early event is missed (handlers marshal to UI themselves).
                 Attach(vm, download);
+
+                // Re-check after the (slow) redirect resolution: a Stop that arrived meanwhile marked
+                // the row Stopped without an engine to cancel — release this one instead of starting it.
+                if (vm.Status != DownloadStatus.Running)
+                {
+                    ReleaseEngine(vm);
+                    return;
+                }
 
                 if (!string.IsNullOrWhiteSpace(fileName))
                     await download.DownloadFileTaskAsync(urls, Path.Combine(folder ?? string.Empty, fileName))
@@ -707,6 +773,9 @@ public partial class DownloadManager : IDownloadManager
     }
 
     private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
+
+    /// <summary>Test seam: fire the stats pump event so status-bar readouts recompute.</summary>
+    public void RaiseStatsForTest() => StatsChanged?.Invoke();
 
     /// <summary>Test seam: runs the same post-completion bookkeeping the engine's completed handler does,
     /// without a real download (mark Completed → pump the queue → maybe raise all-complete).</summary>
@@ -1133,10 +1202,31 @@ public partial class DownloadManager : IDownloadManager
     /// </summary>
     private void FinishTerminal(DownloadItemViewModel vm)
     {
+        // Release the engine as soon as the row reaches an end state (Completed/Failed/Stopped) — this is
+        // the fix for the reported leak (#11): thousands of finished rows each kept their DownloadService
+        // (package + chunk buffers) alive, so memory climbed to GBs and only a restart cleared it. Paused
+        // is NOT terminal, so its engine is kept for Resume (and the engine's Pause() never fires this).
+        if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
+            ReleaseEngine(vm);
+
         TryStartNextInQueue(vm.GetItem().QueueId);
         if (vm.Status == DownloadStatus.Completed)
             MaybeAllCompleted();
         NotifyList();
+    }
+
+    /// <summary>Dispose a finished row's engine so its package + buffers can be garbage-collected. The row's
+    /// display/resume state (name, size, downloaded, progress, status, folder, urls) is model-backed on the
+    /// VM and survives; a later Resume/Retry rebuilds a fresh DownloadService in <see cref="Start"/> exactly
+    /// like a first start (engine auto-resume + the on-disk .download file continue the bytes).</summary>
+    private static void ReleaseEngine(DownloadItemViewModel vm)
+    {
+        var engine = vm.Download;
+        if (engine == null)
+            return;
+        vm.Download = null; // drop the reference first so no late staged flush touches a disposed instance
+        try { engine.Dispose(); }
+        catch { /* best-effort — releasing memory must never surface an error to the user */ }
     }
 
     /// <summary>If the resolving plugin offers an action for this completed item (e.g. "Add to Ollama"),

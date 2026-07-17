@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Downloader.Desktop.Models;
@@ -54,6 +55,9 @@ public interface IDownloadManager
 
     /// <summary>Adds a new download descriptor and (optionally) starts it immediately.</summary>
     DownloadItemViewModel Add(DownloadItem item, bool autoStart);
+
+    /// <summary>Adds many items in UI-yielding slices with coalesced notifications (bulk add).</summary>
+    Task AddRangeAsync(IReadOnlyList<DownloadItem> items, bool autoStart);
 
     /// <summary>Runs a bulk action, coalescing its many list-change notifications into one refresh.</summary>
     void Batch(Action action);

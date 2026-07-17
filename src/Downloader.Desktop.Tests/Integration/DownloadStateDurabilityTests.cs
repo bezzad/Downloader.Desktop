@@ -18,7 +18,7 @@ namespace Downloader.Desktop.Tests.Integration;
 /// </summary>
 public class DownloadStateDurabilityTests
 {
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void StopAll_survives_a_restart_with_no_schedules_configured()
     {
         // Session 1: add a few items, some running, some already queued, then Stop All.
@@ -43,7 +43,7 @@ public class DownloadStateDurabilityTests
         Assert.DoesNotContain(manager2.Items, vm => vm.Status is DownloadStatus.Running or DownloadStatus.Created or DownloadStatus.None);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Schedule_that_already_fired_today_does_not_refire_on_restart()
     {
         var manager1 = new DownloadManager();
@@ -73,7 +73,7 @@ public class DownloadStateDurabilityTests
         Assert.Equal(DownloadStatus.Stopped, vm2.Status);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Schedule_that_has_not_fired_today_still_fires_normally()
     {
         // The "catch-up" case this fix must NOT break: a schedule that legitimately hasn't fired yet today

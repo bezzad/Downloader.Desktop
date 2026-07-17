@@ -45,13 +45,29 @@ public class SchedulerViewModel : ViewModelBase
     {
         var schedule = new DownloadSchedule
         {
-            Name = "New schedule",
+            // Numbered ("Schedule 1", "Schedule 2", …), NOT the "New schedule" button label — a new
+            // item named like the button confused users about which one is the action (#14).
+            Name = NextScheduleName(),
             StartTime = DateTime.Now.TimeOfDay,
             TargetQueueId = _config.Queues.FirstOrDefault()?.Id,
             Enabled = true
         };
         _config.Schedules.Add(schedule);
         Schedules.Add(new ScheduleRowViewModel(schedule, _config, this));
+    }
+
+    /// <summary>Smallest "Schedule {n}" not already taken by an existing schedule name.</summary>
+    private string NextScheduleName()
+    {
+        var format = Services.Localizer.Instance["Sched_DefaultName"]; // "Schedule {0}"
+        var existing = new HashSet<string>(
+            _config.Schedules.Select(s => s.Name).Where(n => !string.IsNullOrEmpty(n)));
+        for (var n = 1; ; n++)
+        {
+            var name = string.Format(format, n);
+            if (!existing.Contains(name))
+                return name;
+        }
     }
 
     public void Remove(ScheduleRowViewModel row)

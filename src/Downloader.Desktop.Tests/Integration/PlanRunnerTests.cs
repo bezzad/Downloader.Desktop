@@ -28,7 +28,7 @@ public class PlanRunnerTests
         Parts = names.Select(n => new PersistedPart { Url = baseUrl + n }).ToList()
     };
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Happy_path_downloads_all_parts_in_order_assembles_and_cleans_up()
     {
         var parts = new Dictionary<string, byte[]>
@@ -64,7 +64,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Per_part_headers_reach_the_server()
     {
         var parts = new Dictionary<string, byte[]> { ["seg.ts"] = Bytes("X", 2000) };
@@ -88,7 +88,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Restart_resume_only_fetches_missing_parts()
     {
         var parts = new Dictionary<string, byte[]>
@@ -120,7 +120,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Cancel_removes_the_parts_folder_and_returns_null()
     {
         var parts = new Dictionary<string, byte[]> { ["a.ts"] = Bytes("A", 3000), ["b.ts"] = Bytes("B", 3000) };
@@ -140,7 +140,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Missing_post_processor_throws_and_keeps_parts_for_retry()
     {
         var parts = new Dictionary<string, byte[]> { ["a.ts"] = Bytes("A", 2000), ["b.ts"] = Bytes("B", 2000) };
@@ -162,7 +162,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Single_part_none_plan_does_not_need_the_runner()
     {
         // The Start branch: single part + PostProcess.None keeps today's legacy engine path (no parts folder).
@@ -178,7 +178,7 @@ public class PlanRunnerTests
 
     // ---- HLS perf + assembly-naming fixes (fix-hls-segment-perf-and-assembly) ----
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Segment_and_small_parts_are_single_chunk()
     {
         // Segments always single-chunk (their size is usually unknown); known-small parts too;
@@ -190,7 +190,7 @@ public class PlanRunnerTests
         Assert.False(DownloadManager.IsSingleChunkPart(new PersistedPart { Kind = PartKind.Combined })); // unknown size, not a segment
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Assembling_path_keeps_the_extension_last()
     {
         // ffmpeg picks its muxer from the extension: "x.mp4.assembling" fails, "x.assembling.mp4" works.
@@ -198,7 +198,7 @@ public class PlanRunnerTests
         Assert.Equal(Path.Combine("d", "noext.assembling"), DownloadManager.AssemblingPath(Path.Combine("d", "noext")));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Playlist_final_names_normalize_to_media_extensions()
     {
         var mux = new PersistedPlan { PostProcessKind = PostProcessKind.Mux };
@@ -215,7 +215,7 @@ public class PlanRunnerTests
         Assert.Equal("list.m3u8", DownloadManager.NormalizeAssembledName("list.m3u8", none));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Parallel_segments_assemble_in_order()
     {
         // 6 segment parts (parallel mode) with distinct bytes → the concat output must be in index order.
@@ -241,7 +241,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Parallel_segments_actually_download_concurrently()
     {
         // Author-reported: segments appeared to download serially. Prove the bounded-parallel loop
@@ -269,7 +269,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Run_state_tracks_every_segment_to_done()
     {
         // The details dialog renders PlanRunState as waiting/downloading/done rows — the runner must
@@ -302,7 +302,7 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Persisted_plan_round_trips_through_json()
     {
         var plan = new DownloadPlan

@@ -21,8 +21,13 @@
         FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
         Title="Shutting down">
 
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+    <!-- Distinct modal chrome (#17): a 1px live-accent border sets dialogs apart from the
+         neutral-bordered main window, so users see a foreground modal is open. -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+    <!-- Avalonia clips children to the RECT, not the corner radius — this inner
+         rounded border is what keeps square content (the title bar) out of the arc. -->
+    <Border CornerRadius="9" ClipToBounds="True">
         <DockPanel>
             <v:TitleBar DockPanel.Dock="Top" Title="{Binding Title}" ShowMinMax="False" />
             <StackPanel Margin="22 16 22 18" Spacing="14" VerticalAlignment="Center">
@@ -44,5 +49,6 @@
                 </StackPanel>
             </StackPanel>
         </DockPanel>
+    </Border>
     </Border>
 </Window>

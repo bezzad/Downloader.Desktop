@@ -136,7 +136,7 @@ cd "$(git rev-parse --show-toplevel)" || die "not inside a git repository"
 # Runs on ANY exit (success or die) so a failed run still reports what shipped and
 # gives back the stashed working tree.
 STASHED="no"
-S_RELEASE="not started"; S_NOTES="not started"; S_BREW="not started"; S_WINGET="not started"
+S_RELEASE="not started"; S_NOTES="not started"; S_BREW="not started"; S_WINGET="not started"; S_AUR="not started"
 finish() {
   local rc=$?
   if [[ "$STASHED" == "yes" ]]; then
@@ -156,6 +156,7 @@ finish() {
     echo "    Snap Store     : CI (snap.yml) — gh run list --repo $REPO --workflow Snap"
     echo "    Homebrew       : $S_BREW"
     echo "    winget         : $S_WINGET"
+    echo "    AUR (yay)      : $S_AUR"
     if [[ $rc -ne 0 ]]; then
       echo "    exit code $rc — re-run 'scripts/release.sh ${VERSION:-}' to resume;"
       echo "    every post-tag step is idempotent."
@@ -484,6 +485,63 @@ if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
 else
   warn "winget: missing win-x64 sha or $WINGET_DIR — skipping"
   S_WINGET="SKIPPED — missing win-x64 sha or $WINGET_DIR"
+fi
+
+# --- 7. AUR (downloader-bin for Arch/yay) -----------------------------------
+# Rewrites the in-repo packaging/aur/{PKGBUILD,.SRCINFO} for the new version + tarball sha256,
+# then pushes to the AUR when SSH access is configured. First publish needs the author's AUR
+# account with this machine's SSH key registered (https://aur.archlinux.org → My Account);
+# until then the step updates the mirror and no-ops the push with a clear message.
+step "Updating AUR package (downloader-bin)"
+AUR_DIR="packaging/aur"
+LIN_SHA="$(sha256_of_asset "$TAG" "Downloader-linux-x64.tar.gz")"
+if [[ -n "$LIN_SHA" && -d "$AUR_DIR" ]]; then
+  ok "linux-x64 sha256 = $LIN_SHA"
+  sedi -E "s|^pkgver=.*|pkgver=$VERSION|" "$AUR_DIR/PKGBUILD"
+  sedi -E "s|^pkgrel=.*|pkgrel=1|" "$AUR_DIR/PKGBUILD"
+  sedi -E "s|^(sha256sums=\(')[a-f0-9A-F]*(')|\1$LIN_SHA\2|" "$AUR_DIR/PKGBUILD"
+  sedi -E "s|pkgver = .*|pkgver = $VERSION|" "$AUR_DIR/.SRCINFO"
+  sedi -E "s|pkgrel = .*|pkgrel = 1|" "$AUR_DIR/.SRCINFO"
+  sedi -E "s|(Downloader-)[0-9.]+(-linux-x64.tar.gz)|\1$VERSION\2|g" "$AUR_DIR/.SRCINFO"
+  sedi -E "s|/v[0-9.]+/|/v$VERSION/|g" "$AUR_DIR/.SRCINFO"
+  sedi -E "s|(LICENSE-)[0-9.]+|\1$VERSION|g; s|(downloader-)[0-9.]+(\.png)|\1$VERSION\2|g" "$AUR_DIR/.SRCINFO"
+  # Only the first sum is a real hash (the LICENSE/icon lines are "SKIP"), so a hex-only match is safe.
+  sedi -E "s|sha256sums = [a-f0-9A-F]{64}|sha256sums = $LIN_SHA|" "$AUR_DIR/.SRCINFO"
+  if [[ -n "$(git status --porcelain "$AUR_DIR")" ]]; then
+    git add "$AUR_DIR"
+    gcommit . "chore(release): bump AUR package to $VERSION"
+    retry git push origin "$DEV_BRANCH"
+    ok "AUR mirror updated + pushed"
+  else
+    warn "AUR mirror already matches"
+  fi
+  # Push to the AUR itself (ssh://aur@aur.archlinux.org/downloader-bin.git).
+  if ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new aur@aur.archlinux.org help >/dev/null 2>&1; then
+    AURTMP="$(mktemp -d)"
+    if retry git clone --quiet "ssh://aur@aur.archlinux.org/downloader-bin.git" "$AURTMP"; then
+      cp "$AUR_DIR/PKGBUILD" "$AUR_DIR/.SRCINFO" "$AURTMP/"
+      if [[ -n "$(git -C "$AURTMP" status --porcelain)" ]]; then
+        git -C "$AURTMP" add PKGBUILD .SRCINFO
+        gcommit "$AURTMP" "downloader-bin $VERSION"
+        retry git -C "$AURTMP" push --quiet
+        ok "pushed downloader-bin $VERSION to the AUR"
+        S_AUR="published $VERSION (yay -S downloader-bin)"
+      else
+        warn "AUR package already up to date"
+        S_AUR="already at $VERSION"
+      fi
+    else
+      warn "AUR: clone failed — check the package exists and your key is registered"
+      S_AUR="CHECK — clone of downloader-bin.git failed"
+    fi
+    rm -rf "${AURTMP:-}"
+  else
+    warn "AUR: no SSH access (register this machine's key at aur.archlinux.org) — mirror updated, push skipped"
+    S_AUR="mirror updated; push skipped (AUR SSH key not configured)"
+  fi
+else
+  warn "AUR: missing linux-x64 sha or $AUR_DIR — skipping"
+  S_AUR="SKIPPED — missing linux-x64 sha or $AUR_DIR"
 fi
 
 # --- done ------------------------------------------------------------------

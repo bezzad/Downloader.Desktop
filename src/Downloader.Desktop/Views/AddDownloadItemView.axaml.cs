@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -52,9 +53,27 @@ public partial class AddDownloadItemView : Window
     /// <summary>While the links box is empty and a clipboard suggestion is showing, Enter or Tab accepts it
     /// (populating the real box). Otherwise keep normal typing behaviour (Enter/Shift+Enter insert newlines
     /// in this multi-line box).</summary>
-    private void OnUrlBoxKeyDown(object sender, KeyEventArgs e)
+    private async void OnUrlBoxKeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is not AddDownloadItemViewModel vm || !vm.ShowClipboardSuggestion)
+        if (DataContext is not AddDownloadItemViewModel vm)
+            return;
+
+        // Intercept paste (tunnel) so a large list never lays out in the multi-line TextBox (the freeze);
+        // route it through the VM, which switches to the bulk summary above the threshold.
+        if (UrlBoxPaste.IsPasteGesture(e))
+        {
+            e.Handled = true;
+            var text = await UrlBoxPaste.ReadTextAsync(this);
+            if (string.IsNullOrEmpty(text))
+                return;
+            var current = UrlBox.Text ?? string.Empty;
+            var caret = Math.Clamp(UrlBox.CaretIndex, 0, current.Length);
+            vm.Urls = current.Substring(0, caret) + text + current.Substring(caret);
+            UrlBox.CaretIndex = Math.Min(caret + text.Length, (UrlBox.Text ?? string.Empty).Length);
+            return;
+        }
+
+        if (!vm.ShowClipboardSuggestion)
             return;
         if (e.Key != Key.Enter && e.Key != Key.Tab)
             return;

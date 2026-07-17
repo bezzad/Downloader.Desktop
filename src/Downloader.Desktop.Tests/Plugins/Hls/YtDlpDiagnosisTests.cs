@@ -27,7 +27,7 @@ public class YtDlpDiagnosisTests
     private readonly ITestOutputHelper _out;
     public YtDlpDiagnosisTests(ITestOutputHelper output) => _out = output;
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Diagnose_youtube_extraction()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_NET") != "1")

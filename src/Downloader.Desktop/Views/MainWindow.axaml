@@ -50,12 +50,6 @@
         </Style>
     </Window.Styles>
 
-    <Window.DataTemplates>
-        <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
-        <DataTemplate DataType="vm:QueuesViewModel"><v:QueuesView /></DataTemplate>
-        <DataTemplate DataType="vm:SchedulerViewModel"><v:SchedulerView /></DataTemplate>
-        <DataTemplate DataType="vm:SettingViewModel"><v:SettingView /></DataTemplate>
-    </Window.DataTemplates>
 
     <Panel>
     <!-- Rounded window: transparent window + clipped rounded root border (#11) -->
@@ -76,7 +70,7 @@
                     <!-- AcceptsReturn so pasting multiple URLs (one per line) keeps the line breaks;
                          a single-line box would strip them and merge the URLs (#2). Enter still triggers
                          Add (handled in code-behind); Shift+Enter inserts a new line. -->
-                    <TextBox Grid.Column="0" Text="{Binding DownloadUrl}"
+                    <TextBox x:Name="TopUrlBox" Grid.Column="0" Text="{Binding DownloadUrl}"
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
                              AcceptsReturn="True" TextWrapping="NoWrap"
                              KeyDown="OnUrlBoxKeyDown"
@@ -250,6 +244,12 @@
                     <PathIcon Data="{StaticResource ArrowDownloadRegular}" Height="14"
                               Foreground="{DynamicResource SystemAccentColor}" />
                     <TextBlock Text="{Binding TotalSpeedText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <!-- Cumulative downloaded bytes across all rows (#18), beside the speed. -->
+                    <TextBlock Text="·" Opacity="0.5" VerticalAlignment="Center" />
+                    <PathIcon Data="{StaticResource CheckmarkRegular}" Height="14" Opacity="0.7"
+                              Foreground="{DynamicResource SystemAccentColor}" />
+                    <TextBlock Text="{Binding TotalDownloadedText}" VerticalAlignment="Center"
+                               ToolTip.Tip="{i18n:Tr Status_TotalDownloaded}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -274,6 +274,13 @@
                             <TextBlock Text="{i18n:Tr Status_Queued}" />
                         </StackPanel>
                     </Button>
+                    <Button Classes="filterpill" Classes.active="{Binding IsStoppedSelected}"
+                            Command="{Binding ShowStoppedCommand}" ToolTip.Tip="{i18n:Tr Status_Stopped}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding StoppedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Stopped}" />
+                        </StackPanel>
+                    </Button>
                     <Button Classes="filterpill" Classes.active="{Binding IsCompletedSelected}"
                             Command="{Binding ShowCompletedCommand}" ToolTip.Tip="{i18n:Tr Status_Done}">
                         <StackPanel Orientation="Horizontal" Spacing="5">
@@ -292,8 +299,10 @@
             </Grid>
         </Border>
 
-        <!-- ===== Central content: the downloads list or a management page (see the nav buttons) ===== -->
-        <ContentControl Content="{Binding CurrentPage}" />
+        <!-- ===== Central content: the downloads list or a management page. Views are cached and
+             reused across navigation (PageViewCache, wired in code-behind) — a DataTemplate here
+             would rebuild the whole page on every swap. ===== -->
+        <ContentControl x:Name="PageHost" />
     </DockPanel>
     </Border>
     <v:ResizeGrips />

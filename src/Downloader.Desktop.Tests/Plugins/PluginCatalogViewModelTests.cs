@@ -34,7 +34,7 @@ public class PluginCatalogViewModelTests
             AssetName = $"{id}.zip", AssetUrl = assetUrl, Sha256 = "abc", MinAppVersion = "1.0.0",
         };
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Catalog_lists_only_uninstalled_and_flags_updates_on_installed()
     {
         Localizer.Instance.Load("en");
@@ -61,7 +61,7 @@ public class PluginCatalogViewModelTests
         Assert.Equal("2.0.0", installed.PendingUpdate!.Version);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Adding_a_catalog_plugin_that_cannot_download_shows_an_error_and_keeps_the_row()
     {
         Localizer.Instance.Load("en");
@@ -81,7 +81,7 @@ public class PluginCatalogViewModelTests
         Assert.Empty(pm.Plugins);                     // nothing loaded
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Catalog_entries_requiring_a_newer_app_are_hidden()
     {
         Localizer.Instance.Load("en");

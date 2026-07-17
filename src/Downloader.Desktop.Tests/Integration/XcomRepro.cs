@@ -14,7 +14,7 @@ namespace Downloader.Desktop.Tests.Integration;
 /// Gated: DLDESKTOP_XCOM_REPRO must carry the page URL. Not part of the normal suite.</summary>
 public class XcomRepro
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Repro()
     {
         var url = Environment.GetEnvironmentVariable("DLDESKTOP_XCOM_REPRO");

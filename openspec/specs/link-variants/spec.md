@@ -57,3 +57,10 @@ When multiple enabled resolvers claim the same URL, the host SHALL collect varia
 #### Scenario: One failing lookup does not hide the rest
 - **WHEN** one claiming resolver's variant lookup throws and another returns variants
 - **THEN** the picker shows the successful resolver's variants
+
+### Requirement: Variants come only from the claiming resolver
+When multiple resolvers can claim a URL, the Add dialog SHALL show variants from exactly one winner (specific resolver over fallback); no other plugin's variants may be mixed in.
+
+#### Scenario: x.com link shows only video qualities
+- **WHEN** an x.com video link is entered and both the HLS and Website plugins could claim it
+- **THEN** only the HLS qualities are offered (no "Offline copy (.zip)" entry)

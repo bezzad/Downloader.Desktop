@@ -20,7 +20,7 @@ namespace Downloader.Desktop.Tests.Plugins;
 /// </summary>
 public class PluginDependencyInstallerTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void FfmpegBinary_dependency_is_unavailable_until_the_cached_exe_exists()
     {
         var dataDir = Directory.CreateTempSubdirectory("ffmpeg-dep-").FullName;
@@ -42,7 +42,7 @@ public class PluginDependencyInstallerTests
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void YtDlpBinary_declares_both_ytdlp_and_deno_dependencies()
     {
         var dataDir = Directory.CreateTempSubdirectory("ytdlp-dep-").FullName;
@@ -59,7 +59,7 @@ public class PluginDependencyInstallerTests
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void PluginManager_exposes_dependencies_declared_by_a_loaded_plugin()
     {
         var pm = new PluginManager();
@@ -71,7 +71,7 @@ public class PluginDependencyInstallerTests
         Assert.Equal("fake-dep", deps[0].Id);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void PluginManager_reports_no_dependencies_for_a_plugin_without_the_interface()
     {
         var pm = new PluginManager();
@@ -80,14 +80,14 @@ public class PluginDependencyInstallerTests
         Assert.Empty(pm.GetRuntimeDependencies(FakePlainPlugin.PluginId));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void PluginManager_reports_no_dependencies_for_an_unknown_plugin_id()
     {
         var pm = new PluginManager();
         Assert.Empty(pm.GetRuntimeDependencies("nope"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task EnsureAllAsync_downloads_a_missing_dependency_and_finishes_it()
     {
         var payload = new byte[64 * 1024];
@@ -121,7 +121,7 @@ public class PluginDependencyInstallerTests
         finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task EnsureAllAsync_finishes_an_existing_complete_archive_without_redownloading()
     {
         // An install-time fetch that downloaded fully but was killed before extraction: the archive sits
@@ -150,7 +150,7 @@ public class PluginDependencyInstallerTests
         finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task EnsureAllAsync_replaces_a_corrupt_archive_and_downloads_fresh()
     {
         // A truncated archive from an interrupted download: FinishInstall throws on it, so EnsureAll must
@@ -189,7 +189,7 @@ public class PluginDependencyInstallerTests
         finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Deno_finish_install_deletes_a_corrupt_archive_so_the_next_attempt_redownloads()
     {
         var dataDir = Directory.CreateTempSubdirectory("deno-corrupt-").FullName;
@@ -207,7 +207,7 @@ public class PluginDependencyInstallerTests
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task EnsureAllAsync_skips_dependencies_that_are_already_available()
     {
         using var server = new RangeLoopbackServer(new byte[16]);
@@ -228,7 +228,7 @@ public class PluginDependencyInstallerTests
         Assert.False(File.Exists(dep.DownloadDestination));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task EnsureAllAsync_throws_and_does_not_download_when_already_cancelled()
     {
         using var server = new RangeLoopbackServer(new byte[16]);
@@ -251,7 +251,7 @@ public class PluginDependencyInstallerTests
         Assert.False(File.Exists(dest));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task EnsureAllAsync_surfaces_a_404_as_a_friendly_failure()
     {
         using var server = new RangeLoopbackServer(new byte[16]);

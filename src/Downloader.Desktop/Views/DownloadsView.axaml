@@ -202,7 +202,7 @@
              render a control inside a column header, so it lives here, aligned to that column). -->
         <CheckBox IsChecked="{Binding SelectAllState, Mode=TwoWay}" IsThreeState="True"
                   IsVisible="{Binding !IsEmpty}"
-                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="42 9 0 0"
+                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="36 9 0 0"
                   ToolTip.Tip="{i18n:Tr Grid_SelectAll}" />
 
         <!-- Empty state -->

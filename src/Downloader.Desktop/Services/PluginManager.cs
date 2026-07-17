@@ -212,10 +212,16 @@ public sealed class PluginManager
                 var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
                 if (variants is { Count: > 0 })
                     return variants;
+                // Empty = "this resolver has no choices to offer" — a later (fallback) resolver may.
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                AppLog.Error($"Variant lookup failed for {url} — trying the next claiming resolver", ex);
+                // FAILURE is different from "no choices": the badge names THIS resolver, so showing a
+                // later plugin's variants instead would mislead (the x.com report — the HLS lookup
+                // failed and the Website fallback's "Offline copy (.zip)" appeared under the HLS
+                // badge). Offer nothing; the real error surfaces when the download actually runs.
+                AppLog.Error($"Variant lookup failed for {url} — offering no variants (plain add)", ex);
+                return null;
             }
         }
         return null;

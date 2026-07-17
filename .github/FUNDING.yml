@@ -1,0 +1,6 @@
+# Funding sources shown as the repo's "Sponsor" button.
+# GitHub Sponsors lights up once the profile at github.com/sponsors/bezzad is enrolled.
+github: [bezzad]
+liberapay: bezzad
+custom:
+  - "https://github.com/bezzad/Downloader.Desktop/blob/main/Donate.md"

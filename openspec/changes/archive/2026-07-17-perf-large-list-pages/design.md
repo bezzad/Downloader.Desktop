@@ -1,0 +1,6 @@
+# Design — perf-large-list-pages
+
+1. **Queues rows**: replace the per-card inner `ItemsControl` with a virtualizing `ListBox` (row template unchanged, selection disabled via styles). `RebuildItems` only runs for EXPANDED cards (collapse = drop the wrapper list), and reuses wrappers when the item set is unchanged. Aggregate stats never enumerate wrappers (they already read the manager list).
+2. **Page reuse**: `MainViewModel` keeps each page VM (already single instances) — the recreate cost is the VIEW: the `ContentControl`+`DataTemplate` instantiates a new view per swap. Cache: create each page view once (lazy) and swap the cached control instances instead of relying on DataTemplates.
+3. **Bulk add**: `AddDownloadItemViewModel` returns the descriptors; the caller closes the dialog first, then `DownloadManager.AddRange` runs on the UI thread in slices (e.g. 50 rows per dispatcher tick with a `Task.Delay(1)` breath between slices) inside `Batch()` so `ListChanged/StatsChanged` fire once per slice, not per row. Autostart items funnel through the queue pump as today.
+4. **Settings Advanced default**: already expanded (previous change); page reuse also preserves whatever the user last toggled.

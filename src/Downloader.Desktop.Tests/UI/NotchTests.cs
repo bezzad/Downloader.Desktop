@@ -29,7 +29,7 @@ public class NotchTests
         return vm;
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Notch_vm_lists_top_rows_with_overflow_and_total_speed()
     {
         // OverflowText goes through Localizer — load the pack explicitly or the assertion sees the raw
@@ -53,7 +53,7 @@ public class NotchTests
         Assert.False(notch.ShowCollapsedClock); // downloading → speed replaces the clock (author's spec)
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Notch_vm_is_quiet_when_idle()
     {
         var (manager, _) = NewManager();
@@ -65,7 +65,7 @@ public class NotchTests
             Assert.True(notch.ShowCollapsedClock); // idle → the clock shows (instead of a speed)
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Notch_window_builds_and_toggles_expanded_state()
     {
         var (manager, _) = NewManager();
@@ -89,7 +89,7 @@ public class NotchTests
 
     /// <summary>Gated mockup capture for the author's visual review (task 1.1 of the notch change):
     /// DLDESKTOP_NOTCH_MOCKUP=1 renders collapsed + expanded PNGs into the openspec change folder.</summary>
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void CaptureNotchMockups()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_NOTCH_MOCKUP") != "1")
@@ -122,7 +122,7 @@ public class NotchTests
         finally { view.Close(); vm.Dispose(); }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Notch_service_starts_and_stops_fail_soft()
     {
         var (manager, _) = NewManager();

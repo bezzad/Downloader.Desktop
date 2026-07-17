@@ -81,6 +81,21 @@ sudo snap install downloader
 curl -fsSL https://raw.githubusercontent.com/bezzad/Downloader.Desktop/main/scripts/install.sh | bash
 ```
 
+**Debian / Ubuntu (APT)** — `apt install` + updates via `apt upgrade`:
+```bash
+curl -fsSL https://bezzad.github.io/Downloader.Desktop/apt/pubkey.gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/downloader.gpg
+echo "deb [signed-by=/usr/share/keyrings/downloader.gpg] https://bezzad.github.io/Downloader.Desktop/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/downloader.list
+sudo apt update && sudo apt install downloader
+```
+> Or grab the `.deb` from a [release](https://github.com/bezzad/Downloader.Desktop/releases) and run `sudo apt install ./Downloader_*_amd64.deb`. See [packaging/apt](packaging/apt/README.md).
+
+**Arch Linux** ([AUR](https://aur.archlinux.org/packages/downloader-bin)):
+```bash
+yay -S downloader-bin
+```
+
 **Windows** ([winget](https://learn.microsoft.com/windows/package-manager/winget/)):
 ```powershell
 winget install bezzad.Downloader

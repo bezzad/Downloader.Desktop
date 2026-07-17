@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Downloader.Desktop.Views"
+        xmlns:vm="using:Downloader.Desktop.ViewModels"
+        xmlns:services="using:Downloader.Desktop.Services"
+        xmlns:i18n="using:Downloader.Desktop.Markup"
+        x:Class="Downloader.Desktop.Views.ConfirmView"
+        x:DataType="vm:ConfirmViewModel"
+        Width="420" SizeToContent="Height" CanResize="False"
+        Background="Transparent" TransparencyLevelHint="Transparent"
+        ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="-1"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="Confirm">
+
+    <Panel>
+    <!-- Distinct modal chrome (#17): a 1px live-accent border sets dialogs apart from the
+         neutral-bordered main window, so users see a foreground modal is open. -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+    <!-- Avalonia clips children to the RECT, not the corner radius — this inner
+         rounded border is what keeps square content (the title bar) out of the arc. -->
+    <Border CornerRadius="9" ClipToBounds="True">
+    <DockPanel>
+        <v:TitleBar DockPanel.Dock="Top" Title="{Binding Title}" ShowMinMax="False" />
+        <StackPanel Margin="20 16" Spacing="18">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <Button Content="{i18n:Tr Confirm_No}" Padding="16 7" Click="OnNo" />
+                <Button Classes="accent" Content="{i18n:Tr Confirm_Yes}" Padding="16 7" Click="OnYes" />
+            </StackPanel>
+        </StackPanel>
+    </DockPanel>
+    </Border>
+    </Border>
+    </Panel>
+</Window>

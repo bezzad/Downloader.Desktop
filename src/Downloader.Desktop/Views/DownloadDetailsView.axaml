@@ -21,8 +21,13 @@
         Title="{Binding WindowTitle}">
 
     <Panel>
-    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+    <!-- Distinct modal chrome (#17): a 1px live-accent border sets dialogs apart from the
+         neutral-bordered main window, so users see a foreground modal is open. -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="1"
             CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+    <!-- Avalonia clips children to the RECT, not the corner radius — this inner
+         rounded border is what keeps square content (the title bar) out of the arc. -->
+    <Border CornerRadius="9" ClipToBounds="True">
     <DockPanel>
     <!-- Title bar shows the live "{percent}% {file name}" caption (next to the app icon). -->
     <v:TitleBar DockPanel.Dock="Top" Title="{Binding WindowTitle}" ShowMinMax="False" />
@@ -272,6 +277,7 @@
         </StackPanel>
     </Grid>
     </DockPanel>
+    </Border>
     </Border>
     <v:ResizeGrips />
     </Panel>

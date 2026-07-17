@@ -12,7 +12,7 @@ public class HlsPostProcessorTests
     private static readonly byte[] Key = Convert.FromHexString("000102030405060708090a0b0c0d0e0f");
     private static readonly byte[] Iv = Convert.FromHexString("0f0e0d0c0b0a09080706050403020100");
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Concatenates_unencrypted_segments_in_order()
     {
         using var tmp = new TempDir();
@@ -34,7 +34,7 @@ public class HlsPostProcessorTests
         Assert.Equal(1.0, progress.Last, 3);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Decrypts_aes128_segments_then_concatenates()
     {
         using var tmp = new TempDir();
@@ -60,7 +60,7 @@ public class HlsPostProcessorTests
         Assert.Equal(1, keyFetches); // key cached across segments with the same URI
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Prepends_init_segment()
     {
         using var tmp = new TempDir();
@@ -75,7 +75,7 @@ public class HlsPostProcessorTests
         Assert.Equal("INITDATA", File.ReadAllText(output));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Input_count_mismatch_throws()
     {
         using var tmp = new TempDir();
@@ -87,7 +87,7 @@ public class HlsPostProcessorTests
             proc.ProcessAsync([a], Plan(recipe), Path.Combine(tmp.Path, "o.mp4"), new ProgressSink(), CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void CanProcess_handles_concat_and_mux()
     {
         var (proc, _) = Build();
@@ -96,7 +96,7 @@ public class HlsPostProcessorTests
         Assert.False(proc.CanProcess(PostProcess.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Mux_combines_video_and_audio_parts()
     {
         using var tmp = new TempDir();
@@ -116,7 +116,7 @@ public class HlsPostProcessorTests
         Assert.Equal(1.0, progress.Last, 3);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Mux_requires_exactly_two_inputs()
     {
         using var tmp = new TempDir();
@@ -127,7 +127,7 @@ public class HlsPostProcessorTests
             new ProgressSink(), CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Real_ffmpeg_remux_produces_mp4_when_ffmpeg_available()
     {
         var ffmpegOnPath = FindFfmpeg();

@@ -21,7 +21,7 @@ public class PluginReloadTests
     private const string OllamaId = "com.bezzad.ollama-models";
     private const string HlsId = "com.bezzad.hls";
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Replacing_a_plugin_file_in_place_loads_the_new_content()
     {
         Assert.True(File.Exists(OllamaDll), $"missing test asset {OllamaDll}");

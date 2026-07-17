@@ -214,6 +214,56 @@ public class DownloadsViewModel : ViewModelBase
         }
     }
 
+    // ---- Tri-state column sorting (#12) ----
+    // The DataGrid's built-in header sort only cycles Asc/Desc — there is no "off", so an applied sort
+    // permanently fights drag-to-reorder (which rewrites the master order). The VM owns the sort instead:
+    // header clicks cycle Asc → Desc → None; None clears SortDescriptions so the view shows master order
+    // and dragging works. The header glyph stays correct because the DataGrid renders it from the view's
+    // SortDescriptions.
+
+    private string _sortPath;
+    private ListSortDirection _sortDirection;
+
+    /// <summary>The SortMemberPath currently sorted by, or null when unsorted (master order).</summary>
+    public string SortPath => _sortPath;
+
+    /// <summary>The active sort direction; only meaningful while <see cref="SortPath"/> is non-null.</summary>
+    public ListSortDirection SortDirection => _sortDirection;
+
+    /// <summary>Header click: cycle this column Asc → Desc → None; a different column starts at Asc.</summary>
+    public void CycleSort(string sortMemberPath)
+    {
+        if (string.IsNullOrEmpty(sortMemberPath))
+            return;
+
+        if (_sortPath != sortMemberPath)
+            ApplySort(sortMemberPath, ListSortDirection.Ascending);
+        else if (_sortDirection == ListSortDirection.Ascending)
+            ApplySort(sortMemberPath, ListSortDirection.Descending);
+        else
+            ClearSort();
+    }
+
+    /// <summary>Back to the unsorted master order (drag-to-reorder operates on this order).</summary>
+    public void ClearSort()
+    {
+        if (_sortPath == null)
+            return;
+        _sortPath = null;
+        ItemsView.SortDescriptions.Clear();
+        this.RaisePropertyChanged(nameof(SortPath));
+    }
+
+    private void ApplySort(string path, ListSortDirection direction)
+    {
+        _sortPath = path;
+        _sortDirection = direction;
+        ItemsView.SortDescriptions.Clear();
+        ItemsView.SortDescriptions.Add(DataGridSortDescription.FromPath(path, direction));
+        this.RaisePropertyChanged(nameof(SortPath));
+        this.RaisePropertyChanged(nameof(SortDirection));
+    }
+
     public string Search
     {
         get => _search;
@@ -247,12 +297,15 @@ public class DownloadsViewModel : ViewModelBase
                 return false;
         }
 
+        // Buckets are disjoint (see StatusFilter docs): a Paused item lives in Stopped, not Active,
+        // so no row ever matches two pills and the pill counts sum to the total.
         return _filter switch
         {
-            StatusFilter.Active => vm.Status is DownloadStatus.Running or DownloadStatus.Paused,
+            StatusFilter.Active => vm.Status is DownloadStatus.Running,
             StatusFilter.Queued => vm.Status is DownloadStatus.Created or DownloadStatus.None,
+            StatusFilter.Stopped => vm.Status is DownloadStatus.Paused or DownloadStatus.Stopped,
             StatusFilter.Completed => vm.Status == DownloadStatus.Completed,
-            // Failed = real failures only. User-Stopped items are NOT failures — they show under All.
+            // Failed = real failures only. User-Stopped items are NOT failures — they show under Stopped.
             StatusFilter.Failed => vm.Status is DownloadStatus.Failed,
             _ => true
         };

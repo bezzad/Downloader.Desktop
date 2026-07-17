@@ -1,0 +1,4 @@
+# Design — dialogs-and-donate
+1. **Chrome**: BorderThickness 2→1 on all 5 modal roots; wrap each root's content in an inner Border with CornerRadius (outer-1) + ClipToBounds so the title bar's square corners cannot overhang the arc (Avalonia clips to rect, not radius — the inner rounded Border is the standard fix).
+2. **Confirm removal**: QueuesViewModel.Remove checks the queue for items not Completed; if any, DialogHelper shows a Yes/No confirm ("This queue still has N unfinished downloads — remove it anyway? Its downloads move to the default queue."). i18n keys in all 16 packs.
+3. **Donate modal**: DonateView/DonateViewModel modal (like About) — app identity, a short thank-you, buttons for the real channels (GitHub Sponsors page/repo star, existing links). The MainWindow heart + About's Donate button open it instead of the browser. No card numbers (cards cannot receive payments; publishing one only invites fraud).

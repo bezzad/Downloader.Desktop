@@ -21,7 +21,7 @@ public class CookieHandoffTests
         new CookieDto { Name = "PREF", Value = "hl=en", Domain = "youtube.com", Path = "/", Secure = false }, // session cookie
     };
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ToNetscape_writes_the_expected_tab_separated_format()
     {
         var text = CookieFile.ToNetscape(Sample());
@@ -36,7 +36,7 @@ public class CookieHandoffTests
         Assert.Equal("youtube.com\tFALSE\t/\tFALSE\t0\tPREF\thl=en", pref);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void WriteTempFile_creates_a_readable_file_then_can_be_deleted()
     {
         var path = CookieFile.WriteTempFile(Sample());
@@ -52,7 +52,7 @@ public class CookieHandoffTests
         Assert.False(File.Exists(path));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ApiAddRequest_parses_cookies_from_json()
     {
         var json = """
@@ -71,7 +71,7 @@ public class CookieHandoffTests
         Assert.Equal(1893456000, req.Cookies[0].Expires);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ApiAddRequest_ToJson_never_echoes_cookie_values()
     {
         var req = ApiAddRequest.FromJson("""{"url":"https://youtu.be/x","cookies":[{"name":"SID","value":"topsecret","domain":".youtube.com"}]}""");
@@ -80,7 +80,7 @@ public class CookieHandoffTests
         Assert.DoesNotContain("cookies", round);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void BuildItem_writes_a_temp_cookie_file_when_cookies_are_supplied()
     {
         var config = Config.New();
@@ -97,14 +97,14 @@ public class CookieHandoffTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void BuildItem_leaves_cookie_path_null_when_none_supplied()
     {
         var item = LocalApiService.BuildItem(ApiAddRequest.FromJson("""{"url":"https://youtu.be/x"}"""), Config.New());
         Assert.Null(item.CookieFilePath);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void DeleteCookieFile_removes_the_file_and_clears_the_path()
     {
         var path = CookieFile.WriteTempFile(Sample());

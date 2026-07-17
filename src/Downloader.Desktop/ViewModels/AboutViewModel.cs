@@ -27,7 +27,7 @@ public class AboutViewModel : ViewModelBase
     {
         OpenRepoCommand = ReactiveCommand.Create(() => Open(RepoUrl));
         OpenEngineCommand = ReactiveCommand.Create(() => Open(EngineRepoUrl));
-        OpenDonateCommand = ReactiveCommand.Create(() => Open(DonateUrl));
+        OpenDonateCommand = ReactiveCommand.CreateFromTask(Services.DialogHelper.ShowDonate); // in-app modal
         OpenLicensesCommand = ReactiveCommand.Create(() => Open(LicenseUrl));
         OpenTranslateCommand = ReactiveCommand.Create(() => Open(TranslateUrl));
         OpenGithubCommand = ReactiveCommand.Create(() => Open(GithubProfileUrl));

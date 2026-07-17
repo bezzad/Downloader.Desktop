@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -53,10 +54,29 @@ public class QueuesViewModel : ViewModelBase
         RaiseQueuesChanged();
     }
 
-    public void Remove(QueueRowViewModel row)
+    /// <summary>Seam for the destructive-removal confirmation (title, message) → confirmed?
+    /// Defaults to the modal Yes/No dialog; tests substitute it.</summary>
+    public Func<string, string, Task<bool>> ConfirmRemoval { get; set; } = DialogHelper.Confirm;
+
+    public async Task Remove(QueueRowViewModel row)
     {
         if (Queues.Count <= 1)
             return;
+
+        // Deleting a queue that still has unfinished downloads is destructive enough to confirm —
+        // the downloads themselves survive (they move to the default queue), but their place in
+        // this queue's order/cap is lost.
+        var unfinished = _manager.Items.Count(i =>
+            i.GetItem().QueueId == row.Queue.Id && i.Status != DownloadStatus.Completed);
+        if (unfinished > 0)
+        {
+            var confirmed = await ConfirmRemoval(
+                Localizer.Instance["Queues_RemoveTitle"],
+                string.Format(Localizer.Instance["Queues_RemoveConfirm"], row.Name, unfinished));
+            if (!confirmed)
+                return;
+        }
+
         _manager.RemoveQueue(row.Queue);
         row.Detach();
         Queues.Remove(row);
@@ -66,6 +86,23 @@ public class QueuesViewModel : ViewModelBase
     /// <summary>The other queues a download can be moved into (everything except <paramref name="self"/>).</summary>
     public IEnumerable<DownloadQueue> QueuesOtherThan(QueueRowViewModel self) =>
         Queues.Where(r => !ReferenceEquals(r, self)).Select(r => r.Queue).ToList();
+
+    /// <summary>Toolbar collapse/expand-all (#10): true when every queue card is collapsed. Setting it
+    /// folds/unfolds all cards, so a user with many long queues can jump to the one they want.
+    /// In-session only (not persisted), like the Settings sections.</summary>
+    public bool AllCollapsed
+    {
+        get => Queues.Count > 0 && Queues.All(q => !q.IsExpanded);
+        set
+        {
+            foreach (var row in Queues)
+                row.IsExpanded = !value;
+            this.RaisePropertyChanged();
+        }
+    }
+
+    /// <summary>Called by rows when their own expander toggles, so the toolbar toggle tracks the set.</summary>
+    internal void RaiseAllCollapsedChanged() => this.RaisePropertyChanged(nameof(AllCollapsed));
 
     /// <summary>When the set of queues changes, rebuild each card's item list so move-targets stay current.</summary>
     private void RaiseQueuesChanged()
@@ -86,13 +123,32 @@ public class QueueRowViewModel : ViewModelBase
     public ObservableCollection<QueueItemViewModel> Items { get; } = new();
     public ICommand RemoveCommand { get; }
 
+    private bool _isExpanded = true;
+
+    /// <summary>Whether this card's item list is unfolded (#10). The header (name, stats, toggle,
+    /// cap) stays visible either way; collapsing hides only the list. Default expanded.
+    /// Collapsing also DROPS the item wrappers (lazy build — with 2k downloads, building rows for
+    /// collapsed queues was a large share of the Queues-page hang); expanding rebuilds them.</summary>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (_isExpanded == value)
+                return;
+            this.RaiseAndSetIfChanged(ref _isExpanded, value);
+            RebuildItems();
+            _parent?.RaiseAllCollapsedChanged();
+        }
+    }
+
     public QueueRowViewModel(DownloadQueue queue, IDownloadManager manager, QueuesViewModel parent, Config config = null)
     {
         Queue = queue;
         _manager = manager;
         _parent = parent;
         _config = config;
-        RemoveCommand = ReactiveCommand.Create(() => _parent.Remove(this));
+        RemoveCommand = ReactiveCommand.CreateFromTask(() => _parent.Remove(this));
 
         if (_manager != null)
         {
@@ -116,16 +172,38 @@ public class QueueRowViewModel : ViewModelBase
         RefreshStats();
     }
 
-    /// <summary>Rebuilds the queue's item wrappers from the manager (order = pump priority).</summary>
+    /// <summary>Rebuilds the queue's item wrappers from the manager (order = pump priority).
+    /// Lazy + reusing: a collapsed card holds no wrappers at all, and when the queue's membership/order
+    /// hasn't changed the existing wrappers are kept (no churn on every stats/list tick).</summary>
     public void RebuildItems()
     {
+        if (!IsExpanded)
+        {
+            if (Items.Count > 0)
+                Items.Clear();
+            RaiseEmptiness();
+            return;
+        }
+
         var mine = _manager?.Items.Where(i => i.GetItem().QueueId == Queue.Id).ToList()
                    ?? new List<DownloadItemViewModel>();
+
+        // Same rows in the same order → keep the wrappers (and their bound UI) as-is.
+        if (Items.Count == mine.Count && !Items.Where((w, idx) => !ReferenceEquals(w.Item, mine[idx])).Any())
+        {
+            RaiseEmptiness();
+            return;
+        }
 
         Items.Clear();
         foreach (var vm in mine)
             Items.Add(new QueueItemViewModel(vm, _manager, this));
 
+        RaiseEmptiness();
+    }
+
+    private void RaiseEmptiness()
+    {
         this.RaisePropertyChanged(nameof(IsEmpty));
         this.RaisePropertyChanged(nameof(HasItems));
     }

@@ -110,6 +110,28 @@ public static class DialogHelper
         await view.ShowDialog(MainWindow);
     }
 
+    /// <summary>Modal Yes/No confirmation. Returns true only when the user explicitly confirms;
+    /// with no main window (headless/startup edge) it confirms silently rather than blocking.</summary>
+    public static async Task<bool> Confirm(string title, string message)
+    {
+        if (MainWindow == null)
+            return true;
+        var view = new ConfirmView { DataContext = new ConfirmViewModel(title, message) };
+        var result = await view.ShowDialog<bool?>(MainWindow);
+        return result == true;
+    }
+
+    /// <summary>Opens the in-app Donate modal (replaces the browser round-trip to Donate.md).</summary>
+    public static async Task ShowDonate()
+    {
+        if (MainWindow == null)
+            return;
+        var vm = new DonateViewModel();
+        var view = new DonateView { DataContext = vm };
+        vm.View = view;
+        await view.ShowDialog(MainWindow);
+    }
+
     /// <summary>Opens the modal About dialog (app identity, donate, links and contacts).</summary>
     public static async Task ShowAbout()
     {

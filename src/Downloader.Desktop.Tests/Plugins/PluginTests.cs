@@ -61,7 +61,7 @@ public class PluginTests
     }
 
     // ---- tests ------------------------------------------------------------
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Registering_a_plugin_adds_it_and_its_contributions()
     {
         var pm = new PluginManager();
@@ -74,7 +74,7 @@ public class PluginTests
         Assert.Null(pm.FindResolver("https://example.com/file.zip"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Removing_a_plugin_drops_it_and_its_contributions()
     {
         var pm = new PluginManager();
@@ -88,7 +88,7 @@ public class PluginTests
         Assert.False(pm.RemovePlugin("test.plugin"));  // removing again is a no-op (not found)
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_routes_to_the_matching_resolver()
     {
         var pm = new PluginManager();
@@ -102,7 +102,7 @@ public class PluginTests
         Assert.Null(await pm.ResolveAsync("https://plain/file.zip", CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Post_processor_is_selected_by_the_plan()
     {
         var pm = new PluginManager();
@@ -112,7 +112,7 @@ public class PluginTests
         Assert.Null(pm.FindPostProcessor(PostProcess.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Transfer_provider_is_selected_by_the_url()
     {
         var pm = new PluginManager();
@@ -122,7 +122,7 @@ public class PluginTests
         Assert.Null(pm.FindTransferProvider("https://example.com/file.zip"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Disabling_a_plugin_removes_its_contributions_and_re_enabling_restores_them()
     {
         var pm = new PluginManager();
@@ -138,7 +138,7 @@ public class PluginTests
         Assert.NotNull(pm.FindResolver("fake://x"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Loading_a_missing_or_empty_directory_is_safe()
     {
         var pm = new PluginManager();
@@ -150,7 +150,7 @@ public class PluginTests
         Assert.Empty(pm.Plugins);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Registering_the_same_plugin_id_twice_is_idempotent()
     {
         var pm = new PluginManager();
@@ -159,7 +159,7 @@ public class PluginTests
         Assert.Single(pm.Plugins);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Loads_a_real_external_plugin_DLL_from_disk()
     {
         // Proves the AssemblyLoadContext loader + shared-SDK type identity works end-to-end with a real
@@ -176,7 +176,7 @@ public class PluginTests
         Assert.Null(pm.FindResolver("https://example.com/file.zip"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void GitHub_resolver_claims_only_owner_repo_links()
     {
         // CanResolve gating for the real sample resolver (pure, no network): owner/repo on github.com only.
@@ -192,7 +192,7 @@ public class PluginTests
         Assert.Null(pm.FindResolver("not a url"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Resolves_a_real_github_repo_to_a_release_asset()
     {
         // LIVE network test (hits api.github.com) — gated so CI/offline runs skip it. Run locally with

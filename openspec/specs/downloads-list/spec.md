@@ -16,3 +16,39 @@ The downloads grid SHALL let the user read a download's complete file name by ho
 #### Scenario: Failed download also shows its error
 - **WHEN** the pointer hovers over the Name cell of a failed download
 - **THEN** the tooltip shows the full name and the failure reason
+
+### Requirement: A Stopped/Paused filter lists interrupted downloads
+The footer filters SHALL include a Stopped bucket that matches items in the Paused or Stopped state, with a count of exactly those items. The filter buckets (All, Active, Queued, Completed, Stopped, Failed) SHALL be mutually disjoint and jointly cover every item, so a user can always find paused/stopped downloads after a restart.
+
+#### Scenario: Paused downloads are visible after restart
+- **WHEN** the user paused downloads before closing, and reopens the app (interrupted items load as Stopped)
+- **THEN** selecting the Stopped filter lists those paused/stopped items and its count equals their number
+
+#### Scenario: Buckets are disjoint and exhaustive
+- **WHEN** the list contains a mix of Running, Paused, Stopped, Queued, Completed and Failed items
+- **THEN** each item matches exactly one of the non-All buckets and the bucket counts sum to the total item count
+
+### Requirement: Total downloaded size shown in the status bar
+The main-window status bar SHALL display the cumulative downloaded size across all items (human-readable) next to the total speed, updated live.
+
+#### Scenario: Total downloaded reflects the sum
+- **WHEN** several downloads have downloaded bytes
+- **THEN** the status bar shows the sum of their downloaded bytes as a human-readable size beside the speed, and it updates as bytes arrive
+
+### Requirement: Column sorting is tri-state and drag-friendly
+Clicking a sortable column header SHALL cycle its sort through Ascending, Descending, then None (no sort). In the None state the grid SHALL show items in their master (manual/priority) order and drag-to-reorder SHALL be enabled. When the user starts dragging a row while a sort is active, the sort SHALL be cleared to None (preserving the current visual order) so the drop reorders from there.
+
+#### Scenario: Header click cycles three states
+- **WHEN** the user clicks the same column header three times
+- **THEN** the sort goes Ascending, then Descending, then None (master order restored)
+
+#### Scenario: Dragging clears an active sort
+- **WHEN** a column sort is active and the user begins dragging a row to reorder it
+- **THEN** the sort is cleared to None, the visible order is preserved, and the drop reorders the item in master order (which persists)
+
+### Requirement: Select-all checkbox aligns over the row checkboxes
+The header select-all checkbox SHALL be horizontally aligned with the per-row selection checkboxes so the selection column reads as a single aligned column.
+
+#### Scenario: Header checkbox sits above the row checkboxes
+- **WHEN** the downloads grid is shown with rows
+- **THEN** the select-all checkbox is centered over the per-row checkbox column (no visible horizontal offset)

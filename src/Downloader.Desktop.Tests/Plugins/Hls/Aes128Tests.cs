@@ -9,7 +9,7 @@ public class Aes128Tests
     private static readonly byte[] Key = Convert.FromHexString("000102030405060708090a0b0c0d0e0f");
     private static readonly byte[] Iv = Convert.FromHexString("0f0e0d0c0b0a09080706050403020100");
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Decrypt_round_trips_known_plaintext()
     {
         var plain = Encoding.UTF8.GetBytes("the quick brown fox jumps over a segment of MPEG-TS bytes 0123456789");
@@ -21,7 +21,7 @@ public class Aes128Tests
         Assert.Equal(plain, decrypted);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Decrypt_with_implicit_sequence_iv_round_trips()
     {
         var plain = Encoding.UTF8.GetBytes("segment whose IV is derived from its media sequence number");
@@ -33,7 +33,7 @@ public class Aes128Tests
         Assert.Equal(plain, decrypted);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Wrong_key_size_throws()
     {
         Assert.Throws<ArgumentException>(() => Aes128.DecryptCbc(new byte[16], new byte[8], Iv));

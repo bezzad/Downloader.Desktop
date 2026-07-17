@@ -11,7 +11,7 @@ namespace Downloader.Desktop.Tests.Plugins.Hls;
 /// </summary>
 public class YtDlpArgsTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Supplied_cookie_file_uses_cookies_flag_not_browser_store()
     {
         var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: "/tmp/c.txt", cookieBrowser: null, denoPath: null);
@@ -19,7 +19,7 @@ public class YtDlpArgsTests
         Assert.DoesNotContain("--cookies-from-browser", args);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Browser_store_path_uses_cookies_from_browser()
     {
         var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: null, cookieBrowser: "chrome", denoPath: null);
@@ -27,7 +27,7 @@ public class YtDlpArgsTests
         Assert.DoesNotContain("--cookies \"", args);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Anonymous_attempt_has_neither_cookie_source()
     {
         var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: null, cookieBrowser: null, denoPath: null);
@@ -36,7 +36,33 @@ public class YtDlpArgsTests
         Assert.Contains("\"https://youtu.be/x\"", args);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Extractor_args_emit_the_syndication_flag()
+    {
+        var args = YtDlpBinary.BuildArgs("https://x.com/u/status/1", cookieFile: null, cookieBrowser: null,
+            denoPath: null, extractorArgs: YtDlpBinary.SyndicationArgs);
+        Assert.Contains("--extractor-args \"twitter:api=syndication\"", args);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void No_extractor_args_when_none_supplied()
+    {
+        var args = YtDlpBinary.BuildArgs("https://youtu.be/x", cookieFile: null, cookieBrowser: null, denoPath: null);
+        Assert.DoesNotContain("--extractor-args", args);
+    }
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData("https://x.com/u/status/1/video/1", true)]
+    [InlineData("https://twitter.com/u/status/1", true)]
+    [InlineData("https://mobile.twitter.com/u/status/1", true)]
+    [InlineData("https://www.x.com/u/status/1", true)]
+    [InlineData("https://youtube.com/watch?v=x", false)]
+    [InlineData("https://notx.com/u/status/1", false)]
+    [InlineData("https://x.com.evil.com/u/status/1", false)]
+    public void IsTwitter_matches_only_x_and_twitter(string url, bool expected) =>
+        Assert.Equal(expected, YtDlpBinary.IsTwitter(url));
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Missing_formats_is_detected_from_ytdlp_stderr()
     {
         // The signature of an unsolved YouTube "n challenge" (no JS runtime): cookies pass the sign-in

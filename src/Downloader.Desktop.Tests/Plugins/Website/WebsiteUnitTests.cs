@@ -13,7 +13,7 @@ public class WebsiteUnitTests
 {
     // ---- LinkExtractor: HTML ----------------------------------------------
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Extracts_and_classifies_html_references()
     {
         const string html = """
@@ -48,7 +48,7 @@ public class WebsiteUnitTests
         Assert.False(LinkExtractor.TryNormalize(new Uri("https://s.com/"), "mailto:x@y.z", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Extracts_css_references()
     {
         const string css = """
@@ -64,7 +64,7 @@ public class WebsiteUnitTests
         Assert.Equal(RefKind.Requisite, refs.Single(r => r.Value == "../img/logo.png").Kind);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Normalization_resolves_relatives_and_rejects_non_web_targets()
     {
         var doc = new Uri("https://site.com/blog/post.html");
@@ -84,7 +84,7 @@ public class WebsiteUnitTests
         Assert.False(LinkExtractor.TryNormalize(doc, "", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Rewrite_splices_replacements_precisely()
     {
         const string html = """<a href="/x">x</a><img src="/y.png">""";
@@ -98,7 +98,7 @@ public class WebsiteUnitTests
 
     // ---- LocalPathMapper ---------------------------------------------------
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("https://site.com/", true, "site.com/index.html")]
     [InlineData("https://site.com/docs/", true, "site.com/docs/index.html")]
     [InlineData("https://site.com/docs/intro", true, "site.com/docs/intro.html")]
@@ -108,7 +108,7 @@ public class WebsiteUnitTests
     public void Maps_urls_to_local_paths(string url, bool isPage, string expected) =>
         Assert.Equal(expected, LocalPathMapper.MapToLocalPath(new Uri(url), isPage));
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Query_strings_hash_into_distinct_file_names()
     {
         var a = LocalPathMapper.MapToLocalPath(new Uri("https://s.com/page?id=1"), isPage: true);
@@ -118,7 +118,7 @@ public class WebsiteUnitTests
         Assert.EndsWith(".html", a);
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("site.com/index.html", "site.com/css/site.css", "css/site.css")]
     [InlineData("site.com/blog/post.html", "site.com/img/x.png", "../img/x.png")]
     [InlineData("site.com/a/b/c.html", "cdn.com/lib.js", "../../../cdn.com/lib.js")]
@@ -128,7 +128,7 @@ public class WebsiteUnitTests
 
     // ---- WebsiteResolver ----------------------------------------------------
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("https://site.com/", true)]
     [InlineData("https://site.com/blog/post", true)]
     [InlineData("https://site.com/page.html", true)]
@@ -140,7 +140,7 @@ public class WebsiteUnitTests
     public void Page_heuristic(string url, bool expected) =>
         Assert.Equal(expected, WebsiteResolver.LooksLikePage(url));
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Resolver_claims_scheme_urls_and_is_a_fallback()
     {
         var resolver = new WebsiteResolver();
@@ -150,7 +150,7 @@ public class WebsiteUnitTests
         Assert.False(resolver.CanResolve("https://site.com/file.exe"));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Default_resolve_is_a_pass_through()
     {
         var resolver = new WebsiteResolver();
@@ -159,7 +159,7 @@ public class WebsiteUnitTests
         Assert.Equal(Downloader.Desktop.Plugins.PostProcessKind.None, plan.PostProcess.Kind);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Non_page_urls_offer_no_variant_without_any_network_probe()
     {
         var resolver = new WebsiteResolver();
@@ -167,7 +167,7 @@ public class WebsiteUnitTests
         Assert.Null(await resolver.GetVariantsAsync("websitezip:https://site.com/x", null, CancellationToken.None));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Zip_name_comes_from_the_bare_host() =>
         Assert.Equal("site.com.zip", WebsiteTransfer.SuggestedZipName(new Uri("https://www.site.com/deep/page")));
 }

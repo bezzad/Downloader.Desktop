@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Downloader;
@@ -21,7 +23,7 @@ namespace Downloader.Desktop.Tests.UI;
 /// <summary>Tests that need the (headless) Avalonia runtime: geometry parsing, dispatcher, view models.</summary>
 public class AppTests
 {
-    [AvaloniaTheory]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("video")]
     [InlineData("audio")]
     [InlineData("image")]
@@ -37,7 +39,7 @@ public class AppTests
         Assert.IsAssignableFrom<Geometry>(geometry);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Manager_add_and_remove_updates_stats()
     {
         var manager = new DownloadManager();
@@ -55,7 +57,7 @@ public class AppTests
         Assert.Empty(manager.Items);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void DownloadsViewModel_filters_by_status_and_search()
     {
         var manager = new DownloadManager();
@@ -73,7 +75,7 @@ public class AppTests
         Assert.Single(view.ItemsView);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Stopped_items_show_under_All_but_not_under_Failed()
     {
         var manager = new DownloadManager();
@@ -92,7 +94,386 @@ public class AppTests
         Assert.Equal(2, view.ItemsView.Count);               // stopped is visible under All
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Stopped_filter_lists_paused_and_stopped_and_buckets_are_disjoint()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        // One item per status → every bucket must own exactly its statuses, disjointly.
+        var byStatus = new Dictionary<DownloadStatus, DownloadItemViewModel>();
+        foreach (var s in new[]
+                 {
+                     DownloadStatus.Running, DownloadStatus.Paused, DownloadStatus.Stopped,
+                     DownloadStatus.Failed, DownloadStatus.Completed, DownloadStatus.Created, DownloadStatus.None
+                 })
+        {
+            var vm = manager.Add(new DownloadItem { Url = $"https://host/{s}.bin", FileName = $"{s}.bin" }, autoStart: false);
+            vm.Status = s;
+            byStatus[s] = vm;
+        }
+
+        var view = new DownloadsViewModel(manager);
+        int CountFor(StatusFilter f)
+        {
+            view.Filter = f;
+            return view.ItemsView.Count;
+        }
+
+        // The Stopped bucket owns Paused + Stopped (the user's "where did my paused items go" fix, #2).
+        view.Filter = StatusFilter.Stopped;
+        var stoppedSet = view.ItemsView.Cast<DownloadItemViewModel>().Select(i => i.Status).ToHashSet();
+        Assert.Equal(new HashSet<DownloadStatus> { DownloadStatus.Paused, DownloadStatus.Stopped }, stoppedSet);
+
+        // Disjoint + jointly exhaustive: the five buckets sum to the total.
+        var total = CountFor(StatusFilter.Active) + CountFor(StatusFilter.Queued) + CountFor(StatusFilter.Stopped)
+                    + CountFor(StatusFilter.Completed) + CountFor(StatusFilter.Failed);
+        Assert.Equal(manager.Items.Count, total);
+        Assert.Equal(manager.Items.Count, CountFor(StatusFilter.All));
+
+        // Active narrowed to Running only; Failed owns Failed only.
+        view.Filter = StatusFilter.Active;
+        Assert.Equal(DownloadStatus.Running, Assert.Single(view.ItemsView.Cast<DownloadItemViewModel>()).Status);
+        view.Filter = StatusFilter.Failed;
+        Assert.Equal(DownloadStatus.Failed, Assert.Single(view.ItemsView.Cast<DownloadItemViewModel>()).Status);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Header_sort_cycles_asc_desc_none_and_none_restores_master_order()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        // Master order (= queue priority) deliberately differs from both sorted orders.
+        manager.Add(new DownloadItem { Url = "https://host/m.bin", FileName = "m.bin" }, autoStart: false);
+        manager.Add(new DownloadItem { Url = "https://host/a.bin", FileName = "a.bin" }, autoStart: false);
+        manager.Add(new DownloadItem { Url = "https://host/z.bin", FileName = "z.bin" }, autoStart: false);
+
+        var view = new DownloadsViewModel(manager);
+        string[] Names() => view.ItemsView.Cast<DownloadItemViewModel>().Select(i => i.FileName).ToArray();
+
+        Assert.Null(view.SortPath); // unsorted by default → master order
+        Assert.Equal(new[] { "m.bin", "a.bin", "z.bin" }, Names());
+
+        view.CycleSort("FileName"); // 1st click → ascending
+        Assert.Equal("FileName", view.SortPath);
+        Assert.Equal(System.ComponentModel.ListSortDirection.Ascending, view.SortDirection);
+        Assert.Equal(new[] { "a.bin", "m.bin", "z.bin" }, Names());
+
+        view.CycleSort("FileName"); // 2nd click → descending
+        Assert.Equal(System.ComponentModel.ListSortDirection.Descending, view.SortDirection);
+        Assert.Equal(new[] { "z.bin", "m.bin", "a.bin" }, Names());
+
+        view.CycleSort("FileName"); // 3rd click → none (master order back, drag-reorder works again)
+        Assert.Null(view.SortPath);
+        Assert.Equal(new[] { "m.bin", "a.bin", "z.bin" }, Names());
+
+        // Clicking a different column while sorted starts that column ascending.
+        view.CycleSort("FileName");
+        view.CycleSort("Size");
+        Assert.Equal("Size", view.SortPath);
+        Assert.Equal(System.ComponentModel.ListSortDirection.Ascending, view.SortDirection);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Clearing_the_sort_enables_drag_reorder_from_the_current_view()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var m = manager.Add(new DownloadItem { Url = "https://host/m.bin", FileName = "m.bin" }, autoStart: false);
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.bin", FileName = "a.bin" }, autoStart: false);
+
+        var view = new DownloadsViewModel(manager);
+        view.CycleSort("FileName");
+        Assert.NotNull(view.SortPath);
+
+        // The grip's drag-start calls ClearSort() so the drop reorders the master list, not a sorted view.
+        view.ClearSort();
+        Assert.Null(view.SortPath);
+        Assert.Empty(view.ItemsView.SortDescriptions);
+
+        view.Reorder(a, m, placeAfter: false); // drag "a" above "m"
+        // Master order (= pump priority) is the real invariant; the app refreshes the view via
+        // MainViewModel.OnListChanged → Downloads.Refresh(), mirrored here.
+        Assert.Equal(new[] { "a.bin", "m.bin" }, manager.Items.Select(i => i.FileName).ToArray());
+        view.Refresh();
+        Assert.Equal(new[] { "a.bin", "m.bin" },
+            view.ItemsView.Cast<DownloadItemViewModel>().Select(i => i.FileName).ToArray());
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Status_bar_total_downloaded_sums_all_items()
+    {
+        var manager = new DownloadManager();
+        var main = new MainViewModel(new StubFileService(), manager);
+        manager.Initialize(Config.New());
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.bin", FileName = "a.bin" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.bin", FileName = "b.bin" }, autoStart: false);
+        a.Downloaded = 512 * 1024;        // 0.5 MB
+        b.Downloaded = 1536 * 1024;       // 1.5 MB
+
+        manager.RaiseStatsForTest();
+
+        Assert.Equal(DownloadItemViewModel.FormatBytes(2 * 1024 * 1024), main.TotalDownloadedText);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Bulk_add_streams_in_slices_and_coalesces_notifications()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        var listChanged = 0;
+        manager.ListChanged += () => listChanged++;
+
+        var items = Enumerable.Range(0, 500)
+            .Select(i => new DownloadItem { Urls = new() { $"https://10.255.255.1/f{i}.bin" }, SaveFolder = "/tmp" })
+            .ToList();
+
+        await manager.AddRangeAsync(items, autoStart: false);
+
+        Assert.Equal(500, manager.Items.Count);
+        // The point of the fix (#bulk-add hang): notifications are per SLICE, not per item — 500
+        // adds must not fire 500 full list/stats refreshes.
+        Assert.InRange(listChanged, 1, 25);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void First_activation_shows_a_hidden_window()
+    {
+        var window = new Window { Width = 300, Height = 200, WindowState = WindowState.Minimized };
+        window.Show();
+        window.Hide(); // parked in the tray
+        Assert.False(window.IsVisible);
+
+        // One activation (tray click / second-instance launch) must fully surface it (#6).
+        WindowActivation.BringToFront(window);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(window.IsVisible);
+        Assert.Equal(WindowState.Normal, window.WindowState);
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Taskbar_aggregate_progress_reflects_active_downloads()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        // No items → hidden.
+        Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.bin" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.bin" }, autoStart: false);
+        var c = manager.Add(new DownloadItem { Url = "https://host/c.bin" }, autoStart: false);
+
+        // Nothing running → hidden (completed/stopped rows never keep a taskbar bar alive).
+        c.Status = DownloadStatus.Completed;
+        Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
+
+        // Two running at 25% and 75% → visible at their mean (0.5), ignoring the completed row.
+        a.Status = DownloadStatus.Running; a.Progress = 25;
+        b.Status = DownloadStatus.Running; b.Progress = 75;
+        var (visible, fraction) = TaskbarProgressService.Aggregate(manager.Items);
+        Assert.True(visible);
+        Assert.Equal(0.5, fraction, 3);
+
+        // All done → hidden again.
+        a.Status = DownloadStatus.Completed;
+        b.Status = DownloadStatus.Stopped;
+        Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Settings_sections_are_expanders_expanded_by_default_and_search_filters_options()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var view = new Views.SettingView { DataContext = new SettingViewModel(config, manager) };
+        var window = new Window { Content = view };
+        window.Show();
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<StackPanel>()
+                .First(p => p.Name == "SectionsPanel");
+            var sections = panel.Children.OfType<Expander>().ToList();
+
+            // #16: every section (incl. Plugins and Advanced) is a collapsible Expander, expanded by default.
+            Assert.True(sections.Count >= 6, $"expected >= 6 section expanders, got {sections.Count}");
+            Assert.All(sections, s => Assert.True(s.IsExpanded, $"'{s.Header}' should start expanded"));
+
+            // #15: searching narrows to matching rows/sections; "notif" lives in General + Notifications.
+            view.ApplyFilter("notif");
+            var visible = sections.Where(s => s.IsVisible).Select(s => s.Header?.ToString()).ToList();
+            Assert.Contains(visible, h => h?.Contains("Notification", StringComparison.OrdinalIgnoreCase) == true);
+            Assert.DoesNotContain(visible, h => h?.Contains("Logging", StringComparison.OrdinalIgnoreCase) == true);
+
+            // Matching rows stay, non-matching rows in a visible section hide.
+            var general = sections.First(s =>
+                s.Header?.ToString()?.Contains("General", StringComparison.OrdinalIgnoreCase) == true);
+            Assert.True(general.IsVisible); // holds the notifications master switch
+            var generalRows = general.GetLogicalDescendants().OfType<Grid>()
+                .Where(g => g.Classes.Contains("field")).ToList();
+            Assert.Contains(generalRows, r => r.IsVisible);
+            Assert.Contains(generalRows, r => !r.IsVisible);
+
+            // Clearing restores everything.
+            view.ApplyFilter("");
+            Assert.All(sections, s => Assert.True(s.IsVisible));
+            Assert.All(generalRows, r => Assert.True(r.IsVisible));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void New_schedules_get_distinct_numbered_names()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var page = new SchedulerViewModel(config, manager);
+        page.NewScheduleCommand.Execute(null);
+        page.NewScheduleCommand.Execute(null);
+
+        // Numbered — NOT the "New schedule" button label, so item and action can't be confused (#14).
+        Assert.Equal("Schedule 1", page.Schedules[0].Name);
+        Assert.Equal("Schedule 2", page.Schedules[1].Name);
+
+        // The next number skips names already in use (delete #1, add again → smallest free = 1).
+        page.Remove(page.Schedules[0]);
+        page.NewScheduleCommand.Execute(null);
+        Assert.Equal(new[] { "Schedule 2", "Schedule 1" }, page.Schedules.Select(s => s.Name).ToArray());
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Removing_a_queue_with_unfinished_items_requires_confirmation()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var media = manager.AddQueue("Media");
+        var item = manager.Add(new DownloadItem { Urls = new() { "https://host/a.bin" }, QueueId = media.Id }, autoStart: false);
+
+        var page = new QueuesViewModel(config, manager);
+        var mediaRow = page.Queues.First(r => r.Queue.Id == media.Id);
+
+        // Unfinished item + user declines → queue stays.
+        var asked = 0;
+        page.ConfirmRemoval = (_, _) => { asked++; return Task.FromResult(false); };
+        await page.Remove(mediaRow);
+        Assert.Equal(1, asked);
+        Assert.Contains(page.Queues, r => r.Queue.Id == media.Id);
+
+        // User accepts → queue removed, its item reassigned to the default queue.
+        page.ConfirmRemoval = (_, _) => Task.FromResult(true);
+        await page.Remove(mediaRow);
+        Assert.DoesNotContain(page.Queues, r => r.Queue.Id == media.Id);
+        Assert.Equal(config.DefaultQueue.Id, item.GetItem().QueueId);
+
+        // A queue with only finished items removes without asking.
+        var docs = manager.AddQueue("Docs");
+        var done = manager.Add(new DownloadItem { Urls = new() { "https://host/b.bin" }, QueueId = docs.Id }, autoStart: false);
+        done.Status = DownloadStatus.Completed;
+        var page2 = new QueuesViewModel(config, manager);
+        var askedAgain = false;
+        page2.ConfirmRemoval = (_, _) => { askedAgain = true; return Task.FromResult(true); };
+        await page2.Remove(page2.Queues.First(r => r.Queue.Id == docs.Id));
+        Assert.False(askedAgain);
+        Assert.DoesNotContain(page2.Queues, r => r.Queue.Id == docs.Id);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Page_views_are_created_once_and_reused_across_navigation()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var cache = new Views.PageViewCache();
+        var downloads = new DownloadsViewModel(manager);
+        var queues = new QueuesViewModel(config, manager);
+
+        var v1 = cache.GetView(downloads);
+        var q1 = cache.GetView(queues);
+        Assert.IsType<Views.DownloadsView>(v1);
+        Assert.IsType<Views.QueuesView>(q1);
+        Assert.Same(downloads, v1.DataContext);
+
+        // Navigating away and back must return the SAME instance — no page rebuild, state preserved.
+        Assert.Same(v1, cache.GetView(downloads));
+        Assert.Same(q1, cache.GetView(queues));
+        Assert.NotSame(v1, q1);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Queue_item_wrappers_build_lazily_and_are_reused()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        for (var i = 0; i < 20; i++)
+            manager.Add(new DownloadItem { Urls = new() { $"https://host/f{i}.bin" }, FileName = $"f{i}.bin" }, autoStart: false);
+
+        var page = new QueuesViewModel(config, manager);
+        var row = page.Queues[0];
+        Assert.Equal(20, row.Items.Count); // expanded (default) → wrappers built
+
+        // A list change that does NOT alter this queue's membership must REUSE the wrappers
+        // (rebuilding 2k wrappers on every tick was part of the Queues-page hang).
+        var before = row.Items[0];
+        manager.RaiseStatsForTest();
+        row.RebuildItems();
+        Assert.Same(before, row.Items[0]);
+
+        // Collapsing drops the wrappers entirely (nothing to render); expanding rebuilds them.
+        row.IsExpanded = false;
+        Assert.Empty(row.Items);
+        Assert.True(row.HasItems); // aggregate stats still reflect the real membership
+        row.IsExpanded = true;
+        Assert.Equal(20, row.Items.Count);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Queue_cards_collapse_and_expand_individually_and_all_at_once()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        manager.AddQueue("Media");
+        manager.AddQueue("Docs");
+
+        var page = new QueuesViewModel(config, manager);
+        Assert.Equal(3, page.Queues.Count);
+        Assert.All(page.Queues, q => Assert.True(q.IsExpanded)); // expanded by default
+
+        // One row toggles independently and the "all collapsed" flag follows the whole set.
+        page.Queues[0].IsExpanded = false;
+        Assert.False(page.Queues[0].IsExpanded);
+        Assert.True(page.Queues[1].IsExpanded);
+        Assert.False(page.AllCollapsed);
+
+        page.AllCollapsed = true;   // toolbar toggle → collapse all
+        Assert.All(page.Queues, q => Assert.False(q.IsExpanded));
+        Assert.True(page.AllCollapsed);
+
+        page.AllCollapsed = false;  // toolbar toggle → expand all
+        Assert.All(page.Queues, q => Assert.True(q.IsExpanded));
+        Assert.False(page.AllCollapsed);
+
+        // Collapsing every row by hand flips the aggregate flag too.
+        foreach (var q in page.Queues)
+            q.IsExpanded = false;
+        Assert.True(page.AllCollapsed);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Removing_a_queue_reassigns_its_items()
     {
         var manager = new DownloadManager();
@@ -107,7 +488,7 @@ public class AppTests
         Assert.Equal(config.DefaultQueue.Id, vm.GetItem().QueueId);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void QueuesChanged_fires_on_add_and_remove()
     {
         var manager = new DownloadManager();
@@ -123,7 +504,7 @@ public class AppTests
         Assert.Equal(2, fired); // removing a queue notifies too
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Start_stop_queue_menus_update_live_on_add_and_remove()
     {
         var manager = new DownloadManager();
@@ -143,7 +524,7 @@ public class AppTests
         Assert.DoesNotContain(view.StartQueueTargets, t => t.Name == "Second");
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Adding_a_queue_shows_the_queue_column()
     {
         var manager = new DownloadManager();
@@ -160,7 +541,7 @@ public class AppTests
         Assert.True(view.ShowQueue); // a 2nd queue → Queue column shown
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Details_exposes_the_queue_name()
     {
         var manager = new DownloadManager();
@@ -174,7 +555,7 @@ public class AppTests
         Assert.Equal(config.DefaultQueue.Name, vm.QueueName);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void ReorderTo_moves_item_in_master_list()
     {
         var manager = new DownloadManager();
@@ -192,7 +573,7 @@ public class AppTests
         Assert.Equal(new[] { b, c, a }, manager.Items);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Dragging_into_another_queue_changes_its_queue()
     {
         var manager = new DownloadManager();
@@ -211,16 +592,45 @@ public class AppTests
         Assert.Equal("Second", a.QueueName);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Add_dialog_parses_multiple_urls()
     {
         var config = Config.New();
         var vm = new AddDownloadItemViewModel(config, "https://host/a.zip\nhttps://host/b.zip");
         Assert.True(vm.CanDownload);
         Assert.True(vm.IsMultiple);
+        Assert.False(vm.IsBulk); // a couple of links stays an editable box
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Add_dialog_collapses_a_huge_paste_to_a_summary_without_probing()
+    {
+        Localizer.Instance.Load("en");
+        var config = Config.New();
+        int resolveCalls = 0;
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            resolveFileInfo: (_, _) => { Interlocked.Increment(ref resolveCalls); return Task.FromResult<(string, long)?>(null); },
+            resolveDebounce: TimeSpan.Zero,
+            readClipboard: () => Task.FromResult<string>(null));
+
+        // Sample-shaped bulk paste: many links + blank lines interspersed.
+        var lines = Enumerable.Range(0, 2000).Select(i => $"https://host/f{i}.mp4");
+        var big = string.Join("\n", lines) + "\n\n\n";
+        vm.Urls = big;
+
+        Assert.True(vm.IsBulk);
+        Assert.Equal(2000, vm.LinkCount);
+        Assert.Contains("2000", vm.BulkSummaryText);
+        Assert.Equal(0, resolveCalls);                 // no per-link probing on a bulk paste
+        Assert.Equal(2000, vm.BuildItems().Count);     // every link is still added
+
+        vm.ClearUrlsCommand.Execute(null);
+        Assert.False(vm.IsBulk);
+        Assert.True(string.IsNullOrEmpty(vm.Urls));
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Add_dialog_shows_the_claiming_plugins_badge_for_a_single_url()
     {
         Localizer.Instance.Load("en");
@@ -245,7 +655,7 @@ public class AppTests
         Assert.False(vm.HasResolver);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_shows_variants_and_blocks_download_while_fetching()
     {
         var config = Config.New();
@@ -273,7 +683,7 @@ public class AppTests
         Assert.False(vm.Variants.Single(v => v.Id == "audio").IsChecked);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_builds_one_item_per_checked_variant()
     {
         var config = Config.New();
@@ -305,7 +715,7 @@ public class AppTests
         Assert.Null(items[2].VariantId);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_variant_lookup_failure_falls_back_to_plain_add()
     {
         var config = Config.New();
@@ -327,7 +737,7 @@ public class AppTests
         Assert.Null(items[0].VariantId); // default pick
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_editing_the_url_clears_stale_variants()
     {
         var config = Config.New();
@@ -350,7 +760,7 @@ public class AppTests
         Assert.Null(vm.BuildItems()[0].VariantId);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_updates_auto_filename_when_single_url_changes()
     {
         var config = Config.New();
@@ -374,7 +784,7 @@ public class AppTests
         Assert.Equal("beta.iso", vm.Filename);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_keeps_manual_filename_until_cleared()
     {
         var config = Config.New();
@@ -405,7 +815,7 @@ public class AppTests
         Assert.Equal("three.iso", vm.Filename);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_constructor_prefilled_url_triggers_resolution()
     {
         var config = Config.New();
@@ -419,7 +829,7 @@ public class AppTests
         Assert.Equal("prefilled.iso", vm.Filename);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_ignores_extensionless_probe_names()
     {
         // youtube.com/watch?v=… probes to the page-path segment "watch" — not a file name. The box must
@@ -435,7 +845,7 @@ public class AppTests
         Assert.Equal(string.Empty, vm.Filename);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_uses_url_name_fallback_when_probe_returns_null()
     {
         var config = Config.New();
@@ -449,7 +859,7 @@ public class AppTests
         Assert.Equal("ubuntu-26.04-desktop-amd64.iso", vm.Filename);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_suggests_single_clipboard_url_and_accepts_it()
     {
         var config = Config.New();
@@ -471,7 +881,7 @@ public class AppTests
         Assert.False(vm.ShowClipboardSuggestion);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_suggests_multiple_clipboard_urls_mixed_separators()
     {
         var config = Config.New();
@@ -499,7 +909,7 @@ public class AppTests
         Assert.Contains("c.zip", vm.Urls);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_enter_accepts_clipboard_suggestion_not_newline()
     {
         // Regression: Enter in the empty multi-line links box used to insert a newline instead of
@@ -530,7 +940,7 @@ public class AppTests
         view.Close();
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Add_dialog_esc_closes_it()
     {
         // Esc must close the Add-link dialog like every other custom-chrome dialog (no native chrome
@@ -550,7 +960,7 @@ public class AppTests
         Assert.True(closed);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_ignores_clipboard_when_seed_url_present()
     {
         var config = Config.New();
@@ -567,7 +977,7 @@ public class AppTests
         Assert.Equal("https://host/seed.zip", vm.Urls);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_no_suggestion_for_non_url_clipboard()
     {
         var config = Config.New();
@@ -583,7 +993,7 @@ public class AppTests
         Assert.False(vm.ShowClipboardSuggestion);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Plan_stage_shows_part_progress_in_status_text()
     {
         Localizer.Instance.Load("en");
@@ -602,7 +1012,7 @@ public class AppTests
         Assert.Equal("40%", vm.StatusText);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Details_dialog_renders_plan_segments_as_waiting_active_done_rows()
     {
         var item = new DownloadItem { Urls = { "https://h/video.m3u8" }, FileName = "video.mp4", Status = DownloadStatus.Running };
@@ -632,7 +1042,7 @@ public class AppTests
         finally { details.Cleanup(); }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Retry_clears_the_persisted_plan_so_it_re_resolves()
     {
         var manager = new DownloadManager();
@@ -658,7 +1068,7 @@ public class AppTests
         manager.Cancel(vm);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Add_dialog_can_create_and_select_a_new_queue()
     {
         var manager = new DownloadManager();
@@ -702,7 +1112,7 @@ public class AppTests
         Assert.Equal(created.Id, item.QueueId);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Pending_name_shows_placeholder()
     {
         var item = new DownloadItem { Url = "https://host/x", Status = DownloadStatus.Running };
@@ -711,7 +1121,7 @@ public class AppTests
         Assert.Equal("Fetching name…", vm.DisplayName);
     }
 
-    [AvaloniaTheory]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Running)]
     [InlineData(DownloadStatus.Completed)]
     [InlineData(DownloadStatus.Failed)]
@@ -725,7 +1135,7 @@ public class AppTests
         Assert.IsAssignableFrom<Avalonia.Media.IBrush>(brush);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void StartAll_respects_queue_concurrency_cap()
     {
         var manager = new DownloadManager();
@@ -745,7 +1155,7 @@ public class AppTests
         Assert.Equal(4, manager.QueuedCount);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Settings_max_concurrent_caps_running_downloads()
     {
         var manager = new DownloadManager();
@@ -766,7 +1176,7 @@ public class AppTests
         Assert.Equal(6, manager.QueuedCount);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Staged_progress_flushes_only_while_running()
     {
         var item = new DownloadItem { Status = DownloadStatus.Running };
@@ -786,7 +1196,7 @@ public class AppTests
         Assert.Equal(42, vm.Progress);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Completed_item_ignores_stop_resume_and_retry()
     {
         var manager = new DownloadManager();
@@ -809,7 +1219,7 @@ public class AppTests
         Assert.Equal(100, vm.Progress);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Stopping_all_stops_running_and_queued_items()
     {
         var manager = new DownloadManager();
@@ -834,7 +1244,7 @@ public class AppTests
         Assert.All(manager.Items, vm => Assert.Equal(DownloadStatus.Stopped, vm.Status));
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void StopAll_stops_running_and_queued_items()
     {
         var manager = new DownloadManager();
@@ -855,7 +1265,7 @@ public class AppTests
         Assert.All(manager.Items, vm => Assert.Equal(DownloadStatus.Stopped, vm.Status));
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void AllDownloadsCompleted_fires_once_when_list_drains()
     {
         var manager = new DownloadManager();
@@ -877,7 +1287,7 @@ public class AppTests
         Assert.Equal(1, fired); // everything done → fired exactly once
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Stopping_items_does_not_arm_all_completed_even_with_a_finished_item()
     {
         var manager = new DownloadManager();
@@ -900,7 +1310,7 @@ public class AppTests
         Assert.Equal(0, fired);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void SelectAll_header_is_tri_state_and_drives_selection()
     {
         var manager = new DownloadManager();
@@ -929,7 +1339,7 @@ public class AppTests
         Assert.True(b.IsChecked);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Selected_bulk_commands_disable_without_selection()
     {
         var manager = new DownloadManager();
@@ -947,7 +1357,7 @@ public class AppTests
         Assert.True(((System.Windows.Input.ICommand)view.StopSelectedCommand).CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Grid_row_selection_enables_bulk_commands_without_checkboxes()
     {
         var manager = new DownloadManager();
@@ -967,7 +1377,7 @@ public class AppTests
         Assert.False(view.HasSelection);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void StartQueue_runs_remaining_stopped_and_failed_items()
     {
         var manager = new DownloadManager();
@@ -991,7 +1401,7 @@ public class AppTests
         Assert.Equal(DownloadStatus.Completed, done.Status);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Completed_item_loads_at_full_progress_even_without_downloaded_bytes()
     {
         // A file that already existed on disk is Completed but may have Downloaded=0 persisted.
@@ -1000,7 +1410,7 @@ public class AppTests
         Assert.Equal(100, vm.Progress);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Setting_status_completed_forces_full_progress()
     {
         var vm = new DownloadItemViewModel(new DownloadItem { Size = 1000 }, null) { Progress = 0 };
@@ -1008,7 +1418,7 @@ public class AppTests
         Assert.Equal(100, vm.Progress);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Chunk_status_text_tracks_progress()
     {
         // Reads localized strings, so it must run under the headless runtime with en loaded
@@ -1023,7 +1433,7 @@ public class AppTests
         Assert.Equal("Completed", chunk.StatusText);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void AlreadyExisted_completed_row_shows_exists_text()
     {
         Localizer.Instance.Load("en");
@@ -1038,7 +1448,7 @@ public class AppTests
         Assert.True(vm.IsCompleted); // still counts as done (Open file works, no retry)
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void TimeLeft_reflects_remaining_over_speed()
     {
         var item = new DownloadItem { Status = DownloadStatus.Running };
@@ -1052,7 +1462,7 @@ public class AppTests
         Assert.Equal("—", vm.TimeLeftText);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Queue_summary_reflects_items()
     {
         var manager = new DownloadManager();
@@ -1069,7 +1479,7 @@ public class AppTests
         Assert.Equal(1, row.WaitingCount);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Move_to_queue_reassigns_item()
     {
         var manager = new DownloadManager();
@@ -1083,7 +1493,7 @@ public class AppTests
         Assert.Equal(other.Id, vm.GetItem().QueueId);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Move_priority_reorders_within_queue()
     {
         var manager = new DownloadManager();
@@ -1097,7 +1507,7 @@ public class AppTests
         Assert.True(manager.Items.IndexOf(b) < manager.Items.IndexOf(a));
     }
 
-    [AvaloniaTheory]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Running)]
     [InlineData(DownloadStatus.Paused)]
     public void Interrupted_downloads_load_as_stopped(DownloadStatus saved)
@@ -1111,7 +1521,7 @@ public class AppTests
         Assert.Equal(DownloadStatus.Stopped, manager.Items[0].Status);
     }
 
-    [AvaloniaTheory]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Completed)]
     [InlineData(DownloadStatus.Stopped)]
     [InlineData(DownloadStatus.Failed)]
@@ -1125,7 +1535,7 @@ public class AppTests
         Assert.Equal(saved, manager.Items[0].Status);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Accent_applies_color_and_selection_resources()
     {
         ThemeService.ApplyAccent("Blue");
@@ -1138,7 +1548,7 @@ public class AppTests
         ThemeService.ApplyAccent("Teal"); // restore default for other tests
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Every_language_has_a_loadable_flag()
     {
         foreach (var lang in Localizer.Languages)
@@ -1151,7 +1561,7 @@ public class AppTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Start_runs_item_even_when_its_queue_was_paused()
     {
         // Regression (1.3.2/1.3.3): a persisted queue.IsRunning=false made every per-item Start silently
@@ -1170,7 +1580,7 @@ public class AppTests
         Assert.Equal(DownloadStatus.Running, vm.Status); // item actually started (not stuck as Queued)
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Removing_a_queue_deactivates_its_schedules()
     {
         // Deleting a queue must disable + unbind any schedules pointing at it, so the scheduler can't
@@ -1212,7 +1622,7 @@ public class AppTests
         public void Initialize(IPluginContext context) => context.RegisterResolver(new FakeRepoResolver());
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Download_flow_resolves_a_link_via_an_enabled_plugin()
     {
         var pm = new PluginManager();
@@ -1235,12 +1645,18 @@ public class AppTests
         Assert.Equal("https://example.com/file.zip", plain);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Download_flow_without_a_plugin_manager_passes_links_through()
     {
         var manager = new DownloadManager(); // no plugins
         var (url, name) = await manager.ResolveViaPluginsAsync("repo://owner/app", "n.bin", default);
         Assert.Equal("repo://owner/app", url);
         Assert.Equal("n.bin", name);
+    }
+
+    private sealed class StubFileService : IFileService
+    {
+        public Task<Config> LoadFromFileAsync() => Task.FromResult(Config.New());
+        public Task SaveToFileAsync(Config itemToSave) => Task.CompletedTask;
     }
 }

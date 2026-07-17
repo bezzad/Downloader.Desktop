@@ -20,7 +20,7 @@ public class PluginIsolationTests
         "Downloader.Desktop.Plugins.Website",
     };
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void App_csproj_never_references_an_optional_plugin()
     {
         var csproj = FindRepoFile(Path.Combine("Downloader.Desktop", "Downloader.Desktop.csproj"));
@@ -37,7 +37,7 @@ public class PluginIsolationTests
                 $"{assembly} must not be referenced or staged by the app csproj — optional plugins ship as release assets, never bundled.");
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Built_in_plugins_are_staged_but_the_optional_plugin_is_not()
     {
         // Best-effort: only assert when the app's staged plugins/ folder is present (i.e. the app was

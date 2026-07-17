@@ -107,7 +107,7 @@ public class WebsiteCrawlTests
 
     private static HttpClient Client() => new() { Timeout = Timeout.InfiniteTimeSpan };
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Crawl_captures_pages_and_requisites_and_rewrites_offline()
     {
         using var site = BuildSite();
@@ -152,7 +152,7 @@ public class WebsiteCrawlTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Page_cap_bounds_the_crawl_but_still_succeeds()
     {
         using var site = BuildSite();
@@ -176,7 +176,7 @@ public class WebsiteCrawlTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Transfer_produces_a_zip_with_the_rewritten_site()
     {
         using var site = BuildSite();
@@ -208,7 +208,7 @@ public class WebsiteCrawlTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Pause_suspends_fetching_and_resume_continues()
     {
         using var site = BuildSite();
@@ -233,7 +233,7 @@ public class WebsiteCrawlTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Cancel_aborts_the_crawl_and_the_transfer_cleans_up()
     {
         using var site = BuildSite();
@@ -261,7 +261,7 @@ public class WebsiteCrawlTests
 
     /// <summary>Live-network sanity check (gated like the other DLDESKTOP_NET tests): crawl a real,
     /// tiny, stable site end-to-end through the transfer. Run locally with DLDESKTOP_NET=1.</summary>
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Live_crawl_of_a_real_site_produces_a_zip()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_NET") != "1")
@@ -285,7 +285,7 @@ public class WebsiteCrawlTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Unreachable_start_page_fails_with_a_readable_error()
     {
         var target = TempDir();

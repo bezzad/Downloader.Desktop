@@ -9,14 +9,14 @@ public class M3u8ParserTests
     private static readonly Uri MasterBase = new("https://cdn.example.com/video/master.m3u8");
     private static readonly Uri MediaBase = new("https://cdn.example.com/video/low/index.m3u8");
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Detects_master_playlist()
     {
         Assert.True(_parser.IsMaster(TestFixtures.Read("master.m3u8")));
         Assert.False(_parser.IsMaster(TestFixtures.Read("media.m3u8")));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Master_selects_highest_bandwidth_variant()
     {
         var master = _parser.ParseMaster(TestFixtures.Read("master.m3u8"), MasterBase);
@@ -28,7 +28,7 @@ public class M3u8ParserTests
         Assert.Equal("1920x1080", best.Resolution);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Media_returns_ordered_segments_with_resolved_uris()
     {
         var media = _parser.ParseMedia(TestFixtures.Read("media.m3u8"), MediaBase);
@@ -43,7 +43,7 @@ public class M3u8ParserTests
         Assert.False(media.IsEncrypted);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Media_resolves_root_relative_segment_uris_against_playlist_host()
     {
         // x.com playlists reference segments by root-relative path ("/amplify_video/..."). On Unix,
@@ -55,7 +55,7 @@ public class M3u8ParserTests
         Assert.Equal("https://video.twimg.com/amplify_video/1/vid/avc1/0/3000/1280x720/a.m4s", media.Segments[0].Uri);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Media_parses_aes128_key_uri_and_iv()
     {
         var media = _parser.ParseMedia(TestFixtures.Read("media-aes.m3u8"), MediaBase);
@@ -69,7 +69,7 @@ public class M3u8ParserTests
         Assert.All(key.Iv, b => Assert.Equal(0, b));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Media_parses_init_segment_map()
     {
         var media = _parser.ParseMedia(TestFixtures.Read("media-map.m3u8"), MediaBase);
@@ -79,7 +79,7 @@ public class M3u8ParserTests
         Assert.Equal("https://cdn.example.com/video/low/seg0.m4s", media.Segments[0].Uri);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Implicit_iv_defaults_to_media_sequence()
     {
         const string playlist =
@@ -98,7 +98,7 @@ public class M3u8ParserTests
         Assert.Equal(6, iv6[15]);
     }
 
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("")]
     [InlineData("   \n  \n")]
     public void Empty_playlist_throws(string content)
@@ -106,7 +106,7 @@ public class M3u8ParserTests
         Assert.Throws<FormatException>(() => _parser.ParseMedia(content, MediaBase));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Garbled_playlist_throws_clear_error()
     {
         var ex = Assert.Throws<FormatException>(
@@ -114,7 +114,7 @@ public class M3u8ParserTests
         Assert.Contains("M3U8", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Media_with_no_segments_throws()
     {
         const string playlist = "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ENDLIST\n";

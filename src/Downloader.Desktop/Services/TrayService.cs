@@ -108,26 +108,9 @@ public static class TrayService
             TrayIcon.SetIcons(Application.Current, new TrayIcons());
     }
 
-    /// <summary>Brings the main window back from the tray. Safe to call from any thread.</summary>
-    public static void ShowWindow()
-    {
-        if (_window == null)
-            return;
-        // Some tray backends raise Clicked on a DBus/background thread; Show/Activate must run on the
-        // UI thread or they silently do nothing (the "tray click does nothing" symptom).
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            if (_window == null)
-                return;
-            _window.Show();
-            if (_window.WindowState == WindowState.Minimized)
-                _window.WindowState = WindowState.Normal;
-            _window.Activate();
-            // A brief topmost flip nudges the window to the foreground across window managers.
-            _window.Topmost = true;
-            _window.Topmost = false;
-        });
-    }
+    /// <summary>Brings the main window back from the tray. Safe to call from any thread — the shared
+    /// helper marshals to the UI thread and defers activation past the show (see WindowActivation, #6).</summary>
+    public static void ShowWindow() => WindowActivation.BringToFront(_window);
 
     private static string NotifItemHeader() =>
         NotificationService.Enabled ? "Disable notifications" : "Enable notifications";

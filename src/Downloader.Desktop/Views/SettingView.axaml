@@ -54,24 +54,36 @@
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer>
-        <StackPanel Spacing="16" MaxWidth="680" Margin="28 22" HorizontalAlignment="Stretch">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="{i18n:Tr Settings_Title}" FontSize="22" FontWeight="SemiBold"
-                           VerticalAlignment="Center" />
-                <Button Grid.Column="1" Command="{Binding ResetDefaultsCommand}" Padding="12 7"
-                        ToolTip.Tip="{i18n:Tr Settings_ResetTip}">
-                    <StackPanel Orientation="Horizontal" Spacing="7">
-                        <PathIcon Data="{StaticResource OptionsRegular}" Height="14" />
-                        <TextBlock Text="{i18n:Tr Settings_Reset}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </Grid>
+    <!-- Sticky page header (#7): the title row lives OUTSIDE the ScrollViewer so it stays pinned
+         while the options scroll. -->
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" MaxWidth="680" Margin="28 22 28 6">
+            <TextBlock Grid.Column="0" Text="{i18n:Tr Settings_Title}" FontSize="22" FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <!-- Search filters the visible options as you type (#15); clearing restores everything. -->
+            <TextBox Grid.Column="1" x:Name="SearchBox" Width="190" Margin="0 0 10 0"
+                     VerticalAlignment="Center" CornerRadius="6"
+                     Watermark="{i18n:Tr Settings_SearchPlaceholder}"
+                     TextChanged="OnSearchChanged">
+                <TextBox.InnerLeftContent>
+                    <PathIcon Data="{StaticResource SearchRegular}" Height="13" Margin="8 0 2 0" Opacity="0.6" />
+                </TextBox.InnerLeftContent>
+            </TextBox>
+            <Button Grid.Column="2" Command="{Binding ResetDefaultsCommand}" Padding="12 7"
+                    ToolTip.Tip="{i18n:Tr Settings_ResetTip}">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <PathIcon Data="{StaticResource OptionsRegular}" Height="14" />
+                    <TextBlock Text="{i18n:Tr Settings_Reset}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </Grid>
 
-            <!-- ===== General ===== -->
-            <Border Classes="card">
+    <ScrollViewer>
+        <StackPanel x:Name="SectionsPanel" Spacing="16" MaxWidth="680" Margin="28 6 28 22" HorizontalAlignment="Stretch">
+
+            <!-- ===== General ===== (#16: every section is a collapsible Expander, expanded by default) -->
+            <Expander HorizontalAlignment="Stretch" IsExpanded="True" Header="{i18n:Tr Sec_General}">
                 <StackPanel Spacing="2">
-                    <TextBlock Classes="section" Text="{i18n:Tr Sec_General}" Margin="0 0 0 6" />
 
                     <Grid Classes="field" ColumnDefinitions="*">
                         <StackPanel Spacing="6">
@@ -189,13 +201,11 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableNotifications}" />
                     </Grid>
                 </StackPanel>
-            </Border>
+            </Expander>
 
             <!-- ===== Notifications ===== -->
-            <Border Classes="card">
+            <Expander HorizontalAlignment="Stretch" IsExpanded="True" Header="{i18n:Tr Sec_Notifications}">
                 <StackPanel Spacing="2">
-                    <TextBlock Classes="section" Text="{i18n:Tr Sec_Notifications}" Margin="0 0 0 6" />
-
                     <!-- The per-event toggles only apply while the master switch (above) is on. -->
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{i18n:Tr Set_NotifyComplete}" />
@@ -229,12 +239,11 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShutdownOnCompletion}" />
                     </Grid>
                 </StackPanel>
-            </Border>
+            </Expander>
 
             <!-- ===== App & updates ===== -->
-            <Border Classes="card">
+            <Expander HorizontalAlignment="Stretch" IsExpanded="True" Header="{i18n:Tr Sec_AppUpdates}">
                 <StackPanel Spacing="2">
-                    <TextBlock Classes="section" Text="{i18n:Tr Sec_AppUpdates}" Margin="0 0 0 6" />
 
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
@@ -318,18 +327,16 @@
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </Expander>
 
-            <!-- ===== Plugins (advanced, collapsed by default) — bare Expander to match the Advanced
-                 section below (no surrounding card, which produced a double border). ===== -->
-            <Expander HorizontalAlignment="Stretch" Header="{i18n:Tr Sec_Plugins}">
+            <!-- ===== Plugins — expanded by default (#16) ===== -->
+            <Expander HorizontalAlignment="Stretch" IsExpanded="True" Header="{i18n:Tr Sec_Plugins}">
                 <v:PluginsView DataContext="{Binding Plugins}" Margin="2 6" />
             </Expander>
 
             <!-- ===== Logging ===== -->
-            <Border Classes="card">
+            <Expander HorizontalAlignment="Stretch" IsExpanded="True" Header="{i18n:Tr Sec_Logging}">
                 <StackPanel Spacing="6">
-                    <TextBlock Classes="section" Text="{i18n:Tr Sec_Logging}" Margin="0 0 0 2" />
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Set_WriteLog}" />
@@ -343,10 +350,10 @@
                         <Button Content="{i18n:Tr Btn_EmailLogs}" Padding="12 6" Command="{Binding EmailLogsCommand}" />
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </Expander>
 
-            <!-- ===== Advanced (incl. network) ===== -->
-            <Expander Header="{i18n:Tr Adv_Header}" HorizontalAlignment="Stretch">
+            <!-- ===== Advanced (incl. network) — expanded by default like every section (#16) ===== -->
+            <Expander Header="{i18n:Tr Adv_Header}" HorizontalAlignment="Stretch" IsExpanded="True">
                 <StackPanel Spacing="2" Margin="2 6">
                         <Grid Classes="field" ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="{i18n:Tr Set_BufferBlock}" />
@@ -477,4 +484,5 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+    </DockPanel>
 </UserControl>

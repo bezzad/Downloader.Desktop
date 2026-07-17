@@ -116,7 +116,7 @@ public class CaptureScreenshots
         frame!.Save(Path.Combine(OutDir, file));
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Capture()
     {
         if (Environment.GetEnvironmentVariable("DLDESKTOP_CAPTURE") != "1")
@@ -218,5 +218,15 @@ public class CaptureScreenshots
         };
         upd.Show();
         Save(upd, "update-dialog-dark.png");
+
+        // About dialog — verifies the distinct modal chrome (#17: accent border vs the main window).
+        var about = new AboutView { DataContext = new AboutViewModel() };
+        about.Show();
+        Save(about, "about-dark.png");
+
+        // In-app Donate modal (replaces the browser round-trip to Donate.md).
+        var donate = new DonateView { DataContext = new DonateViewModel() };
+        donate.Show();
+        Save(donate, "donate-dark.png");
     }
 }

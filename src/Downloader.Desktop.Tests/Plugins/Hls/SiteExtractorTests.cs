@@ -9,7 +9,7 @@ namespace Downloader.Desktop.Tests.Plugins.Hls;
 /// </summary>
 public class SiteExtractorTests
 {
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_prefers_progressive_mp4()
     {
         const string json = """
@@ -34,7 +34,7 @@ public class SiteExtractorTests
         Assert.Equal("yt-dlp/test", r.Headers!["User-Agent"]);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_treats_codecless_http_mp4_with_dimensions_as_progressive()
     {
         // x.com progressive MP4s carry NO vcodec/acodec fields but are muxed video+audio in practice.
@@ -56,7 +56,7 @@ public class SiteExtractorTests
         Assert.Equal("https://video.twimg.com/vid/720/b.mp4", r.PrimaryUrl);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_picks_hls_when_no_progressive()
     {
         const string json = """
@@ -76,7 +76,7 @@ public class SiteExtractorTests
         Assert.Equal("HLS clip.mp4", r.FileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_picks_video_plus_audio_when_only_split_streams()
     {
         const string json = """
@@ -103,7 +103,7 @@ public class SiteExtractorTests
         Assert.Equal("Split clip.mp4", r.FileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_does_not_cap_quality_at_a_low_progressive_when_taller_split_streams_exist()
     {
         // YouTube shape: the ONLY progressive combined format is 360p (format 18), while video-only goes
@@ -127,7 +127,7 @@ public class SiteExtractorTests
         Assert.Equal("https://cdn/hls1080.m3u8", r.PrimaryUrl);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_muxes_split_streams_when_they_beat_the_progressive_and_no_hls()
     {
         const string json = """
@@ -148,7 +148,7 @@ public class SiteExtractorTests
         Assert.Equal("https://cdn/a.m4a", r.AudioUrl);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_keeps_progressive_when_split_streams_are_not_taller()
     {
         const string json = """
@@ -183,7 +183,7 @@ public class SiteExtractorTests
     }
     """;
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ListVariants_returns_heights_desc_plus_audio_with_default_on_best()
     {
         var variants = SiteExtractor.ListVariants(VariantJson);
@@ -196,7 +196,7 @@ public class SiteExtractorTests
         Assert.Contains("Audio only", variants.Single(v => v.Id == "audio").Label);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void ListVariants_offers_no_choice_for_a_single_quality_without_audio()
     {
         const string json = """
@@ -210,7 +210,7 @@ public class SiteExtractorTests
         Assert.Empty(SiteExtractor.ListVariants(json));
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_pins_to_the_requested_height()
     {
         var r = SiteExtractor.Select(VariantJson, "720");
@@ -220,7 +220,7 @@ public class SiteExtractorTests
         Assert.Equal("https://cdn/a.m4a", r.AudioUrl);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_audio_variant_returns_the_best_audio_stream()
     {
         var r = SiteExtractor.Select(VariantJson, "audio");
@@ -230,7 +230,7 @@ public class SiteExtractorTests
         Assert.EndsWith(".m4a", r.FileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_null_variant_keeps_the_automatic_pick()
     {
         var r = SiteExtractor.Select(VariantJson, null);
@@ -239,7 +239,7 @@ public class SiteExtractorTests
         Assert.Equal("https://cdn/hls1080.m3u8", r.PrimaryUrl);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_sanitizes_title_into_filename()
     {
         const string json = """
@@ -255,7 +255,7 @@ public class SiteExtractorTests
         Assert.EndsWith(".mp4", r.FileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_falls_back_to_id_when_no_title()
     {
         const string json = """
@@ -266,7 +266,7 @@ public class SiteExtractorTests
         Assert.Equal("vid42.mp4", r.FileName);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_throws_clear_error_on_no_media()
     {
         const string json = """ { "title": "empty", "formats": [] } """;
@@ -274,7 +274,7 @@ public class SiteExtractorTests
         Assert.Contains("No downloadable video", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Select_throws_clear_error_on_bad_json()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => SiteExtractor.Select("not-json{"));
@@ -284,9 +284,10 @@ public class SiteExtractorTests
 
 public class YtDlpCookieRetryTests
 {
-    [Theory]
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData("ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies-from-browser", true)]
     [InlineData("ERROR: This video is age-restricted; log in to watch", true)]
+    [InlineData("ERROR: [twitter] 643211948184596480: No video could be found in this tweet", true)]
     [InlineData("ERROR: Unsupported URL: https://example.com", false)]
     [InlineData("", false)]
     public void NeedsCookies_detects_signin_errors(string stderr, bool expected) =>
