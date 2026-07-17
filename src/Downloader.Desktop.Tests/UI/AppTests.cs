@@ -218,6 +218,53 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void First_activation_shows_a_hidden_window()
+    {
+        var window = new Window { Width = 300, Height = 200, WindowState = WindowState.Minimized };
+        window.Show();
+        window.Hide(); // parked in the tray
+        Assert.False(window.IsVisible);
+
+        // One activation (tray click / second-instance launch) must fully surface it (#6).
+        WindowActivation.BringToFront(window);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(window.IsVisible);
+        Assert.Equal(WindowState.Normal, window.WindowState);
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Taskbar_aggregate_progress_reflects_active_downloads()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+
+        // No items → hidden.
+        Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
+
+        var a = manager.Add(new DownloadItem { Url = "https://host/a.bin" }, autoStart: false);
+        var b = manager.Add(new DownloadItem { Url = "https://host/b.bin" }, autoStart: false);
+        var c = manager.Add(new DownloadItem { Url = "https://host/c.bin" }, autoStart: false);
+
+        // Nothing running → hidden (completed/stopped rows never keep a taskbar bar alive).
+        c.Status = DownloadStatus.Completed;
+        Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
+
+        // Two running at 25% and 75% → visible at their mean (0.5), ignoring the completed row.
+        a.Status = DownloadStatus.Running; a.Progress = 25;
+        b.Status = DownloadStatus.Running; b.Progress = 75;
+        var (visible, fraction) = TaskbarProgressService.Aggregate(manager.Items);
+        Assert.True(visible);
+        Assert.Equal(0.5, fraction, 3);
+
+        // All done → hidden again.
+        a.Status = DownloadStatus.Completed;
+        b.Status = DownloadStatus.Stopped;
+        Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Settings_sections_are_expanders_expanded_by_default_and_search_filters_options()
     {
         var manager = new DownloadManager();

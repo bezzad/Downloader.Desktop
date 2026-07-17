@@ -220,13 +220,27 @@ public static class UpdateService
     private static string WriteWindowsScript(string archive, string appDir, string exe, int pid)
     {
         var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.cmd");
-        File.WriteAllText(script,
-            "@echo off\r\n" +
-            $":wait\r\n" +
-            $"tasklist /FI \"PID eq {pid}\" | find \"{pid}\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
-            $"powershell -NoProfile -Command \"Expand-Archive -Force -LiteralPath '{archive}' -DestinationPath '{appDir}'\"\r\n" +
-            $"del \"{archive}\"\r\n" +
-            $"start \"\" \"{exe}\"\r\n");
+        File.WriteAllText(script, BuildWindowsScript(archive, appDir, exe, pid));
         return script;
     }
+
+    /// <summary>The Windows swap script body (#9). Hardened against the reported "downloaded but couldn't
+    /// restart/replace" failure: (a) sleeps use `ping` — `timeout /t` dies instantly ("input redirection
+    /// is not supported") in the no-console process we spawn, making the PID wait a hot spin; (b) the
+    /// extraction RETRIES for up to ~60s until Downloader.exe is actually replaceable — a stale tray-held
+    /// instance or an AV scan keeping the exe locked used to make the single Expand-Archive fail silently
+    /// and fall through to relaunching the OLD build; (c) the old build is only relaunched as a last
+    /// resort when every retry failed (better than leaving the user with nothing running).</summary>
+    internal static string BuildWindowsScript(string archive, string appDir, string exe, int pid) =>
+        "@echo off\r\n" +
+        ":wait\r\n" +
+        $"tasklist /FI \"PID eq {pid}\" | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n" +
+        "set tries=0\r\n" +
+        ":extract\r\n" +
+        $"powershell -NoProfile -Command \"Expand-Archive -Force -LiteralPath '{archive}' -DestinationPath '{appDir}'\" && goto done\r\n" +
+        "set /a tries+=1\r\n" +
+        "if %tries% lss 60 (ping -n 2 127.0.0.1 >nul & goto extract)\r\n" +
+        ":done\r\n" +
+        $"del \"{archive}\"\r\n" +
+        $"start \"\" \"{exe}\"\r\n";
 }

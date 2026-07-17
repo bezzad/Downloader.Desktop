@@ -406,17 +406,7 @@ public class MainViewModel : ViewModelBase
     }
 
     /// <summary>Restores + activates the main window (used by single-instance and captured links).</summary>
-    private void BringToFront()
-    {
-        if (View is not Window window)
-            return;
-        if (window.WindowState == WindowState.Minimized)
-            window.WindowState = WindowState.Normal;
-        window.Show();
-        window.Activate();
-        window.Topmost = true;
-        window.Topmost = false; // brief topmost flip nudges it to the foreground across WMs
-    }
+    private void BringToFront() => Services.WindowActivation.BringToFront(View as Window);
 
     /// <summary>Really exit the app (from the tray menu / updater), bypassing close-to-tray.</summary>
     private void Quit()
@@ -487,6 +477,10 @@ public class MainViewModel : ViewModelBase
 
     private void OnStatsChanged()
     {
+        // OS taskbar/dock progress (#4) — cheap: Update() no-ops when the value hasn't changed.
+        var (visible, fraction) = TaskbarProgressService.Aggregate(_downloadManager.Items);
+        TaskbarProgressService.Update(View as Avalonia.Controls.Window, visible, fraction);
+
         this.RaisePropertyChanged(nameof(TotalSpeedText));
         this.RaisePropertyChanged(nameof(TotalDownloadedText));
         this.RaisePropertyChanged(nameof(ActiveCount));

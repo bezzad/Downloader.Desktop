@@ -18,3 +18,26 @@ Tray/startup/update live in `Services/{TrayService,StartupService,UpdateService,
 - [Windows taskbar interop + macOS Dock aren't testable on the Linux CI box] → ship behind the abstraction with a no-op default; unit-test only the aggregate value; mark visual behavior for on-device verification.
 - [winget/update failures may be un-reproducible without the Windows machine] → the change explicitly allows a "documented findings + on-device plan" outcome per the author's instructions (tasks 3 and 9 both permit that).
 - [AUR first publish blocked on credentials] → automation lands now; actual push happens when the author provides the AUR SSH key.
+
+## Findings (R&D tasks 3 & 9 — recorded 2026-07-17)
+
+### Task #3 — winget install error
+Everything verifiable off-Windows checks out:
+- `bezzad.Downloader` IS published in winget-pkgs through **2.1.0** (versions 1.5.0…2.1.0 all merged; PR #400962 for 2.1.0 is merged).
+- The merged 2.1.0 installer manifest matches the in-repo mirror byte-for-byte in the fields that matter.
+- The released `Downloader-win-x64.zip` was downloaded and verified: sha256 `0AD44A7F…FEFA4` **matches** the manifest, and `Downloader.exe` sits at the zip root exactly as `NestedInstallerFiles.RelativeFilePath` declares.
+
+So the manifest/package is NOT the bug. Most likely user-side causes, in order:
+1. **Outdated App Installer / winget** — zip+portable installs need winget ≥ 1.4; older Windows 10 clients fail with "installer type not supported" (0x8a150049-family errors).
+2. **Portable alias/symlink creation** without Developer Mode → winget falls back (usually a warning, sometimes surfaced as an error by wrappers).
+3. A **known winget-cli limitation**: portable-in-zip may not carry the zip's `plugins/` subfolder into the install dir (install "succeeds" but built-in plugins are missing) — worth checking after any successful install.
+
+**To close this out, collect from the failing machine:** `winget --version`, the exact command used, the full error text/code, and `%LOCALAPPDATA%\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\` logs from a `winget install --verbose-logs bezzad.Downloader` run.
+
+### Task #9 — Windows update couldn't restart/replace (v1.7 → 2.1)
+The v1.7 quit path already let a staged update close the app through the tray (`Closing` checks `UpdateFlow.IsReady`), so the tray-cancel theory doesn't hold for the MAIN process. Two concrete defects WERE found in the v1.7-era Windows swap script (both fixed now):
+1. `timeout /t 1 /nobreak` **fails instantly** ("input redirection is not supported") in the windowless cmd we spawn → the PID wait becomes a hot spin (works, but fragile).
+2. The extraction was a **single silent attempt**: if `Downloader.exe` was still locked when `Expand-Archive` ran — a *stale tray-held instance from an earlier session* (matches the author's tray suspicion) or an antivirus scanning the fresh download — the script fell through and `start`-ed the **old** exe: "downloaded successfully but couldn't replace/restart".
+Fix shipped: redirect-safe `ping` sleeps + extraction retried up to ~60s until the exe is replaceable, relaunching only afterwards (guarded by `UpdateSwapScriptTests`).
+
+**If it recurs on the target machine, collect:** Task Manager → how many `Downloader.exe` processes exist BEFORE clicking restart; whether `%TEMP%\downloader-update-<pid>.cmd` exists afterwards; and the app dir's `Downloader.exe` timestamp (replaced or not).
