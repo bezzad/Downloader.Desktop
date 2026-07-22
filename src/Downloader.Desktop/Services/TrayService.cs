@@ -84,10 +84,12 @@ public static class TrayService
         menu.Items.Add(quit);
         _tray.Menu = menu;
 
-        // Open the main window when the icon is activated. Do NOT platform-gate this: gating it off on
-        // Linux (fa6b925) coincided with the tray icon not appearing at all on the author's Ubuntu box,
-        // and this exact handler was present in every build where the icon DID show. The Linux
-        // right-click-menu bug is a separate, on-device-only issue — see SKILL.md.
+        // Open the main window when the icon is activated (left-click on backends that raise Activate,
+        // e.g. KDE/KStatusNotifierItem and libappindicator secondary-activate). On Ubuntu GNOME the
+        // primary click opens the context menu instead and Clicked usually never fires, so this is a
+        // no-op there rather than a conflict — it does NOT swallow the menu. The point is resilience:
+        // when the DBus/StatusNotifierItem menu comes up stale/corrupted (the recurring Ubuntu bug),
+        // clicking the icon is still a working way back into the app, independent of the menu.
         _tray.Clicked += (_, _) => ShowWindow();
 
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
