@@ -74,7 +74,7 @@ This installs **Downloader.app** into your Applications folder — open it from 
 ```bash
 sudo snap install downloader
 ```
-> Pending first publish to the Snap Store. Until it's live, use the install script below or [Manual download](#manual-download).
+> Installs from the Snap Store and keeps itself up to date automatically. If `snap` isn't available on your distro, use the install script below or [Manual download](#manual-download).
 
 **Linux (script)** — downloads the latest release and adds a menu entry + icon:
 ```bash
@@ -98,10 +98,12 @@ yay -S downloader-bin
 
 **Windows** ([winget](https://learn.microsoft.com/windows/package-manager/winget/)):
 ```powershell
-winget install bezzad.Downloader
+winget install bezzad.Downloader --source winget
 ```
 This installs the portable app and puts `Downloader` on your PATH — launch it from the Start menu or a terminal. Update later with `winget upgrade bezzad.Downloader`.
-> The short form `winget install downloader` also resolves to this package via its moniker (if another package matches first, use the full id above).
+> - `--source winget` is recommended: it tells winget to look only in the community package repository, which is where this app lives. Without it, winget also queries the Microsoft Store source, and if that source is unreachable it stops and asks you to pick a source instead of installing.
+> - The short form `winget install downloader --source winget` also works, via the package's moniker.
+> - Seeing `SSL Error: ... failed to check revocation status` or `SSL invalid CA` for the `msstore` source? That's your network or machine (a corporate TLS proxy, VPN, or a blocked certificate-revocation check), not the package — `--source winget` avoids it entirely.
 
 **Windows (script)** — downloads the latest release, adds a Start-menu shortcut, and puts `Downloader` on your PATH. Run in PowerShell:
 ```powershell

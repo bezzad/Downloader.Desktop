@@ -1,10 +1,17 @@
-# winget manifest (template)
+# winget manifest (mirror of the published package)
 
-These files publish Downloader Desktop to the Windows Package Manager so users can run:
+These files mirror what is published for Downloader Desktop in the Windows Package Manager, so users can run:
 
 ```powershell
-winget install bezzad.Downloader
+winget install bezzad.Downloader --source winget
 ```
+
+`--source winget` restricts the search to the community repository. Without it, winget also queries the
+`msstore` source, and a machine that can't reach `msstore` (corporate TLS proxy, VPN, blocked CRL/OCSP)
+gets an SSL error plus a "specify one of them using --source" prompt instead of an install.
+
+Keep these files in sync with `manifests/b/bezzad/Downloader/<version>/` upstream — `scripts/release.sh`
+(`submit_winget`) bumps them and opens the winget-pkgs PR on every release.
 
 ## How to publish a release
 winget packages live in the community repo [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs);
