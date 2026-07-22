@@ -1,5 +1,6 @@
 ﻿using Avalonia.Platform.Storage;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -29,6 +30,35 @@ public static class DialogHelper
     /// while a modal dialog is in front opens behind it / fails on some Linux WMs.</summary>
     public static Window ActiveWindow =>
         AppLifetime?.Windows?.LastOrDefault(w => w.IsActive) ?? MainWindow;
+
+    private static readonly List<Window> Modals = [];
+
+    /// <summary>The modal dialogs currently on screen (at most one, see <see cref="BeginModal"/>).</summary>
+    internal static IReadOnlyList<Window> OpenModals => Modals;
+
+    /// <summary>Closes every modal dialog that is still open.</summary>
+    public static void CloseOpenModals()
+    {
+        // Snapshot: Close() raises Closed, which removes the entry from Modals.
+        foreach (var modal in Modals.ToList())
+            modal.Close();
+        Modals.Clear();
+    }
+
+    /// <summary>Registers <paramref name="view"/> as the one open modal, closing any that is still up.
+    /// Every dialog is owned by <see cref="MainWindow"/>, so a modal opened from inside another one
+    /// (Donate from About) is its SIBLING, not its child — the owner raises the first dialog back above
+    /// the new one and it appears to open underneath. Only ever keep one modal on screen.</summary>
+    internal static void BeginModal(Window view)
+    {
+        CloseOpenModals();
+
+        if (view == null)
+            return;
+
+        Modals.Add(view);
+        view.Closed += (_, _) => Modals.Remove(view);
+    }
 
     /// <summary>Copies text to the system clipboard (best-effort).</summary>
     public static async Task CopyTextAsync(string text)
@@ -87,6 +117,7 @@ public static class DialogHelper
             view.Closing += (_, _) => SavePersistedSize(view, AddDownloadWindowKey, config);
 
             // Show as a modal dialog and wait for it to close
+            BeginModal(view);
             return await view.ShowDialog<TResult>(MainWindow);
         }
 
@@ -107,11 +138,14 @@ public static class DialogHelper
         ApplyPersistedSize(view, DetailsWindowKey, config);
         view.Closing += (_, _) => SavePersistedSize(view, DetailsWindowKey, config);
 
+        BeginModal(view);
         await view.ShowDialog(MainWindow);
     }
 
     /// <summary>Modal Yes/No confirmation. Returns true only when the user explicitly confirms;
-    /// with no main window (headless/startup edge) it confirms silently rather than blocking.</summary>
+    /// with no main window (headless/startup edge) it confirms silently rather than blocking.
+    /// Deliberately does NOT call <see cref="BeginModal"/>: a confirmation belongs on top of whatever
+    /// asked for it, so it must not close its own caller.</summary>
     public static async Task<bool> Confirm(string title, string message)
     {
         if (MainWindow == null)
@@ -129,6 +163,7 @@ public static class DialogHelper
         var vm = new DonateViewModel();
         var view = new DonateView { DataContext = vm };
         vm.View = view;
+        BeginModal(view);
         await view.ShowDialog(MainWindow);
     }
 
@@ -139,6 +174,7 @@ public static class DialogHelper
             return;
 
         var view = new AboutView { DataContext = new AboutViewModel() };
+        BeginModal(view);
         await view.ShowDialog(MainWindow);
     }
 

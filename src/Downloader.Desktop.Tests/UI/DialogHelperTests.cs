@@ -60,4 +60,64 @@ public class DialogHelperTests
         Assert.Equal(700, config.WindowSizes[DialogHelper.DetailsWindowKey].Width);
         Assert.Equal(500, config.WindowSizes[DialogHelper.DetailsWindowKey].Height);
     }
+
+    // Regression: clicking Donate inside the About dialog opened Donate *underneath* About.
+    // Both are owned by MainWindow, so the second dialog is a sibling of the first and the owner
+    // raises the first back on top of it. Only one modal may be on screen at a time.
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Opening_a_modal_closes_the_modal_that_was_already_open()
+    {
+        DialogHelper.CloseOpenModals();
+
+        var about = new Window();
+        var aboutClosed = false;
+        about.Closed += (_, _) => aboutClosed = true;
+        about.Show();
+        DialogHelper.BeginModal(about);
+
+        var donate = new Window();
+        donate.Show();
+        DialogHelper.BeginModal(donate);
+
+        Assert.True(aboutClosed);
+        Assert.Same(donate, Assert.Single(DialogHelper.OpenModals));
+
+        DialogHelper.CloseOpenModals();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Closing_a_modal_stops_tracking_it()
+    {
+        DialogHelper.CloseOpenModals();
+
+        var view = new Window();
+        view.Show();
+        DialogHelper.BeginModal(view);
+        Assert.Single(DialogHelper.OpenModals);
+
+        view.Close();
+
+        Assert.Empty(DialogHelper.OpenModals);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void CloseOpenModals_closes_every_tracked_modal()
+    {
+        DialogHelper.CloseOpenModals();
+
+        var first = new Window();
+        first.Show();
+        DialogHelper.BeginModal(first);
+
+        var second = new Window();
+        var secondClosed = false;
+        second.Closed += (_, _) => secondClosed = true;
+        second.Show();
+        DialogHelper.BeginModal(second);
+
+        DialogHelper.CloseOpenModals();
+
+        Assert.True(secondClosed);
+        Assert.Empty(DialogHelper.OpenModals);
+    }
 }
