@@ -108,6 +108,13 @@ public class CaptureScreenshots
             Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>Scrolls a ScrollViewer vertically and lets layout settle before the next capture.</summary>
+    private static void ScrollTo(Avalonia.Controls.ScrollViewer sv, double y)
+    {
+        sv.Offset = new Avalonia.Vector(0, Math.Max(0, y));
+        Pump();
+    }
+
     private static void Save(Avalonia.Controls.Window window, string file)
     {
         Pump();
@@ -174,15 +181,40 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         // Scroll to the Theme/Accent/Language(flag) controls so the accent picker + flag are visible.
         Pump();
+        // Pick the PAGE scroller, not just the first ScrollViewer in the tree: every ComboBox carries an
+        // internal PART_ScrollViewer, and one of those came first, so the Offset below was being applied
+        // to an unscrollable 150x20 popup and silently clamped to 0 — the settings-accent-* shots were
+        // byte-identical duplicates of the unscrolled settings-* shots. Match on "actually scrollable".
         var sv = window.GetVisualDescendants().OfType<Downloader.Desktop.Views.SettingView>().FirstOrDefault()
-            ?.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>().FirstOrDefault();
+            ?.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>()
+            .OrderByDescending(s => s.Extent.Height - s.Viewport.Height)
+            .FirstOrDefault(s => s.Extent.Height > s.Viewport.Height);
         if (sv != null)
         {
-            sv.Offset = new Avalonia.Vector(0, 215);
+            ScrollTo(sv, 215);
             Save(window, "settings-accent-dark.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             Save(window, "settings-accent-light.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+            // Logging section: its three action buttons sit well below the fold, and they were the
+            // control that read as invisible in dark mode (Fluent's default button background over a
+            // dark card). Capture both themes so that contrast stays reviewable. Locate the buttons
+            // rather than hard-coding an offset, so the shot keeps framing them as Settings grows.
+            var logButton = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+                .FirstOrDefault(b => b.Classes.Contains("secondary"));
+            if (logButton != null)
+            {
+                // Position relative to the viewport + the offset already applied = position in content.
+                // Back off ~180px so the section header and its hint text are in frame too.
+                var y = logButton.TranslatePoint(new Avalonia.Point(0, 0), sv)?.Y ?? 0;
+                ScrollTo(sv, sv.Offset.Y + y - 180);
+                Save(window, "settings-logging-dark.png");
+                Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+                Save(window, "settings-logging-light.png");
+                Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            }
+            ScrollTo(sv, 0);
         }
 
         vm.ShowQueuesCommand.Execute(null);

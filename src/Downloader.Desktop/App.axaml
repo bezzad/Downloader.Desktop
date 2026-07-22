@@ -140,6 +140,22 @@
             <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
         </Style>
 
+        <!-- Secondary action button (Settings → Logging etc.). The Fluent default button background is a
+             very low-alpha white overlay, which on our dark card backgrounds is almost invisible — the
+             control didn't read as a button at all in dark mode (it was fine in light). Give it an explicit
+             surface + border so the affordance is obvious in BOTH themes. -->
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumLowColor}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12 6" />
+        </Style>
+        <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListMediumColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        </Style>
+
         <!-- Plain hyperlink-style button -->
         <Style Selector="Button.link">
             <Setter Property="BorderThickness" Value="0" />

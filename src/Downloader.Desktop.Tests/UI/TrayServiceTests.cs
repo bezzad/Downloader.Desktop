@@ -61,4 +61,24 @@ public class TrayServiceTests
         Assert.Equal(TrayService.TraySize.Height, scaled.PixelSize.Height);
         Assert.True(TrayService.TraySize.Width <= 128, "Tray icon must stay small for DBus SNI hosts.");
     }
+
+    /// <summary>
+    /// Regression for the recurring Ubuntu/GNOME "tray right-click menu doesn't open" bug. On Linux the
+    /// click that opens the menu is also delivered as an activation; raising the window from that callback
+    /// steals focus from the popup being opened and the menu never shows. Dropping the Clicked handler
+    /// fixed it once (2654f9a) and re-adding it regressed it (3aac545) — this pins the policy so the
+    /// handler can't be reintroduced for Linux a third time.
+    /// <para>
+    /// Whether a native menu actually pops up cannot be asserted headlessly (no desktop session, no DBus
+    /// StatusNotifierWatcher here), so this locks the decision itself rather than the visual outcome.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Tray_click_is_not_handled_on_linux_so_the_context_menu_can_open()
+    {
+        Assert.Equal(!OperatingSystem.IsLinux(), TrayService.HandlesTrayClick);
+
+        if (OperatingSystem.IsLinux())
+            Assert.False(TrayService.HandlesTrayClick, "Handling tray clicks on Linux suppresses the SNI context menu.");
+    }
 }

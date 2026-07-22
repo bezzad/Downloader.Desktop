@@ -23,6 +23,23 @@ public static class TrayService
 
     public static bool IsActive => _tray != null;
 
+    /// <summary>
+    /// Whether to open the main window from <see cref="TrayIcon.Clicked"/>. False on Linux — and that is
+    /// load-bearing, not a preference.
+    /// <para>
+    /// On Linux the tray is a DBus StatusNotifierItem (Ubuntu GNOME's AppIndicator). There the click that
+    /// the user makes to get the menu is ALSO delivered to us as an activation, and raising + focusing the
+    /// main window from that callback steals focus from the popup the shell is in the middle of opening, so
+    /// the menu never appears — the reported "right-click menu doesn't open" bug. Dropping this handler is
+    /// what fixed it in 2654f9a; re-adding it for "resilience" in 3aac545 brought the bug straight back.
+    /// Don't re-enable it for Linux: on that platform the menu IS the interaction, and its
+    /// "Open Downloader" item is the way back from the tray.
+    /// </para>
+    /// Windows and macOS raise Clicked as a genuine, separate activation (the context menu has its own
+    /// right-click path), so the handler is safe and useful there.
+    /// </summary>
+    internal static bool HandlesTrayClick => !OperatingSystem.IsLinux();
+
     /// <summary>Wire the window + quit action once at startup (before Enable/Disable).</summary>
     public static void Init(Window window, Action onQuit)
     {
@@ -84,13 +101,9 @@ public static class TrayService
         menu.Items.Add(quit);
         _tray.Menu = menu;
 
-        // Open the main window when the icon is activated (left-click on backends that raise Activate,
-        // e.g. KDE/KStatusNotifierItem and libappindicator secondary-activate). On Ubuntu GNOME the
-        // primary click opens the context menu instead and Clicked usually never fires, so this is a
-        // no-op there rather than a conflict — it does NOT swallow the menu. The point is resilience:
-        // when the DBus/StatusNotifierItem menu comes up stale/corrupted (the recurring Ubuntu bug),
-        // clicking the icon is still a working way back into the app, independent of the menu.
-        _tray.Clicked += (_, _) => ShowWindow();
+        // Open the main window when the icon is activated — but NOT on Linux. See HandlesTrayClick.
+        if (HandlesTrayClick)
+            _tray.Clicked += (_, _) => ShowWindow();
 
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
     }

@@ -285,6 +285,69 @@ public class AppTests
         Assert.Equal((false, 0d), TaskbarProgressService.Aggregate(manager.Items));
     }
 
+    /// <summary>
+    /// The three Settings → Logging buttons rendered with the Fluent default background, which is a
+    /// very low-alpha white overlay: on our dark card surface they didn't read as buttons at all (light
+    /// theme was fine). They must carry the explicit "secondary" style class that gives them a visible
+    /// surface + border in both themes.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Logging_action_buttons_use_the_visible_secondary_style()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var view = new Views.SettingView { DataContext = new SettingViewModel(config, manager) };
+        var window = new Window { Content = view };
+        window.Show();
+        try
+        {
+            var logButtons = window.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.Command != null && b.Classes.Contains("secondary"))
+                .ToList();
+
+            Assert.True(logButtons.Count >= 3,
+                $"expected the 3 Logging buttons to use Classes=\"secondary\", found {logButtons.Count}");
+
+            // A bare Fluent button is what made them invisible in dark mode — the class must actually
+            // resolve to a real surface, not just be present as a label.
+            foreach (var button in logButtons)
+                Assert.NotNull(button.Background);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>Caption (window control) buttons were oversized; they are 44x40, two pixels down from
+    /// the original 46x42. Pinned so a future style edit doesn't quietly grow them back.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Caption_buttons_are_44x40()
+    {
+        var bar = new Views.TitleBar();
+        var window = new Window { Content = bar };
+        window.Show();
+        try
+        {
+            var caption = window.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.Classes.Contains("caption"))
+                .ToList();
+
+            Assert.Equal(3, caption.Count);
+            Assert.All(caption, b =>
+            {
+                Assert.Equal(44, b.Width);
+                Assert.Equal(40, b.Height);
+            });
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Settings_sections_are_expanders_expanded_by_default_and_search_filters_options()
     {
