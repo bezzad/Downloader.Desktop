@@ -74,6 +74,35 @@ public class YtDlpArgsTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_interrupted_download_never_counts_as_an_installed_tool()
+    {
+        // The real failure this guards: a yt-dlp download stopped at 23 MB of 40 MB, kept its final
+        // name, never got its +x bit — and every existence-only check called it installed, so it was
+        // never refetched and every extraction died with "yt-dlp could not be started".
+        var dir = Path.Combine(Path.GetTempPath(), "dl-binfile-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var fragment = Path.Combine(dir, "yt-dlp");
+            File.WriteAllBytes(fragment, new byte[1024]); // truncated
+            Assert.False(BinaryFile.IsUsable(fragment));
+
+            var full = Path.Combine(dir, "yt-dlp-full");
+            File.WriteAllBytes(full, new byte[(int)BinaryFile.MinUsableBytes + 1]);
+            // Complete but not yet runnable — only Windows has no executable bit to wait for.
+            Assert.Equal(OperatingSystem.IsWindows(), BinaryFile.IsUsable(full));
+            BinaryFile.MakeExecutable(full);
+            Assert.True(BinaryFile.IsUsable(full));
+
+            Assert.False(BinaryFile.IsUsable(Path.Combine(dir, "absent")));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void A_cached_ytdlp_goes_stale_and_is_refreshed_after_a_failure()
     {
         // yt-dlp is fetched once at install time; the sites it extracts change every few weeks, so a

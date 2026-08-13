@@ -154,7 +154,12 @@ public sealed class YtDlpBinary : IYtDlp
         if (_denoResolved is not null) return _denoResolved.Length == 0 ? null : _denoResolved;
 
         var cached = DenoExePath(_dataDir);
-        if (File.Exists(cached)) return _denoResolved = cached;
+        if (BinaryFile.IsUsable(cached)) return _denoResolved = cached;
+        if (File.Exists(cached))
+        {
+            _log.LogWarning("The cached deno at {Path} is incomplete — downloading it again", cached);
+            BinaryFile.DeleteIfPresent(cached);
+        }
 
         var onPath = FindOnPath(Path.GetFileName(cached));
         if (onPath is not null) return _denoResolved = onPath;
@@ -163,11 +168,7 @@ public sealed class YtDlpBinary : IYtDlp
         {
             var url = DenoDownloadUrl;
             _log.LogInformation("deno not found; downloading {Url} into {Dir}", url, _dataDir);
-            var archive = DenoArchivePath(_dataDir);
-            Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
-            await using (var fs = File.Create(archive))
-            await using (var stream = await _http.GetStreamAsync(url, ct).ConfigureAwait(false))
-                await stream.CopyToAsync(fs, ct).ConfigureAwait(false);
+            await BinaryFile.DownloadToAsync(_http, url, DenoArchivePath(_dataDir), ct).ConfigureAwait(false);
             await FinishDenoInstallAsync(ct).ConfigureAwait(false);
             return _denoResolved = cached;
         }
@@ -194,11 +195,12 @@ public sealed class YtDlpBinary : IYtDlp
             DisplayName = "yt-dlp",
             DownloadUrl = new Uri(ReleaseBase + AssetName),
             DownloadDestination = YtDlpExePath(_dataDir),
-            IsAvailable = () => File.Exists(YtDlpExePath(_dataDir)) || FindOnPath(ExeName) is not null,
+            // Usable, not merely present: an interrupted download leaves a truncated file here, and
+            // "it exists" would mark the dependency installed forever (the host then never refetches).
+            IsAvailable = () => BinaryFile.IsUsable(YtDlpExePath(_dataDir)) || FindOnPath(ExeName) is not null,
             FinishInstallAsync = ct =>
             {
-                if (!OperatingSystem.IsWindows())
-                    MakeExecutable(YtDlpExePath(_dataDir));
+                BinaryFile.MakeExecutable(YtDlpExePath(_dataDir));
                 return Task.CompletedTask;
             },
         },
@@ -208,7 +210,7 @@ public sealed class YtDlpBinary : IYtDlp
             DisplayName = "Deno",
             DownloadUrl = new Uri(DenoDownloadUrl),
             DownloadDestination = DenoArchivePath(_dataDir),
-            IsAvailable = () => File.Exists(DenoExePath(_dataDir)) || FindOnPath(Path.GetFileName(DenoExePath(_dataDir))) is not null,
+            IsAvailable = () => BinaryFile.IsUsable(DenoExePath(_dataDir)) || FindOnPath(Path.GetFileName(DenoExePath(_dataDir))) is not null,
             FinishInstallAsync = FinishDenoInstallAsync,
         },
     };
@@ -238,8 +240,7 @@ public sealed class YtDlpBinary : IYtDlp
             throw new InvalidOperationException("The downloaded Deno archive was corrupt; it will be re-downloaded on the next attempt.", ex);
         }
         try { File.Delete(archive); } catch (IOException) { }
-        if (!OperatingSystem.IsWindows())
-            MakeExecutable(DenoExePath(_dataDir));
+        BinaryFile.MakeExecutable(DenoExePath(_dataDir));
         return Task.CompletedTask;
     }
 
@@ -329,7 +330,14 @@ public sealed class YtDlpBinary : IYtDlp
         if (_resolved is not null) return _resolved;
 
         var cached = YtDlpExePath(_dataDir);
-        if (File.Exists(cached)) return _resolved = cached;
+        if (BinaryFile.IsUsable(cached)) return _resolved = cached;
+        // Present but unusable = an interrupted download from an earlier run. Clear it out, otherwise
+        // every extraction fails with "yt-dlp could not be started" and nothing ever repairs it.
+        if (File.Exists(cached))
+        {
+            _log.LogWarning("The cached yt-dlp at {Path} is incomplete — downloading it again", cached);
+            BinaryFile.DeleteIfPresent(cached);
+        }
 
         var onPath = FindOnPath(ExeName);
         if (onPath is not null) return _resolved = onPath;
@@ -386,34 +394,23 @@ public sealed class YtDlpBinary : IYtDlp
     private async Task<string> DownloadAsync(string targetExe, CancellationToken ct)
     {
         var url = ReleaseBase + AssetName;
-        var binDir = Path.GetDirectoryName(targetExe)!;
-        Directory.CreateDirectory(binDir);
 
         try
         {
-            await using (var fs = File.Create(targetExe))
-            await using (var stream = await _http.GetStreamAsync(url, ct).ConfigureAwait(false))
-                await stream.CopyToAsync(fs, ct).ConfigureAwait(false);
+            await BinaryFile.DownloadToAsync(_http, url, targetExe, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogError(ex, "Failed to download yt-dlp from {Url}", url);
-            try { File.Delete(targetExe); } catch (IOException) { }
             throw new InvalidOperationException(
                 "Video extraction is unavailable: yt-dlp could not be downloaded.", ex);
         }
 
-        if (!OperatingSystem.IsWindows())
-            MakeExecutable(targetExe);
+        BinaryFile.MakeExecutable(targetExe);
 
         return targetExe;
     }
 
-    private static void MakeExecutable(string path)
-    {
-        var psi = new ProcessStartInfo("chmod", $"+x \"{path}\"") { UseShellExecute = false, CreateNoWindow = true };
-        try { Process.Start(psi)?.WaitForExit(); } catch { /* best effort */ }
-    }
 
     private static string? FindOnPath(string exeName)
     {

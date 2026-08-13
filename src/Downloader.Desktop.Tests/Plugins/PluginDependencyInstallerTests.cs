@@ -35,8 +35,15 @@ public class PluginDependencyInstallerTests
             var exeDir = Path.GetDirectoryName(dep.DownloadDestination)!;
             Directory.CreateDirectory(exeDir);
             var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-            File.WriteAllText(Path.Combine(dataDir, "ffmpeg-bin", exeName), "stub");
+            var exe = Path.Combine(dataDir, "ffmpeg-bin", exeName);
 
+            // A fragment left by an interrupted download is NOT an installed tool — treating it as one
+            // is what left a truncated yt-dlp in place for a month, unrunnable and never refetched.
+            File.WriteAllText(exe, "stub");
+            Assert.False(dep.IsAvailable());
+
+            File.WriteAllBytes(exe, new byte[(int)Downloader.Desktop.Plugins.Hls.BinaryFile.MinUsableBytes + 1]);
+            Downloader.Desktop.Plugins.Hls.BinaryFile.MakeExecutable(exe);
             Assert.True(dep.IsAvailable());
         }
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
