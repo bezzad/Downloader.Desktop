@@ -11,7 +11,7 @@ const {
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
   candidatePorts, discoverAppPort, APP_PORT_RANGE,
-  captureCookies, mapCookie, sendToAppSilently
+  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -221,14 +221,39 @@ test("mapCookie maps chrome shape and omits expires for session cookies", () => 
 });
 
 test("captureCookies is attempted for the given URL and returns the mapped list", async () => {
-  let askedUrl = null;
-  global.chrome.cookies.getAll = async ({ url }) => { askedUrl = url; return [
+  const asked = [];
+  global.chrome.cookies.getAll = async ({ url }) => { asked.push(url); return [
     { name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expirationDate: 1893456000 }
   ]; };
   const cookies = await captureCookies("https://youtu.be/x");
-  assert.equal(askedUrl, "https://youtu.be/x"); // scoped to the exact URL
-  assert.equal(cookies.length, 1);
+  assert.equal(asked[0], "https://youtu.be/x"); // the link's own origin first
+  assert.equal(cookies.length, 1);              // the same cookie from a sibling origin is deduped
   assert.equal(cookies[0].name, "SID");
+});
+
+test("cookieUrlsFor adds the session's sibling origin for short/alternate domains", () => {
+  // A youtu.be link carries no youtube.com cookies — capturing only its own host hands the app an
+  // empty jar and YouTube's bot check can never be passed.
+  assert.deepEqual(cookieUrlsFor("https://youtu.be/8uiKr3U71RE"),
+    ["https://youtu.be/8uiKr3U71RE", "https://www.youtube.com/"]);
+  assert.deepEqual(cookieUrlsFor("https://www.youtube.com/watch?v=x"),
+    ["https://www.youtube.com/watch?v=x", "https://www.youtube.com/"]);
+  assert.deepEqual(cookieUrlsFor("https://x.com/u/status/1"),
+    ["https://x.com/u/status/1", "https://twitter.com/"]);
+});
+
+test("cookieUrlsFor leaves an ordinary link alone", () => {
+  assert.deepEqual(cookieUrlsFor("https://example.com/a.mp4"), ["https://example.com/a.mp4"]);
+  assert.deepEqual(cookieUrlsFor("not a url"), ["not a url"]);
+});
+
+test("captureCookies merges cookies from the sibling origin without duplicating", async () => {
+  global.chrome.cookies.getAll = async ({ url }) => url.includes("youtube.com")
+    ? [{ name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expirationDate: 1893456000 },
+       { name: "PREF", value: "hl=en", domain: ".youtube.com", path: "/", session: true }]
+    : [{ name: "SID", value: "v", domain: ".youtube.com", path: "/", secure: true, expirationDate: 1893456000 }];
+  const cookies = await captureCookies("https://youtu.be/x");
+  assert.deepEqual(cookies.map(c => c.name).sort(), ["PREF", "SID"]);
 });
 
 test("captureCookies returns [] when the cookies API throws (send is never blocked)", async () => {

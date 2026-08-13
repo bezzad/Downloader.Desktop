@@ -111,17 +111,16 @@ public class FallbackResolverTests
     {
         // The x.com report: the HLS resolver claimed the link (and the badge named it) but its quality
         // lookup FAILED — falling through to the Website fallback showed "Offline copy (.zip)" under a
-        // video plugin's badge. A failure must yield NO variants (plain add; the real error surfaces
-        // when the download runs), never another plugin's options.
+        // video plugin's badge. A failure must never yield another plugin's options; it surfaces the
+        // reason instead, which the Add window shows.
         var pm = new PluginManager();
         var broken = new StubResolver { ThrowOnVariants = true };
         var fallback = new StubResolver { Fallback = true, Variants = new[] { Variant("zip") } };
         pm.RegisterPlugin(new StubPlugin("test.broken", broken));
         pm.RegisterPlugin(new StubPlugin("test.fallback", fallback));
 
-        var shown = await pm.GetVariantsAsync("https://site/page", CancellationToken.None);
-
-        Assert.Null(shown);
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => pm.GetVariantsAsync("https://site/page", CancellationToken.None));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

@@ -72,4 +72,17 @@ public class YtDlpArgsTests
         Assert.False(YtDlpBinary.MissingFormats("ERROR: [youtube] abc: Sign in to confirm you're not a bot."));
         Assert.False(YtDlpBinary.MissingFormats(""));
     }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_cached_ytdlp_goes_stale_and_is_refreshed_after_a_failure()
+    {
+        // yt-dlp is fetched once at install time; the sites it extracts change every few weeks, so a
+        // frozen binary is the usual cause of "this link used to work". Only age decides — the refresh
+        // itself runs after a failed extraction, never in the happy path.
+        var now = new DateTime(2026, 8, 13, 12, 0, 0, DateTimeKind.Utc);
+        Assert.False(YtDlpBinary.IsStale(now, now));
+        Assert.False(YtDlpBinary.IsStale(now.AddDays(-1), now));
+        Assert.True(YtDlpBinary.IsStale(now - YtDlpBinary.StaleAfter, now));
+        Assert.True(YtDlpBinary.IsStale(now.AddDays(-40), now));
+    }
 }

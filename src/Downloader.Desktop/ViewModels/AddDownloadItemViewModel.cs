@@ -38,6 +38,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     private readonly Func<string, string> _getResolverName;
     private string _resolverName;
     private bool _fetchingVariants;
+    private string _variantError = string.Empty;
     private CancellationTokenSource _variantsCts;
     private IReadOnlyList<string> _parsed = Array.Empty<string>();
 
@@ -220,8 +221,24 @@ public class AddDownloadItemViewModel : ViewModelBase
 
     public bool HasVariants => Variants.Count > 0;
 
-    /// <summary>The whole variant block (spinner or list) — gates the star row in the dialog grid.</summary>
-    public bool ShowVariantSection => IsFetchingVariants || HasVariants;
+    /// <summary>Why the claiming resolver couldn't offer any options (e.g. "this site wants a signed-in
+    /// session"), or empty when there's nothing to report. Shown in the Add window so a link the plugin
+    /// can't handle explains itself up front instead of failing silently and again after Download.</summary>
+    public string VariantError
+    {
+        get => _variantError;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _variantError, value);
+            this.RaisePropertyChanged(nameof(HasVariantError));
+            this.RaisePropertyChanged(nameof(ShowVariantSection));
+        }
+    }
+
+    public bool HasVariantError => !string.IsNullOrEmpty(_variantError);
+
+    /// <summary>The whole variant block (spinner, list or error) — gates the star row in the dialog grid.</summary>
+    public bool ShowVariantSection => IsFetchingVariants || HasVariants || HasVariantError;
 
     /// <summary>True while the resolver's variant lookup runs (shows "Fetching options…" and blocks Add).</summary>
     public bool IsFetchingVariants
@@ -241,6 +258,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     {
         _variantsCts?.Cancel();
         Variants.Clear();
+        VariantError = string.Empty;
         this.RaisePropertyChanged(nameof(HasVariants));
         this.RaisePropertyChanged(nameof(ShowVariantSection));
 
@@ -269,9 +287,16 @@ public class AddDownloadItemViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(ShowVariantSection));
             }
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // lookup failure = no choices; the add proceeds with the resolver's default pick
+            // The add still proceeds (the resolver's default pick may work), but say WHY there are no
+            // choices — the plugin's message is the only hint the user gets before starting.
+            if (!cts.IsCancellationRequested && ParsedUrls is [var same] && same == url)
+                VariantError = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            // superseded by newer input / the safety valve — nothing to report
         }
         finally
         {

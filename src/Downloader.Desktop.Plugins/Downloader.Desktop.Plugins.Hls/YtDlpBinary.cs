@@ -62,6 +62,18 @@ public sealed class YtDlpBinary : IYtDlp
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
             return stdout;
 
+        // yt-dlp is downloaded ONCE at plugin-install time and would otherwise stay frozen forever,
+        // while the sites it extracts (YouTube above all) change every few weeks — a stale binary is
+        // the single most common cause of "this link used to work". Refresh it only after a failure,
+        // so the happy path pays nothing, then retry once with the fresh build.
+        if (await TryRefreshYtDlpAsync(exe, cancellationToken).ConfigureAwait(false))
+        {
+            (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, null, deno), cancellationToken)
+                .ConfigureAwait(false);
+            if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
+                return stdout;
+        }
+
         // x.com/Twitter: the guest-token GraphQL API intermittently returns no media for public tweets
         // ("No video could be found in this tweet"). yt-dlp's syndication API is a cookie-free public
         // endpoint that still serves them — try it BEFORE reading browser cookies (which can hang on the
@@ -97,8 +109,9 @@ public sealed class YtDlpBinary : IYtDlp
                     throw NoJsRuntimeError();
             }
             throw new InvalidOperationException(
-                "This site requires a signed-in browser session. Open the video once in your browser " +
-                "while logged in, then try again.");
+                "This site wants to verify a signed-in browser session before it hands over the video. " +
+                "Sign in to the site in your browser, then send the link from the Downloader browser " +
+                "extension so it can pass that session along.");
         }
 
         _log.LogWarning("yt-dlp exited {Code}: {Err}", exitCode, Tail(stderr));
@@ -326,6 +339,49 @@ public sealed class YtDlpBinary : IYtDlp
     }
 
     private static string YtDlpExePath(string dataDir) => Path.Combine(dataDir, "yt-dlp-bin", ExeName);
+
+    /// <summary>How old our cached yt-dlp may get before a failed extraction is worth retrying with a
+    /// freshly self-updated build. Short, because extractors break within weeks; the check only runs
+    /// after something already failed, so it costs nothing while links keep working.</summary>
+    internal static readonly TimeSpan StaleAfter = TimeSpan.FromDays(3);
+
+    /// <summary>Is a binary last written at <paramref name="lastWriteUtc"/> old enough to re-check?</summary>
+    internal static bool IsStale(DateTime lastWriteUtc, DateTime nowUtc) => nowUtc - lastWriteUtc >= StaleAfter;
+
+    private bool _refreshTried;
+
+    /// <summary>Self-update our cached yt-dlp (<c>--update-to stable</c>) when it has gone stale, and
+    /// report whether the binary actually changed (i.e. a retry is worth it). Best-effort: a system
+    /// yt-dlp from PATH is never touched, and any failure is logged and ignored.</summary>
+    private async Task<bool> TryRefreshYtDlpAsync(string exe, CancellationToken ct)
+    {
+        if (_refreshTried) return false;
+        _refreshTried = true;
+
+        // Only ever update the copy we downloaded ourselves — a PATH/package-managed yt-dlp is the
+        // user's (or the distro's) to update.
+        if (!string.Equals(exe, YtDlpExePath(_dataDir), StringComparison.Ordinal)) return false;
+
+        try
+        {
+            if (!IsStale(File.GetLastWriteTimeUtc(exe), DateTime.UtcNow)) return false;
+
+            _log.LogInformation("Extraction failed and yt-dlp is stale — updating it before retrying");
+            var (stdout, stderr, code) = await RunAsync(exe, "--update-to stable", ct).ConfigureAwait(false);
+            // Mark it checked either way so a run of failing links doesn't re-update on every attempt.
+            try { File.SetLastWriteTimeUtc(exe, DateTime.UtcNow); } catch (IOException) { }
+
+            var updated = code == 0 && stdout.Contains("Updated yt-dlp", StringComparison.OrdinalIgnoreCase);
+            if (!updated)
+                _log.LogInformation("yt-dlp was already current (exit {Code}): {Out}", code, Tail(stdout + stderr, 200));
+            return updated;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogWarning(ex, "Couldn't update yt-dlp — continuing with the installed build");
+            return false;
+        }
+    }
 
     private async Task<string> DownloadAsync(string targetExe, CancellationToken ct)
     {

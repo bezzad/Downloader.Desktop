@@ -747,6 +747,33 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Add_dialog_reports_why_a_variant_lookup_failed()
+    {
+        // A YouTube link the plugin can't extract (bot check) used to show a spinner and then simply
+        // nothing — the reason only appeared after Download, on the failed row. Say it up front.
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            getVariants: (u, _) => u.Contains("youtu.be")
+                ? Task.FromException<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(
+                    new InvalidOperationException("This site wants to verify a signed-in browser session."))
+                : Task.FromResult<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(null));
+
+        vm.Urls = "https://youtu.be/8uiKr3U71RE";
+        await Task.Delay(50);
+
+        Assert.True(vm.HasVariantError);
+        Assert.Contains("signed-in browser session", vm.VariantError);
+        Assert.True(vm.ShowVariantSection);
+        Assert.True(vm.CanDownload); // the add still proceeds — the resolver's default pick may work
+
+        // Editing the input clears the stale message.
+        vm.Urls = "https://host/file.zip";
+        Assert.False(vm.HasVariantError);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Add_dialog_builds_one_item_per_checked_variant()
     {
         var config = Config.New();

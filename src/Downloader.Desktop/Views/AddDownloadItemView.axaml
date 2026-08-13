@@ -151,6 +151,10 @@
                 <TextBlock Text="{i18n:Tr Add_FetchingOptions}" IsVisible="{Binding IsFetchingVariants}"
                            Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="12" />
                 <TextBlock Text="{i18n:Tr Add_ChooseVariant}" IsVisible="{Binding HasVariants}" Margin="0 0 0 4" />
+                <!-- Why the plugin offered no options (e.g. the site wants a signed-in session). -->
+                <TextBlock Text="{Binding VariantError}" IsVisible="{Binding HasVariantError}"
+                           Foreground="{DynamicResource SystemErrorTextColor}" FontSize="12"
+                           TextWrapping="Wrap" MaxWidth="520" HorizontalAlignment="Left" />
             </StackPanel>
             <Border Grid.Row="1" BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
                     CornerRadius="6" VerticalAlignment="Top"

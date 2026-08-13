@@ -192,8 +192,9 @@ public sealed class PluginManager
     }
 
     /// <summary>The selectable variants the claiming enabled resolver offers for this link (qualities,
-    /// model tags, …), or null when no resolver claims it / it has no choices / the lookup fails. The Add
-    /// window shows these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>.</summary>
+    /// model tags, …), or null when no resolver claims it or it has no choices. The Add window shows
+    /// these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>. A resolver that
+    /// FAILS throws through to the caller so the Add window can explain why there are no options.</summary>
     public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
     {
         // Only the DETECTED resolver's options are shown (same one the Add badge names) — a fallback's
@@ -219,9 +220,10 @@ public sealed class PluginManager
                 // FAILURE is different from "no choices": the badge names THIS resolver, so showing a
                 // later plugin's variants instead would mislead (the x.com report — the HLS lookup
                 // failed and the Website fallback's "Offline copy (.zip)" appeared under the HLS
-                // badge). Offer nothing; the real error surfaces when the download actually runs.
-                AppLog.Error($"Variant lookup failed for {url} — offering no variants (plain add)", ex);
-                return null;
+                // badge). Surface the reason instead of falling through — the Add window shows it, so
+                // a link the plugin can't handle says WHY rather than looking like nothing happened.
+                AppLog.Error($"Variant lookup failed for {url} — reporting the failure to the caller", ex);
+                throw;
             }
         }
         return null;
