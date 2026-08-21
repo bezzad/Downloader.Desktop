@@ -30,17 +30,28 @@ public class PluginDependencyInstallerTests
             var dep = ffmpeg.GetDependency();
 
             Assert.Equal("ffmpeg", dep.Id);
-            Assert.False(dep.IsAvailable()); // nothing cached yet, and PATH almost certainly lacks a plugin-managed ffmpeg
+
+            var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+
+            // A system-wide ffmpeg on PATH legitimately makes the dependency available (that's by
+            // design), so the "not available yet" asserts only hold on machines without one.
+            var onPath = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+                .Split(Path.PathSeparator)
+                .Where(d => !string.IsNullOrWhiteSpace(d))
+                .Any(d => File.Exists(Path.Combine(d, exeName)));
+
+            if (!onPath)
+                Assert.False(dep.IsAvailable()); // nothing cached yet
 
             var exeDir = Path.GetDirectoryName(dep.DownloadDestination)!;
             Directory.CreateDirectory(exeDir);
-            var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
             var exe = Path.Combine(dataDir, "ffmpeg-bin", exeName);
 
             // A fragment left by an interrupted download is NOT an installed tool — treating it as one
             // is what left a truncated yt-dlp in place for a month, unrunnable and never refetched.
             File.WriteAllText(exe, "stub");
-            Assert.False(dep.IsAvailable());
+            if (!onPath)
+                Assert.False(dep.IsAvailable());
 
             File.WriteAllBytes(exe, new byte[(int)Downloader.Desktop.Plugins.Hls.BinaryFile.MinUsableBytes + 1]);
             Downloader.Desktop.Plugins.Hls.BinaryFile.MakeExecutable(exe);
