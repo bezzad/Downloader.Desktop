@@ -19,3 +19,11 @@ The HLS plugin never listed qualities for a real `.m3u8` link, and page-URL extr
 - YouTube / x.com / Instagram / … page downloads.
 - Separate-audio HLS (`#EXT-X-MEDIA:TYPE=AUDIO`) mux.
 - Live (no `EXT-X-ENDLIST`) or DRM playlists.
+
+## Released
+
+Shipped in **v2.3.0** (tag `v2.3.0` = `146de478d25f026a09a1a837cea9954734033a7f`, merge commit
+`ef42a35` develop→main, version bump `fa829e5`). Homebrew tap updated to 2.3.0; winget PR
+[microsoft/winget-pkgs#422385](https://github.com/microsoft/winget-pkgs/pull/422385) open awaiting
+a moderator. `openspec` CLI wasn't available in the release session to run `/opsx:sync` + `/opsx:archive`
+— do that from a machine that has it (all 6 tasks are done, build+tests green).
