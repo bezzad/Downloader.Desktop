@@ -416,6 +416,30 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void New_queues_copy_the_settings_max_concurrent_cap()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5; // distinct from every built-in default
+        manager.Initialize(config);
+
+        // Queues page "New queue" button path.
+        var fromPage = manager.AddQueue("Media");
+        Assert.Equal(5, fromPage.MaxConcurrent);
+
+        // Add-download dialog inline "new queue" box path.
+        var dialog = new AddDownloadItemViewModel(config, url: null, manager: manager);
+        dialog.NewQueueName = "Series";
+        dialog.ConfirmAddQueue();
+        var fromDialog = config.Queues.First(q => q.Name == "Series");
+        Assert.Equal(5, fromDialog.MaxConcurrent);
+
+        // The lazy default-queue fallback (empty config) copies it too.
+        var bare = new Config { Settings = new DownloadSettings { MaxConcurrentDownloads = 7 } };
+        Assert.Equal(7, bare.DefaultQueue.MaxConcurrent);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Queues_added_or_removed_outside_the_page_appear_on_it_live()
     {
         var manager = new DownloadManager();

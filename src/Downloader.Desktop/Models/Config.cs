@@ -42,7 +42,12 @@ public class Config
         {
             Queues ??= new List<DownloadQueue>();
             if (Queues.Count == 0)
-                Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName });
+                Queues.Add(new DownloadQueue
+                {
+                    Name = DownloadQueue.DefaultName,
+                    // Every queue-creation path copies the Settings cap — this lazy fallback included.
+                    MaxConcurrent = Settings?.MaxConcurrentDownloads ?? 3
+                });
             return Queues[0];
         }
     }
