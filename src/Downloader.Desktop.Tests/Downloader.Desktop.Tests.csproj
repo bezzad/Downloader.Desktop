@@ -34,7 +34,7 @@
              installer) is unit-tested directly. ALC loading is already covered by the GitHub plugin test. -->
         <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj" />
         <!-- The optional HLS plugin IS compile-referenced: its tests (Plugins/Hls/) call internal types
-             (SiteExtractor, ExtractionResult, …) directly, and its DLL lands in the test output so
+             directly, and its DLL lands in the test output so
              PluginLoadTests can load it in a host-mirroring ALC. Referencing an OPTIONAL plugin from the
              TEST project is fine — the isolation rule only bars the APP project from referencing it
              (guarded by PluginIsolationTests). -->

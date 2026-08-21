@@ -14,7 +14,7 @@
   "Nav_Plugins": "Plugins",
   "Nav_Settings": "Settings",
   "Plugins_Title": "Plugins",
-  "Plugins_Desc": "Add-ons that extend Downloader (e.g. video-site / HLS downloads). The core app stays lightweight; install only what you need.",
+  "Plugins_Desc": "Add-ons that extend Downloader (e.g. HLS stream downloads). The core app stays lightweight; install only what you need.",
   "Plugins_Install": "Install Plugins",
   "Plugins_Installed": "Plugin installed",
   "Plugins_NoneFound": "That file doesn't contain a Downloader plugin. Make sure it's a plugin (.dll) built for this version.",

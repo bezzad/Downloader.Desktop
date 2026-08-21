@@ -16,6 +16,8 @@ public sealed record HlsMediaPlaylist(
     string? InitSegmentUri)
 {
     public bool IsEncrypted => Segments.Any(s => s.Key is { } k && k.IsEncrypted);
+    /// <summary>Sum of <c>#EXTINF</c> durations, used to estimate variant size from bandwidth.</summary>
+    public double Duration => Segments.Sum(s => s.Duration);
 }
 
 /// <summary>One <c>#EXT-X-STREAM-INF</c> variant in a master playlist (resolved absolute <see cref="Uri"/>).</summary>

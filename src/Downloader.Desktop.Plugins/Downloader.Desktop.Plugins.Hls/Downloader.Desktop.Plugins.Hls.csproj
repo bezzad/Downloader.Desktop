@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- OPTIONAL / catalog-tier plugin (HLS + video-site downloads via yt-dlp/ffmpeg).
+  <!-- OPTIONAL / catalog-tier plugin (HLS .m3u8 segment download + ffmpeg remux).
        Built and tested as part of the solution, but NEVER referenced by or staged into the app's own
        output — it ships only as a downloadable release asset (see docs/plugins-architecture.md and the
        consolidate-official-plugins change). Do NOT add a ProjectReference to this from
@@ -18,7 +18,7 @@
     <RootNamespace>Downloader.Desktop.Plugins.Hls</RootNamespace>
     <!-- This plugin carries its OWN version, independent of the app's VersionPrefix. Bump it only when
          the plugin's code changes; the catalog/update flow compares this against the running copy. -->
-    <Version>1.4.0</Version>
+    <Version>2.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

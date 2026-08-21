@@ -14,7 +14,7 @@
   "Nav_Plugins": "Extensions",
   "Nav_Settings": "Paramètres",
   "Plugins_Title": "Extensions",
-  "Plugins_Desc": "Des extensions qui enrichissent Downloader (p. ex. téléchargements de sites vidéo / HLS). Le cœur reste léger ; n'installez que ce dont vous avez besoin.",
+  "Plugins_Desc": "Des extensions qui enrichissent Downloader (p. ex. téléchargements HLS). Le cœur reste léger ; n'installez que ce dont vous avez besoin.",
   "Plugins_Install": "Installer des extensions",
   "Plugins_Installed": "Extension installée",
   "Plugins_NoneFound": "Ce fichier ne contient pas d'extension Downloader. Vérifiez que c'est bien un plugin (.dll) compilé pour cette version.",

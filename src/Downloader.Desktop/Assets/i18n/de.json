@@ -14,7 +14,7 @@
   "Nav_Plugins": "Plugins",
   "Nav_Settings": "Einstellungen",
   "Plugins_Title": "Plugins",
-  "Plugins_Desc": "Erweiterungen für Downloader (z. B. Video-Seiten- / HLS-Downloads). Die Kern-App bleibt schlank; installiere nur, was du brauchst.",
+  "Plugins_Desc": "Erweiterungen für Downloader (z. B. HLS-Downloads). Die Kern-App bleibt schlank; installiere nur, was du brauchst.",
   "Plugins_Install": "Plugins installieren",
   "Plugins_Installed": "Plugin installiert",
   "Plugins_NoneFound": "Diese Datei enthält kein Downloader-Plugin. Stelle sicher, dass es ein für diese Version gebautes Plugin (.dll) ist.",

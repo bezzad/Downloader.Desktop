@@ -29,7 +29,7 @@ public sealed class FfmpegBinary : IFfmpeg
     {
         _dataDir = dataDirectory;
         // Infinite timeout: the default 100 s covers the whole body read and truncates a large static
-        // build on slow links (see YtDlpBinary). Cancellation comes from the caller's token.
+        // build on slow links. Cancellation comes from the caller's token.
         _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _log = logger ?? NullLogger.Instance;
     }

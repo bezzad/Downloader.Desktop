@@ -110,7 +110,7 @@ public class PluginsViewModel : ViewModelBase
     }
 
     /// <summary>Add (install) an optional plugin from the catalog: download plugin → verify sha256 → load →
-    /// fetch any declared runtime dependencies (e.g. ffmpeg/yt-dlp for HLS), reporting progress on the row
+    /// fetch any declared runtime dependencies (e.g. ffmpeg for HLS), reporting progress on the row
     /// and rolling the plugin back out if the user cancels or a dependency fails.</summary>
     internal async Task AddFromCatalogAsync(CatalogPluginRowViewModel row)
     {

@@ -14,7 +14,7 @@
   "Nav_Plugins": "插件",
   "Nav_Settings": "设置",
   "Plugins_Title": "插件",
-  "Plugins_Desc": "扩展 Downloader 功能的插件（例如视频网站 / HLS 下载）。核心应用保持轻量；只安装所需的。",
+  "Plugins_Desc": "扩展 Downloader 功能的插件（例如 HLS 下载）。核心应用保持轻量；只安装所需的。",
   "Plugins_Install": "安装插件",
   "Plugins_Installed": "插件已安装",
   "Plugins_NoneFound": "该文件不包含 Downloader 插件。请确认它是为此版本构建的插件 (.dll)。",

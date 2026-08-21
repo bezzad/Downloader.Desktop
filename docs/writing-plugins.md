@@ -60,7 +60,7 @@ public sealed class MyPlugin : IDownloaderPlugin
         ctx.RegisterResolver(new MyResolver());          // claim some URLs
         // ctx.RegisterTransferProvider(new MyTransfer()); // own a protocol (torrent…)
         // ctx.RegisterPostProcessor(new MyPostProc());    // combine/transform after download
-        // ctx.DataDirectory  → a per-plugin writable folder (download yt-dlp/ffmpeg here on first use)
+        // ctx.DataDirectory  → a per-plugin writable folder (download ffmpeg here on first use)
         // ctx.Logger.LogInformation("…") → standard ILogger (Microsoft.Extensions.Logging) → app log
     }
 }

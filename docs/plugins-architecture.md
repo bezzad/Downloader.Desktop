@@ -1,7 +1,7 @@
 # Plugin architecture
 
-Goal: keep the **core app dependency-free** (no ffmpeg/yt-dlp for normal users) and let optional
-**plugins** add capabilities — first **HLS / video-site downloads**, later **torrents**. Designed from the
+Goal: keep the **core app dependency-free** (no ffmpeg for normal users) and let optional
+**plugins** add capabilities — first **HLS (.m3u8) downloads**, later **torrents**. Designed from the
 brainstorm: the app is a *transfer manager*, not a media tool, so plugins extend a **3-phase pipeline**
 rather than a single "media extractor".
 
@@ -11,7 +11,7 @@ user input ──▶ [1] RESOLVE ──▶ [2] TRANSFER ──▶ [3] POST-PROCE
               (input→plan)    (fetch bytes)    (combine/decode)
 ```
 - **Resolve** (`ILinkResolver`) — turn a pasted input into a `DownloadPlan`: one or more real URLs
-  (parts) + a post-process recipe. yt-dlp/HLS live here. A plain `http://….zip` skips resolve.
+  (parts) + a post-process recipe. HLS master/media playlists live here. A plain `http://….zip` skips resolve.
 - **Transfer** (`ITransferProvider`/`ITransfer`) — how bytes are fetched. **Core ships the default HTTP
   multipart engine.** A plugin can register an *alternative* transfer (torrent owns the whole download).
 - **Post-process** (`IPostProcessor`) — combine the downloaded part files into the output (ffmpeg
@@ -20,7 +20,7 @@ user input ──▶ [1] RESOLVE ──▶ [2] TRANSFER ──▶ [3] POST-PROCE
 A plugin implements only the phase(s) it needs:
 | Plugin | Resolve | Transfer | Post-process |
 |---|---|---|---|
-| HLS / video sites | ✅ yt-dlp → URLs | core HTTP | ✅ ffmpeg mux/concat |
+| HLS (.m3u8) | ✅ master → qualities / media → segments | core HTTP | ✅ ffmpeg concat/remux |
 | Torrent | recognize magnet | ✅ owns transfer | — |
 
 ## Job vs Transfers (progress aggregation)

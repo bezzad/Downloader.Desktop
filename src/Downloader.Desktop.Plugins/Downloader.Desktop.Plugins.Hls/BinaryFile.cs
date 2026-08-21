@@ -1,7 +1,7 @@
 namespace Downloader.Desktop.Plugins.Hls;
 
 /// <summary>
-/// Shared handling for the external tools this plugin provisions (yt-dlp, deno, ffmpeg).
+/// Shared handling for the external tools this plugin provisions (ffmpeg).
 /// <para>
 /// The rule this exists to enforce: a tool downloaded straight to its final path leaves a TRUNCATED
 /// file behind when the app is closed or killed mid-download, and an existence-only "is it installed?"

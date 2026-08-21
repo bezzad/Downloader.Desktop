@@ -283,7 +283,7 @@ public sealed class PluginManager
         lock (_gate) return _plugins.FirstOrDefault(p => p.Descriptor.Id == pluginId)?.Descriptor.Version;
     }
 
-    /// <summary>The external runtime binaries (e.g. ffmpeg, yt-dlp) a loaded plugin declares it needs, or
+    /// <summary>The external runtime binaries (e.g. ffmpeg) a loaded plugin declares it needs, or
     /// empty if it doesn't implement <see cref="IHasRuntimeDependencies"/> or isn't loaded.</summary>
     public IReadOnlyList<PluginBinaryDependency> GetRuntimeDependencies(string pluginId)
     {

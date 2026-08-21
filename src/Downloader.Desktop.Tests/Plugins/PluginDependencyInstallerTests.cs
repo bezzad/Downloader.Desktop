@@ -61,23 +61,6 @@ public class PluginDependencyInstallerTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public void YtDlpBinary_declares_both_ytdlp_and_deno_dependencies()
-    {
-        var dataDir = Directory.CreateTempSubdirectory("ytdlp-dep-").FullName;
-        try
-        {
-            var ytDlp = new YtDlpBinary(dataDir);
-            var deps = ytDlp.GetDependencies();
-
-            Assert.Equal(2, deps.Count);
-            Assert.Contains(deps, d => d.Id == "yt-dlp");
-            Assert.Contains(deps, d => d.Id == "deno");
-            Assert.All(deps, d => Assert.False(d.IsAvailable()));
-        }
-        finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
-    }
-
-    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void PluginManager_exposes_dependencies_declared_by_a_loaded_plugin()
     {
         var pm = new PluginManager();
@@ -208,19 +191,19 @@ public class PluginDependencyInstallerTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Deno_finish_install_deletes_a_corrupt_archive_so_the_next_attempt_redownloads()
+    public async Task Ffmpeg_finish_install_deletes_a_corrupt_archive_so_the_next_attempt_redownloads()
     {
-        var dataDir = Directory.CreateTempSubdirectory("deno-corrupt-").FullName;
+        var dataDir = Directory.CreateTempSubdirectory("ffmpeg-corrupt-").FullName;
         try
         {
-            var ytDlp = new YtDlpBinary(dataDir);
-            var deno = ytDlp.GetDependencies().First(d => d.Id == "deno");
-            Directory.CreateDirectory(Path.GetDirectoryName(deno.DownloadDestination)!);
-            await File.WriteAllBytesAsync(deno.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }); // truncated "zip"
+            var ffmpeg = new FfmpegBinary(dataDir);
+            var dep = ffmpeg.GetDependency();
+            Directory.CreateDirectory(Path.GetDirectoryName(dep.DownloadDestination)!);
+            await File.WriteAllBytesAsync(dep.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }); // truncated "zip"
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => deno.FinishInstallAsync(CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => dep.FinishInstallAsync(CancellationToken.None));
 
-            Assert.False(File.Exists(deno.DownloadDestination)); // corrupt archive was removed
+            Assert.False(File.Exists(dep.DownloadDestination)); // corrupt archive was removed
         }
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
     }

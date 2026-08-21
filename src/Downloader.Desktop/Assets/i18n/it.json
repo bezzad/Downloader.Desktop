@@ -14,7 +14,7 @@
   "Nav_Plugins": "Plugin",
   "Nav_Settings": "Impostazioni",
   "Plugins_Title": "Plugin",
-  "Plugins_Desc": "Componenti aggiuntivi che estendono Downloader (es. download da siti video / HLS). Il núcleo resta leggero; installa solo ciò che ti serve.",
+  "Plugins_Desc": "Componenti aggiuntivi che estendono Downloader (es. download HLS). Il núcleo resta leggero; installa solo ciò che ti serve.",
   "Plugins_Install": "Installa plugin",
   "Plugins_Installed": "Plugin installato",
   "Plugins_NoneFound": "Questo file non contiene un plugin di Downloader. Assicurati che sia un plugin (.dll) compilato per questa versione.",

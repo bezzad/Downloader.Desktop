@@ -14,7 +14,7 @@
   "Nav_Plugins": "Plugins",
   "Nav_Settings": "Configurações",
   "Plugins_Title": "Plugins",
-  "Plugins_Desc": "Complementos que ampliam o Downloader (ex.: downloads de sites de vídeo / HLS). O app principal continua leve; instale só o que precisar.",
+  "Plugins_Desc": "Complementos que ampliam o Downloader (ex.: downloads HLS). O app principal continua leve; instale só o que precisar.",
   "Plugins_Install": "Instalar plugins",
   "Plugins_Installed": "Plugin instalado",
   "Plugins_NoneFound": "Esse arquivo não contém um plugin do Downloader. Verifique se é um plugin (.dll) compilado para esta versão.",

@@ -131,7 +131,7 @@ public class CaptureScreenshots
 
         var manager = new DownloadManager();
         var plugins = new Services.PluginManager();
-        plugins.RegisterPlugin(new DemoPlugin("HLS / Video sites", "Download from YouTube, Instagram, TikTok and any HLS (.m3u8) stream."));
+        plugins.RegisterPlugin(new DemoPlugin("HLS downloader", "Download HLS (.m3u8) streams and pick a quality."));
         plugins.RegisterPlugin(new DemoPlugin("Torrents", "Add magnet links and .torrent files."));
         var vm = new MainViewModel(new SampleFileService(SampleConfig()), manager, plugins);
         Pump();
