@@ -58,4 +58,19 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Re-sign the assembled bundle (ad-hoc). The SDK signs the apphost as a STANDALONE Mach-O, but once
+# it sits in a bundle next to an Info.plist macOS evaluates it as a BUNDLE and expects
+# Contents/_CodeSignature/CodeResources. Without this, `codesign -v` on the installed app reports
+# "code has no resources but signature indicates they must be present" — the bundle signature is
+# invalid, so Gatekeeper/spctl can refuse it (the cask's quarantine strip is what has masked this).
+# The kernel's exec check only validates the main executable, so this was not the cause of the
+# v2.3.0 "won't launch" report, but a bundle that fails codesign verification is still a defect.
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --deep --sign - --timestamp=none "$APP"
+  codesign --verify --verbose=2 "$APP"
+  echo ">> Signed (ad-hoc) $APP"
+else
+  echo ">> WARNING: codesign not found — $APP is UNSIGNED and will not launch on Apple Silicon" >&2
+fi
+
 echo ">> Built $APP"

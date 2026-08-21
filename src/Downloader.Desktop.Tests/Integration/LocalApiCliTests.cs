@@ -1,7 +1,10 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -373,10 +376,88 @@ public class LocalApiEndToEndTests
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void SingleInstance_lock_port_is_outside_the_api_range()
     {
-        // The single-instance/CLI lock binds LockPort at startup; if it were inside the API's fallback
-        // range the API could never use that port (verified live: the API skipped 15152 → 15153 when the
-        // lock still sat on 15152). Guard the invariant so nobody moves it back into the range.
+        // The single-instance/CLI lock binds one of LockPorts at startup; if any were inside the API's
+        // fallback range the API could never use that port (verified live: the API skipped 15152 → 15153
+        // when the lock still sat on 15152). Guard the invariant for EVERY candidate.
         Assert.DoesNotContain(SingleInstanceService.LockPort, LocalApiService.PortRange);
+        foreach (var port in SingleInstanceService.LockPorts)
+            Assert.DoesNotContain(port, LocalApiService.PortRange);
+    }
+
+    /// <summary>Two currently-free loopback ports (asked of the OS, then released) so these tests never
+    /// fight over the real lock ports — 15150 can legitimately be busy on a dev machine, which is the
+    /// very scenario under test.</summary>
+    private static int[] FreePorts(int count)
+    {
+        var ports = new int[count];
+        var probes = new TcpListener[count];
+        for (var i = 0; i < count; i++)
+        {
+            probes[i] = new TcpListener(IPAddress.Loopback, 0);
+            probes[i].Start();
+            ports[i] = ((IPEndPoint)probes[i].LocalEndpoint).Port;
+        }
+        foreach (var p in probes) p.Stop();
+        return ports;
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_foreign_listener_on_the_lock_port_does_not_make_the_app_exit()
+    {
+        // The real-world failure: an unrelated process (the Cursor editor) held 15150, so TryClaim read
+        // "AddressAlreadyInUse" as "another Downloader is running", forwarded its args into that socket
+        // and exited 0 — the app simply never opened, with no window and no error. A foreign squatter
+        // must NOT be mistaken for our own instance.
+        var ports = FreePorts(2);
+        var squatter = new TcpListener(IPAddress.Loopback, ports[0]);
+        squatter.Start();
+        // Accept and stay silent, exactly like a foreign protocol that never sends our greeting.
+        _ = Task.Run(async () =>
+        {
+            try { using var c = await squatter.AcceptTcpClientAsync(); await Task.Delay(3000); }
+            catch { /* listener stopped */ }
+        });
+        try
+        {
+            Assert.True(SingleInstanceService.TryClaim(Array.Empty<string>(), ports),
+                "the app must keep running when the lock port is held by a foreign process");
+            // It must have fallen through to the next candidate rather than exiting or giving up the lock.
+            Assert.Equal(ports[1], SingleInstanceService.EffectiveLockPort);
+        }
+        finally
+        {
+            SingleInstanceService.Stop();
+            squatter.Stop();
+        }
+    }
+
+    // AvaloniaFact, not Fact: the primary delivers forwarded messages via Dispatcher.UIThread.Post,
+    // which needs the headless dispatcher (and the Pump below) to actually run the handler.
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_real_second_instance_is_still_detected_and_bows_out()
+    {
+        // The other half of the guard: a genuine primary (which answers the handshake) must still make a
+        // later launch forward its args and exit, or the squatter fix would let two instances run.
+        var ports = FreePorts(2);
+        Assert.True(SingleInstanceService.TryClaim(Array.Empty<string>(), ports), "first claim is primary");
+        Assert.Equal(ports[0], SingleInstanceService.EffectiveLockPort);
+        try
+        {
+            var forwarded = new TaskCompletionSource<string>();
+            SingleInstanceService.SetMessageHandler(m => forwarded.TrySetResult(m));
+
+            // A "second launch" over the SAME candidates must bow out (false), not grab ports[1].
+            Assert.False(SingleInstanceService.TryClaim(new[] { "https://example.com/f.zip" }, ports),
+                "a second launch must defer to the running primary");
+            Assert.Equal(ports[0], SingleInstanceService.EffectiveLockPort);
+
+            // ...and the primary must actually receive the forwarded URL (pump: it arrives via UIThread.Post).
+            Assert.Equal("https://example.com/f.zip", Pump(forwarded.Task));
+        }
+        finally
+        {
+            SingleInstanceService.Stop();
+        }
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

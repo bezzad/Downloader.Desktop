@@ -18,14 +18,29 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class SingleInstanceService
 {
-    /// <summary>The single-instance / CLI-forward lock port. Must sit OUTSIDE the local API's fallback
-    /// range (<see cref="LocalApiService.PortRange"/> = 15151–15155): if it were inside (it used to be
-    /// 15152) the API could never bind that port — this lock holds it — so the API's fallback would
-    /// silently skip it. A regression test asserts it stays outside the range.</summary>
+    /// <summary>The preferred single-instance / CLI-forward lock port. Must sit OUTSIDE the local API's
+    /// fallback range (<see cref="LocalApiService.PortRange"/> = 15151–15155): if it were inside (it used
+    /// to be 15152) the API could never bind that port — this lock holds it — so the API's fallback would
+    /// silently skip it. A regression test asserts every lock port stays outside the range.</summary>
     public const int LockPort = 15150;
+
+    /// <summary>Lock-port candidates, tried in order. A port can be held by a COMPLETELY UNRELATED
+    /// process (a real case: the Cursor editor listens on 15150), so one fixed port is not enough —
+    /// see <see cref="TryClaim"/>. All of these sit outside <see cref="LocalApiService.PortRange"/>.</summary>
+    public static readonly int[] LockPorts = { LockPort, 15156, 15157, 15158 };
 
     /// <summary>Message prefix for a structured CLI add payload: <c>add:{json}</c>.</summary>
     public const string AddPrefix = "add:";
+
+    /// <summary>Sent by the primary the moment a peer connects, so a caller can tell OUR listener apart
+    /// from a foreign process that happens to hold the port. Bump the suffix on a protocol change.</summary>
+    private const string Greeting = "downloader-ipc/1";
+
+    /// <summary>How long to wait for the greeting before deciding a listener is not ours.</summary>
+    private const int HandshakeTimeoutMs = 500;
+
+    /// <summary>The lock port this instance actually bound, or 0 when it holds no lock.</summary>
+    public static int EffectiveLockPort { get; private set; }
 
     private static TcpListener _listener;
     private static readonly List<string> _pending = new();
@@ -36,26 +51,46 @@ public static class SingleInstanceService
     /// false if another instance is already running (this call forwarded its args to it and the caller
     /// should exit immediately).
     /// </summary>
-    public static bool TryClaim(string[] args)
+    public static bool TryClaim(string[] args) => TryClaim(args, LockPorts);
+
+    /// <summary>Testable core of <see cref="TryClaim(string[])"/>: same logic over a caller-supplied
+    /// candidate list, so tests can use ephemeral ports instead of the real (possibly busy) ones.</summary>
+    internal static bool TryClaim(string[] args, int[] ports)
     {
-        try
+        foreach (var port in ports)
         {
-            _listener = new TcpListener(IPAddress.Loopback, LockPort);
-            _listener.Start();
-            _ = Task.Run(AcceptLoopAsync);
-            return true; // we are the primary instance
+            // NOTE: assign the static field only on SUCCESS. Failing paths must not touch it, or a
+            // secondary claim in the same process would null out a live primary's listener.
+            try
+            {
+                var listener = new TcpListener(IPAddress.Loopback, port);
+                listener.Start();
+                _listener = listener;
+                EffectiveLockPort = port;
+                _ = Task.Run(AcceptLoopAsync);
+                return true; // we are the primary instance
+            }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            {
+                // The port is taken — but by WHOM? Assuming "another Downloader" here is what made the
+                // app exit silently (code 0, no window, no error) whenever an unrelated process held the
+                // port: it forwarded its args into the void and quit. Only bow out if the listener
+                // actually speaks our protocol; otherwise it's a foreign squatter, so try the next port.
+                if (TrySendTo(port, ForwardMessage(args)))
+                    return false;
+                AppLog.Warn($"Lock port {port} is held by a foreign process — trying the next candidate");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn($"Could not bind lock port {port}: {ex.Message}");
+            }
         }
-        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
-        {
-            // Another instance owns the lock — hand it our args and bow out.
-            TryForward(args);
-            return false;
-        }
-        catch
-        {
-            // Any other failure (e.g. can't bind for an unrelated reason): fail open and run normally.
-            return true;
-        }
+
+        // Every candidate is unusable and none of them is a Downloader. Run normally WITHOUT a lock:
+        // losing single-instance is far better than refusing to start (the old code's silent exit).
+        EffectiveLockPort = 0;
+        AppLog.Warn("No lock port available — running without single-instance enforcement");
+        return true;
     }
 
     /// <summary>Registers the handler that receives forwarded messages (URLs). Flushes any buffered ones.</summary>
@@ -76,30 +111,50 @@ public static class SingleInstanceService
     {
         try { _listener?.Stop(); } catch { /* ignore */ }
         _listener = null;
+        EffectiveLockPort = 0;
     }
 
-    private static void TryForward(string[] args)
+    /// <summary>The message a secondary launch hands to the primary.</summary>
+    private static string ForwardMessage(string[] args)
     {
         // A spawned CLI add can race a just-started instance: hand over the payload instead of
         // losing it (a bare "add:{json}" arrives at the primary's handler like a forwarded add).
         var cliAdd = Array.IndexOf(args ?? Array.Empty<string>(), CliParser.CliAddSwitch);
-        var message = cliAdd >= 0 && cliAdd + 1 < args.Length
+        return cliAdd >= 0 && cliAdd + 1 < args.Length
             ? AddPrefix + args[cliAdd + 1]
             // Otherwise send the first URL-looking arg (or empty = "just focus the window").
             : FirstUrl(args) ?? string.Empty;
-        TrySend(message);
     }
 
     /// <summary>Forwards a CLI add payload to a running instance. False when none is running.</summary>
     public static bool TryForwardAdd(string json) => TrySend(AddPrefix + json);
 
+    /// <summary>Sends to whichever lock port a real Downloader answers on. False when none does.</summary>
     private static bool TrySend(string message)
+    {
+        foreach (var port in LockPorts)
+            if (TrySendTo(port, message))
+                return true;
+        return false;
+    }
+
+    /// <summary>Handshakes with the listener on <paramref name="port"/> and, only if it is really ours,
+    /// sends <paramref name="message"/>. False when nothing is listening or it is a foreign process.</summary>
+    private static bool TrySendTo(int port, string message)
     {
         try
         {
-            using var client = new TcpClient();
-            client.Connect(IPAddress.Loopback, LockPort);
+            using var client = new TcpClient { ReceiveTimeout = HandshakeTimeoutMs, SendTimeout = HandshakeTimeoutMs };
+            client.Connect(IPAddress.Loopback, port);
             using var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.UTF8, false, 1024, leaveOpen: true);
+
+            // A foreign listener either says nothing (read times out) or says something else; both mean
+            // "not a Downloader". NOTE: an OLDER Downloader sends no greeting either, so during an
+            // upgrade a new launch may briefly fail to detect a running old one — acceptable and transient.
+            if (reader.ReadLine()?.Trim() != Greeting)
+                return false;
+
             var bytes = Encoding.UTF8.GetBytes(message + "\n");
             stream.Write(bytes, 0, bytes.Length);
             stream.Flush();
@@ -107,7 +162,7 @@ public static class SingleInstanceService
         }
         catch
         {
-            // best-effort — no instance is listening (or it went away mid-send)
+            // best-effort — nothing listening, a foreign socket, or it went away mid-handshake
             return false;
         }
     }
@@ -126,6 +181,12 @@ public static class SingleInstanceService
                 await using (var stream = client.GetStream())
                 using (var reader = new StreamReader(stream, Encoding.UTF8))
                 {
+                    // Announce ourselves FIRST so the peer can tell a real Downloader from a foreign
+                    // process squatting the port (see TrySendTo).
+                    var hello = Encoding.UTF8.GetBytes(Greeting + "\n");
+                    await stream.WriteAsync(hello).ConfigureAwait(false);
+                    await stream.FlushAsync().ConfigureAwait(false);
+
                     var msg = (await reader.ReadToEndAsync().ConfigureAwait(false))?.Trim();
                     Dispatch(msg ?? string.Empty);
                 }
