@@ -250,6 +250,59 @@ jobs:
 
   # Windows MSIX package (self-signed, for sideload testing). Store submission is author-gated and done
   # from Partner Center (see packaging/msix/README.md); this only produces + uploads the .msix artifact.
+  aur:
+    name: AUR (downloader-bin)
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Job-level so the step `if:` can gate on it (step-scoped env isn't visible to its own `if`).
+      # Add the AUR account's PRIVATE ssh key (whose public half is registered at
+      # aur.archlinux.org -> My Account) as the repo secret AUR_SSH_PRIVATE_KEY to enable this.
+      AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checksum the released linux-x64 tarball
+        if: env.AUR_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            -p 'Downloader-linux-x64.tar.gz' -O linux.tar.gz
+          echo "LIN_SHA=$(sha256sum linux.tar.gz | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      # The tag's tree still carries the PREVIOUS version (release.sh commits the mirror bump to
+      # develop only after tagging), so rewrite here from the tag + the real asset checksum.
+      - name: Rewrite PKGBUILD/.SRCINFO for this tag
+        if: env.AUR_KEY != ''
+        run: ./scripts/bump-aur.sh "${GITHUB_REF_NAME#v}" "$LIN_SHA"
+
+      - name: Publish to the AUR
+        if: env.AUR_KEY != ''
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$AUR_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o BatchMode=yes"
+
+          git clone --quiet ssh://aur@aur.archlinux.org/downloader-bin.git aur-pkg
+          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO aur-pkg/
+          cd aur-pkg
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "AUR package already at ${GITHUB_REF_NAME#v} — nothing to push"; exit 0
+          fi
+          git -c user.name='bezzad' -c user.email='behzad.khosravifar@gmail.com' \
+              commit -aqm "downloader-bin ${GITHUB_REF_NAME#v}"
+          git push --quiet
+          echo "Published downloader-bin ${GITHUB_REF_NAME#v} to the AUR"
+
+      - name: Note when the AUR secret is absent
+        if: env.AUR_KEY == ''
+        run: echo "::warning::AUR_SSH_PRIVATE_KEY is not set — skipping the AUR publish."
+
   msix:
     name: Windows MSIX (self-signed)
     needs: build

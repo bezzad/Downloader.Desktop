@@ -74,6 +74,23 @@ export GH_TOKEN="$(gh auth token)"   # REQUIRED in background runs — see gotch
 even though it works interactively. Always `export GH_TOKEN="$(gh auth token)"` (resolved in the
 foreground) as part of the background command.
 
+## Snap + AUR publish in CI, NOT from the machine running release.sh (2026-08-21)
+Both are machine-independent by design — `release.sh` must never be the thing that publishes them:
+- **Snap**: `snap.yml` on the `v*` tag builds + uploads to the stable channel using the repo secret
+  `SNAPCRAFT_STORE_CREDENTIALS`. Always was CI-side.
+- **AUR**: the `aur` job in `release.yml` (`needs: build`) checksums the released linux-x64 tarball,
+  runs `scripts/bump-aur.sh <ver> <sha>`, and pushes `downloader-bin` over SSH using the repo secret
+  **`AUR_SSH_PRIVATE_KEY`**. It used to push from `release.sh` with whatever key the invoking box had,
+  so a release from a different machine/VM silently skipped the AUR (happened on v2.3.0). `release.sh`
+  now only syncs the in-repo mirror (plain git, works anywhere).
+- **`scripts/bump-aur.sh` is the single source of truth** for the PKGBUILD/.SRCINFO rewrite — both
+  `release.sh` and the CI job call it, so they can't drift. It self-verifies and exits non-zero on a
+  half-rewrite. The CI job rewrites from the TAG (the tag's tree still has the previous version,
+  since the mirror bump lands on develop only after tagging).
+- One-time setup for AUR: add the AUR account's PRIVATE key (public half registered at
+  aur.archlinux.org → My Account) as the repo secret `AUR_SSH_PRIVATE_KEY`. Absent ⇒ the job logs a
+  `::warning::` and skips; it never fails the release.
+
 ## Verification checklist (all channels — release isn't done until these pass)
 
 ```bash
@@ -84,6 +101,7 @@ gh run list --repo bezzad/Downloader.Desktop --limit 5         # release.yml + s
 gh api repos/bezzad/homebrew-tap/contents/Casks/downloader.rb --jq '.content' | base64 -d | grep version
 gh pr list --repo microsoft/winget-pkgs --author @me           # X.Y.Z PR open (moderator merges later)
 snap info downloader 2>/dev/null | grep latest/stable          # Snap Store (may lag a few minutes)
+curl -fsS "https://aur.archlinux.org/rpc/v5/info?arg[]=downloader-bin" | grep -o '"Version":"[^"]*"'
 ```
 
 If snap CI failed to publish (check the run log): download its artifact and publish manually —

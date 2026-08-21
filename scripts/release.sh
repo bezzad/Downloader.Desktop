@@ -157,6 +157,7 @@ finish() {
     echo "    Homebrew       : $S_BREW"
     echo "    winget         : $S_WINGET"
     echo "    AUR (yay)      : $S_AUR"
+    echo "                     CI publishes it — gh run list --repo $REPO --workflow Release"
     if [[ $rc -ne 0 ]]; then
       echo "    exit code $rc — re-run 'scripts/release.sh ${VERSION:-}' to resume;"
       echo "    every post-tag step is idempotent."
@@ -488,25 +489,17 @@ else
 fi
 
 # --- 7. AUR (downloader-bin for Arch/yay) -----------------------------------
-# Rewrites the in-repo packaging/aur/{PKGBUILD,.SRCINFO} for the new version + tarball sha256,
-# then pushes to the AUR when SSH access is configured. First publish needs the author's AUR
-# account with this machine's SSH key registered (https://aur.archlinux.org → My Account);
-# until then the step updates the mirror and no-ops the push with a clear message.
-step "Updating AUR package (downloader-bin)"
+# The PUBLISH is done by the `aur` job in .github/workflows/release.yml using the repo secret
+# AUR_SSH_PRIVATE_KEY — deliberately NOT from here. It used to push over SSH with whatever key the
+# invoking machine happened to have, so a release run from a different box (or a CI/VM shell)
+# silently skipped the AUR. Like Snap, publishing now belongs to CI and is machine-independent.
+# This step only keeps the in-repo mirror in sync (plain git, works anywhere).
+step "Syncing AUR mirror (publish runs in CI)"
 AUR_DIR="packaging/aur"
 LIN_SHA="$(sha256_of_asset "$TAG" "Downloader-linux-x64.tar.gz")"
 if [[ -n "$LIN_SHA" && -d "$AUR_DIR" ]]; then
   ok "linux-x64 sha256 = $LIN_SHA"
-  sedi -E "s|^pkgver=.*|pkgver=$VERSION|" "$AUR_DIR/PKGBUILD"
-  sedi -E "s|^pkgrel=.*|pkgrel=1|" "$AUR_DIR/PKGBUILD"
-  sedi -E "s|^(sha256sums=\(')[a-f0-9A-F]*(')|\1$LIN_SHA\2|" "$AUR_DIR/PKGBUILD"
-  sedi -E "s|pkgver = .*|pkgver = $VERSION|" "$AUR_DIR/.SRCINFO"
-  sedi -E "s|pkgrel = .*|pkgrel = 1|" "$AUR_DIR/.SRCINFO"
-  sedi -E "s|(Downloader-)[0-9.]+(-linux-x64.tar.gz)|\1$VERSION\2|g" "$AUR_DIR/.SRCINFO"
-  sedi -E "s|/v[0-9.]+/|/v$VERSION/|g" "$AUR_DIR/.SRCINFO"
-  sedi -E "s|(LICENSE-)[0-9.]+|\1$VERSION|g; s|(downloader-)[0-9.]+(\.png)|\1$VERSION\2|g" "$AUR_DIR/.SRCINFO"
-  # Only the first sum is a real hash (the LICENSE/icon lines are "SKIP"), so a hex-only match is safe.
-  sedi -E "s|sha256sums = [a-f0-9A-F]{64}|sha256sums = $LIN_SHA|" "$AUR_DIR/.SRCINFO"
+  "$(dirname "$0")/bump-aur.sh" "$VERSION" "$LIN_SHA"
   if [[ -n "$(git status --porcelain "$AUR_DIR")" ]]; then
     git add "$AUR_DIR"
     gcommit . "chore(release): bump AUR package to $VERSION"
@@ -515,30 +508,7 @@ if [[ -n "$LIN_SHA" && -d "$AUR_DIR" ]]; then
   else
     warn "AUR mirror already matches"
   fi
-  # Push to the AUR itself (ssh://aur@aur.archlinux.org/downloader-bin.git).
-  if ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new aur@aur.archlinux.org help >/dev/null 2>&1; then
-    AURTMP="$(mktemp -d)"
-    if retry git clone --quiet "ssh://aur@aur.archlinux.org/downloader-bin.git" "$AURTMP"; then
-      cp "$AUR_DIR/PKGBUILD" "$AUR_DIR/.SRCINFO" "$AURTMP/"
-      if [[ -n "$(git -C "$AURTMP" status --porcelain)" ]]; then
-        git -C "$AURTMP" add PKGBUILD .SRCINFO
-        gcommit "$AURTMP" "downloader-bin $VERSION"
-        retry git -C "$AURTMP" push --quiet
-        ok "pushed downloader-bin $VERSION to the AUR"
-        S_AUR="published $VERSION (yay -S downloader-bin)"
-      else
-        warn "AUR package already up to date"
-        S_AUR="already at $VERSION"
-      fi
-    else
-      warn "AUR: clone failed — check the package exists and your key is registered"
-      S_AUR="CHECK — clone of downloader-bin.git failed"
-    fi
-    rm -rf "${AURTMP:-}"
-  else
-    warn "AUR: no SSH access (register this machine's key at aur.archlinux.org) — mirror updated, push skipped"
-    S_AUR="mirror updated; push skipped (AUR SSH key not configured)"
-  fi
+  S_AUR="mirror synced; publish in CI (aur.yml job) — see below"
 else
   warn "AUR: missing linux-x64 sha or $AUR_DIR — skipping"
   S_AUR="SKIPPED — missing linux-x64 sha or $AUR_DIR"
