@@ -416,6 +416,50 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void New_queues_copy_the_settings_max_concurrent_cap()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.Settings.MaxConcurrentDownloads = 5; // distinct from every built-in default
+        manager.Initialize(config);
+
+        // Queues page "New queue" button path.
+        var fromPage = manager.AddQueue("Media");
+        Assert.Equal(5, fromPage.MaxConcurrent);
+
+        // Add-download dialog inline "new queue" box path.
+        var dialog = new AddDownloadItemViewModel(config, url: null, manager: manager);
+        dialog.NewQueueName = "Series";
+        dialog.ConfirmAddQueue();
+        var fromDialog = config.Queues.First(q => q.Name == "Series");
+        Assert.Equal(5, fromDialog.MaxConcurrent);
+
+        // The lazy default-queue fallback (empty config) copies it too.
+        var bare = new Config { Settings = new DownloadSettings { MaxConcurrentDownloads = 7 } };
+        Assert.Equal(7, bare.DefaultQueue.MaxConcurrent);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Queues_added_or_removed_outside_the_page_appear_on_it_live()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var page = new QueuesViewModel(config, manager);
+        Assert.Single(page.Queues);
+
+        // A queue created elsewhere (e.g. the Add-download dialog's inline "new queue" box)
+        // goes through the manager — the page must pick it up without a restart.
+        var media = manager.AddQueue("Media");
+        Assert.Contains(page.Queues, r => ReferenceEquals(r.Queue, media));
+
+        manager.RemoveQueue(media);
+        Assert.DoesNotContain(page.Queues, r => ReferenceEquals(r.Queue, media));
+        Assert.Single(page.Queues);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Removing_a_queue_with_unfinished_items_requires_confirmation()
     {
         var manager = new DownloadManager();
@@ -744,6 +788,33 @@ public class AppTests
         Assert.True(vm.HasVariants);
         Assert.True(vm.Variants.Single(v => v.Id == "1080").IsChecked);  // default pre-checked
         Assert.False(vm.Variants.Single(v => v.Id == "audio").IsChecked);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Add_dialog_reports_why_a_variant_lookup_failed()
+    {
+        // A YouTube link the plugin can't extract (bot check) used to show a spinner and then simply
+        // nothing — the reason only appeared after Download, on the failed row. Say it up front.
+        var config = Config.New();
+        var vm = new AddDownloadItemViewModel(
+            config, string.Empty,
+            (_, _) => Task.FromResult<(string, long)?>(null), TimeSpan.Zero,
+            getVariants: (u, _) => u.Contains("youtu.be")
+                ? Task.FromException<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(
+                    new InvalidOperationException("This site wants to verify a signed-in browser session."))
+                : Task.FromResult<IReadOnlyList<Downloader.Desktop.Plugins.LinkVariant>>(null));
+
+        vm.Urls = "https://youtu.be/8uiKr3U71RE";
+        await Task.Delay(50);
+
+        Assert.True(vm.HasVariantError);
+        Assert.Contains("signed-in browser session", vm.VariantError);
+        Assert.True(vm.ShowVariantSection);
+        Assert.True(vm.CanDownload); // the add still proceeds — the resolver's default pick may work
+
+        // Editing the input clears the stale message.
+        vm.Urls = "https://host/file.zip";
+        Assert.False(vm.HasVariantError);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

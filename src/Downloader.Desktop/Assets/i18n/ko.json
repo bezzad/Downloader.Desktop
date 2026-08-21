@@ -14,7 +14,7 @@
   "Nav_Plugins": "플러그인",
   "Nav_Settings": "설정",
   "Plugins_Title": "플러그인",
-  "Plugins_Desc": "Downloader를 확장하는 애드온(예: 동영상 사이트 / HLS 다운로드). 핵심 앱은 가볍게 유지되며 필요한 것만 설치합니다.",
+  "Plugins_Desc": "Downloader를 확장하는 애드온(예: HLS 다운로드). 핵심 앱은 가볍게 유지되며 필요한 것만 설치합니다.",
   "Plugins_Install": "플러그인 설치",
   "Plugins_Installed": "플러그인 설치됨",
   "Plugins_NoneFound": "이 파일에는 Downloader 플러그인이 없습니다. 이 버전용으로 빌드된 플러그인(.dll)인지 확인하세요.",

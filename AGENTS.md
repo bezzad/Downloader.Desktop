@@ -1,4 +1,4 @@
-# CLAUDE.md — Downloader.Desktop
+# AGENTS.md — Downloader.Desktop
 
 Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://github.com/bezzad/downloader) multipart download library. Status: **early dev — no production release yet**. A full **V1 redesign** is implemented on branch `feat/v1-redesign` (awaiting the author's interactive testing + merge).
 
@@ -23,7 +23,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Mobile**: Avalonia must keep supporting it; first mobile platform decided later. Avoid desktop-only architectural lock-in.
 
 ## Working conventions (how I operate on this repo)
-- **`CLAUDE.md` is the source of truth** — update it every time decisions, conventions, scope, or structure change. Don't re-litigate settled decisions (esp. the Avalonia lock).
+- **`AGENTS.md` is the source of truth** — update it every time decisions, conventions, scope, or structure change. Don't re-litigate settled decisions (esp. the Avalonia lock).
 - **Describe before building**: state what I'll add (files/structure/behavior) and why, before/as I write it.
 - **Small, reviewable increments** following the roadmap below; get something working early so the author can give feedback.
 - **UI = mockup first**: show a layout/structure proposal and let the author pick before committing detailed work.
@@ -33,7 +33,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ### Standing operating rules (the author asked for these — always apply, never wait to be told again)
 - **Ask all questions BEFORE starting.** The author typically hands over a batch of tasks and then leaves the machine. Front-load every clarifying question (ambiguous scope, design choices, mappings, trade-offs) in one go *before* writing any code, using `AskUserQuestion`, so the work can run unattended afterward. Don't start, hit an ambiguity, and stall waiting for an answer that won't come.
 - **Use the available skills.** Invoke the repo's `downloader-desktop` skill first (build/run/test + gotchas), and use any other relevant available skill rather than re-deriving from scratch. Skills are the first source of truth for how to do things here.
-- **Cache recurring patterns into the skill automatically.** When a non-obvious pattern, gotcha, or decision comes up that a future session would otherwise re-derive, append a concise note to the relevant skill file (usually `.claude/skills/downloader-desktop/SKILL.md`) and commit it on `develop` — no confirmation needed. Goal: steadily fewer tokens per session.
+- **Cache recurring patterns into the skill automatically.** When a non-obvious pattern, gotcha, or decision comes up that a future session would otherwise re-derive, append a concise note to the relevant skill file (usually `.Codex/skills/downloader-desktop/SKILL.md`) and commit it on `develop` — no confirmation needed. Goal: steadily fewer tokens per session.
 - **Minimal, targeted changes — don't disturb working scenarios.** Change only what the task needs. Do not refactor, "improve", or alter unrelated code paths that already work; touching them risks new bugs. When a recent change looks odd, assume it may have had a reason — review its history before overriding it. (Reinforces the Clean Code/KISS rule below.)
 - **Tests passing = done; then push.** A task is complete when the build is clean and `dotnet test` is green (add/adjust tests for the change). When everything for the session is done and green, commit and push to `develop`. If a view's UI changed, also refresh screenshots (see "Workflow & progress tracking").
 - **After every `/opsx:apply` session (all tasks or a batch), build everything and run all tests before calling it done.** Run `dotnet build Downloader.Desktop.sln` (from `src/`) for the app, and for the browser extension load it as an unpacked extension (there's no bundler/build step, it's plain JS) and run its tests: `node --test src/browser-extension/common.test.js` (unit) and the Playwright suite in `src/browser-extension/e2e/` (`npm test` there, after one-time `npm install` + `npx playwright install chromium`) for real-browser UI checks. Then run `dotnet test` (unit + headless UI tests) for the app. Only report the apply session complete once the app build is clean and all three test suites are green — this is a standing step, not something to be asked for per task.
@@ -110,7 +110,7 @@ Rough order to turn the current skeleton into the MVP above:
    - **Persistence**: `FileService` atomic write (temp+move) + `SemaphoreSlim`; `MainViewModel.SaveSoon()` debounced save fired on any `SettingViewModel` change (near-instant settings persistence).
    - **Versioning**: auto in csproj — `VersionPrefix` (major.minor) by hand, build/revision derived from UTC build time; shown in Settings → About.
    - **UI**: global numeric-stepper restyle (#1, hand cursor on arrows), DataGrid full-row select (no cell border), centered value columns, batch grouping (`DataGridCollectionView.GroupDescriptions` on `Group`), header-double-click no longer opens details, distinct "All downloads" icon (`AppsListRegular`), Network sub-section card, details window merged progress + add/remove **mirror editor**, folder-picker cancel returns `null` (fixes `UriFormatException`).
-   - **Engine API quick-ref** is now cached in the project skill (`.claude/skills/downloader-desktop/SKILL.md`) to cut re-derivation each session.
+   - **Engine API quick-ref** is now cached in the project skill (`.Codex/skills/downloader-desktop/SKILL.md`) to cut re-derivation each session.
    - **Custom window chrome** (reverses the earlier "standard chrome" call, at the author's request): reusable `Views/TitleBar` (app icon + title + window buttons) drawn inside the client area; MainWindow + both dialogs set `ExtendClientAreaToDecorationsHint="True"` + `ExtendClientAreaTitleBarHeightHint="-1"` (note: `ExtendClientAreaChromeHints` was **removed in Avalonia 12** — don't use it). `TitleBar` drags via `BeginMoveDrag`, toggles maximize on double-tap, and finds its host with `TopLevel.GetTopLevel(this)`. Dialogs pass `ShowMinMax="False"`.
    - **Notifications UX**: turning the Settings toggle on fires a sample notification immediately so the user can confirm it works.
 7. ✅ **Round 7 — i18n + more UX** (DONE):
@@ -205,7 +205,7 @@ These rules are permanent and apply to every conversation/task in this repo — 
 These steps are **standing, pre-authorized** — when the author asks to publish/release a new version
 `vX.Y.Z` (even just "go next version X.Y.0"), do ALL of the following without asking again.
 
-**The routine is packaged as the `release` skill (`.claude/skills/release/SKILL.md`) — invoke that
+**The routine is packaged as the `release` skill (`.Codex/skills/release/SKILL.md`) — invoke that
 first**; it carries the full playbook (notes format, unattended/background pattern, per-channel
 verification checklist, gotchas) so any AI session/model can run a release end-to-end.
 
@@ -380,10 +380,10 @@ rtk wget <url>          # Compact download output (65%)
 ```bash
 rtk gain                # View token savings statistics
 rtk gain --history      # View command history with savings
-rtk discover            # Analyze Claude Code sessions for missed RTK usage
+rtk discover            # Analyze Codex sessions for missed RTK usage
 rtk proxy <cmd>         # Run command without filtering (for debugging)
-rtk init                # Add RTK instructions to CLAUDE.md
-rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
+rtk init                # Add RTK instructions to AGENTS.md
+rtk init --global       # Add RTK to ~/.Codex/AGENTS.md
 ```
 
 ## Token Savings Overview

@@ -122,21 +122,61 @@ function mapCookie(c) {
   };
 }
 
-// Capture the live session cookies for exactly this URL, so a site that needs a signed-in session
-// (e.g. YouTube) can be resolved by the app. Reads the browser's live cookie jar via the extension
-// `cookies` API — never an on-disk store. ALWAYS resolves to an array; any failure (no permission,
-// no API, an exception) yields [] so sending the URL is never blocked (task 4.3).
+// Sites whose session cookies live on a DIFFERENT domain than the link itself. A youtu.be short link
+// carries no youtube.com cookies, so capturing only the link's own domain hands the app an empty jar
+// and YouTube's "Sign in to confirm you're not a bot" check can't be passed. Each entry lists the
+// extra origins whose cookies belong to the same session.
+const COOKIE_SIBLING_ORIGINS = {
+  "youtu.be": ["https://www.youtube.com/"],
+  "youtube.com": ["https://www.youtube.com/"],
+  "m.youtube.com": ["https://www.youtube.com/"],
+  "music.youtube.com": ["https://www.youtube.com/"],
+  "x.com": ["https://twitter.com/"],
+  "twitter.com": ["https://x.com/"],
+  "fb.watch": ["https://www.facebook.com/"]
+};
+
+// Every origin whose cookies should be captured for this link: the link itself first, then any
+// sibling origin sharing its session. Pure (no browser APIs) so it is unit-testable.
+function cookieUrlsFor(url) {
+  const urls = [url];
+  try {
+    let host = new URL(url).hostname.toLowerCase();
+    if (host.startsWith("www.")) host = host.slice(4);
+    for (const extra of COOKIE_SIBLING_ORIGINS[host] || []) {
+      if (!urls.includes(extra)) urls.push(extra);
+    }
+  } catch { /* not a parseable URL — just use it as-is */ }
+  return urls;
+}
+
+// Capture the live session cookies for this URL (and any sibling origin sharing its session), so a
+// site that needs a signed-in session (e.g. YouTube) can be resolved by the app. Reads the browser's
+// live cookie jar via the extension `cookies` API — never an on-disk store. ALWAYS resolves to an
+// array; any failure (no permission, no API, an exception) yields [] so sending the URL is never
+// blocked (task 4.3).
 async function captureCookies(url) {
   try {
     const cookiesApi = api && api.cookies;
     if (!cookiesApi || !cookiesApi.getAll) return [];
-    const raw = await new Promise((resolve) => {
+    const getAll = (u) => new Promise((resolve) => {
       try {
-        const maybe = cookiesApi.getAll({ url }, (c) => resolve(c || [])); // MV2 callback style
+        const maybe = cookiesApi.getAll({ url: u }, (c) => resolve(c || [])); // MV2 callback style
         if (maybe && typeof maybe.then === "function") maybe.then((c) => resolve(c || []), () => resolve([]));
       } catch { resolve([]); }
     });
-    return (raw || []).map(mapCookie);
+
+    const seen = new Set();
+    const out = [];
+    for (const u of cookieUrlsFor(url)) {
+      for (const c of await getAll(u)) {
+        const key = `${c.domain}|${c.path || "/"}|${c.name}`;
+        if (seen.has(key)) continue; // the same cookie can match several origins
+        seen.add(key);
+        out.push(mapCookie(c));
+      }
+    }
+    return out;
   } catch {
     return [];
   }
@@ -407,6 +447,6 @@ if (typeof module !== "undefined") {
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
-    captureCookies, mapCookie, sendToAppSilently
+    captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor
   };
 }

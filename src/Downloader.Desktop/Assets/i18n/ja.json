@@ -14,7 +14,7 @@
   "Nav_Plugins": "プラグイン",
   "Nav_Settings": "設定",
   "Plugins_Title": "プラグイン",
-  "Plugins_Desc": "Downloader を拡張するアドオン（動画サイト／HLS ダウンロードなど）。本体は軽量なまま。必要なものだけインストールします。",
+  "Plugins_Desc": "Downloader を拡張するアドオン（HLS ダウンロードなど）。本体は軽量なまま。必要なものだけインストールします。",
   "Plugins_Install": "プラグインをインストール",
   "Plugins_Installed": "プラグインをインストールしました",
   "Plugins_NoneFound": "このファイルには Downloader プラグインが含まれていません。このバージョン用にビルドされたプラグイン (.dll) か確認してください。",

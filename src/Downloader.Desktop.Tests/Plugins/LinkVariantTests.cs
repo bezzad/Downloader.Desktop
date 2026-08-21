@@ -50,12 +50,15 @@ public class LinkVariantTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Host_swallows_a_variant_lookup_failure()
+    public async Task Host_reports_a_variant_lookup_failure_to_the_caller()
     {
+        // A failure is NOT "no choices": the Add window shows the reason (e.g. "this site wants a
+        // signed-in session") instead of a silent empty section that only explains itself after Download.
         var pm = new PluginManager();
         pm.RegisterPlugin(new VariantPlugin { ThrowOnVariants = true });
 
-        Assert.Null(await pm.GetVariantsAsync("variant://video", CancellationToken.None));
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => pm.GetVariantsAsync("variant://video", CancellationToken.None));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

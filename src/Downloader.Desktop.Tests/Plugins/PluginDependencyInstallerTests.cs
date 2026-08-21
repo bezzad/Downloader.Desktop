@@ -30,31 +30,32 @@ public class PluginDependencyInstallerTests
             var dep = ffmpeg.GetDependency();
 
             Assert.Equal("ffmpeg", dep.Id);
-            Assert.False(dep.IsAvailable()); // nothing cached yet, and PATH almost certainly lacks a plugin-managed ffmpeg
+
+            var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+
+            // A system-wide ffmpeg on PATH legitimately makes the dependency available (that's by
+            // design), so the "not available yet" asserts only hold on machines without one.
+            var onPath = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+                .Split(Path.PathSeparator)
+                .Where(d => !string.IsNullOrWhiteSpace(d))
+                .Any(d => File.Exists(Path.Combine(d, exeName)));
+
+            if (!onPath)
+                Assert.False(dep.IsAvailable()); // nothing cached yet
 
             var exeDir = Path.GetDirectoryName(dep.DownloadDestination)!;
             Directory.CreateDirectory(exeDir);
-            var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-            File.WriteAllText(Path.Combine(dataDir, "ffmpeg-bin", exeName), "stub");
+            var exe = Path.Combine(dataDir, "ffmpeg-bin", exeName);
 
+            // A fragment left by an interrupted download is NOT an installed tool — treating it as one
+            // is what left a truncated yt-dlp in place for a month, unrunnable and never refetched.
+            File.WriteAllText(exe, "stub");
+            if (!onPath)
+                Assert.False(dep.IsAvailable());
+
+            File.WriteAllBytes(exe, new byte[(int)Downloader.Desktop.Plugins.Hls.BinaryFile.MinUsableBytes + 1]);
+            Downloader.Desktop.Plugins.Hls.BinaryFile.MakeExecutable(exe);
             Assert.True(dep.IsAvailable());
-        }
-        finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
-    }
-
-    [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public void YtDlpBinary_declares_both_ytdlp_and_deno_dependencies()
-    {
-        var dataDir = Directory.CreateTempSubdirectory("ytdlp-dep-").FullName;
-        try
-        {
-            var ytDlp = new YtDlpBinary(dataDir);
-            var deps = ytDlp.GetDependencies();
-
-            Assert.Equal(2, deps.Count);
-            Assert.Contains(deps, d => d.Id == "yt-dlp");
-            Assert.Contains(deps, d => d.Id == "deno");
-            Assert.All(deps, d => Assert.False(d.IsAvailable()));
         }
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
     }
@@ -190,19 +191,19 @@ public class PluginDependencyInstallerTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Deno_finish_install_deletes_a_corrupt_archive_so_the_next_attempt_redownloads()
+    public async Task Ffmpeg_finish_install_deletes_a_corrupt_archive_so_the_next_attempt_redownloads()
     {
-        var dataDir = Directory.CreateTempSubdirectory("deno-corrupt-").FullName;
+        var dataDir = Directory.CreateTempSubdirectory("ffmpeg-corrupt-").FullName;
         try
         {
-            var ytDlp = new YtDlpBinary(dataDir);
-            var deno = ytDlp.GetDependencies().First(d => d.Id == "deno");
-            Directory.CreateDirectory(Path.GetDirectoryName(deno.DownloadDestination)!);
-            await File.WriteAllBytesAsync(deno.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }); // truncated "zip"
+            var ffmpeg = new FfmpegBinary(dataDir);
+            var dep = ffmpeg.GetDependency();
+            Directory.CreateDirectory(Path.GetDirectoryName(dep.DownloadDestination)!);
+            await File.WriteAllBytesAsync(dep.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }); // truncated "zip"
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => deno.FinishInstallAsync(CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => dep.FinishInstallAsync(CancellationToken.None));
 
-            Assert.False(File.Exists(deno.DownloadDestination)); // corrupt archive was removed
+            Assert.False(File.Exists(dep.DownloadDestination)); // corrupt archive was removed
         }
         finally { try { Directory.Delete(dataDir, recursive: true); } catch { /* best-effort */ } }
     }

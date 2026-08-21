@@ -29,7 +29,7 @@ public sealed class FfmpegBinary : IFfmpeg
     {
         _dataDir = dataDirectory;
         // Infinite timeout: the default 100 s covers the whole body read and truncates a large static
-        // build on slow links (see YtDlpBinary). Cancellation comes from the caller's token.
+        // build on slow links. Cancellation comes from the caller's token.
         _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _log = logger ?? NullLogger.Instance;
     }
@@ -90,7 +90,12 @@ public sealed class FfmpegBinary : IFfmpeg
         if (_resolved is not null) return _resolved;
 
         var cached = TargetExePath(_dataDir);
-        if (File.Exists(cached)) return _resolved = cached;
+        if (BinaryFile.IsUsable(cached)) return _resolved = cached;
+        if (File.Exists(cached))
+        {
+            _log.LogWarning("The cached ffmpeg at {Path} is incomplete — installing it again", cached);
+            BinaryFile.DeleteIfPresent(cached);
+        }
 
         var onPath = FindOnPath();
         if (onPath is not null) return _resolved = onPath;
@@ -99,10 +104,8 @@ public sealed class FfmpegBinary : IFfmpeg
         var archive = ArchivePath(_dataDir);
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
-            await using (var fs = File.Create(archive))
-            await using (var stream = await _http.GetStreamAsync(ResolveDownloadUrl(), cancellationToken).ConfigureAwait(false))
-                await stream.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
+            await BinaryFile.DownloadToAsync(_http, ResolveDownloadUrl(), archive, cancellationToken)
+                .ConfigureAwait(false);
             await FinishInstallAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -124,7 +127,7 @@ public sealed class FfmpegBinary : IFfmpeg
         DisplayName = "FFmpeg",
         DownloadUrl = new Uri(ResolveDownloadUrl()),
         DownloadDestination = ArchivePath(_dataDir),
-        IsAvailable = () => File.Exists(TargetExePath(_dataDir)) || FindOnPath() is not null,
+        IsAvailable = () => BinaryFile.IsUsable(TargetExePath(_dataDir)) || FindOnPath() is not null,
         FinishInstallAsync = FinishInstallAsync,
     };
 
@@ -173,8 +176,7 @@ public sealed class FfmpegBinary : IFfmpeg
 
         if (found != targetExe)
             File.Copy(found, targetExe, overwrite: true);
-        if (!OperatingSystem.IsWindows())
-            MakeExecutable(targetExe);
+        BinaryFile.MakeExecutable(targetExe);
 
         return Task.CompletedTask;
     }
@@ -198,11 +200,6 @@ public sealed class FfmpegBinary : IFfmpeg
             throw new InvalidOperationException($"tar failed to extract {archive} (exit {p.ExitCode}).");
     }
 
-    private static void MakeExecutable(string path)
-    {
-        var psi = new ProcessStartInfo("chmod", $"+x \"{path}\"") { UseShellExecute = false, CreateNoWindow = true };
-        try { Process.Start(psi)?.WaitForExit(); } catch { /* best effort */ }
-    }
 
     private static string? FindOnPath()
     {

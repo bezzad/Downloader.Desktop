@@ -32,27 +32,41 @@ public class QueuesViewModel : ViewModelBase
         _config = config;
         _manager = manager;
         NewQueueCommand = ReactiveCommand.Create(AddQueue);
-        Reload();
+        // Queues can be created/removed outside this page too (e.g. the Add-download dialog's
+        // inline "new queue" box), so keep the cards in sync with the config whenever the
+        // manager reports a queue-set change — not just on our own buttons.
+        _manager.QueuesChanged += SyncFromConfig;
+        SyncFromConfig();
     }
 
-    private void Reload()
+    /// <summary>Reconciles the cards with <c>_config.Queues</c>: drops rows whose queue is gone,
+    /// adds rows for new queues (in config order), keeps existing rows (and their UI state) as-is.</summary>
+    private void SyncFromConfig()
     {
-        foreach (var row in Queues)
-            row.Detach();
-        Queues.Clear();
         if (_config?.Queues == null)
             return;
-        foreach (var q in _config.Queues)
-            Queues.Add(new QueueRowViewModel(q, _manager, this, _config));
+
+        for (var i = Queues.Count - 1; i >= 0; i--)
+        {
+            if (!_config.Queues.Contains(Queues[i].Queue))
+            {
+                Queues[i].Detach();
+                Queues.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < _config.Queues.Count; i++)
+        {
+            var q = _config.Queues[i];
+            if (!Queues.Any(r => ReferenceEquals(r.Queue, q)))
+                Queues.Insert(Math.Min(i, Queues.Count), new QueueRowViewModel(q, _manager, this, _config));
+        }
+
         RaiseQueuesChanged();
+        RaiseAllCollapsedChanged();
     }
 
-    private void AddQueue()
-    {
-        var queue = _manager.AddQueue("New queue");
-        Queues.Add(new QueueRowViewModel(queue, _manager, this, _config));
-        RaiseQueuesChanged();
-    }
+    private void AddQueue() => _manager.AddQueue("New queue"); // QueuesChanged → SyncFromConfig adds the row
 
     /// <summary>Seam for the destructive-removal confirmation (title, message) → confirmed?
     /// Defaults to the modal Yes/No dialog; tests substitute it.</summary>
@@ -77,10 +91,7 @@ public class QueuesViewModel : ViewModelBase
                 return;
         }
 
-        _manager.RemoveQueue(row.Queue);
-        row.Detach();
-        Queues.Remove(row);
-        RaiseQueuesChanged();
+        _manager.RemoveQueue(row.Queue); // QueuesChanged → SyncFromConfig drops the row
     }
 
     /// <summary>The other queues a download can be moved into (everything except <paramref name="self"/>).</summary>

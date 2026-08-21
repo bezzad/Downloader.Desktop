@@ -13,6 +13,9 @@ public class HlsResolverTests
     [InlineData("https://cdn.example.com/v/playlist.m3u", true)]
     [InlineData("https://cdn.example.com/file.zip", false)]
     [InlineData("https://cdn.example.com/video.mp4", false)]
+    [InlineData("https://youtube.com/watch?v=abc", false)]
+    [InlineData("https://youtu.be/abc", false)]
+    [InlineData("https://x.com/user/status/123", false)]
     [InlineData("", false)]
     public void CanResolve_detects_by_url(string url, bool expected)
     {
@@ -76,6 +79,95 @@ public class HlsResolverTests
         Assert.Equal(2, plan.Parts.Count);
         Assert.Equal(server.Url("high/a.ts"), plan.Parts[0].Url);
         Assert.Equal(server.Url("high/b.ts"), plan.Parts[1].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task GetVariantsAsync_lists_master_qualities_highest_default_with_size()
+    {
+        const string master =
+            "#EXTM3U\n" +
+            "#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nlow/index.m3u8\n" +
+            "#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1280x720\nmid/index.m3u8\n" +
+            "#EXT-X-STREAM-INF:BANDWIDTH=4800000,RESOLUTION=1920x1080\nhigh/index.m3u8\n";
+        // 2 × 6 s = 12 s → size = bandwidth/8 × duration
+        const string high =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:6.0,\na.ts\n#EXTINF:6.0,\nb.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer()
+            .MapText("/master.m3u8", master)
+            .MapText("/high/index.m3u8", high);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+
+        var variants = await resolver.GetVariantsAsync(server.Url("master.m3u8"), null, CancellationToken.None);
+
+        Assert.NotNull(variants);
+        Assert.Equal(new[] { "4800000", "2400000", "800000" }, variants!.Select(v => v.Id));
+        Assert.True(variants[0].IsDefault);
+        Assert.All(variants.Skip(1), v => Assert.False(v.IsDefault));
+        Assert.Equal("1080p (≈7 MB)", variants[0].Label); // 4_800_000/8 * 12 = 7_200_000
+        Assert.Equal("720p (≈3 MB)", variants[1].Label);  // 2_400_000/8 * 12 = 3_600_000
+        Assert.Equal("360p (≈1 MB)", variants[2].Label);  //   800_000/8 * 12 = 1_200_000
+        Assert.Equal(7_200_000, variants[0].ExpectedSize);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task GetVariantsAsync_media_playlist_offers_no_picker()
+    {
+        const string media =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:6.0,\na.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer().MapText("/video/index.m3u8", media);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+
+        Assert.Null(await resolver.GetVariantsAsync(server.Url("video/index.m3u8"), null, CancellationToken.None));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task ResolveAsync_honors_variant_id_instead_of_best()
+    {
+        const string master =
+            "#EXTM3U\n" +
+            "#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nlow/index.m3u8\n" +
+            "#EXT-X-STREAM-INF:BANDWIDTH=4800000,RESOLUTION=1920x1080\nhigh/index.m3u8\n";
+        const string low =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:6.0,\nlo.ts\n#EXT-X-ENDLIST\n";
+        const string high =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:6.0,\nhi.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer()
+            .MapText("/master.m3u8", master)
+            .MapText("/low/index.m3u8", low)
+            .MapText("/high/index.m3u8", high);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+
+        var plan = await resolver.ResolveAsync(
+            server.Url("master.m3u8"),
+            new ResolveOptions { VariantId = "800000" },
+            CancellationToken.None);
+
+        Assert.Single(plan.Parts);
+        Assert.Equal(server.Url("low/lo.ts"), plan.Parts[0].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task GetVariantsAsync_then_resolve_reuses_cached_playlists()
+    {
+        const string master =
+            "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=1280x720\nmid/index.m3u8\n";
+        const string mid =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:4.0,\na.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer()
+            .MapText("/master.m3u8", master)
+            .MapText("/mid/index.m3u8", mid);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+        var url = server.Url("master.m3u8");
+
+        var variants = await resolver.GetVariantsAsync(url, null, CancellationToken.None);
+        Assert.Equal("1000000", Assert.Single(variants!).Id);
+
+        var plan = await resolver.ResolveAsync(url, new ResolveOptions { VariantId = "1000000" }, CancellationToken.None);
+        Assert.Equal(server.Url("mid/a.ts"), Assert.Single(plan.Parts).Url);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

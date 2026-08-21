@@ -14,7 +14,7 @@
   "Nav_Plugins": "Kromaĵoj",
   "Nav_Settings": "Agordoj",
   "Plugins_Title": "Kromaĵoj",
-  "Plugins_Desc": "Kromaĵoj kiuj etendas Downloader (ekz. elŝutoj de video-retejoj / HLS). La kerno restas malpeza; instalu nur kion vi bezonas.",
+  "Plugins_Desc": "Kromaĵoj kiuj etendas Downloader (ekz. HLS-elŝutoj). La kerno restas malpeza; instalu nur kion vi bezonas.",
   "Plugins_Install": "Instali kromaĵojn",
   "Plugins_Installed": "Kromaĵo instalita",
   "Plugins_NoneFound": "Tiu dosiero ne enhavas Downloader-kromaĵon. Certigu ke ĝi estas kromaĵo (.dll) konstruita por ĉi tiu versio.",

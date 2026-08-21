@@ -51,6 +51,8 @@ public class PluginLoadTests
         Assert.Single(ctx.PostProcessors);
         Assert.Empty(ctx.TransferProviders);
         Assert.True(ctx.Resolvers[0].CanResolve("https://cdn.example.com/v/index.m3u8"));
+        Assert.False(ctx.Resolvers[0].CanResolve("https://youtube.com/watch?v=abc"));
+        Assert.False(ctx.Resolvers[0].CanResolve("https://x.com/u/status/1"));
     }
 
     private sealed class HostMirroringLoadContext(string mainPath) : AssemblyLoadContext(isCollectible: true)

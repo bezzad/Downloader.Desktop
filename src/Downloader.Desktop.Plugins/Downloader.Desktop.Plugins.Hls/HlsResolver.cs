@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Downloader.Desktop.Plugins;
 using Microsoft.Extensions.Logging;
@@ -6,182 +7,82 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Downloader.Desktop.Plugins.Hls;
 
 /// <summary>
-/// Resolves a link into a <see cref="DownloadPlan"/>. Two inputs are handled by one resolver:
-/// <list type="bullet">
-/// <item>a direct HLS (<c>.m3u8</c>) link → one <see cref="DownloadPart"/> per segment (+ optional init
-/// segment) and a <see cref="PostProcessKind.Concat"/> recipe (segment order + any AES-128 key/IV);</item>
-/// <item>a supported <b>site page URL</b> (e.g. an x.com status) → the real stream(s) extracted with
-/// <see cref="IYtDlp"/>, then either fed back through the HLS segment pipeline (when the best format is
-/// HLS) or turned into progressive / video+audio parts with an ffmpeg <see cref="PostProcessKind.Mux"/>.</item>
-/// </list>
+/// Resolves a direct HLS (<c>.m3u8</c>) link into a <see cref="DownloadPlan"/>: one
+/// <see cref="DownloadPart"/> per segment (+ optional init segment) and a
+/// <see cref="PostProcessKind.Concat"/> recipe (segment order + any AES-128 key/IV).
+/// Master playlists expose their <c>#EXT-X-STREAM-INF</c> renditions as quality variants
+/// so the Add window can offer a picker; the default pick is the highest-bandwidth stream.
 /// It never downloads — the host fetches the parts.
 /// </summary>
 public sealed class HlsResolver : ILinkResolver
 {
-    // Hosts whose page URLs are claimed for yt-dlp extraction. x.com / twitter.com are first-class (tested);
-    // the rest are best-effort. Matching is host-only and network-free.
-    private static readonly HashSet<string> SupportedHosts = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "x.com", "twitter.com",
-        "youtube.com", "youtu.be", "m.youtube.com",
-        "instagram.com", "tiktok.com", "facebook.com", "fb.watch",
-        "vimeo.com", "dailymotion.com", "twitch.tv", "reddit.com", "streamable.com",
-    };
-
     private readonly HttpClient _http;
     private readonly IM3u8Parser _parser;
     private readonly IContentTypeProbe? _probe;
-    private readonly IYtDlp? _ytDlp;
     private readonly ILogger _log;
 
     public HlsResolver(
         HttpClient? http = null,
         IM3u8Parser? parser = null,
         IContentTypeProbe? probe = null,
-        IYtDlp? ytDlp = null,
         ILogger? logger = null)
     {
         _http = http ?? new HttpClient();
         _parser = parser ?? new M3u8Parser();
         _probe = probe;
-        _ytDlp = ytDlp;
         _log = logger ?? NullLogger.Instance;
     }
 
     public bool CanResolve(string url)
     {
         if (UrlLooksLikeHls(url)) return true;
-        if (IsSupportedSite(url)) return true;
         return _probe?.LooksLikeHls(url) == true;
     }
 
     public Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
         => ResolveAsync(url, options: null, cancellationToken);
 
-    public async Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
-    {
-        // A direct media/playlist link is parsed straight away — yt-dlp is never invoked for it.
-        if (!UrlLooksLikeHls(url) && IsSupportedSite(url))
-            return await ResolveViaExtractionAsync(url, options?.CookieFilePath, options?.VariantId, cancellationToken)
-                .ConfigureAwait(false);
+    public Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
+        => BuildHlsPlanAsync(url, SuggestFileName(url), headers: null, options?.VariantId, cancellationToken);
 
-        return await BuildHlsPlanAsync(url, SuggestFileName(url), headers: null, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <summary>The selectable qualities (+ audio-only) behind a video page URL, so the host's Add window
-    /// can offer a picker. Null for direct .m3u8 links (no yt-dlp involved) and non-extraction inputs.
-    /// The extraction is cached so the subsequent resolve of the chosen variant doesn't re-run yt-dlp.</summary>
+    /// <summary>The selectable qualities in a master playlist, so the host's Add window can offer a
+    /// picker. Null for a media playlist (one rendition, no choice) and for non-HLS inputs.
+    /// Playlist fetches are cached so the subsequent resolve of the chosen variant doesn't re-download
+    /// the master / default media playlist.</summary>
     public async Task<IReadOnlyList<LinkVariant>?> GetVariantsAsync(
         string url, ResolveOptions? options, CancellationToken cancellationToken)
     {
-        if (UrlLooksLikeHls(url) || !IsSupportedSite(url) || _ytDlp is null)
+        if (!CanResolve(url))
             return null;
 
-        var json = await ExtractCachedAsync(url, options?.CookieFilePath, cancellationToken).ConfigureAwait(false);
-        var variants = SiteExtractor.ListVariants(json);
+        var (content, baseUri) = await GetAsync(url, headers: null, cancellationToken).ConfigureAwait(false);
+        if (!_parser.IsMaster(content))
+            return null;
+
+        var master = _parser.ParseMaster(content, baseUri);
+        var duration = await TryDurationAsync(master.Best().Uri, cancellationToken).ConfigureAwait(false);
+        var variants = ListMasterVariants(master, duration);
         return variants.Count > 0 ? variants : null;
     }
 
-    // One extraction serves both the variant listing and the resolve that follows it (yt-dlp takes
-    // 5–20 s). Short-lived on purpose: extracted stream URLs are signed/expiring, so anything beyond
-    // bridging list→start within one Add flow must re-extract.
     private readonly object _cacheGate = new();
-    private (string Url, bool HadCookies, string Json, DateTimeOffset At)? _lastExtraction;
+    private readonly Dictionary<string, (string Content, Uri BaseUri, DateTimeOffset At)> _playlistCache = new(StringComparer.Ordinal);
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
-    private async Task<string> ExtractCachedAsync(string url, string? cookieFilePath, CancellationToken ct)
-    {
-        var hadCookies = !string.IsNullOrEmpty(cookieFilePath);
-        lock (_cacheGate)
-        {
-            if (_lastExtraction is { } c && c.Url == url && c.HadCookies == hadCookies
-                && DateTimeOffset.UtcNow - c.At < CacheTtl)
-                return c.Json;
-        }
-
-        var json = await _ytDlp!.ExtractJsonAsync(url, cookieFilePath, ct).ConfigureAwait(false);
-        lock (_cacheGate)
-            _lastExtraction = (url, hadCookies, json, DateTimeOffset.UtcNow);
-        return json;
-    }
-
-    /// <summary>Extract a site page URL with yt-dlp and build a plan from the chosen format(s).</summary>
-    private async Task<DownloadPlan> ResolveViaExtractionAsync(
-        string url, string? cookieFilePath, string? variantId, CancellationToken ct)
-    {
-        if (_ytDlp is null)
-            throw new InvalidOperationException(
-                "Video extraction is unavailable for this link (yt-dlp is not configured).");
-
-        var json = await ExtractCachedAsync(url, cookieFilePath, ct).ConfigureAwait(false);
-        var result = SiteExtractor.Select(json, variantId); // throws a clear message on no-media / bad JSON
-
-        switch (result.Kind)
-        {
-            case ExtractionKind.Hls:
-                _log.LogInformation("Extracted HLS stream from {Url} — reusing the segment pipeline", url);
-                return await BuildHlsPlanAsync(result.PrimaryUrl!, result.FileName, result.Headers, ct)
-                    .ConfigureAwait(false);
-
-            case ExtractionKind.Progressive:
-                _log.LogInformation("Extracted a progressive stream from {Url}", url);
-                return new DownloadPlan
-                {
-                    SuggestedFileName = result.FileName,
-                    Parts = new[]
-                    {
-                        new DownloadPart
-                        {
-                            Url = result.PrimaryUrl!,
-                            Kind = PartKind.Combined,
-                            Headers = result.Headers,
-                            ExpectedSize = result.PrimarySize,
-                        },
-                    },
-                    PostProcess = PostProcess.None,
-                };
-
-            case ExtractionKind.VideoAudio:
-                _log.LogInformation("Extracted separate video+audio streams from {Url} — will mux", url);
-                return new DownloadPlan
-                {
-                    SuggestedFileName = result.FileName,
-                    Parts = new[]
-                    {
-                        new DownloadPart
-                        {
-                            Url = result.VideoUrl!, Kind = PartKind.Video,
-                            Headers = result.Headers, ExpectedSize = result.VideoSize,
-                        },
-                        new DownloadPart
-                        {
-                            Url = result.AudioUrl!, Kind = PartKind.Audio,
-                            Headers = result.Headers, ExpectedSize = result.AudioSize,
-                        },
-                    },
-                    PostProcess = new PostProcess { Kind = PostProcessKind.Mux, Recipe = "video+audio" },
-                };
-
-            default:
-                throw new InvalidOperationException("No downloadable video was found at this link.");
-        }
-    }
-
-    /// <summary>Fetch and parse an HLS playlist (master → best variant → media) into a segment plan. Used
-    /// for both direct <c>.m3u8</c> links and HLS streams extracted from a site page.</summary>
+    /// <summary>Fetch and parse an HLS playlist (master → chosen/best variant → media) into a segment plan.</summary>
     private async Task<DownloadPlan> BuildHlsPlanAsync(
-        string url, string suggestedName, IReadOnlyDictionary<string, string>? headers, CancellationToken ct)
+        string url, string suggestedName, IReadOnlyDictionary<string, string>? headers,
+        string? variantId, CancellationToken ct)
     {
         var (content, baseUri) = await GetAsync(url, headers, ct).ConfigureAwait(false);
 
         if (_parser.IsMaster(content))
         {
             var master = _parser.ParseMaster(content, baseUri);
-            var best = master.Best();
+            var chosen = Pick(master, variantId);
             _log.LogInformation("HLS master playlist: selected variant {Bandwidth} bps ({Resolution})",
-                best.Bandwidth, best.Resolution ?? "?");
-            (content, baseUri) = await GetAsync(best.Uri, headers, ct).ConfigureAwait(false);
+                chosen.Bandwidth, chosen.Resolution ?? "?");
+            (content, baseUri) = await GetAsync(chosen.Uri, headers, ct).ConfigureAwait(false);
         }
 
         var media = _parser.ParseMedia(content, baseUri);
@@ -219,6 +120,44 @@ public sealed class HlsResolver : ILinkResolver
         };
     }
 
+    internal static IReadOnlyList<LinkVariant> ListMasterVariants(HlsMasterPlaylist master, double durationSeconds)
+    {
+        var ordered = master.Variants
+            .Select((v, i) => (v, i))
+            .OrderByDescending(t => t.v.Bandwidth)
+            .ToList();
+
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var variants = new List<LinkVariant>(ordered.Count);
+        foreach (var (v, i) in ordered)
+        {
+            var id = UniqueId(v, i, used);
+            var size = SizeOf(v.Bandwidth, durationSeconds);
+            variants.Add(new LinkVariant
+            {
+                Id = id,
+                Label = LabelOf(v, size),
+                ExpectedSize = size,
+                IsDefault = variants.Count == 0,
+            });
+        }
+        return variants;
+    }
+
+    internal static HlsVariant Pick(HlsMasterPlaylist master, string? variantId)
+    {
+        if (string.IsNullOrEmpty(variantId))
+            return master.Best();
+
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (v, i) in master.Variants.Select((v, i) => (v, i)).OrderByDescending(t => t.v.Bandwidth))
+        {
+            if (string.Equals(UniqueId(v, i, used), variantId, StringComparison.Ordinal))
+                return v;
+        }
+        return master.Best();
+    }
+
     internal static bool UrlLooksLikeHls(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return false;
@@ -228,20 +167,6 @@ public sealed class HlsResolver : ILinkResolver
         if (q >= 0) path = path[..q];
         return path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
                || path.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>Fast, network-free check: is this the page URL of a site yt-dlp can extract?</summary>
-    internal static bool IsSupportedSite(string url)
-    {
-        if (string.IsNullOrWhiteSpace(url)) return false;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
-        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return false;
-
-        var host = u.Host;
-        if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)) host = host[4..];
-        if (SupportedHosts.Contains(host)) return true;
-        // Match subdomains of a supported host (e.g. mobile.twitter.com) without matching look-alikes.
-        return SupportedHosts.Any(h => host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase));
     }
 
     internal static string SuggestFileName(string url)
@@ -258,9 +183,30 @@ public sealed class HlsResolver : ILinkResolver
         return name + ".mp4";
     }
 
+    private async Task<double> TryDurationAsync(string mediaUrl, CancellationToken ct)
+    {
+        try
+        {
+            var (content, baseUri) = await GetAsync(mediaUrl, headers: null, ct).ConfigureAwait(false);
+            if (_parser.IsMaster(content)) return 0;
+            return _parser.ParseMedia(content, baseUri).Duration;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogDebug(ex, "Couldn't read media playlist duration for size estimate");
+            return 0;
+        }
+    }
+
     private async Task<(string content, Uri baseUri)> GetAsync(
         string url, IReadOnlyDictionary<string, string>? headers, CancellationToken ct)
     {
+        lock (_cacheGate)
+        {
+            if (_playlistCache.TryGetValue(url, out var hit) && DateTimeOffset.UtcNow - hit.At < CacheTtl)
+                return (hit.Content, hit.BaseUri);
+        }
+
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         if (headers is not null)
             foreach (var (key, value) in headers)
@@ -270,6 +216,53 @@ public sealed class HlsResolver : ILinkResolver
         resp.EnsureSuccessStatusCode();
         var content = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         var finalUri = resp.RequestMessage?.RequestUri ?? new Uri(url);
+
+        lock (_cacheGate)
+            _playlistCache[url] = (content, finalUri, DateTimeOffset.UtcNow);
         return (content, finalUri);
     }
+
+    private static string UniqueId(HlsVariant v, int index, HashSet<string> used)
+    {
+        var id = v.Bandwidth > 0
+            ? v.Bandwidth.ToString(CultureInfo.InvariantCulture)
+            : "v" + index.ToString(CultureInfo.InvariantCulture);
+        if (!used.Add(id))
+        {
+            id = id + "-" + index.ToString(CultureInfo.InvariantCulture);
+            used.Add(id);
+        }
+        return id;
+    }
+
+    private static long? SizeOf(long bandwidth, double durationSeconds)
+    {
+        if (bandwidth <= 0 || durationSeconds <= 0) return null;
+        return (long)(bandwidth / 8.0 * durationSeconds);
+    }
+
+    private static string LabelOf(HlsVariant v, long? size)
+    {
+        var height = HeightOf(v.Resolution);
+        var quality = height > 0
+            ? height.ToString(CultureInfo.InvariantCulture) + "p"
+            : v.Bandwidth > 0
+                ? (v.Bandwidth / 1000).ToString(CultureInfo.InvariantCulture) + " kbps"
+                : "Video";
+        return size is { } s ? $"{quality} (≈{FormatSize(s)})" : quality;
+    }
+
+    private static int HeightOf(string? resolution)
+    {
+        if (string.IsNullOrEmpty(resolution)) return 0;
+        var x = resolution.LastIndexOf('x');
+        if (x < 0 || x == resolution.Length - 1) return 0;
+        return int.TryParse(resolution[(x + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var h)
+            ? h : 0;
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):0.#} GB"
+        : bytes >= 1L << 20 ? $"{bytes / (double)(1L << 20):0} MB"
+        : $"{bytes / (double)(1L << 10):0} KB";
 }

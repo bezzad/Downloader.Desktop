@@ -69,9 +69,10 @@ Releases). Guides: `docs/writing-plugins.md`, `docs/plugins-architecture.md`.
 - **C. Vendor:** copy the 2 tiny SDK source files into a local `Abstractions/` project. Avoid drift.
 
 ## Plugin 1 — HLS (`Downloader.Plugins.Hls`)
-**Goal:** download an HLS stream (`.m3u8`) to a single playable file — from a direct `.m3u8` link **or a
-supported site page URL** (x.com first-class, other yt-dlp hosts best-effort). Site extraction is folded
-into this plugin via yt-dlp (see the `add-video-site-extraction` OpenSpec change), not a separate plugin.
+**Goal:** download an HLS stream (`.m3u8`) to a single playable file from a direct `.m3u8` link.
+Video-site page URLs (YouTube/x.com/…) were folded in via yt-dlp; that path was **removed in plugin
+2.0.0** because it never stayed working (bot-checks, truncated binaries, quality picker never ran on
+real playlists). The plugin is HLS-only: master-playlist quality picker + segment download + ffmpeg remux.
 
 **Interfaces:** `IDownloaderPlugin` + `ILinkResolver` + `IPostProcessor`. (Keep the engine as the
 downloader: the resolver expands the playlist into segment parts; the host downloads them; the

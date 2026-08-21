@@ -32,7 +32,7 @@ public interface IPluginContext
     /// (e.g. "Add to Ollama"). Default no-op so existing hosts/fakes keep compiling (additive API).</summary>
     void RegisterPostDownloadAction(IPostDownloadAction action) { }
 
-    /// <summary>A per-plugin writable directory (e.g. for a plugin to download yt-dlp/ffmpeg into).</summary>
+    /// <summary>A per-plugin writable directory (e.g. for a plugin to download ffmpeg into).</summary>
     string DataDirectory { get; }
 
     /// <summary>The standard .NET logger for this plugin — writes into the app's log. Use

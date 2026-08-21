@@ -14,7 +14,7 @@
   "Nav_Plugins": "Eklentiler",
   "Nav_Settings": "Ayarlar",
   "Plugins_Title": "Eklentiler",
-  "Plugins_Desc": "Downloader'ı genişleten eklentiler (ör. video sitesi / HLS indirmeleri). Çekirdek uygulama hafif kalır; yalnızca ihtiyacınız olanı kurun.",
+  "Plugins_Desc": "Downloader'ı genişleten eklentiler (ör. HLS indirmeleri). Çekirdek uygulama hafif kalır; yalnızca ihtiyacınız olanı kurun.",
   "Plugins_Install": "Eklenti kur",
   "Plugins_Installed": "Eklenti kuruldu",
   "Plugins_NoneFound": "Bu dosya bir Downloader eklentisi içermiyor. Bu sürüm için derlenmiş bir eklenti (.dll) olduğundan emin olun.",
