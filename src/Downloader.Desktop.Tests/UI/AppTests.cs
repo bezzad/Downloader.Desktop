@@ -416,6 +416,26 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Queues_added_or_removed_outside_the_page_appear_on_it_live()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+
+        var page = new QueuesViewModel(config, manager);
+        Assert.Single(page.Queues);
+
+        // A queue created elsewhere (e.g. the Add-download dialog's inline "new queue" box)
+        // goes through the manager — the page must pick it up without a restart.
+        var media = manager.AddQueue("Media");
+        Assert.Contains(page.Queues, r => ReferenceEquals(r.Queue, media));
+
+        manager.RemoveQueue(media);
+        Assert.DoesNotContain(page.Queues, r => ReferenceEquals(r.Queue, media));
+        Assert.Single(page.Queues);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Removing_a_queue_with_unfinished_items_requires_confirmation()
     {
         var manager = new DownloadManager();
