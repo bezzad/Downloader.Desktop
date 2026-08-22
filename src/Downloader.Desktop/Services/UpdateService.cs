@@ -228,16 +228,21 @@ public static class UpdateService
     /// restart/replace" failure: (a) sleeps use `ping` — `timeout /t` dies instantly ("input redirection
     /// is not supported") in the no-console process we spawn, making the PID wait a hot spin; (b) the
     /// extraction RETRIES for up to ~60s until Downloader.exe is actually replaceable — a stale tray-held
-    /// instance or an AV scan keeping the exe locked used to make the single Expand-Archive fail silently
-    /// and fall through to relaunching the OLD build; (c) the old build is only relaunched as a last
-    /// resort when every retry failed (better than leaving the user with nothing running).</summary>
+    /// instance or an AV scan keeping the exe locked used to make a single extraction attempt fail
+    /// silently and fall through to relaunching the OLD build; (c) the old build is only relaunched as a
+    /// last resort when every retry failed (better than leaving the user with nothing running).
+    ///
+    /// <para>Extraction uses the in-box <c>tar.exe</c> (Windows 10 1803+, bsdtar — it reads zip) by its
+    /// absolute <c>%SystemRoot%</c> path, NOT PowerShell's <c>Expand-Archive</c> (issue #4): an unsigned
+    /// binary spawning PowerShell to overwrite its own executable is the strongest signal a behavioral
+    /// antivirus engine can see. The absolute path also removes any PATH-hijacking window.</para></summary>
     internal static string BuildWindowsScript(string archive, string appDir, string exe, int pid) =>
         "@echo off\r\n" +
         ":wait\r\n" +
         $"tasklist /FI \"PID eq {pid}\" | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n" +
         "set tries=0\r\n" +
         ":extract\r\n" +
-        $"powershell -NoProfile -Command \"Expand-Archive -Force -LiteralPath '{archive}' -DestinationPath '{appDir}'\" && goto done\r\n" +
+        $"\"%SystemRoot%\\System32\\tar.exe\" -x -f \"{archive}\" -C \"{appDir}\" && goto done\r\n" +
         "set /a tries+=1\r\n" +
         "if %tries% lss 60 (ping -n 2 127.0.0.1 >nul & goto extract)\r\n" +
         ":done\r\n" +

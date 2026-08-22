@@ -1,14 +1,20 @@
 using System;
-using System.Diagnostics;
 using System.IO;
+using System.Runtime.Versioning;
+using Microsoft.Win32;
 
 namespace Downloader.Desktop.Services;
 
 /// <summary>
 /// Enables/disables launching the app when the OS starts, hidden to the system tray
 /// (passes <c>--minimized</c>). Cross-platform, no extra dependencies:
-/// Windows = HKCU Run key (via <c>reg.exe</c>), Linux = XDG autostart .desktop, macOS = LaunchAgent plist.
-/// All operations are best-effort and never throw.
+/// Windows = HKCU Run key (via the in-process registry API), Linux = XDG autostart .desktop,
+/// macOS = LaunchAgent plist. All operations are best-effort and never throw.
+///
+/// <para>The Windows branch writes the Run key <b>in-process</b> rather than spawning <c>reg.exe</c>
+/// (issue #4). Writing an autostart key is inherently persistence-shaped, so behavioral antivirus
+/// engines weigh it; doing it through a spawned command-line tool adds a parent→child chain on top and
+/// pushes the app over the threshold. Same registry write, no child process.</para>
 /// </summary>
 public static class StartupService
 {
@@ -38,7 +44,7 @@ public static class StartupService
             return;
 
         if (OperatingSystem.IsWindows())
-            RunReg(new[] { "add", RegKey, "/v", AppName, "/t", "REG_SZ", "/d", $"\"{exe}\" {StartupArg}", "/f" });
+            WriteRunKey($"\"{exe}\" {StartupArg}");
         else if (OperatingSystem.IsMacOS())
             File.WriteAllText(MacPlistPath, MacPlist(exe));
         else
@@ -48,7 +54,7 @@ public static class StartupService
     private static void Disable()
     {
         if (OperatingSystem.IsWindows())
-            RunReg(new[] { "delete", RegKey, "/v", AppName, "/f" });
+            WriteRunKey(null);
         else if (OperatingSystem.IsMacOS())
             Delete(MacPlistPath);
         else
@@ -60,14 +66,7 @@ public static class StartupService
         try
         {
             if (OperatingSystem.IsWindows())
-            {
-                var psi = new ProcessStartInfo("reg") { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true };
-                foreach (var a in new[] { "query", RegKey, "/v", AppName }) psi.ArgumentList.Add(a);
-                using var p = Process.Start(psi);
-                var output = p?.StandardOutput.ReadToEnd() ?? string.Empty;
-                p?.WaitForExit(3000);
-                return output.Contains(AppName, StringComparison.OrdinalIgnoreCase);
-            }
+                return ReadRunKey() is not null;
 
             return File.Exists(OperatingSystem.IsMacOS() ? MacPlistPath : LinuxDesktopPath);
         }
@@ -78,14 +77,27 @@ public static class StartupService
     }
 
     // ---- Windows ----
-    private const string RegKey = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
-    private static void RunReg(string[] args)
+    /// <summary>Writes (or, with a null command, removes) our HKCU Run entry. In-process — no child process.</summary>
+    [SupportedOSPlatform("windows")]
+    private static void WriteRunKey(string command)
     {
-        var psi = new ProcessStartInfo("reg") { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var a in args) psi.ArgumentList.Add(a);
-        using var p = Process.Start(psi);
-        p?.WaitForExit(3000);
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true)
+                        ?? Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
+        if (key is null)
+            return;
+        if (command is null)
+            key.DeleteValue(AppName, throwOnMissingValue: false);
+        else
+            key.SetValue(AppName, command, RegistryValueKind.String);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static string ReadRunKey()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+        return key?.GetValue(AppName) as string;
     }
 
     // ---- Linux ----

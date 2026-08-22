@@ -66,18 +66,26 @@ The clearest way into the codebase is the launch sequence:
 The extension mirrors the API range in `browser-extension/common.js` (`APP_PORT_RANGE`) — MV3
 requires static `host_permissions`, so discovery must stay inside that range.
 
-### Windows: what spawns a child process
+### Windows: never spawn a shell
 
-Worth knowing before touching these — an unsigned exe spawning PowerShell is what triggered the
-antivirus report in issue #4:
+An unsigned exe spawning PowerShell is what got the app blocked and quarantined by Bitdefender
+(issue #4), so all four sites now call the API in-process. **`NoShellSpawnTests` fails the build** if
+`powershell`/`pwsh`/`Expand-Archive`/`WScript.Shell`/`-EncodedCommand`/`cmd /c`/
+`--cookies-from-browser`/spawned `reg.exe` reappears in app or plugin source.
 
-| Site | Child process |
-| --- | --- |
-| `Services/WindowsNotifier.cs` | `powershell.exe -EncodedCommand …` per toast (WinRT toast API). |
-| `Services/StartMenuShortcut.cs` | `powershell` + WScript.Shell COM, first run only, to write `Downloader.lnk`. |
-| `Services/StartupService.cs` | `reg.exe` to write the HKCU Run key (only when run-at-startup is on). |
-| `Services/UpdateService.cs` | A detached `.cmd` that calls `powershell Expand-Archive` to swap the app on exit. |
-| `Plugins.Hls/FfmpegBinary.cs` | `ffmpeg` itself; `tar` for `.tar.*` archives (zip goes through managed `ZipFile`). |
+| Site | Was | Is now |
+| --- | --- | --- |
+| `Services/WindowsNotifier.cs` | `powershell.exe -EncodedCommand …` per toast | `Shell_NotifyIconW` + `NIF_INFO` on a hidden message-only window |
+| `Services/StartMenuShortcut.cs` | `powershell` + WScript.Shell COM | `IShellLink` + `IPersistFile` COM, in-process |
+| `Services/StartupService.cs` | spawned `reg.exe` | `Microsoft.Win32.Registry` |
+| `Services/UpdateService.cs` | detached `.cmd` → `powershell Expand-Archive` | detached `.cmd` → `%SystemRoot%\System32\tar.exe` (absolute path) |
+
+Remaining child processes, both legitimate: the update swap `.cmd` (a running process cannot replace
+its own exe) and `Plugins.Hls/FfmpegBinary.cs` (`ffmpeg` itself, plus `tar` for `.tar.*` on
+Linux/macOS — zip goes through managed `ZipFile`).
+
+The three Windows paths above **cannot be exercised on Linux or in CI** (no Windows runner); they are
+fail-soft and their pure parts are unit-tested, but behavior changes there need a manual smoke test.
 
 ---
 
