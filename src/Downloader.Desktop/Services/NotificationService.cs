@@ -63,9 +63,9 @@ public static class NotificationService
 
             if (OperatingSystem.IsWindows())
             {
-                // A real Windows toast (via WindowsNotifier, no new NuGet dependency) so notifications
-                // reach the OS here too, matching Linux/macOS.
-                WindowsNotifier.TryNotify("Downloader", title, message);
+                // A real Windows toast, posted in-process through the shell notification API (no new
+                // NuGet dependency and — deliberately — no child process; see WindowsNotifier).
+                WindowsNotifier.TryNotify("Downloader", title, message, isError);
             }
         }
         catch (Exception ex)

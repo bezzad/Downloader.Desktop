@@ -8,7 +8,8 @@ namespace Downloader.Desktop.Tests.Unit;
 /// replace itself"). The script runs in a windowless cmd, so it must never use `timeout /t` (dies with
 /// "input redirection is not supported" without console stdin), and the extraction must RETRY until the
 /// exe is replaceable — a stale tray-held instance or an AV scan keeping Downloader.exe locked used to
-/// fail the single Expand-Archive silently and relaunch the OLD build.
+/// fail a single extraction attempt silently and relaunch the OLD build. It must also never reach for
+/// PowerShell (issue #4).
 /// </summary>
 public class UpdateSwapScriptTests
 {
@@ -28,8 +29,13 @@ public class UpdateSwapScriptTests
         // The extraction retries while the exe is locked (stale tray instance / AV), instead of a
         // single silent attempt.
         Assert.Contains(":extract", script);
-        Assert.Contains("Expand-Archive -Force", script);
         Assert.Contains("goto extract", script);
+
+        // Extraction uses the in-box tar.exe by absolute path — never PowerShell (issue #4), and never a
+        // bare name that PATH could hijack.
+        Assert.Contains(@"""%SystemRoot%\System32\tar.exe"" -x -f", script);
+        Assert.DoesNotContain("powershell", script);
+        Assert.DoesNotContain("Expand-Archive", script);
 
         // Cleans up the archive and relaunches the app.
         Assert.Contains(@"del ""C:\Temp\update.zip""", script);

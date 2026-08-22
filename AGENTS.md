@@ -47,6 +47,11 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - `Nullable` is **disabled** in the app csproj (enabled in `Directory.Build.props` but overridden).
 
 ## Layout (`src/`)
+
+> **Full codebase map: [`docs/codebase-index.md`](docs/codebase-index.md)** — every project, service,
+> view model, plugin, test folder, packaging channel and spec, with "where to change what". Read it
+> instead of re-exploring the tree; keep it current when structure changes.
+
 - `Downloader.Desktop.sln` — solution.
 - `Directory.Build.props` — shared props.
 - `Downloader.Desktop.Plugins.Abstractions/` — the **plugin SDK** (interfaces + POCOs only): `IDownloaderPlugin`, `ILinkResolver`, `ITransferProvider`/`ITransfer`, `IPostProcessor`, `IPostDownloadAction` (user-initiated action on a completed download, e.g. "Add to Ollama"). External plugins reference this.
@@ -180,6 +185,12 @@ Keep this list current as items land.
 - C#: `LangVersion=latest`, file-scoped namespaces, `Avalonia`/`ReactiveUI` idioms (`RaiseAndSetIfChanged`, `ReactiveCommand.CreateFromTask`).
 - **Code style — Clean Code, KISS, as simple as possible**: smallest change that solves the actual problem, no speculative abstractions/layers/config knobs, no dead code, prefer readability over cleverness. Standing rule, applies to every task without being repeated.
 - **Plugin versions — bump on every plugin code change (standing rule).** Whenever a plugin's source changes (`src/Downloader.Desktop.Plugins/*`), bump that plugin's csproj `<Version>` (semver: fixes = patch, behavior/features = minor) in the same session as the change. The catalog update check compares installed vs catalog version — a stale version means users never receive the fix. The csproj `<Version>` is the single source (runtime `Version` derives from the assembly).
+- **NEVER spawn a shell, and never write malware-shaped code (standing rule — issue #4).** Bitdefender's Advanced Threat Defense blocked and quarantined the app on a clean Windows 11 machine because an *unsigned* `Downloader.exe` spawned `powershell.exe` (toast notifications, Start-menu shortcut, update unzip) — the classic parent→child chain, scored alongside a Run-key write and a self-replacing exe. Nothing we did was malicious; the **shape** of the action was. So:
+  - **No `powershell`/`pwsh`/`cmd /c`/`WScript.Shell`/`-EncodedCommand`, ever.** Every case had an in-process alternative: shell/Win32 P/Invoke (`Shell_NotifyIconW` for toasts, `IShellLink` for .lnk files), `Microsoft.Win32.Registry` for registry writes, `System.IO.Compression.ZipFile` for archives. Use those.
+  - **Don't read browser data** (cookie stores, profiles, saved passwords) — textbook infostealer behavior. This is why yt-dlp's `--cookies-from-browser` went away with HLS 2.0.0; cookies come from our own browser extension instead.
+  - **Don't download-then-execute third-party binaries** unless the user asked for that plugin, and always verify a sha256 before load (see `PluginManager.InstallFromZipAsync`).
+  - When you must spawn a process at all, use its **absolute path** (`%SystemRoot%\System32\tar.exe`), never a bare name PATH could hijack.
+  - Enforced by `NoShellSpawnTests` — it text-scans the app + plugin source and fails the build on any of the above. Don't add to its allow-list without a written reason.
 - **Logging — ALWAYS use the standard `Microsoft.Extensions.Logging.ILogger`** (`LogInformation`/`LogWarning`/`LogError`), never a custom `Log(string)` API or `Console.WriteLine`. This is the .NET standard and what the `Downloader` engine, `Downloader.Desktop`, and the plugin SDK all use, so everything flows into one log. The app bridges `ILogger` → the app log file via `AppLog.Factory` (`ILoggerFactory`); pass that factory to anything that takes one (e.g. `new DownloadService(cfg, AppLog.Factory)`), and the plugin SDK exposes `IPluginContext.Logger` (an `ILogger`). Standing rule.
 - Keep this file updated when structure changes to minimize re-exploration.
 
