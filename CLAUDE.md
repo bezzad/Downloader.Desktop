@@ -47,6 +47,11 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - `Nullable` is **disabled** in the app csproj (enabled in `Directory.Build.props` but overridden).
 
 ## Layout (`src/`)
+
+> **Full codebase map: [`docs/codebase-index.md`](docs/codebase-index.md)** — every project, service,
+> view model, plugin, test folder, packaging channel and spec, with "where to change what". Read it
+> instead of re-exploring the tree; keep it current when structure changes.
+
 - `Downloader.Desktop.sln` — solution.
 - `Directory.Build.props` — shared props.
 - `Downloader.Desktop.Plugins.Abstractions/` — the **plugin SDK** (interfaces + POCOs only): `IDownloaderPlugin`, `ILinkResolver`, `ITransferProvider`/`ITransfer`, `IPostProcessor`, `IPostDownloadAction` (user-initiated action on a completed download, e.g. "Add to Ollama"). External plugins reference this.
