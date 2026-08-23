@@ -412,3 +412,37 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
 - **Fix (all in-process, no child processes)**: toasts to `Shell_NotifyIconW` + `NIF_INFO` on a cached hidden `HWND_MESSAGE` window (Win10/11 render it as a real toast + Action Center entry, so "works while in the tray" is preserved; keep the WNDPROC delegate in a static field, clamp text to szInfoTitle=64/szInfo=256, icon via `ExtractIconExW(Environment.ProcessPath)`); .lnk to `IShellLink`+`IPersistFile` COM (`BuiltInComInteropSupport` is already true and the app isn't trimmed, so ComImport just works — declare interface members in FULL vtable order); Run key to `Microsoft.Win32.Registry` (available on the platform-neutral `net10.0` TFM, annotate `[SupportedOSPlatform("windows")]`); update extract to the in-box `"%SystemRoot%\System32\tar.exe" -x -f` (bsdtar reads zip, Win10 1803+) by ABSOLUTE path (also kills PATH hijacking). Rejected: a `net10.0-windows10.0.x` TFM for WinRT toasts (forks the build matrix for every platform); an in-app-only Avalonia toast (regresses tray-hidden delivery).
 - **Guardrail: `Unit/NoShellSpawnTests`** text-scans app+plugin source and FAILS the build on `powershell`, `pwsh`, `Expand-Archive`, `WScript.Shell`, `-EncodedCommand`, `cmd /c`, `--cookies-from-browser`, spawned `reg.exe`. Key design point: it **strips comments but still scans string literals** (the ban is on doing it, not explaining it — and the old `Expand-Archive` shipped inside a string literal). The stripper is string-aware (verbatim strings/escapes, so a `//` in a URL doesn't eat the line) and blanks to spaces so line numbers stay right. Allow-list is empty on purpose. The scanner+stripper are themselves tested. **Its first run caught two of my own leftover comments** — trust it.
 - **Still open**: the Windows binaries are UNSIGNED (Bitdefender's own timeline says so) — Authenticode/Azure Trusted Signing is the real root fix and needs a cert from the author. The three Windows paths above are **unverifiable on Linux/CI** (no Windows runner): written fail-soft, pure parts unit-tested, but they need a manual Windows smoke test (notification / delete Downloader.lnk + relaunch / toggle run-at-startup / take an update).
+
+## Per-download request context (issue #7, `per-download-request-context`)
+- **Where it lives**: `Models/RequestContext` (Cookies + Headers + Referer) hangs off `DownloadItem.Request`
+  (`[JsonIgnore]`). `DownloadItem.Referer` is a **persisted proxy** onto `Request.Referer` — that is the whole
+  persist/transient split: cookies and headers are secrets (memory only, never in `config.json`, never logged);
+  a referer is not, so it survives a restart. Test `Saving_the_config_keeps_the_referer_and_drops_cookies_and_headers`
+  guards it — keep any new context field on the right side of that line.
+- **`POST /api/add`** also takes `headers` (a `{"Name":"value"}` object) and `referer`. Malformed entries are
+  skipped, never fatal. `ToJson` (the CLI forward path) carries the referer but never cookies/headers.
+- **Applying it**: `DownloadManager.ApplyRequestContext(cfg, ctx)` in `Start`, after the per-item speed cap.
+  Per-item beats global. **The four headers the engine models as PROPERTIES must not go into the raw
+  `WebHeaderCollection`** — `SetHeader` routes `User-Agent`/`Referer`/`Accept`/`Content-Type` to
+  `RequestConfiguration.UserAgent/Referer/Accept/ContentType`; the collection either rejects them or
+  `SocketClient` ignores them. `SetHeader` uses the **indexer, not `Add`** so a per-item header replaces a
+  global one instead of appending. `Plans.ApplyHeaders` now funnels through `SetHeader` too, so a resolver's
+  per-part header cleanly overrides the item's.
+- **`RequestConfiguration.CookieContainer` is NOT null by default** (the engine pre-creates one, Count=0) —
+  don't assert null to mean "no cookies", check `Count`. `new System.Net.Cookie("bad name", …)` does NOT throw
+  either; the framework is more permissive than it looks, so only genuinely empty name/domain entries are
+  skipped by our guard.
+- **Retry stays authenticated**: cookies are kept as a LIST on the item, and `EnsureCookieFile` re-creates the
+  transient Netscape file in `Start` when it's missing. `BuildItem` still writes it on add (untouched path);
+  `Start`'s `finally` still deletes it.
+- **Resolver side**: `ResolveOptions.Headers` (SDK, init-only) carries the bag; `DownloadManager.ResolveHeaders`
+  flattens item headers + referer into it (**the `referer` field wins over a `Referer` header, on both sides**).
+  `HlsResolver` passes `options?.Headers` to every playlist GET and stamps it on each produced `DownloadPart`.
+
+## Two build/test traps that cost a session
+- **`pkill -f "dotnet test"` kills your own shell** (exit 144) — the invoking bash's command string contains
+  the pattern. Same family as the `pkill -f "Downloader.Desktop"` note above. Match the child by a pattern
+  that can't appear in your own command line, or just don't pre-kill.
+- **NuGet `Central Directory corrupt` + `Invalid argument: …/<random>.ein`** after a `dotnet` "Internal CLR
+  error (0x80131506)": the crash left a 0-byte temp file in a package folder. Fix = `rm -rf` that package's
+  version dir under `~/.nuget/packages/` and rebuild. It is not a code or restore-source problem.
