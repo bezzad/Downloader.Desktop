@@ -55,3 +55,15 @@ The core engine needs no change: `RequestConfiguration` already exposes `Headers
 - Browser-extension changes (follow-up).
 - #5 (MPEG-DASH) and #6 (refresh an expired link) — still tracked in `issue4-followups-batch`.
 - Any change to the `bezzad/downloader` engine.
+
+## Status at archive
+
+Implemented and archived on 2026-08-23. Build clean; 436 app tests, 33 extension unit tests and 7 Playwright
+e2e tests green (the e2e suite needs `--workers=1`).
+
+**Task 4.4 was NOT done — archived anyway at the author's call.** The end-to-end check (send a real protected
+`.m3u8` with cookies + referer through `POST /api/add` and watch it download) needs a live signed-in session
+on a real site and could not be run. Everything below it is covered by unit tests, but the "a protected link
+now actually downloads" claim is unverified against a real server. If a report comes in that a protected link
+still fails, start there rather than assuming the plumbing is wrong: `ApplyRequestContext` is tested, the
+untested link is whether the site wants something we are not sending.
