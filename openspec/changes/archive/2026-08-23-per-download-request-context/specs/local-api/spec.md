@@ -30,6 +30,8 @@ The POST JSON body SHALL additionally accept an optional `headers` object (strin
 - **WHEN** an add request's `headers` is not an object, or contains entries whose name or value is not a string
 - **THEN** those entries are ignored and the download is still added
 
+## ADDED Requirements
+
 ### Requirement: Extension-supplied cookies are used for the whole download
 When an add request carries a `cookies` array, the app SHALL use those cookies both to resolve the link and to fetch its bytes, for the life of the item in this session.
 
