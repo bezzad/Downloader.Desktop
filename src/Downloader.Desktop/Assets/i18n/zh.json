@@ -296,5 +296,15 @@
   "Donate_Copied": "已复制！",
   "Donate_Usdt_Warn": "发送前请核对网络 — 发错网络的资金可能无法找回。",
   "Donate_OtherWays": "不花钱也能帮忙 — 点星、报告问题和翻译同样重要。",
-  "Donate_Star": "在 GitHub 加星"
+  "Donate_Star": "在 GitHub 加星",
+  "State_RefreshingLink": "链接已过期 — 正在获取新链接…",
+  "Error_LinkExpiredRefresh": "此链接已失效——它已过期或被撤回。打开“详情”并粘贴新链接，即可在不丢失已下载部分的情况下继续。",
+  "Det_RefreshLink": "刷新链接",
+  "Det_RefreshHint": "链接过期了？在上方粘贴新链接并点击“刷新链接”——下载会从中断处继续。",
+  "Det_RefreshChecking": "正在检查新链接…",
+  "Det_RefreshEmpty": "请先粘贴一个链接。",
+  "Det_RefreshUnreachable": "无法访问新链接：{0}",
+  "Det_RefreshMismatchTitle": "此链接指向另一个文件",
+  "Det_RefreshMismatchBody": "新链接显示为 {0}，而此下载为 {1}。继续将丢弃已下载的部分并重新开始。",
+  "Det_RefreshDone": "链接已更新 — 继续下载。"
 }

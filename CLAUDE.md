@@ -172,6 +172,16 @@ Rough order to turn the current skeleton into the MVP above:
    - **Fixed the templates themselves** so they're publish-ready: `Casks/downloader.rb` and `packaging/winget/*.yaml` had `1.0.0`/`REPLACE_WITH_SHA256_*` placeholders never updated for any real release — bumped to `1.1.0` and filled in real sha256 for all 3 assets (computed from the actual `v1.1.0` GitHub release).
    - **Still not actually published** (needs the author's explicit go-ahead, see below): creating `bezzad/homebrew-tap` and submitting the `wingetcreate`/manual PR to `microsoft/winget-pkgs` are both externally-visible, third-party actions — not done automatically.
 
+15. ✅ **Expired-link recovery (issue #6, OpenSpec `refresh-expired-link`)** (DONE):
+   - **Automatic**: a failure whose HTTP status says the link is gone (401/403/404/410) on a download that
+     already has bytes re-queues the item instead of failing it (bounded, 2 attempts). Because `Start` keeps
+     the ORIGINAL pasted URL and re-resolves it every attempt, the redirect hands back a freshly signed
+     target and the partial file continues. The row reads "Getting a fresh link…" (queued), not Failed.
+   - **Manual**: the Details window gained a **Refresh link** button next to the (already editable) URL box:
+     it probes the pasted link, resumes onto the partial file when the size matches, and asks first when it
+     doesn't (a different size makes the engine discard the partial). Unreachable → nothing changes.
+   - Wording in all 16 language packs; new capture `docs/screenshots/details-refresh-dark.png`; 454 tests green.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

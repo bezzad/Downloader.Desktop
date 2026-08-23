@@ -243,6 +243,16 @@ public class CaptureScreenshots
         det.Show();
         Save(det, "details-dark.png");
 
+        // Details for a STOPPED row (#6): only a row that is not running shows the "Refresh link" panel,
+        // where a fresh link replaces an expired one and the download continues from the partial file.
+        var stoppedItem = manager.Items.FirstOrDefault(i => i.Status is not DownloadStatus.Running)
+                          ?? manager.Items.First();
+        stoppedItem.Status = DownloadStatus.Failed;
+        stoppedItem.ErrorMessage = Localizer.Instance["Error_LinkExpiredRefresh"];
+        var detStopped = new DownloadDetailsView { DataContext = new DownloadDetailsViewModel(stoppedItem) };
+        detStopped.Show();
+        Save(detStopped, "details-refresh-dark.png");
+
         // In-app "update available" dialog (Download / Later) — the new user-initiated update prompt.
         var upd = new UpdatePromptView
         {

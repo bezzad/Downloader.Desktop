@@ -296,5 +296,15 @@
   "Donate_Copied": "¡Copiado!",
   "Donate_Usdt_Warn": "Verifica la red antes de enviar — los fondos enviados por la red equivocada pueden perderse.",
   "Donate_OtherWays": "No hace falta dinero — dar una estrella, reportar errores y traducir ayudan igual.",
-  "Donate_Star": "Estrella en GitHub"
+  "Donate_Star": "Estrella en GitHub",
+  "State_RefreshingLink": "El enlace caducó: obteniendo uno nuevo…",
+  "Error_LinkExpiredRefresh": "Este enlace ya no es válido: caducó o fue retirado. Abre Detalles y pega un enlace nuevo para continuar sin perder lo ya descargado.",
+  "Det_RefreshLink": "Actualizar enlace",
+  "Det_RefreshHint": "¿El enlace caducó? Pega uno nuevo arriba y pulsa Actualizar enlace: la descarga continúa donde se detuvo.",
+  "Det_RefreshChecking": "Comprobando el nuevo enlace…",
+  "Det_RefreshEmpty": "Pega primero un enlace.",
+  "Det_RefreshUnreachable": "No se pudo acceder al nuevo enlace: {0}",
+  "Det_RefreshMismatchTitle": "Este enlace apunta a otro archivo",
+  "Det_RefreshMismatchBody": "El nuevo enlace indica {0}, pero esta descarga es de {1}. Continuar descarta lo descargado y empieza de cero.",
+  "Det_RefreshDone": "Enlace actualizado: continuando la descarga."
 }

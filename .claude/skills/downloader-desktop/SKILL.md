@@ -450,3 +450,36 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
 - **NuGet `Central Directory corrupt` + `Invalid argument: …/<random>.ein`** after a `dotnet` "Internal CLR
   error (0x80131506)": the crash left a 0-byte temp file in a package folder. Fix = `rm -rf` that package's
   version dir under `~/.nuget/packages/` and rebuild. It is not a code or restore-source problem.
+
+## Expired-link refresh (issue #6, `refresh-expired-link`)
+- **A signed link that dies mid-download is now recovered automatically.** `DownloadManager.HandleFailure` is
+  the single place a failed attempt becomes a Failed row (both the `e.Cancelled`-with-error and the
+  `e.Error` branches funnel through it); it first calls `TryAutoRefreshLink`, which re-queues the item when
+  `LooksLikeExpiredLinkError(error)` (HTTP **401/403/404/410**, found by unwrapping `AggregateException`/inner
+  exceptions) AND the item already has bytes AND `vm.LinkRefreshAttempts < MaxAutoLinkRefreshAttempts` (2).
+  Why re-queueing is the whole fix: `Start` copies `item.Urls` into a LOCAL array before rewriting `urls[0]`
+  with the resolved redirect, so the ORIGINAL pasted URL is still stored and every attempt re-resolves it →
+  a fresh signature. The partial file is kept (engine `EnableAutoResumeDownload`, on by default).
+- **Only a resume is refreshed** (`Downloaded > 0`): a link that never delivered a byte is a bad link and must
+  fail honestly. The counter resets on completion and on a **user** `Retry`/`Resume` (the internal path uses
+  `RequeueForRefresh`, which deliberately does NOT reset it) — otherwise a dead link retries forever.
+- **The refresh gap shows as "Getting a fresh link…", not Failed and not an error**: `TryAutoRefreshLink` sets
+  `vm.IsRefreshingLink` + `Status = Created` (never Failed — that flashed a failure in the grid) and leaves
+  `ErrorMessage` null; `StatusText`'s Created case reads the flag; `Start` clears it. Note `FinishTerminal`
+  pumps the queue right after, so in practice the row restarts within the same UI tick — don't write tests
+  that expect the flag to still be set after `RaiseFailedForTest`.
+- **Manual path**: the Details window's URL box was already editable for a non-running row, but it now has a
+  hint + a **Refresh link** button (`DownloadDetailsViewModel.RefreshLinkAsync`, `internal` so tests call it
+  directly instead of driving the ReactiveCommand). It probes with `UrlResolver.ResolveFileInfoAsync` and
+  `EvaluateNewLink(knownSize, newSize)` → Match/Unknown → swap + `Resume`; Mismatch → `ConfirmAsync` first.
+  **Why the size check matters:** the engine's `TryResumeFromExistingFile` derives its metadata offset from
+  `stream.Length - Package.TotalFileSize`, so a new link reporting a DIFFERENT size makes it delete the
+  partial file and start over — silently destroying what the user was trying to save.
+- **The URL box writes through to the item as you type**, so an abandoned/failed refresh must restore
+  `_committedUrl` (captured when the dialog opens, updated on each successful swap) or the item is left
+  pointing at an unvalidated URL. `ProbeAsync`/`ConfirmAsync` are internal seams for tests (no network, no
+  window).
+- **Engine facts worth not re-deriving**: a 4xx surfaces because `SocketClient.SendRequestAsync` calls
+  `EnsureSuccessStatusCode()` (so `HttpRequestException.StatusCode` is populated); `ChunkDownloader` retries
+  `MaxTryAgainOnFailure` times against the SAME url before it gives up; mirrors are load spreading, NOT
+  failover (each chunk is pinned to one request instance, and the file-info probe uses the first URL only).

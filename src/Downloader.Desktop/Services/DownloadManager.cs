@@ -388,6 +388,7 @@ public partial class DownloadManager : IDownloadManager
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
         vm.AlreadyExisted = false;
+        vm.IsRefreshingLink = false;
         // Capture the known size before progress events overwrite it — only meaningful when resuming
         // (we already had bytes + a real size). Used to spot an expired link returning a tiny file.
         vm.PreAttemptSize = item.Downloaded > 0 ? item.Size : null;
@@ -728,6 +729,12 @@ public partial class DownloadManager : IDownloadManager
     }
 
     /// <summary>Turns an exception into a short, user-friendly root cause.</summary>
+    /// <summary>The message a failed row shows. An expired link that the app could not refresh by itself
+    /// gets wording that names the real problem and points at the fix (paste a fresh link in Details, #6)
+    /// instead of a bare "Network error: 403".</summary>
+    private static string DescribeFailure(Exception ex) =>
+        LooksLikeExpiredLinkError(ex) ? Localizer.Instance["Error_LinkExpiredRefresh"] : Describe(ex);
+
     private static string Describe(Exception ex)
     {
         var e = ex;
@@ -744,6 +751,102 @@ public partial class DownloadManager : IDownloadManager
                 "The download timed out — data stopped arriving in time after several retries. Please try again.",
             _ => e.Message
         };
+    }
+
+    /// <summary>How many times the app re-resolves an item's original link by itself after an expired-link
+    /// failure before giving up and asking the user for a fresh one (issue #6).</summary>
+    public const int MaxAutoLinkRefreshAttempts = 2;
+
+    /// <summary>Pure helper (testable): does this failure mean "the link is no longer valid" — the signature
+    /// on a time-limited URL expired, or the server withdrew it? Those are the statuses a CDN answers with
+    /// once a signed link times out (401/403 typically, 410 when it is explicit, 404 on some CDNs). A
+    /// timeout, a socket error or a 5xx is a transient problem with a still-valid link and is NOT matched.</summary>
+    public static bool LooksLikeExpiredLinkError(Exception ex)
+    {
+        foreach (var e in Unwrap(ex))
+            if (e is System.Net.Http.HttpRequestException { StatusCode: { } status } &&
+                status is System.Net.HttpStatusCode.Unauthorized
+                    or System.Net.HttpStatusCode.Forbidden
+                    or System.Net.HttpStatusCode.NotFound
+                    or System.Net.HttpStatusCode.Gone)
+                return true;
+        return false;
+    }
+
+    /// <summary>Flattens an exception into itself, its inner exceptions and any aggregated ones — the engine
+    /// wraps a chunk's failure before it reaches the completion event.</summary>
+    private static IEnumerable<Exception> Unwrap(Exception ex)
+    {
+        for (var e = ex; e != null; e = e.InnerException)
+        {
+            yield return e;
+            if (e is AggregateException agg)
+                foreach (var inner in agg.InnerExceptions)
+                foreach (var nested in Unwrap(inner))
+                    yield return nested;
+        }
+    }
+
+    /// <summary>
+    /// An expired signed link is usually reachable again by re-resolving the ORIGINAL url the user pasted:
+    /// it redirects to a freshly signed target. <see cref="Start"/> always re-resolves from
+    /// <c>item.Urls</c>, so re-queueing the item is the whole fix — and the partial file is kept, so the
+    /// download continues where it stopped. Bounded by <see cref="MaxAutoLinkRefreshAttempts"/>, and only
+    /// for a download that already has bytes: a link that never worked is a bad link, not an expired one.
+    /// Returns true when the item was re-queued (the caller must then NOT mark it Failed).
+    /// </summary>
+    private bool TryAutoRefreshLink(DownloadItemViewModel vm, Exception error)
+    {
+        if (!LooksLikeExpiredLinkError(error))
+            return false;
+        if (vm.GetItem().Downloaded <= 0)
+            return false;
+        if (vm.LinkRefreshAttempts >= MaxAutoLinkRefreshAttempts)
+            return false;
+
+        vm.LinkRefreshAttempts++;
+        vm.IsRefreshingLink = true; // labels the queued gap; not an error, so no red banner
+        // Queued, not Failed: the pump picks up a Created row, and the grid shows the honest "Queued"
+        // badge instead of flashing a failure the app is about to fix by itself.
+        vm.Status = DownloadStatus.Created;
+        vm.Speed = 0;
+        AppLog.Info($"Link looks expired, refreshing it (attempt {vm.LinkRefreshAttempts}" +
+                    $"/{MaxAutoLinkRefreshAttempts}): {vm.Url}");
+        ReleaseEngine(vm); // the failed engine is done; Start builds a fresh one for the new attempt
+        // Re-queue after this completion callback has finished rather than starting a download from
+        // inside the old engine's event handler.
+        Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
+        return true;
+    }
+
+    /// <summary>
+    /// The single place a failed attempt becomes a failed row. An expired link is refreshed automatically
+    /// first (issue #6) — that is a retry, not a failure, so the row keeps no error and nothing is notified.
+    /// </summary>
+    /// <returns>True when the failure was absorbed by an automatic link refresh (the row is queued for
+    /// another attempt); false when the row was marked Failed.</returns>
+    private bool HandleFailure(DownloadItemViewModel vm, Exception error, string fallbackMessage, string logPrefix)
+    {
+        if (TryAutoRefreshLink(vm, error))
+            return true;
+
+        vm.ErrorMessage = error != null ? DescribeFailure(error) : fallbackMessage;
+        vm.Status = DownloadStatus.Failed;
+        AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
+        if (NotifyFailedEnabled)
+            NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+        return false;
+    }
+
+    /// <summary>Re-queues an item for another attempt WITHOUT resetting its automatic-refresh counter (that
+    /// reset is reserved for the user's own Retry/Resume), so a dead link can't retry forever.</summary>
+    private void RequeueForRefresh(DownloadItemViewModel vm)
+    {
+        vm.GetItem().PlanJson = null;
+        vm.Status = DownloadStatus.Created;
+        EnsureQueueRunning(vm.GetItem().QueueId);
+        PumpQueue(vm.GetItem().QueueId);
+        NotifyList();
     }
 
     public void Pause(DownloadItemViewModel vm)
@@ -765,6 +868,10 @@ public partial class DownloadManager : IDownloadManager
         // "Start" over a mixed selection from re-running a completed item from 0%.
         if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
             return;
+
+        // The user asked for this attempt, so the automatic link-refresh budget starts over (issue #6):
+        // a link that was dead yesterday may well be fine today.
+        vm.LinkRefreshAttempts = 0;
 
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
@@ -816,6 +923,7 @@ public partial class DownloadManager : IDownloadManager
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
+        vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic-refresh budget (#6)
         // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
         // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
         // disk are reused only when the fresh plan's part paths match (same url → same part file).
@@ -912,6 +1020,16 @@ public partial class DownloadManager : IDownloadManager
     {
         vm.Status = DownloadStatus.Stopped;
         FinishTerminal(vm);
+    }
+
+    /// <summary>Test seam: simulate a failed attempt reaching the completion handler (same code path the
+    /// engine's completion event uses), so the expired-link auto-refresh can be exercised without a server.
+    /// Returns true when the failure was turned into an automatic link refresh instead of a failure.</summary>
+    public bool RaiseFailedForTest(DownloadItemViewModel vm, Exception error)
+    {
+        var refreshed = HandleFailure(vm, error, "connection lost", "Failed (test)");
+        FinishTerminal(vm);
+        return refreshed;
     }
 
     private DownloadQueue FindQueue(string id) =>
@@ -1172,22 +1290,14 @@ public partial class DownloadManager : IDownloadManager
                 }
                 else
                 {
-                    vm.ErrorMessage = e.Error != null
-                        ? Describe(e.Error)
-                        : "The connection was lost or timed out before the download finished. Please try again.";
-                    vm.Status = DownloadStatus.Failed;
-                    AppLog.Error($"Failed (interrupted): {vm.FileName ?? vm.Url}", e.Error);
-                    if (NotifyFailedEnabled)
-                        NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                    HandleFailure(vm, e.Error,
+                        "The connection was lost or timed out before the download finished. Please try again.",
+                        "Failed (interrupted)");
                 }
             }
             else if (e.Error != null)
             {
-                vm.ErrorMessage = Describe(e.Error);
-                vm.Status = DownloadStatus.Failed;
-                AppLog.Error($"Failed: {vm.FileName ?? vm.Url}", e.Error);
-                if (NotifyFailedEnabled)
-                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                HandleFailure(vm, e.Error, null, "Failed");
             }
             else if (IsCorruptedAfterResume(vm, e, out var finalBytes))
             {
@@ -1219,6 +1329,7 @@ public partial class DownloadManager : IDownloadManager
             else
             {
                 vm.Progress = 100;
+                vm.LinkRefreshAttempts = 0; // it worked — the refresh budget is spent only on live trouble
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
                 if (NotifyCompleteEnabled)

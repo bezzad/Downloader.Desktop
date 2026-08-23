@@ -293,6 +293,27 @@ public class DownloadItemViewModel : ViewModelBase
     /// persisted). Used to detect an expired link that returns a much smaller file when resuming.</summary>
     public long? PreAttemptSize { get; set; }
 
+    /// <summary>How many times the app has already re-resolved this item's link by itself after an
+    /// expired-link failure (issue #6). Session-only: it bounds the automatic retries and is reset when the
+    /// download completes or when the user starts/retries it.</summary>
+    public int LinkRefreshAttempts { get; set; }
+
+    private bool _isRefreshingLink;
+
+    /// <summary>True while the app is fetching a fresh link for this download after the old one expired
+    /// (issue #6). Transient: it only labels the short queued gap between the failed attempt and the next
+    /// one, and <see cref="DownloadManager.Start"/> clears it.</summary>
+    public bool IsRefreshingLink
+    {
+        get => _isRefreshingLink;
+        set
+        {
+            if (_isRefreshingLink == value) return;
+            _isRefreshingLink = value;
+            this.RaisePropertyChanged(nameof(StatusText));
+        }
+    }
+
     public long Downloaded
     {
         get => _item.Downloaded;
@@ -423,6 +444,8 @@ public class DownloadItemViewModel : ViewModelBase
 
     public string StatusText => Status switch
     {
+        // A queued row that is waiting on a freshly resolved link says so instead of a bare "Queued".
+        DownloadStatus.None or DownloadStatus.Created when _isRefreshingLink => L("State_RefreshingLink"),
         DownloadStatus.None or DownloadStatus.Created => L("State_Queued"),
         DownloadStatus.Running when !string.IsNullOrEmpty(_planStage) => $"{_planStage} · {Progress:0}%",
         DownloadStatus.Running => $"{Progress:0}%",

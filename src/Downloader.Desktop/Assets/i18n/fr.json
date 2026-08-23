@@ -296,5 +296,15 @@
   "Donate_Copied": "Copié !",
   "Donate_Usdt_Warn": "Vérifiez le réseau avant d’envoyer — des fonds envoyés sur le mauvais réseau peuvent être perdus.",
   "Donate_OtherWays": "Pas besoin d’argent — étoiles, rapports de bugs et traductions aident autant.",
-  "Donate_Star": "Étoile sur GitHub"
+  "Donate_Star": "Étoile sur GitHub",
+  "State_RefreshingLink": "Lien expiré — récupération d'un nouveau…",
+  "Error_LinkExpiredRefresh": "Ce lien n'est plus valide : il a expiré ou a été retiré. Ouvrez Détails et collez un nouveau lien pour continuer sans perdre la partie déjà téléchargée.",
+  "Det_RefreshLink": "Actualiser le lien",
+  "Det_RefreshHint": "Lien expiré ? Collez-en un nouveau ci-dessus et appuyez sur Actualiser le lien : le téléchargement reprend où il s'est arrêté.",
+  "Det_RefreshChecking": "Vérification du nouveau lien…",
+  "Det_RefreshEmpty": "Collez d'abord un lien.",
+  "Det_RefreshUnreachable": "Impossible d'atteindre le nouveau lien : {0}",
+  "Det_RefreshMismatchTitle": "Ce lien pointe vers un autre fichier",
+  "Det_RefreshMismatchBody": "Le nouveau lien indique {0}, mais ce téléchargement fait {1}. Continuer supprime ce qui est déjà téléchargé et recommence.",
+  "Det_RefreshDone": "Lien mis à jour — le téléchargement continue."
 }
