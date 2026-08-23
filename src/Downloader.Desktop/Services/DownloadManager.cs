@@ -401,6 +401,10 @@ public partial class DownloadManager : IDownloadManager
         if (item.HasCustomSpeedLimit)
             configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
                 ? 0 : item.CustomSpeedLimitBytesPerSecond;
+        // Cookies/headers/referer supplied with the link (issue #7) apply to THIS download's requests,
+        // overriding the global request settings — the resolve and the bytes now use the same context.
+        ApplyRequestContext(configuration, item.Request);
+        EnsureCookieFile(item);
         vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
         var fileName = item.FileName;
 
@@ -433,7 +437,7 @@ public partial class DownloadManager : IDownloadManager
                 var persisted = PersistedPlan.FromJson(item.PlanJson);
                 if (persisted == null)
                 {
-                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath, item.VariantId).ConfigureAwait(false);
+                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath, item.VariantId, item.Request).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
                         // Remember WHICH plugin resolved this link so its post-download action (e.g.
@@ -510,6 +514,116 @@ public partial class DownloadManager : IDownloadManager
         }
     }
 
+    /// <summary>
+    /// Applies a download's own cookies, headers and referer (issue #7) to the engine configuration it is
+    /// about to run with. Per-item values win over the global settings already in <paramref name="cfg"/>.
+    /// Pure and side-effect-free apart from <paramref name="cfg"/>, so it is unit-tested directly.
+    /// </summary>
+    internal static void ApplyRequestContext(DownloadConfiguration cfg, RequestContext ctx)
+    {
+        if (cfg == null || ctx == null || ctx.IsEmpty)
+            return;
+
+        cfg.RequestConfiguration ??= new RequestConfiguration();
+        var req = cfg.RequestConfiguration;
+
+        if (ctx.Headers is { Count: > 0 })
+            foreach (var (key, value) in ctx.Headers)
+                SetHeader(req, key, value);
+
+        // Set after the headers so an explicit `referer` field wins over a Referer header, and both win
+        // over the global DownloadSettings.Referer that ToConfiguration() already applied.
+        if (!string.IsNullOrWhiteSpace(ctx.Referer))
+            req.Referer = ctx.Referer;
+
+        if (ctx.Cookies is { Count: > 0 })
+        {
+            req.CookieContainer ??= new System.Net.CookieContainer();
+            foreach (var cookie in ctx.Cookies)
+                TryAddCookie(req.CookieContainer, cookie);
+        }
+    }
+
+    /// <summary>Sets one request header, routing the four the engine models as properties (a
+    /// <see cref="System.Net.WebHeaderCollection"/> either rejects those or the engine ignores them).</summary>
+    internal static void SetHeader(RequestConfiguration req, string key, string value)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(key))
+            return;
+
+        switch (key.Trim().ToLowerInvariant())
+        {
+            case "user-agent": req.UserAgent = value; return;
+            case "referer":
+            case "referrer": req.Referer = value; return;
+            case "accept": req.Accept = value; return;
+            case "content-type": req.ContentType = value; return;
+        }
+
+        // Indexer, not Add: a per-item header replaces a global one of the same name instead of appending.
+        try { (req.Headers ??= new System.Net.WebHeaderCollection())[key] = value; }
+        catch { /* skip a header the framework restricts — never fail the download over one header */ }
+    }
+
+    /// <summary>Adds one browser cookie to the jar the engine will send. A cookie the framework rejects
+    /// (bad name/domain/value) is skipped, never fatal. Values are never logged.</summary>
+    private static void TryAddCookie(System.Net.CookieContainer jar, CookieDto c)
+    {
+        if (jar == null || string.IsNullOrEmpty(c?.Name) || string.IsNullOrEmpty(c.Domain))
+            return;
+        try
+        {
+            var cookie = new System.Net.Cookie(
+                c.Name,
+                c.Value ?? string.Empty,
+                string.IsNullOrEmpty(c.Path) ? "/" : c.Path,
+                c.Domain)
+            {
+                Secure = c.Secure
+            };
+            if (c.Expires is > 0)
+                cookie.Expires = DateTimeOffset.FromUnixTimeSeconds(c.Expires.Value).UtcDateTime;
+            jar.Add(cookie);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Skipped a cookie the framework rejected: {ex.GetType().Name}");
+        }
+    }
+
+    /// <summary>Re-creates the transient Netscape cookie file for this attempt when the item still has
+    /// cookies but the previous attempt's file was already deleted — so a retry isn't silently anonymous.</summary>
+    private static void EnsureCookieFile(DownloadItem item)
+    {
+        if (item?.Request?.Cookies is not { Count: > 0 })
+            return;
+        if (!string.IsNullOrEmpty(item.CookieFilePath) && File.Exists(item.CookieFilePath))
+            return;
+        try { item.CookieFilePath = CookieFile.WriteTempFile(item.Request.Cookies); }
+        catch (Exception ex) { AppLog.Warn($"Couldn't write temp cookie file: {ex.Message}"); }
+    }
+
+    /// <summary>Flattens a download's request context into the single header bag a resolver sees: the item's
+    /// headers plus its referer as a normal <c>Referer</c> entry (the referer field wins). Returns
+    /// null when there is nothing to send, so plugins keep their "no options" fast path.</summary>
+    internal static IReadOnlyDictionary<string, string> ResolveHeaders(RequestContext context)
+    {
+        if (context == null)
+            return null;
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (context.Headers is { Count: > 0 })
+            foreach (var (key, value) in context.Headers)
+                if (!string.IsNullOrWhiteSpace(key))
+                    headers[key] = value;
+        // Last, so the purpose-built `referer` field wins over a Referer header — same precedence as
+        // ApplyRequestContext uses on the engine side.
+        if (!string.IsNullOrWhiteSpace(context.Referer))
+            headers["Referer"] = context.Referer;
+
+        return headers.Count > 0 ? headers : null;
+    }
+
     /// <summary>Best-effort delete + clear of an item's transient extension-supplied cookie file.</summary>
     internal static void DeleteCookieFile(DownloadItem item)
     {
@@ -533,15 +647,21 @@ public partial class DownloadManager : IDownloadManager
     /// manager, or resolving fails.</summary>
     public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
         string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null,
-        string variantId = null)
+        string variantId = null, RequestContext context = null)
     {
         if (_plugins == null)
             return null;
         try
         {
-            var options = string.IsNullOrEmpty(cookieFilePath) && string.IsNullOrEmpty(variantId)
+            var headers = ResolveHeaders(context);
+            var options = string.IsNullOrEmpty(cookieFilePath) && string.IsNullOrEmpty(variantId) && headers == null
                 ? null
-                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath, VariantId = variantId };
+                : new Plugins.ResolveOptions
+                {
+                    CookieFilePath = cookieFilePath,
+                    VariantId = variantId,
+                    Headers = headers
+                };
             return await _plugins.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)

@@ -76,9 +76,35 @@ Base URL: `http://127.0.0.1:15151` (or the fallback port shown in Settings — s
 | `queue` | no | Queue name or id (otherwise the default queue) |
 | `mirrors` | no | Extra URLs for the same file (JSON body only) |
 | `start` | no | `false` = add queued but don't start (default `true`) |
+| `referer` | no | `Referer` to send for this download only (overrides the global setting) |
+| `headers` | no | Extra request headers for this download only, as `{"Name":"value"}` (JSON body only) |
+| `cookies` | no | Cookies for this URL, in the `chrome.cookies.getAll` shape (JSON body only) |
 
 The download is added **silently** — no dialog — and starts immediately (subject to the queue's
 concurrency cap). Responses: `201` with `{"id","name","status"}`, or `400` with `{"error"}`.
+
+#### Links that need the context they were found in
+
+Some servers only serve a file to the session that found it — a signed-in cookie, a matching `Referer`,
+an `Origin`, a bearer token. Send that context with the link and it is used for **that download only**,
+overriding the global request settings, for the resolve *and* for the requests that fetch the bytes:
+
+```bash
+curl -X POST http://127.0.0.1:15151/api/add \
+  -d '{"url":"https://cdn.example.com/v/index.m3u8",
+       "referer":"https://site.example/watch/42",
+       "headers":{"Origin":"https://site.example"},
+       "cookies":[{"name":"SID","value":"…","domain":".site.example"}]}'
+```
+
+A malformed header entry is skipped rather than failing the add.
+
+**How long it lives.** The cookies and headers are secrets: they are held in memory for the current
+session only — never written to `config.json` and never logged — so a retry in the same session still
+sends them, but restarting the app drops them and the download would go out unauthenticated. The
+`referer` is not a credential, so it is saved with the download and survives a restart.
+
+> The browser extension currently sends cookies only; sending a referer/headers is for your own scripts.
 
 ```bash
 curl -X POST http://127.0.0.1:15151/api/add \

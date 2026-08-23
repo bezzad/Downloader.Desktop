@@ -410,6 +410,17 @@ public static class LocalApiService
             LastTry = DateTime.Now
         };
 
+        // Whatever context the caller supplied travels with the item (issue #7) so the requests that fetch
+        // the BYTES send it too, not just the resolver. Cookies and headers stay in memory for this session;
+        // only the referer is persisted (see DownloadItem.Referer).
+        if (req.Cookies is { Count: > 0 })
+            item.Request.Cookies.AddRange(req.Cookies);
+        if (req.Headers is { Count: > 0 })
+            foreach (var (key, value) in req.Headers)
+                item.Request.Headers[key] = value;
+        if (!string.IsNullOrWhiteSpace(req.Referer))
+            item.Referer = req.Referer.Trim();
+
         // If the extension handed over a live session's cookies, write them to a short-lived temp file now;
         // DownloadManager.Start passes it to the plugin resolver and deletes it right after. Best-effort:
         // a failure here must never block adding the download (the URL-only flow still works).
@@ -507,6 +518,13 @@ public sealed class ApiAddRequest
     /// need a signed-in session (e.g. YouTube). Never persisted or logged; written to a temp file for yt-dlp.</summary>
     public List<CookieDto> Cookies { get; set; } = new();
 
+    /// <summary>Optional per-download request headers (issue #7), for links a server only serves with the
+    /// context they were found in. Applied to this download only and never persisted or logged.</summary>
+    public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Optional per-download referer, overriding the global setting for this download only.</summary>
+    public string Referer { get; set; }
+
     /// <summary>Human-readable validation error, or null when the request is usable.</summary>
     public string Error { get; set; }
 
@@ -521,7 +539,8 @@ public sealed class ApiAddRequest
                 Url = GetString(root, "url"),
                 Filename = GetString(root, "filename"),
                 Path = GetString(root, "path"),
-                Queue = GetString(root, "queue")
+                Queue = GetString(root, "queue"),
+                Referer = GetString(root, "referer")
             };
             if (root.TryGetProperty("start", out var start) &&
                 start.ValueKind is JsonValueKind.False or JsonValueKind.True)
@@ -534,6 +553,12 @@ public sealed class ApiAddRequest
                 foreach (var c in cookies.EnumerateArray())
                     if (ParseCookie(c) is { } dto)
                         req.Cookies.Add(dto);
+            // Headers: a plain {"Name":"value"} object. A malformed entry (or a malformed `headers`) is
+            // skipped rather than failing the add — a header problem must never cost the user the download.
+            if (root.TryGetProperty("headers", out var headers) && headers.ValueKind == JsonValueKind.Object)
+                foreach (var h in headers.EnumerateObject())
+                    if (h.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(h.Name))
+                        req.Headers[h.Name] = h.Value.GetString();
             return req.Validate();
         }
         catch (JsonException)
@@ -549,7 +574,8 @@ public sealed class ApiAddRequest
             Url = LocalApiService.QueryParam(requestUri, "url"),
             Filename = LocalApiService.QueryParam(requestUri, "filename"),
             Path = LocalApiService.QueryParam(requestUri, "path"),
-            Queue = LocalApiService.QueryParam(requestUri, "queue")
+            Queue = LocalApiService.QueryParam(requestUri, "queue"),
+            Referer = LocalApiService.QueryParam(requestUri, "referer")
         };
         if (LocalApiService.QueryParam(requestUri, "start") is { } start)
             req.Start = !start.Equals("false", StringComparison.OrdinalIgnoreCase) && start != "0";
@@ -563,7 +589,9 @@ public sealed class ApiAddRequest
         ["path"] = Path,
         ["queue"] = Queue,
         ["mirrors"] = Mirrors,
-        ["start"] = Start
+        ["start"] = Start,
+        // Referer travels with a forwarded CLI add (it is not a credential); cookies and headers never do.
+        ["referer"] = Referer
     });
 
     private ApiAddRequest Validate()

@@ -32,9 +32,10 @@ Today only `CookieFilePath` is kept, and it is deleted after the first attempt. 
 1. Applying cookies to the **download** needs `CookieContainer` entries, not a Netscape file.
 2. The temp file can then be regenerated per attempt, so retry works — today it silently goes anonymous.
 
-`CookieFilePath` stays as the transient per-attempt artifact (written in `Start`, deleted in its `finally`,
-exactly as now). `CookieFile.WriteTempFile` is unchanged; `LocalApiService.BuildItem` stops writing the file
-and just fills `Request.Cookies`.
+`CookieFilePath` stays as the transient per-attempt artifact, written by `BuildItem` exactly as today and
+deleted in `Start`'s `finally`. `Start` additionally re-creates it (`EnsureCookieFile`) when the item still
+has cookies but the file is gone — that is what makes a retry authenticated. Keeping `BuildItem`'s existing
+write means the working add path is untouched.
 
 ## Applying to the engine
 
@@ -45,9 +46,10 @@ per-item speed cap is applied:
 ApplyRequestContext(configuration, item.Request)   // new, pure, unit-tested
 ```
 
-- **Cookies** → `RequestConfiguration.CookieContainer` (created on demand). A `CookieDto` maps to
-  `System.Net.Cookie`; a leading-dot domain means include-subdomains. A cookie the framework rejects
-  (bad name/domain) is skipped, never fatal.
+- **Cookies** → `RequestConfiguration.CookieContainer` (the engine pre-creates one; `??=` covers the rest).
+  A `CookieDto` maps to
+  `System.Net.Cookie`; a leading-dot domain means include-subdomains. A cookie with no name or domain, or
+  one the framework rejects, is skipped rather than failing the download.
 - **Headers** → `RequestConfiguration.Headers` via the same try/skip loop `Plans.ApplyHeaders` uses, except
   the four headers the engine models as properties are routed there instead of into the collection:
   `User-Agent` → `UserAgent`, `Referer` → `Referer`, `Accept` → `Accept`, `Content-Type` → `ContentType`.
@@ -64,7 +66,7 @@ that specific segment).
 
 `ResolveOptions` gains `Headers` (`IReadOnlyDictionary<string,string>?`). The app folds the item's headers
 **and** referer into it (referer as a normal `Referer` header) so a plugin sees one uniform bag and needs no
-new concept. `CookieFilePath` stays as-is — plugins that shell out to a tool want a file, not a container.
+new concept. The `referer` field wins over a `Referer` header on both sides of the boundary. `CookieFilePath` stays as-is — plugins that shell out to a tool want a file, not a container.
 
 `HlsResolver` then replaces its three `headers: null` call sites with `options?.Headers`, which stamps them
 onto every `DownloadPart` it produces. That is a plugin behavior change → HLS csproj `<Version>` 2.0.0 →
@@ -88,7 +90,7 @@ Pure helpers carry the load, matching how this repo tests the rest of the API:
 - `BuildItem` puts them on the item; referer persists through a `Config` JSON round-trip while headers and
   cookies do not.
 - `ApplyRequestContext` sets container/collection/properties correctly, routes the four property-backed
-  headers, and per-item beats global.
+  headers (and keeps them out of the raw collection), and per-item beats global.
 - Header merge: part headers win over item headers.
 - An HLS test asserting produced parts carry the options' headers.
 

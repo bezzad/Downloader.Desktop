@@ -43,7 +43,7 @@ public sealed class HlsResolver : ILinkResolver
         => ResolveAsync(url, options: null, cancellationToken);
 
     public Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
-        => BuildHlsPlanAsync(url, SuggestFileName(url), headers: null, options?.VariantId, cancellationToken);
+        => BuildHlsPlanAsync(url, SuggestFileName(url), options?.Headers, options?.VariantId, cancellationToken);
 
     /// <summary>The selectable qualities in a master playlist, so the host's Add window can offer a
     /// picker. Null for a media playlist (one rendition, no choice) and for non-HLS inputs.
@@ -55,12 +55,12 @@ public sealed class HlsResolver : ILinkResolver
         if (!CanResolve(url))
             return null;
 
-        var (content, baseUri) = await GetAsync(url, headers: null, cancellationToken).ConfigureAwait(false);
+        var (content, baseUri) = await GetAsync(url, options?.Headers, cancellationToken).ConfigureAwait(false);
         if (!_parser.IsMaster(content))
             return null;
 
         var master = _parser.ParseMaster(content, baseUri);
-        var duration = await TryDurationAsync(master.Best().Uri, cancellationToken).ConfigureAwait(false);
+        var duration = await TryDurationAsync(master.Best().Uri, options?.Headers, cancellationToken).ConfigureAwait(false);
         var variants = ListMasterVariants(master, duration);
         return variants.Count > 0 ? variants : null;
     }
@@ -183,11 +183,12 @@ public sealed class HlsResolver : ILinkResolver
         return name + ".mp4";
     }
 
-    private async Task<double> TryDurationAsync(string mediaUrl, CancellationToken ct)
+    private async Task<double> TryDurationAsync(
+        string mediaUrl, IReadOnlyDictionary<string, string>? headers, CancellationToken ct)
     {
         try
         {
-            var (content, baseUri) = await GetAsync(mediaUrl, headers: null, ct).ConfigureAwait(false);
+            var (content, baseUri) = await GetAsync(mediaUrl, headers, ct).ConfigureAwait(false);
             if (_parser.IsMaster(content)) return 0;
             return _parser.ParseMedia(content, baseUri).Duration;
         }
