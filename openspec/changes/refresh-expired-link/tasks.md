@@ -34,5 +34,8 @@ Keep build + full `dotnet test` green; commit to `develop` per logical step.
 
 - [x] 4.1 New i18n keys (`Det_RefreshLink`, `Det_RefreshHint`, `Error_LinkExpiredRefresh`,
       `State_RefreshingLink`, mismatch confirmation) in **all 16** language packs.
-- [ ] 4.2 `dotnet build` clean; full `dotnet test` green; screenshots refreshed if the Details UI changed.
-- [ ] 4.3 Commit + push on `develop`; note anything left for the author's manual check.
+- [x] 4.2 `dotnet build` clean; full `dotnet test` green; screenshots refreshed if the Details UI changed.
+- [x] 4.3 Commit + push on `develop` (`1513abd`).
+- [ ] 4.4 Author manual check (cannot be automated here): let a real signed link expire mid-download (or
+      stop one and wait), confirm the row refreshes itself and continues, and try the Details "Refresh link"
+      button with a fresh link for the same file.
