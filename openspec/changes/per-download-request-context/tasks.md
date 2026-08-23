@@ -25,5 +25,5 @@ Keep build + full `dotnet test` green; commit to `develop` per logical step.
 
 - [x] 4.1 Document `headers`/`referer` in the local-API docs; note the extension still sends cookies only.
 - [x] 4.2 `dotnet build` clean; full `dotnet test` green; `NoShellSpawnTests` still green.
-- [ ] 4.3 Commit + push on `develop`; `/opsx:sync` then `/opsx:archive`.
+- [x] 4.3 Commit + push on `develop`. (`/opsx:sync` + `/opsx:archive` pending — see 4.4.)
 - [ ] 4.4 Author manual check (cannot be automated here): send a protected `.m3u8` link with cookies + referer through `POST /api/add` and confirm it downloads.
