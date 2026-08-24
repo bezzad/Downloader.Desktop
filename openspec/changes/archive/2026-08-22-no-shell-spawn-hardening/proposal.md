@@ -67,3 +67,23 @@ this dev box or in CI** — there is no Windows runner. They are written fail-so
 false / is swallowed, exactly as before) and their pure parts are unit-tested, but the behavior itself
 needs a manual smoke test on Windows: post a notification, delete `Downloader.lnk` and relaunch, toggle
 run-at-startup, and take an update. This is called out in `tasks.md` rather than assumed done.
+
+## Released
+
+Shipped in **v2.4.0** (tag `v2.4.0`, released 2026-08-22) — the first release containing this fix;
+`v2.3.0` and earlier still spawn PowerShell for notifications.
+
+| Item | Value |
+| --- | --- |
+| Fix commit | `e2b0b5d` (`fix(security): never spawn a shell — in-process APIs + a build-failing guardrail (#4)`) |
+| Version bump | `0b87d92` |
+| Release merge (main) | `f5b7040` |
+| Homebrew cask mirror | `e32bb31` (tap `bezzad/homebrew-tap` updated to 2.4.0) |
+| winget mirror | `c6a68f5`; PR [microsoft/winget-pkgs#422656](https://github.com/microsoft/winget-pkgs/pull/422656) (awaits moderator) |
+| AUR mirror | `8228243`; published by the `aur` job in `release.yml` |
+| Verification | `dotnet build` clean, 421/421 tests green |
+| Issue reply | [#4 comment](https://github.com/bezzad/Downloader.Desktop/issues/4#issuecomment-5381023500) |
+
+Tasks 9–11 remain deliberately open and are **not** closed by this release: Authenticode signing
+(needs a certificate — still the root cause of the AV detection), the manual Windows smoke test of the
+three paths CI cannot exercise, and reporting the false positive to Bitdefender.

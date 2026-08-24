@@ -36,6 +36,8 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Cache recurring patterns into the skill automatically.** When a non-obvious pattern, gotcha, or decision comes up that a future session would otherwise re-derive, append a concise note to the relevant skill file (usually `.claude/skills/downloader-desktop/SKILL.md`) and commit it on `develop` — no confirmation needed. Goal: steadily fewer tokens per session.
 - **Minimal, targeted changes — don't disturb working scenarios.** Change only what the task needs. Do not refactor, "improve", or alter unrelated code paths that already work; touching them risks new bugs. When a recent change looks odd, assume it may have had a reason — review its history before overriding it. (Reinforces the Clean Code/KISS rule below.)
 - **Tests passing = done; then push.** A task is complete when the build is clean and `dotnet test` is green (add/adjust tests for the change). When everything for the session is done and green, commit and push to `develop`. If a view's UI changed, also refresh screenshots (see "Workflow & progress tracking").
+- **NEVER publish anything outward-facing without showing the exact text first and getting an explicit OK.** Applies to: GitHub issue/PR comments and replies, creating or editing an issue/PR (title + body), closing/reopening one, release notes, and anything pushed to a store/registry (winget, Homebrew, Snap, …). Procedure: print the full final text in chat exactly as it will be posted, say where it goes (repo, issue/PR number, which action), wait for an explicit "post it", and only then call the tool. "Reply to that issue" means **draft it**, not permission to post. After edits, show the revised text and wait again.
+- **Issues/comments state the REQUEST, not my solution.** When filing or answering on behalf of a reporter, write what was asked and the current state — nothing else. Don't add "Proposed approach", don't invent a workaround and then argue against it, and never reject the reporter's suggested approach on my own authority: that is the author's call. Technical analysis and feasibility belong in an OpenSpec change or the chat, not in the issue the user reads.
 - **After every `/opsx:apply` session (all tasks or a batch), build everything and run all tests before calling it done.** Run `dotnet build Downloader.Desktop.sln` (from `src/`) for the app, and for the browser extension load it as an unpacked extension (there's no bundler/build step, it's plain JS) and run its tests: `node --test src/browser-extension/common.test.js` (unit) and the Playwright suite in `src/browser-extension/e2e/` (`npm test` there, after one-time `npm install` + `npx playwright install chromium`) for real-browser UI checks. Then run `dotnet test` (unit + headless UI tests) for the app. Only report the apply session complete once the app build is clean and all three test suites are green — this is a standing step, not something to be asked for per task.
 
 ## Stack
@@ -170,6 +172,16 @@ Rough order to turn the current skeleton into the MVP above:
    - **Fixed the templates themselves** so they're publish-ready: `Casks/downloader.rb` and `packaging/winget/*.yaml` had `1.0.0`/`REPLACE_WITH_SHA256_*` placeholders never updated for any real release — bumped to `1.1.0` and filled in real sha256 for all 3 assets (computed from the actual `v1.1.0` GitHub release).
    - **Still not actually published** (needs the author's explicit go-ahead, see below): creating `bezzad/homebrew-tap` and submitting the `wingetcreate`/manual PR to `microsoft/winget-pkgs` are both externally-visible, third-party actions — not done automatically.
 
+15. ✅ **Expired-link recovery (issue #6, OpenSpec `refresh-expired-link`)** (DONE):
+   - **Automatic**: a failure whose HTTP status says the link is gone (401/403/404/410) on a download that
+     already has bytes re-queues the item instead of failing it (bounded, 2 attempts). Because `Start` keeps
+     the ORIGINAL pasted URL and re-resolves it every attempt, the redirect hands back a freshly signed
+     target and the partial file continues. The row reads "Getting a fresh link…" (queued), not Failed.
+   - **Manual**: the Details window gained a **Refresh link** button next to the (already editable) URL box:
+     it probes the pasted link, resumes onto the partial file when the size matches, and asks first when it
+     doesn't (a different size makes the engine discard the partial). Unreachable → nothing changes.
+   - Wording in all 16 language packs; new capture `docs/screenshots/details-refresh-dark.png`; 454 tests green.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
@@ -267,6 +279,36 @@ non-interactively). The manual steps below are the fallback / what the script do
    merge (the CLA is already signed for `bezzad`).
 5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
 6. Record the release in the relevant OpenSpec change (or a short release note in the archive) — version, tag, commit hashes, tap commit, winget PR # — per the workflow above.
+
+## Zero build warnings (MANDATORY — standing rule, never wait to be told again)
+
+**The build must end with `0 Warning(s)`. Not "few", not "only pre-existing ones" — zero.** After *every*
+change, run a full solution build and fix every warning it reports, in app code, plugins **and** the test
+project. A warning left in place is a warning everyone learns to scroll past, and the next real one hides
+behind it. This is part of "done", exactly like a green `dotnet test` — a task with a clean test run but a
+new warning is NOT finished.
+
+- Check it with: `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` and read the `N Warning(s)` line.
+  A plain (incremental) build re-reports nothing for up-to-date projects, so it can look clean when it isn't
+  — use `-t:Rebuild` when you mean to verify.
+- **Never silence a warning you have not understood.** Fix the cause; if the warning is genuinely wrong,
+  state *why* in a code comment next to the targeted suppression. Do not add blanket `<NoWarn>` entries and
+  do not raise `TreatWarningsAsErrors` questions instead of fixing the code.
+- Inherited warnings count too. If a task touches a file that was already warning, clear it while you are
+  there rather than preserving it.
+- Zero here is verified on **Linux**; a Windows/macOS CI build can surface platform-specific analyzer
+  warnings (e.g. `CA1416` on the Windows-only paths) that cannot be reproduced on this box. If CI
+  reports one, it is still in scope — fix it the same way.
+- Fixes applied 2026-08-24, for reference on what "fix the cause" looks like: `CA1416` → annotate the
+  Windows-only method `[SupportedOSPlatform("windows")]`; `CS0618` → move to the replacement API
+  (`Tmds.DBus.Protocol.Connection` → `DBusConnection`); `AVLN5001` → use the current Avalonia property
+  (`SystemDecorations`→`WindowDecorations`, `Watermark`→`PlaceholderText`); `CS8625` → declare the parameter
+  `ResolveOptions?` (an implementation may widen a parameter to accept null) rather than passing `null!`;
+  `CS8632` → the test csproj is `<Nullable>annotations</Nullable>`, so `?` is meaningful there without
+  raising a wave of nullable warnings; `xUnit1051` → pass `TestContext.Current.CancellationToken`;
+  `xUnit2017`/`xUnit2029` → `Assert.Contains`/`Assert.DoesNotContain` instead of
+  `Assert.True(x.Contains(y))` / `Assert.Empty(x.Where(...))`; `xUnit1012` → make the theory parameter
+  `string?` when the `InlineData` deliberately passes null.
 
 ## Token-efficient builds & tests (MANDATORY)
 

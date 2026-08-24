@@ -50,6 +50,21 @@
                 </Grid>
                 <TextBox Text="{Binding EditableUrl, Mode=TwoWay}" IsReadOnly="{Binding !CanEdit}"
                          CornerRadius="6" VerticalContentAlignment="Center" />
+                <!-- Refresh an expired link (#6): paste a fresh URL, the app checks it points at the
+                     same file, then continues from the partial file already on disk. -->
+                <StackPanel Spacing="6" IsVisible="{Binding CanEdit}">
+                    <TextBlock Text="{i18n:Tr Det_RefreshHint}" TextWrapping="Wrap" FontSize="11"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Button Grid.Column="0" Content="{i18n:Tr Det_RefreshLink}"
+                                Command="{Binding RefreshLinkCommand}"
+                                IsEnabled="{Binding !IsRefreshing}" />
+                        <TextBlock Grid.Column="1" Margin="10 0 0 0" VerticalAlignment="Center"
+                                   Text="{Binding RefreshMessage}" TextWrapping="Wrap" FontSize="11"
+                                   IsVisible="{Binding HasRefreshMessage}"
+                                   Foreground="{Binding RefreshMessageBrush}" />
+                    </Grid>
+                </StackPanel>
                 <Expander Header="{Binding MirrorsHeader}" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Stretch">
                     <StackPanel Spacing="6" Margin="0 6 0 0" HorizontalAlignment="Stretch">

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD type="static" mediaPresentationDuration="PT8S">
+  <Period>
+    <AdaptationSet mimeType="video/mp4">
+      <SegmentTemplate timescale="1" duration="4" startNumber="0"
+                       initialization="i.mp4" media="s$Number$.m4s"/>
+      <Representation id="only" bandwidth="500000" width="426" height="240"/>
+    </AdaptationSet>
+  </Period>
+</MPD>

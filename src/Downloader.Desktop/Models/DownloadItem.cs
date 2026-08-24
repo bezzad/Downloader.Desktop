@@ -127,6 +127,24 @@ public class DownloadItem
     [JsonIgnore]
     public string CookieFilePath { get; set; }
 
+    /// <summary>The cookies/headers/referer this download must be fetched with (issue #7), supplied per item
+    /// by the local API. Never persisted — it holds secrets; only <see cref="Referer"/> survives a restart.</summary>
+    [JsonIgnore]
+    public RequestContext Request { get; set; } = new();
+
+    /// <summary>The page this link was found on, sent as the <c>Referer</c> header for this download only and
+    /// overriding the global setting. Persisted (unlike the cookies/headers beside it) because it is not a
+    /// credential and a resumed download still needs it. Backed by <see cref="Request"/>.</summary>
+    public string Referer
+    {
+        get => Request?.Referer;
+        set
+        {
+            Request ??= new RequestContext();
+            Request.Referer = value;
+        }
+    }
+
     [JsonIgnore]
     public string FolderPath => SaveFolder;
 

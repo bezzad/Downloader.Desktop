@@ -296,5 +296,15 @@
   "Donate_Copied": "Copied!",
   "Donate_Usdt_Warn": "Double-check the network before sending — funds sent on the wrong network may be lost.",
   "Donate_OtherWays": "No money needed — starring the project, reporting bugs and translating help just as much.",
-  "Donate_Star": "Star on GitHub"
+  "Donate_Star": "Star on GitHub",
+  "State_RefreshingLink": "Link expired — getting a fresh one…",
+  "Error_LinkExpiredRefresh": "This link is no longer valid — it expired or was withdrawn. Open Details and paste a fresh link to continue without losing the downloaded part.",
+  "Det_RefreshLink": "Refresh link",
+  "Det_RefreshHint": "Link expired? Paste a fresh one above and press Refresh link — the download continues from where it stopped.",
+  "Det_RefreshChecking": "Checking the new link…",
+  "Det_RefreshEmpty": "Paste a link first.",
+  "Det_RefreshUnreachable": "Couldn't reach the new link: {0}",
+  "Det_RefreshMismatchTitle": "This link points to a different file",
+  "Det_RefreshMismatchBody": "The new link reports {0}, but this download is {1}. Continuing discards what has been downloaded and starts over.",
+  "Det_RefreshDone": "Link updated — continuing the download."
 }

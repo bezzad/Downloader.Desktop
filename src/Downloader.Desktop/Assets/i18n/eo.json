@@ -296,5 +296,15 @@
   "Donate_Copied": "Kopiita!",
   "Donate_Usdt_Warn": "Rekontrolu la reton antaŭ sendo — mono sendita per malĝusta reto povas perdiĝi.",
   "Donate_OtherWays": "Mono ne necesas — steloj, cimraportoj kaj tradukoj same helpas.",
-  "Donate_Star": "Steli en GitHub"
+  "Donate_Star": "Steli en GitHub",
+  "State_RefreshingLink": "Ligilo eksvalidiĝis — akiras freŝan…",
+  "Error_LinkExpiredRefresh": "Ĉi tiu ligilo ne plu validas — ĝi eksvalidiĝis aŭ estis forigita. Malfermu Detalojn kaj algluu freŝan ligilon por daŭrigi sen perdi la jam elŝutitan parton.",
+  "Det_RefreshLink": "Aktualigi ligilon",
+  "Det_RefreshHint": "Ĉu la ligilo eksvalidiĝis? Algluu freŝan supre kaj premu Aktualigi ligilon — la elŝuto daŭras de kie ĝi haltis.",
+  "Det_RefreshChecking": "Kontrolas la novan ligilon…",
+  "Det_RefreshEmpty": "Unue algluu ligilon.",
+  "Det_RefreshUnreachable": "Ne eblis atingi la novan ligilon: {0}",
+  "Det_RefreshMismatchTitle": "Ĉi tiu ligilo montras al alia dosiero",
+  "Det_RefreshMismatchBody": "La nova ligilo raportas {0}, sed ĉi tiu elŝuto estas {1}. Daŭrigo forĵetas la jam elŝutitan parton kaj rekomencas.",
+  "Det_RefreshDone": "Ligilo aktualigita — la elŝuto daŭras."
 }

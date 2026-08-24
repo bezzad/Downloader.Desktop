@@ -55,7 +55,7 @@ public class PlanRunnerTests
             Assert.True(File.Exists(finalPath));
             // Assembled = a + b + c in order.
             var expected = parts["a.ts"].Concat(parts["b.ts"]).Concat(parts["c.ts"]).ToArray();
-            var got = await File.ReadAllBytesAsync(finalPath);
+            var got = await File.ReadAllBytesAsync(finalPath, TestContext.Current.CancellationToken);
             Assert.True(expected.SequenceEqual(got));
             // Parts scratch folder is gone after a successful assemble.
             Assert.False(Directory.Exists(Path.Combine(dir, ".video.mp4.parts")));
@@ -111,10 +111,10 @@ public class PlanRunnerTests
                 dir, "out.mp4", null, _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None);
 
             // Only b.ts was fetched; a.ts was reused from disk.
-            Assert.False(server.Requested.Contains("a.ts"));
-            Assert.True(server.Requested.Contains("b.ts"));
+            Assert.DoesNotContain("a.ts", server.Requested);
+            Assert.Contains("b.ts", server.Requested);
             var final = Path.Combine(dir, "out.mp4");
-            var got = await File.ReadAllBytesAsync(final);
+            var got = await File.ReadAllBytesAsync(final, TestContext.Current.CancellationToken);
             Assert.True(parts["a.ts"].Concat(parts["b.ts"]).SequenceEqual(got));
         }
         finally { TryDelete(dir); }
@@ -210,9 +210,21 @@ public class PlanRunnerTests
         Assert.Equal("mine.mkv", DownloadManager.NormalizeAssembledName("mine.mkv", mux));
         var suggested = new PersistedPlan { PostProcessKind = PostProcessKind.Mux, SuggestedFileName = "out.webm" };
         Assert.Equal("video.webm", DownloadManager.NormalizeAssembledName("video.m3u8", suggested));
-        // No post-process → playlist names stay untouched (the download IS the playlist).
+        // A DASH manifest name is just as wrong for the assembled file — the Add dialog's name preview
+        // probes the .mpd URL, so an untouched name arrives as "stream.mpd" and would produce MP4 bytes
+        // in a file no player opens.
+        Assert.Equal("stream.mp4", DownloadManager.NormalizeAssembledName("stream.mpd", mux));
+        Assert.Equal("stream.webm", DownloadManager.NormalizeAssembledName("stream.mpd", suggested));
+        var mpdSuggested = new PersistedPlan
+        {
+            PostProcessKind = PostProcessKind.Concat,
+            SuggestedFileName = "manifest.mpd", // a resolver that suggested a manifest name gets .mp4 too
+        };
+        Assert.Equal("manifest.mp4", DownloadManager.NormalizeAssembledName("manifest.mpd", mpdSuggested));
+        // No post-process → manifest names stay untouched (the download IS the manifest).
         var none = new PersistedPlan { PostProcessKind = PostProcessKind.None };
         Assert.Equal("list.m3u8", DownloadManager.NormalizeAssembledName("list.m3u8", none));
+        Assert.Equal("list.mpd", DownloadManager.NormalizeAssembledName("list.mpd", none));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -235,7 +247,7 @@ public class PlanRunnerTests
                 _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None);
 
             var expected = Enumerable.Range(0, 6).SelectMany(i => parts[$"s{i}.ts"]).ToArray();
-            var got = await File.ReadAllBytesAsync(final);
+            var got = await File.ReadAllBytesAsync(final, TestContext.Current.CancellationToken);
             Assert.True(expected.SequenceEqual(got), "parallel-downloaded segments must assemble in index order");
         }
         finally { TryDelete(dir); }

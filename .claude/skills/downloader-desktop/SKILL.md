@@ -353,7 +353,11 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
 - **YouTube / video-site cookie hand-off (fix-hls-youtube-resolver):** diagnosis (gated `YtDlpDiagnosisTests`, `DLDESKTOP_NET=1`) found YouTube's anonymous extraction hits a bot-check ("Sign in to confirm you're not a bot") and `--cookies-from-browser` **hangs on the macOS keychain gate** (Chrome 127+ app-bound encryption is the Windows equivalent). Fix = the browser extension hands the app a live session's cookies, which yt-dlp reads via `--cookies <file>` (never the on-disk store). Flow: extension `chrome.cookies.getAll({url})` for the exact sent URL → POST `/api/add` JSON `cookies` field → `LocalApiService.BuildItem` writes `CookieFile.WriteTempFile` (Netscape format, chmod 600) → `DownloadItem.CookieFilePath` (**`[JsonIgnore]`, transient — cookies are secrets, never persisted/logged**) → `DownloadManager.ResolvePlanAsync(url, ct, cookieFilePath)` → `ResolveOptions.CookieFilePath` → `HlsResolver.ResolveAsync(url, options, ct)` → `IYtDlp.ExtractJsonAsync(url, cookieFilePath, ct)` (tries `--cookies` FIRST, falls back to anonymous → browser loop). Temp file deleted in `DownloadManager.Start`'s `finally` (`DeleteCookieFile`). To exercise the fix in the gated test, set `DLDESKTOP_COOKIES=<netscape file>` too.
 - **Non-breaking plugin-SDK extension pattern:** to add an optional arg to an `ILinkResolver`/`IYtDlp` call without breaking external plugins or test stubs, add a **default-implemented interface overload** (C# 8 DIM) that delegates to the existing method — e.g. `ResolveAsync(url, ResolveOptions, ct) => ResolveAsync(url, ct)`. Only the resolver that needs it overrides it; `PluginManager`/`DownloadManager` call the new overload.
 - **Browser-extension test harness gotcha:** `common.js` binds `const api = globalThis.browser || globalThis.chrome` **at load**, so a test that needs `chrome.*` must set `global.chrome = { … }` BEFORE `require("./common.js")` (mutate its sub-objects per-test since `api` holds the same reference). `captureCookies` must never throw — it returns `[]` on any failure so a cookie-capture problem never blocks sending the URL. Cookies go out as a **JSON POST** to `/api/add` (a GET query can't carry them); the URL-only GET path is unchanged when there are no cookies.
-- **e2e flakiness:** the Playwright media-detection specs (`hls-and-quality.spec.js`, `relevance.spec.js`) are timing-sensitive under headless load and can fail on a first full run, then pass on a targeted re-run — re-run the specific spec before treating a failure as a regression. `dotnet test`'s `HlsResolverTests.ResolveAsync_follows_master_to_best_variant` (loopback server) is similarly flaky under parallel load.
+- **e2e flakiness:** the Playwright media-detection specs (`hls-and-quality.spec.js`, `relevance.spec.js`) are timing-sensitive under headless load and can fail on a first full run, then pass on a targeted re-run — re-run the specific spec before treating a failure as a regression. **`npx playwright test --workers=1`
+  makes the whole suite green** (7/7 here) where the default parallel run failed 7/7 — the specs contend for
+  the shared persistent-context Chromium, so run them serially rather than chasing individual flakes. Also
+  note `npm test` in that folder can print `sh: playwright: not found` right after a fresh `npm install`;
+  `npx playwright test` works. `dotnet test`'s `HlsResolverTests.ResolveAsync_follows_master_to_best_variant` (loopback server) is similarly flaky under parallel load.
 
 ## Plugin binary dependencies MUST self-heal (YouTube "some videos fail" root cause, 2026-07-11)
 - **Symptom**: YouTube extraction fails with `Requested format is not available` (or the misleading "requires a signed-in browser session") while other videos work. **Cause**: the plugin-install-time dependency fetch was interrupted → a TRUNCATED `deno.zip` (never extracted; without deno yt-dlp can't solve the n-challenge → no real formats) and/or an unfinished ffmpeg `.download` sidecar — and NOTHING retried them. Compounding it: `YtDlpBinary`/`FfmpegBinary`'s internally-created `HttpClient` had the default **100 s whole-body timeout**, which truncates a ~45 MB binary on a slow link every single attempt.
@@ -412,3 +416,142 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
 - **Fix (all in-process, no child processes)**: toasts to `Shell_NotifyIconW` + `NIF_INFO` on a cached hidden `HWND_MESSAGE` window (Win10/11 render it as a real toast + Action Center entry, so "works while in the tray" is preserved; keep the WNDPROC delegate in a static field, clamp text to szInfoTitle=64/szInfo=256, icon via `ExtractIconExW(Environment.ProcessPath)`); .lnk to `IShellLink`+`IPersistFile` COM (`BuiltInComInteropSupport` is already true and the app isn't trimmed, so ComImport just works — declare interface members in FULL vtable order); Run key to `Microsoft.Win32.Registry` (available on the platform-neutral `net10.0` TFM, annotate `[SupportedOSPlatform("windows")]`); update extract to the in-box `"%SystemRoot%\System32\tar.exe" -x -f` (bsdtar reads zip, Win10 1803+) by ABSOLUTE path (also kills PATH hijacking). Rejected: a `net10.0-windows10.0.x` TFM for WinRT toasts (forks the build matrix for every platform); an in-app-only Avalonia toast (regresses tray-hidden delivery).
 - **Guardrail: `Unit/NoShellSpawnTests`** text-scans app+plugin source and FAILS the build on `powershell`, `pwsh`, `Expand-Archive`, `WScript.Shell`, `-EncodedCommand`, `cmd /c`, `--cookies-from-browser`, spawned `reg.exe`. Key design point: it **strips comments but still scans string literals** (the ban is on doing it, not explaining it — and the old `Expand-Archive` shipped inside a string literal). The stripper is string-aware (verbatim strings/escapes, so a `//` in a URL doesn't eat the line) and blanks to spaces so line numbers stay right. Allow-list is empty on purpose. The scanner+stripper are themselves tested. **Its first run caught two of my own leftover comments** — trust it.
 - **Still open**: the Windows binaries are UNSIGNED (Bitdefender's own timeline says so) — Authenticode/Azure Trusted Signing is the real root fix and needs a cert from the author. The three Windows paths above are **unverifiable on Linux/CI** (no Windows runner): written fail-soft, pure parts unit-tested, but they need a manual Windows smoke test (notification / delete Downloader.lnk + relaunch / toggle run-at-startup / take an update).
+
+## Per-download request context (issue #7, `per-download-request-context`)
+- **Where it lives**: `Models/RequestContext` (Cookies + Headers + Referer) hangs off `DownloadItem.Request`
+  (`[JsonIgnore]`). `DownloadItem.Referer` is a **persisted proxy** onto `Request.Referer` — that is the whole
+  persist/transient split: cookies and headers are secrets (memory only, never in `config.json`, never logged);
+  a referer is not, so it survives a restart. Test `Saving_the_config_keeps_the_referer_and_drops_cookies_and_headers`
+  guards it — keep any new context field on the right side of that line.
+- **`POST /api/add`** also takes `headers` (a `{"Name":"value"}` object) and `referer`. Malformed entries are
+  skipped, never fatal. `ToJson` (the CLI forward path) carries the referer but never cookies/headers.
+- **Applying it**: `DownloadManager.ApplyRequestContext(cfg, ctx)` in `Start`, after the per-item speed cap.
+  Per-item beats global. **The four headers the engine models as PROPERTIES must not go into the raw
+  `WebHeaderCollection`** — `SetHeader` routes `User-Agent`/`Referer`/`Accept`/`Content-Type` to
+  `RequestConfiguration.UserAgent/Referer/Accept/ContentType`; the collection either rejects them or
+  `SocketClient` ignores them. `SetHeader` uses the **indexer, not `Add`** so a per-item header replaces a
+  global one instead of appending. `Plans.ApplyHeaders` now funnels through `SetHeader` too, so a resolver's
+  per-part header cleanly overrides the item's.
+- **`RequestConfiguration.CookieContainer` is NOT null by default** (the engine pre-creates one, Count=0) —
+  don't assert null to mean "no cookies", check `Count`. `new System.Net.Cookie("bad name", …)` does NOT throw
+  either; the framework is more permissive than it looks, so only genuinely empty name/domain entries are
+  skipped by our guard.
+- **Retry stays authenticated**: cookies are kept as a LIST on the item, and `EnsureCookieFile` re-creates the
+  transient Netscape file in `Start` when it's missing. `BuildItem` still writes it on add (untouched path);
+  `Start`'s `finally` still deletes it.
+- **Resolver side**: `ResolveOptions.Headers` (SDK, init-only) carries the bag; `DownloadManager.ResolveHeaders`
+  flattens item headers + referer into it (**the `referer` field wins over a `Referer` header, on both sides**).
+  `HlsResolver` passes `options?.Headers` to every playlist GET and stamps it on each produced `DownloadPart`.
+
+## Two build/test traps that cost a session
+- **`pkill -f "dotnet test"` kills your own shell** (exit 144) — the invoking bash's command string contains
+  the pattern. Same family as the `pkill -f "Downloader.Desktop"` note above. Match the child by a pattern
+  that can't appear in your own command line, or just don't pre-kill.
+- **NuGet `Central Directory corrupt` + `Invalid argument: …/<random>.ein`** after a `dotnet` "Internal CLR
+  error (0x80131506)": the crash left a 0-byte temp file in a package folder. Fix = `rm -rf` that package's
+  version dir under `~/.nuget/packages/` and rebuild. It is not a code or restore-source problem.
+
+## Expired-link refresh (issue #6, `refresh-expired-link`)
+- **A signed link that dies mid-download is now recovered automatically.** `DownloadManager.HandleFailure` is
+  the single place a failed attempt becomes a Failed row (both the `e.Cancelled`-with-error and the
+  `e.Error` branches funnel through it); it first calls `TryAutoRefreshLink`, which re-queues the item when
+  `LooksLikeExpiredLinkError(error)` (HTTP **401/403/404/410**, found by unwrapping `AggregateException`/inner
+  exceptions) AND the item already has bytes AND `vm.LinkRefreshAttempts < MaxAutoLinkRefreshAttempts` (2).
+  Why re-queueing is the whole fix: `Start` copies `item.Urls` into a LOCAL array before rewriting `urls[0]`
+  with the resolved redirect, so the ORIGINAL pasted URL is still stored and every attempt re-resolves it →
+  a fresh signature. The partial file is kept (engine `EnableAutoResumeDownload`, on by default).
+- **Only a resume is refreshed** (`Downloaded > 0`): a link that never delivered a byte is a bad link and must
+  fail honestly. The counter resets on completion and on a **user** `Retry`/`Resume` (the internal path uses
+  `RequeueForRefresh`, which deliberately does NOT reset it) — otherwise a dead link retries forever.
+- **The refresh gap shows as "Getting a fresh link…", not Failed and not an error**: `TryAutoRefreshLink` sets
+  `vm.IsRefreshingLink` + `Status = Created` (never Failed — that flashed a failure in the grid) and leaves
+  `ErrorMessage` null; `StatusText`'s Created case reads the flag; `Start` clears it. Note `FinishTerminal`
+  pumps the queue right after, so in practice the row restarts within the same UI tick — don't write tests
+  that expect the flag to still be set after `RaiseFailedForTest`.
+- **Manual path**: the Details window's URL box was already editable for a non-running row, but it now has a
+  hint + a **Refresh link** button (`DownloadDetailsViewModel.RefreshLinkAsync`, `internal` so tests call it
+  directly instead of driving the ReactiveCommand). It probes with `UrlResolver.ResolveFileInfoAsync` and
+  `EvaluateNewLink(knownSize, newSize)` → Match/Unknown → swap + `Resume`; Mismatch → `ConfirmAsync` first.
+  **Why the size check matters:** the engine's `TryResumeFromExistingFile` derives its metadata offset from
+  `stream.Length - Package.TotalFileSize`, so a new link reporting a DIFFERENT size makes it delete the
+  partial file and start over — silently destroying what the user was trying to save.
+- **The URL box writes through to the item as you type**, so an abandoned/failed refresh must restore
+  `_committedUrl` (captured when the dialog opens, updated on each successful swap) or the item is left
+  pointing at an unvalidated URL. `ProbeAsync`/`ConfirmAsync` are internal seams for tests (no network, no
+  window).
+- **Engine facts worth not re-deriving**: a 4xx surfaces because `SocketClient.SendRequestAsync` calls
+  `EnsureSuccessStatusCode()` (so `HttpRequestException.StatusCode` is populated); `ChunkDownloader` retries
+  `MaxTryAgainOnFailure` times against the SAME url before it gives up; mirrors are load spreading, NOT
+  failover (each chunk is pinned to one request instance, and the file-info probe uses the first URL only).
+
+## MPEG-DASH (`.mpd`) support — issue #5, `dash-mpd-support`
+- **DASH lives INSIDE the HLS plugin**, not a separate one: `Downloader.Desktop.Plugins.Hls/Dash/`
+  (`DashResolver`, `MpdParser`/`IMpdParser`, `MpdModels`, `DashException`), plugin id still
+  `com.bezzad.hls`, display name now *Streaming media (HLS & DASH)*, version 2.2.0. Rationale: a second
+  plugin would duplicate the whole `FfmpegBinary`/`BinaryFile` dependency machinery and make users
+  download a second ~80 MB ffmpeg into a second data dir. The two resolvers claim disjoint extensions
+  (`.m3u8`/`.m3u` vs `.mpd`), so `PluginManager`'s two-pass lookup is unaffected.
+- **Parse on LOCAL names, never a namespace URI** (`e.Name.LocalName`): real MPDs use several schema
+  namespace URIs and some omit the namespace entirely — binding to one URI rejects good files.
+- **Refuse, don't half-support**: `type="dynamic"` (live) and ANY `ContentProtection` element → a
+  `DashException` whose message reaches the failed row. A DRM manifest must never look downloadable.
+- **`SegmentBase` / bare `BaseURL` means the representation IS one whole file** — emit ONE part and let the
+  engine multi-chunk it (`PartKind.Video`/`Audio`). Do NOT translate `indexRange`/`Initialization@range`
+  into `Range` headers: those exist for player seeking, and a Range header fights the engine's own ranged
+  chunking. Segmented representations emit `PartKind.Segment` parts (1 chunk each, 4 in parallel).
+- **`$Number%04d$` (and `$Time%0Nd$`) zero-padding is common** — a naive `Replace("$Number$", …)` produces
+  wrong URLs. `MpdParser.Substitute` handles `$$`, `$RepresentationID$`, `$Bandwidth$`, `$Number$`,
+  `$Time$`, each with the optional `%0Nd` width form, and LEAVES an unknown identifier in place so a broken
+  URL is visible rather than silently mangled. `r="-1"` on a timeline `<S>` = repeat to the end of the
+  period → derive the count from `mediaPresentationDuration`.
+- **`ConcatRecipe` grew `Streams` + `IntermediateExtension`** instead of a new SDK `PostProcessKind`
+  (which every external plugin would have to learn). `Streams == null` → one group built from
+  `HasInitSegment`/`Segments.Count`, i.e. every pre-DASH recipe deserializes unchanged. `Segments` stays a
+  flat 1:1 list across all groups, so AES-128 support is untouched. One group → concat + `RemuxAsync`; two
+  → concat each + `MuxAsync(video, audio)`; more → refused. **A group of exactly one unencrypted whole file
+  skips concatenation** and is handed to ffmpeg in place — copying a multi-GB file first is pure waste.
+  DASH sets `IntermediateExtension = ".mp4"` (its segments are fMP4; labelling them `.ts` misleads ffmpeg's
+  probe).
+- **Extension**: `mpd` joined `MEDIA_EXTENSIONS` + `application/dash+xml` joined `MEDIA_CONTENT_TYPES`;
+  new `isManifest(url)`/`MANIFEST_EXTENSIONS` drives `groupKey` (each manifest is its own group).
+  `background.js` returns `kind: "dash"` with `size: null` and **must not size-probe a `.mpd`** — the
+  manifest's own ~1 KB would be filtered out by `isPlausibleMediaSize` and the card would vanish.
+- Fixtures for every addressing mode live in `Downloader.Desktop.Tests/Plugins/Hls/Fixtures/dash-*.mpd`.
+  End-to-end (real stream → ffmpeg → playable file) is NOT verifiable headlessly — left as the author's
+  manual check.
+- **`NormalizeAssembledName` must strip EVERY manifest extension, `.mpd` included** (`IsManifestExtension`
+  in `DownloadManager.Plans.cs`): the Add dialog's name preview probes the manifest URL, so an untouched
+  name arrives as `stream.mpd` and the assembled MP4 would be written under a `.mpd` name no player opens.
+  Any future manifest format has to be added there as well as to the resolver.
+- **A REAL end-to-end DASH test exists and has actually been run**: `Integration/DashEndToEndTests` has
+  ffmpeg author a genuine DASH stream (`-f dash`, separate video/audio adaptation sets), serves the folder
+  over loopback, then runs `DashResolver` → `PersistedPlan.From` → `DownloadManager.ExecutePlanAsync` with
+  the REAL `HlsPostProcessor` + `FfmpegBinary`, and ffprobes the output. Verified run: 10 parts → a 355 KB
+  MP4, `streams=[video,audio]`, `duration=8.01s`, stages `10 × Plan_Part` then `Plan_Assembling`. ffmpeg's
+  own generated manifest is the best fixture there is — it uses `$RepresentationID$`, `$Number%05d$` and
+  two differently-shaped `SegmentTimeline`s (`r="3"` vs four explicit `<S>`).
+  **To run it**: it is gated on ffmpeg+ffprobe being on PATH (repo convention), so by default it silently
+  returns. Put a static build on PATH first:
+  `curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJ` then
+  `export PATH=$PWD/ffmpeg-*-amd64-static:$PATH`.
+  **Gotcha when asserting request counts**: the engine issues a **HEAD then a GET** per part, so 10 parts =
+  20 requests — count DISTINCT paths, not raw requests.
+- **`ffmpeg`/`ffprobe` 7.0.2 (johnvansickle static) SEGFAULTS (exit 139) reading MPEG-TS on this box**
+  (kernel 7.0.0-30-generic). Reproducible with a bare `ffprobe src.ts` — no app code involved. Consequence:
+  putting ffmpeg on PATH makes the pre-existing, normally-skipped
+  `HlsPostProcessorTests.Real_ffmpeg_remux_produces_mp4_when_ffmpeg_available` FAIL. That is the environment,
+  NOT a regression in `FfmpegBinary.RemuxAsync` (whose `-bsf:a aac_adtstoasc` was the first suspect and is
+  innocent — removing it still segfaults, and so does `-f null -`). The fMP4 path the DASH tests use works
+  fine with the same binary. Don't chase it as a code bug; try a different ffmpeg build if it ever matters.
+
+## Zero build warnings is a HARD rule (2026-08-24, author's standing instruction)
+- `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` must print **`0 Warning(s)`** — app, plugins and
+  the test project. Full rationale + the per-code fix recipes are in CLAUDE.md → "Zero build warnings".
+  **Use `-t:Rebuild` to check**: a plain incremental build re-reports nothing for up-to-date projects, so it
+  can look clean when it isn't (this is how 74 warnings accumulated unnoticed).
+- The test csproj is `<Nullable>annotations</Nullable>` (not `disable`) — that is what lets a test say
+  `string?` without a CS8632 per annotation. Don't flip it back to `disable`, and don't flip it to `enable`
+  either (that turns on nullable *warnings* across the whole suite).
+- `TreatWarningsAsErrors` was deliberately NOT enabled: the Windows/macOS CI legs can surface
+  platform-specific analyzer warnings that can't be reproduced here, and turning them into hard errors would
+  break releases from a machine that cannot verify the fix. The rule is enforced by discipline + this note.

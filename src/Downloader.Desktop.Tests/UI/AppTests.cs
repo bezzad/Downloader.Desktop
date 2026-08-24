@@ -7,6 +7,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Downloader;
 using Downloader.Desktop.Converters;
@@ -1351,6 +1352,190 @@ public class AppTests
         manager.Retry(vm);
         Assert.Equal(DownloadStatus.Completed, vm.Status);
         Assert.Equal(100, vm.Progress);
+    }
+
+    // ---- Expired-link refresh (issue #6) ---------------------------------------------------------
+
+    private static DownloadManager RefreshManager(out Config config)
+    {
+        config = Config.New();
+        config.Settings.EnableNotifications = false; // keep the OS notifier out of the test
+        var manager = new DownloadManager();
+        manager.Initialize(config);
+        return manager;
+    }
+
+    private static System.Net.Http.HttpRequestException Expired() =>
+        new("Forbidden", null, System.Net.HttpStatusCode.Forbidden);
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_expired_link_on_a_resumed_download_is_refreshed_instead_of_failing()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        var vm = manager.Add(new DownloadItem
+        {
+            Url = "https://10.255.255.1/big.iso", SaveFolder = "/tmp",
+            Size = 4_000_000_000, Downloaded = 1_500_000_000 // a long download already half done
+        }, autoStart: false);
+
+        Assert.True(manager.RaiseFailedForTest(vm, Expired()));
+        Assert.NotEqual(DownloadStatus.Failed, vm.Status);
+        Assert.Equal(1, vm.LinkRefreshAttempts);
+        Assert.Null(vm.ErrorMessage); // it is a retry, not a failure — no red error on the row
+
+        // The re-queue is posted so it runs after the completion callback; the pump then starts it again
+        // (with the ORIGINAL url, which is what re-resolves to a freshly signed target).
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.Status is DownloadStatus.Running or DownloadStatus.Created);
+        Assert.Equal("https://10.255.255.1/big.iso", vm.Url);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_row_waiting_for_a_fresh_link_says_so_instead_of_Queued()
+    {
+        Localizer.Instance.Load("en");
+        var vm = new DownloadItemViewModel(new DownloadItem(), null) { Status = DownloadStatus.Created };
+        Assert.Equal(Localizer.Instance["State_Queued"], vm.StatusText);
+
+        vm.IsRefreshingLink = true;
+        Assert.Equal(Localizer.Instance["State_RefreshingLink"], vm.StatusText);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_link_that_never_worked_fails_immediately()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        // Downloaded == 0 → this link never delivered anything, so it is a bad link, not an expired one.
+        var vm = manager.Add(new DownloadItem { Url = "https://host/nope.zip", SaveFolder = "/tmp" },
+            autoStart: false);
+
+        Assert.False(manager.RaiseFailedForTest(vm, Expired()));
+        Assert.Equal(DownloadStatus.Failed, vm.Status);
+        Assert.Equal(0, vm.LinkRefreshAttempts);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_dead_link_stops_refreshing_and_says_how_to_fix_it()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        var vm = manager.Add(new DownloadItem
+        {
+            Url = "https://10.255.255.1/big.iso", SaveFolder = "/tmp",
+            Size = 4_000_000_000, Downloaded = 1_500_000_000
+        }, autoStart: false);
+
+        for (var i = 0; i < DownloadManager.MaxAutoLinkRefreshAttempts; i++)
+        {
+            Assert.True(manager.RaiseFailedForTest(vm, Expired()));
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        // Budget spent: the next expired failure is a real failure, with wording that points at the fix.
+        Assert.False(manager.RaiseFailedForTest(vm, Expired()));
+        Assert.Equal(DownloadStatus.Failed, vm.Status);
+        Assert.Equal(Localizer.Instance["Error_LinkExpiredRefresh"], vm.ErrorMessage);
+
+        // A user-initiated retry hands back a fresh budget (the link may work again tomorrow).
+        manager.Retry(vm);
+        Assert.Equal(0, vm.LinkRefreshAttempts);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_transient_failure_is_not_treated_as_an_expired_link()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        var vm = manager.Add(new DownloadItem
+        {
+            Url = "https://10.255.255.1/big.iso", SaveFolder = "/tmp",
+            Size = 4_000_000_000, Downloaded = 1_500_000_000
+        }, autoStart: false);
+
+        Assert.False(manager.RaiseFailedForTest(vm, new System.IO.IOException("disk full")));
+        Assert.Equal(DownloadStatus.Failed, vm.Status);
+        Assert.Equal(0, vm.LinkRefreshAttempts);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Pasting_a_fresh_link_of_the_same_size_continues_the_download()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        var vm = manager.Add(new DownloadItem
+        {
+            Url = "https://old.example/expired?sig=1", SaveFolder = "/tmp",
+            Size = 4_000_000_000, Downloaded = 1_500_000_000, Status = DownloadStatus.Failed
+        }, autoStart: false);
+        vm.Status = DownloadStatus.Failed;
+
+        var details = new DownloadDetailsViewModel(vm)
+        {
+            ProbeAsync = (_, _) => Task.FromResult(new RemoteFileInfo { FileName = "big.iso", FileSize = 4_000_000_000 }),
+            ConfirmAsync = (_, _) => throw new Xunit.Sdk.XunitException("same size must not prompt")
+        };
+        details.EditableUrl = "https://new.example/fresh?sig=2";
+
+        await details.RefreshLinkAsync();
+
+        Assert.Equal("https://new.example/fresh?sig=2", vm.Url);
+        Assert.NotEqual(DownloadStatus.Failed, vm.Status); // queued/running again, partial file kept
+        Assert.False(details.RefreshFailed);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_fresh_link_to_a_different_file_needs_confirmation()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        var vm = manager.Add(new DownloadItem
+        {
+            Url = "https://old.example/expired?sig=1", SaveFolder = "/tmp",
+            Size = 4_000_000_000, Downloaded = 1_500_000_000, Status = DownloadStatus.Failed
+        }, autoStart: false);
+        vm.Status = DownloadStatus.Failed;
+
+        var asked = 0;
+        var details = new DownloadDetailsViewModel(vm)
+        {
+            ProbeAsync = (_, _) => Task.FromResult(new RemoteFileInfo { FileName = "other.iso", FileSize = 123 }),
+            ConfirmAsync = (_, _) => { asked++; return Task.FromResult(false); } // user declines
+        };
+        details.EditableUrl = "https://new.example/other";
+
+        await details.RefreshLinkAsync();
+
+        Assert.Equal(1, asked);
+        Assert.Equal("https://old.example/expired?sig=1", vm.Url); // declined → nothing changed
+        Assert.Equal(DownloadStatus.Failed, vm.Status);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_unreachable_fresh_link_keeps_the_old_one()
+    {
+        Localizer.Instance.Load("en");
+        var manager = RefreshManager(out _);
+        var vm = manager.Add(new DownloadItem
+        {
+            Url = "https://old.example/expired?sig=1", SaveFolder = "/tmp",
+            Size = 4_000_000_000, Downloaded = 1_500_000_000, Status = DownloadStatus.Failed
+        }, autoStart: false);
+        vm.Status = DownloadStatus.Failed;
+
+        var details = new DownloadDetailsViewModel(vm)
+        {
+            ProbeAsync = (_, _) => Task.FromResult<RemoteFileInfo>(null) // probe failed
+        };
+        details.EditableUrl = "https://dead.example/nothing";
+
+        await details.RefreshLinkAsync();
+
+        Assert.True(details.RefreshFailed);
+        Assert.Contains("dead.example", details.RefreshMessage);
+        Assert.Equal("https://old.example/expired?sig=1", vm.Url);
+        Assert.Equal(DownloadStatus.Failed, vm.Status);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

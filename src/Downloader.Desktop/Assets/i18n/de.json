@@ -296,5 +296,15 @@
   "Donate_Copied": "Kopiert!",
   "Donate_Usdt_Warn": "Netzwerk vor dem Senden prüfen — auf dem falschen Netzwerk gesendete Beträge können verloren gehen.",
   "Donate_OtherWays": "Kein Geld nötig — Sterne, Fehlerberichte und Übersetzungen helfen genauso.",
-  "Donate_Star": "Auf GitHub sternen"
+  "Donate_Star": "Auf GitHub sternen",
+  "State_RefreshingLink": "Link abgelaufen – neuer Link wird geholt…",
+  "Error_LinkExpiredRefresh": "Dieser Link ist nicht mehr gültig – er ist abgelaufen oder wurde zurückgezogen. Öffne die Details und füge einen frischen Link ein, um ohne Verlust des bereits geladenen Teils fortzufahren.",
+  "Det_RefreshLink": "Link erneuern",
+  "Det_RefreshHint": "Link abgelaufen? Füge oben einen frischen ein und klicke auf Link erneuern – der Download läuft dort weiter, wo er stehen geblieben ist.",
+  "Det_RefreshChecking": "Neuer Link wird geprüft…",
+  "Det_RefreshEmpty": "Füge zuerst einen Link ein.",
+  "Det_RefreshUnreachable": "Der neue Link ist nicht erreichbar: {0}",
+  "Det_RefreshMismatchTitle": "Dieser Link zeigt auf eine andere Datei",
+  "Det_RefreshMismatchBody": "Der neue Link meldet {0}, dieser Download ist aber {1}. Fortfahren verwirft das bereits Geladene und beginnt von vorn.",
+  "Det_RefreshDone": "Link aktualisiert – der Download läuft weiter."
 }

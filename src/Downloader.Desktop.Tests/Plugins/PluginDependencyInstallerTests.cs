@@ -116,7 +116,7 @@ public class PluginDependencyInstallerTests
             await PluginDependencyInstaller.EnsureAllAsync(new[] { dep }, progress, CancellationToken.None);
 
             Assert.True(File.Exists(dest));
-            Assert.Equal(payload, await File.ReadAllBytesAsync(dest));
+            Assert.Equal(payload, await File.ReadAllBytesAsync(dest, TestContext.Current.CancellationToken));
             Assert.True(finished);
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
@@ -132,7 +132,7 @@ public class PluginDependencyInstallerTests
         try
         {
             var dest = Path.Combine(dir, "dep.bin");
-            await File.WriteAllBytesAsync(dest, new byte[] { 1, 2, 3 });
+            await File.WriteAllBytesAsync(dest, new byte[] { 1, 2, 3 }, TestContext.Current.CancellationToken);
             var available = false;
             var dep = new PluginBinaryDependency
             {
@@ -164,7 +164,7 @@ public class PluginDependencyInstallerTests
         try
         {
             var dest = Path.Combine(dir, "dep.bin");
-            await File.WriteAllBytesAsync(dest, new byte[] { 9, 9 }); // truncated garbage
+            await File.WriteAllBytesAsync(dest, new byte[] { 9, 9 }, TestContext.Current.CancellationToken); // truncated garbage
             var available = false;
             var dep = new PluginBinaryDependency
             {
@@ -185,7 +185,7 @@ public class PluginDependencyInstallerTests
             await PluginDependencyInstaller.EnsureAllAsync(new[] { dep }, null, CancellationToken.None);
 
             Assert.True(available);
-            Assert.Equal(payload, await File.ReadAllBytesAsync(dest));
+            Assert.Equal(payload, await File.ReadAllBytesAsync(dest, TestContext.Current.CancellationToken));
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
     }
@@ -199,7 +199,7 @@ public class PluginDependencyInstallerTests
             var ffmpeg = new FfmpegBinary(dataDir);
             var dep = ffmpeg.GetDependency();
             Directory.CreateDirectory(Path.GetDirectoryName(dep.DownloadDestination)!);
-            await File.WriteAllBytesAsync(dep.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }); // truncated "zip"
+            await File.WriteAllBytesAsync(dep.DownloadDestination, new byte[] { 0x50, 0x4B, 1, 2 }, TestContext.Current.CancellationToken); // truncated "zip"
 
             await Assert.ThrowsAsync<InvalidOperationException>(() => dep.FinishInstallAsync(CancellationToken.None));
 

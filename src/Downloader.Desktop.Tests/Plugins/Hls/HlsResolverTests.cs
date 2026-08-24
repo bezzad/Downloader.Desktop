@@ -60,6 +60,35 @@ public class HlsResolverTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task ResolveAsync_stamps_the_supplied_headers_onto_every_part()
+    {
+        // Issue #7: a protected stream is only served with the context it was found in, so the headers the
+        // host was given must reach the segment requests too — not just the playlist fetch.
+        const string media =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:9.0,\nseg0.ts\n#EXTINF:9.0,\nseg1.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer().MapText("/video/index.m3u8", media);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+        var options = new ResolveOptions
+        {
+            Headers = new Dictionary<string, string>
+            {
+                ["Referer"] = "https://site.example/watch/42",
+                ["Origin"] = "https://site.example"
+            }
+        };
+
+        var plan = await resolver.ResolveAsync(server.Url("video/index.m3u8"), options, CancellationToken.None);
+
+        Assert.Equal(2, plan.Parts.Count);
+        Assert.All(plan.Parts, p =>
+        {
+            Assert.Equal("https://site.example/watch/42", p.Headers!["Referer"]);
+            Assert.Equal("https://site.example", p.Headers["Origin"]);
+        });
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task ResolveAsync_follows_master_to_best_variant()
     {
         const string master =

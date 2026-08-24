@@ -63,7 +63,7 @@
             <!-- Search filters the visible options as you type (#15); clearing restores everything. -->
             <TextBox Grid.Column="1" x:Name="SearchBox" Width="190" Margin="0 0 10 0"
                      VerticalAlignment="Center" CornerRadius="6"
-                     Watermark="{i18n:Tr Settings_SearchPlaceholder}"
+                     PlaceholderText="{i18n:Tr Settings_SearchPlaceholder}"
                      TextChanged="OnSearchChanged">
                 <TextBox.InnerLeftContent>
                     <PathIcon Data="{StaticResource SearchRegular}" Height="13" Margin="8 0 2 0" Opacity="0.6" />

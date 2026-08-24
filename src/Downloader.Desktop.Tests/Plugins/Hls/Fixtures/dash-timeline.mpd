@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static"
+     mediaPresentationDuration="PT1M40S" minBufferTime="PT2S"
+     profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <BaseURL>https://cdn.example.com/vod/</BaseURL>
+  <Period id="0">
+    <AdaptationSet contentType="video" mimeType="video/mp4" segmentAlignment="true">
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$/init.mp4"
+                       media="$RepresentationID$/seg-$Time$.m4s">
+        <SegmentTimeline>
+          <S t="0" d="4000" r="2"/>
+          <S d="2000"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="v720" bandwidth="2400000" width="1280" height="720" codecs="avc1.4d401f"/>
+      <Representation id="v1080" bandwidth="4800000" width="1920" height="1080" codecs="avc1.640028"/>
+    </AdaptationSet>
+    <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="en">
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$/init.mp4"
+                       media="$RepresentationID$/seg-$Time$.m4s">
+        <SegmentTimeline>
+          <S t="0" d="4000" r="2"/>
+          <S d="2000"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="a128" bandwidth="128000" codecs="mp4a.40.2"/>
+    </AdaptationSet>
+  </Period>
+</MPD>

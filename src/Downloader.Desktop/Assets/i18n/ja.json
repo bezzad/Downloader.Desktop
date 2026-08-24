@@ -296,5 +296,15 @@
   "Donate_Copied": "コピーしました！",
   "Donate_Usdt_Warn": "送金前にネットワークを確認してください — 誤ったネットワークへの送金は失われる可能性があります。",
   "Donate_OtherWays": "お金でなくても大丈夫 — スター、バグ報告、翻訳も同じくらい助けになります。",
-  "Donate_Star": "GitHub でスター"
+  "Donate_Star": "GitHub でスター",
+  "State_RefreshingLink": "リンクの有効期限切れ — 新しいリンクを取得中…",
+  "Error_LinkExpiredRefresh": "このリンクはもう有効ではありません（期限切れまたは取り下げ）。詳細を開いて新しいリンクを貼り付けると、ダウンロード済みの部分を失わずに続行できます。",
+  "Det_RefreshLink": "リンクを更新",
+  "Det_RefreshHint": "リンクが期限切れですか？上に新しいリンクを貼り付けて「リンクを更新」を押すと、中断した位置から続きます。",
+  "Det_RefreshChecking": "新しいリンクを確認中…",
+  "Det_RefreshEmpty": "先にリンクを貼り付けてください。",
+  "Det_RefreshUnreachable": "新しいリンクに接続できません: {0}",
+  "Det_RefreshMismatchTitle": "このリンクは別のファイルを指しています",
+  "Det_RefreshMismatchBody": "新しいリンクは {0} ですが、このダウンロードは {1} です。続行すると、ダウンロード済みの部分は破棄され最初からやり直します。",
+  "Det_RefreshDone": "リンクを更新しました — ダウンロードを続行します。"
 }

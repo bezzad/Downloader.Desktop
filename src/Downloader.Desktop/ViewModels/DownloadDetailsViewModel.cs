@@ -47,6 +47,11 @@ public class DownloadDetailsViewModel : ViewModelBase
         CopyPathCommand = ReactiveCommand.CreateFromTask(CopyPathAsync);
         CopyErrorCommand = ReactiveCommand.CreateFromTask(CopyErrorAsync);
         AddMirrorCommand = ReactiveCommand.Create(() => AddMirror(string.Empty));
+        RefreshLinkCommand = ReactiveCommand.CreateFromTask(RefreshLinkAsync);
+
+        // The URL box writes through to the item as the user types, so remember the link that was in
+        // force when the dialog opened: an abandoned refresh must leave the download exactly as it was.
+        _committedUrl = Item?.Url;
 
         // Seed the mirror editor from the stored mirrors (everything after the primary URL).
         if (Item?.GetItem().Mirrors is { } existing)
@@ -106,6 +111,7 @@ public class DownloadDetailsViewModel : ViewModelBase
     public ICommand CopyPathCommand { get; }
     public ICommand CopyErrorCommand { get; }
     public ICommand AddMirrorCommand { get; }
+    public ICommand RefreshLinkCommand { get; }
 
     // Transient "copied" feedback for the copy-path button: flips the icon to a checkmark and the
     // tooltip to "Path copied!" for a couple of seconds, then reverts. Guarded so rapid clicks don't
@@ -304,6 +310,146 @@ public class DownloadDetailsViewModel : ViewModelBase
         get => Item?.Url;
         set { if (Item != null) Item.Url = value; this.RaisePropertyChanged(); }
     }
+
+    // ---- Refresh an expired link (issue #6) -------------------------------------------------------
+    // A signed / time-limited link often dies before a multi-day download finishes. The user pastes a
+    // fresh one here; we check it points at the same file before committing, because the engine only
+    // resumes onto the existing partial file when the new link reports the SAME total size — a link to a
+    // different file silently throws that partial away.
+
+    private bool _isRefreshing;
+    private string _refreshMessage;
+    private bool _refreshFailed;
+    private string _committedUrl;
+
+    /// <summary>True while the pasted link is being probed (disables the button, shows the busy text).</summary>
+    public bool IsRefreshing
+    {
+        get => _isRefreshing;
+        private set => this.RaiseAndSetIfChanged(ref _isRefreshing, value);
+    }
+
+    /// <summary>Outcome of the last refresh attempt (checking / done / why it failed). Null = nothing to say.</summary>
+    public string RefreshMessage
+    {
+        get => _refreshMessage;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _refreshMessage, value);
+            this.RaisePropertyChanged(nameof(HasRefreshMessage));
+        }
+    }
+
+    public bool HasRefreshMessage => !string.IsNullOrWhiteSpace(RefreshMessage);
+
+    /// <summary>True when <see cref="RefreshMessage"/> reports a problem (drives the error color).</summary>
+    public bool RefreshFailed
+    {
+        get => _refreshFailed;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _refreshFailed, value);
+            this.RaisePropertyChanged(nameof(RefreshMessageBrush));
+        }
+    }
+
+    /// <summary>Red while the refresh message reports a problem, muted otherwise.</summary>
+    public Avalonia.Media.IBrush RefreshMessageBrush =>
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(RefreshFailed ? "#D64545" : "#6B7A83"));
+
+    /// <summary>Confirmation seam: replaced in tests so the mismatch prompt needs no window.</summary>
+    internal Func<string, string, Task<bool>> ConfirmAsync { get; set; } = DialogHelper.Confirm;
+
+    /// <summary>Probe seam: replaced in tests so no network is touched.</summary>
+    internal Func<string, DownloadConfiguration, Task<RemoteFileInfo>> ProbeAsync { get; set; } =
+        (url, cfg) => UrlResolver.ResolveFileInfoAsync(url, cfg);
+
+    /// <summary>
+    /// Validates the link currently in the box and, if it is usable, makes it this download's source and
+    /// continues the download. A link reporting the same size (or no size at all) is applied silently; one
+    /// reporting a different size is applied only after the user confirms losing the partial file.
+    /// </summary>
+    internal async Task RefreshLinkAsync()
+    {
+        if (Item?.Manager == null)
+            return;
+
+        var url = EditableUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            RefreshFailed = true;
+            RefreshMessage = L("Det_RefreshEmpty");
+            return;
+        }
+
+        IsRefreshing = true;
+        RefreshFailed = false;
+        RefreshMessage = L("Det_RefreshChecking");
+        try
+        {
+            var configuration = Item.Configuration ?? Item.Manager.Config?.Settings?.ToConfiguration();
+            var info = await ProbeAsync(url, configuration).ConfigureAwait(true);
+            if (info == null)
+            {
+                RestoreCommittedUrl();
+                RefreshFailed = true;
+                RefreshMessage = string.Format(L("Det_RefreshUnreachable"), HostOf(url));
+                return;
+            }
+
+            var known = Item.Size;
+            if (EvaluateNewLink(known, info.FileSize) == LinkRefreshCheck.Mismatch)
+            {
+                var proceed = await ConfirmAsync(L("Det_RefreshMismatchTitle"),
+                    string.Format(L("Det_RefreshMismatchBody"),
+                        DownloadItemViewModel.FormatBytes(info.FileSize),
+                        DownloadItemViewModel.FormatBytes(known ?? 0))).ConfigureAwait(true);
+                if (!proceed)
+                {
+                    RestoreCommittedUrl();
+                    RefreshMessage = null;
+                    return;
+                }
+            }
+
+            EditableUrl = url;
+            _committedUrl = url;
+            // A saved multi-part plan holds the OLD (expired) segment URLs — drop it so the next start
+            // resolves the refreshed link from scratch.
+            Item.GetItem().PlanJson = null;
+            Item.Manager.Resume(Item); // user-initiated: also resets the automatic-refresh budget
+            RefreshFailed = false;
+            RefreshMessage = L("Det_RefreshDone");
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
+
+    /// <summary>Puts back the link that was in force before the user started typing a new one, so an
+    /// abandoned or impossible refresh leaves the download untouched.</summary>
+    private void RestoreCommittedUrl()
+    {
+        if (Item == null || string.IsNullOrWhiteSpace(_committedUrl))
+            return;
+        Item.Url = _committedUrl;
+        this.RaisePropertyChanged(nameof(EditableUrl));
+    }
+
+    private static string HostOf(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
+
+    /// <summary>Pure helper (testable): can the partial file survive this new link? Only a link reporting
+    /// exactly the same total size resumes onto it; a different size means the engine will discard the
+    /// partial and start over, so the user must agree first. An unknown size on either side cannot be
+    /// compared — the engine's own resume check still protects the file, so it is not worth a prompt.</summary>
+    public static LinkRefreshCheck EvaluateNewLink(long? knownSize, long? newSize) =>
+        knownSize is not > 0 || newSize is not > 0
+            ? LinkRefreshCheck.Unknown
+            : knownSize == newSize
+                ? LinkRefreshCheck.Match
+                : LinkRefreshCheck.Mismatch;
 
     public bool HasError => Item?.HasError == true;
     public string ErrorMessage => Item?.ErrorMessage;
@@ -510,6 +656,19 @@ public class DownloadDetailsViewModel : ViewModelBase
 }
 
 /// <summary>One editable mirror URL row in the details dialog.</summary>
+/// <summary>Whether a freshly pasted link can continue the existing partial file (issue #6).</summary>
+public enum LinkRefreshCheck
+{
+    /// <summary>The new link reports the same size — the partial file is resumed.</summary>
+    Match,
+
+    /// <summary>One of the sizes is unknown — nothing to compare, proceed.</summary>
+    Unknown,
+
+    /// <summary>The new link reports a different size — resuming would discard the partial file.</summary>
+    Mismatch
+}
+
 public class MirrorEntryViewModel : ViewModelBase
 {
     private string _url;

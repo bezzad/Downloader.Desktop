@@ -7,6 +7,8 @@ Loopback HTTP JSON API on `127.0.0.1:15151` so scripts and the CLI can add, list
 ### Requirement: Silent programmatic add
 The local API SHALL accept an add request on `/api/add` (POST JSON body or GET query parameters) with a required `url` and optional `filename`, `path`, `queue`, `mirrors` and `start` parameters, add the download silently (no dialog), and auto-start it unless `start` is false.
 
+The POST JSON body SHALL additionally accept an optional `headers` object (string→string) and an optional `referer` string, which apply to **that download only** and override the app's global request settings.
+
 #### Scenario: Minimal add auto-starts
 - **WHEN** a client sends `POST /api/add` with body `{"url":"https://example.com/file.zip"}` while the integration toggle is on
 - **THEN** the app adds a download for that URL to the default queue using the configured save folder
@@ -20,6 +22,15 @@ The local API SHALL accept an add request on `/api/add` (POST JSON body or GET q
 #### Scenario: Invalid URL is rejected
 - **WHEN** a client sends an add request whose `url` is missing or not http/https
 - **THEN** the API responds `400` with a JSON `error` message and no item is added
+
+#### Scenario: Add with per-download headers and referer
+- **WHEN** a client sends `POST /api/add` with a `headers` object and a `referer` string alongside the URL
+- **THEN** the item is created carrying those headers and that referer
+- **AND** every request the app makes for that download sends them
+
+#### Scenario: Malformed request context does not fail the add
+- **WHEN** an add request's `headers` is not an object, or contains entries whose name or value is not a string
+- **THEN** those entries are ignored and the download is still added
 
 ### Requirement: Download list endpoint
 The local API SHALL expose `GET /api/list` returning a JSON array of every download with its `id`, `name`, `url`, `status`, `progress`, `size`, `downloaded`, `speed`, `folder`, `filePath` and `queue`.
@@ -95,4 +106,15 @@ Settings SHALL show the local API's current listen address and a live reachable/
 #### Scenario: Fallback port notification
 - **WHEN** the local API falls back to a port other than the preferred `15151`
 - **THEN** the user is shown a one-time notification stating which port is now in use
+
+### Requirement: Extension-supplied cookies are used for the whole download
+When an add request carries a `cookies` array, the app SHALL use those cookies both to resolve the link and to fetch its bytes, for the life of the item in this session.
+
+#### Scenario: Cookies reach the byte-fetching requests
+- **WHEN** a download is added with cookies for a session-gated URL
+- **THEN** the requests that download the file (not only the resolve step) send those cookies
+
+#### Scenario: Retry re-sends the cookies
+- **WHEN** a download added with cookies fails and the user retries it in the same session
+- **THEN** the retry sends the same cookies rather than requesting anonymously
 

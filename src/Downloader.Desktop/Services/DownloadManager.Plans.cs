@@ -70,7 +70,7 @@ public partial class DownloadManager
                 onStage: stage => OnUi(() => vm.PlanStage = stage),
                 onProgress: p => { if (vm.Status == DownloadStatus.Running) vm.StageProgress(p.Percent, p.Speed, p.Downloaded, p.Total); },
                 isCancelled: () => vm.Status == DownloadStatus.Stopped,
-                ct, runState).ConfigureAwait(false);
+                ct, runState, item.Request).ConfigureAwait(false);
 
             if (finalPath == null)
             {
@@ -128,7 +128,7 @@ public partial class DownloadManager
         PersistedPlan plan, string folder, string finalName, IPostProcessor processor,
         Action<DownloadService> onPartService, Action<string> onStage,
         Action<PlanProgress> onProgress, Func<bool> isCancelled, CancellationToken ct,
-        PlanRunState runState = null)
+        PlanRunState runState = null, RequestContext context = null)
     {
         folder ??= ".";
         finalName = SanitizeFileName(finalName);
@@ -180,6 +180,9 @@ public partial class DownloadManager
                 runState?.SetTotal(index, part.ExpectedSize.Value);
 
             var cfg = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+            // The item's own cookies/headers/referer first, then the resolver's per-part headers on top —
+            // the resolver knows more about that specific segment, so its value wins on a key collision.
+            ApplyRequestContext(cfg, context);
             ApplyHeaders(cfg, part.Headers);
             // Tiny segment parts get exactly one connection/chunk — the speed win for HLS comes from
             // downloading several SEGMENTS at once, never from splitting one segment into N chunks.
@@ -345,15 +348,21 @@ public partial class DownloadManager
         if (string.IsNullOrWhiteSpace(name) || plan == null || plan.PostProcessKind == PostProcessKind.None)
             return name;
 
+        // A manifest extension is never the right name for the ASSEMBLED file — the Add dialog's name
+        // preview probes the manifest URL, so an untouched name can easily arrive as "stream.mpd".
         var ext = Path.GetExtension(name).ToLowerInvariant();
-        if (ext is not ("" or ".m3u8" or ".m3u"))
+        if (!IsManifestExtension(ext))
             return name; // already a concrete media extension
 
         var suggestedExt = Path.GetExtension(plan.SuggestedFileName ?? "").ToLowerInvariant();
-        var newExt = suggestedExt is "" or ".m3u8" or ".m3u" ? ".mp4" : suggestedExt;
+        var newExt = IsManifestExtension(suggestedExt) ? ".mp4" : suggestedExt;
         var stem = Path.GetFileNameWithoutExtension(name);
         return string.IsNullOrEmpty(stem) ? "download" + newExt : stem + newExt;
     }
+
+    /// <summary>An empty or adaptive-streaming-manifest extension (HLS <c>.m3u8</c>/<c>.m3u</c>, DASH
+    /// <c>.mpd</c>) — i.e. one the assembled output must not keep.</summary>
+    private static bool IsManifestExtension(string ext) => ext is "" or ".m3u8" or ".m3u" or ".mpd";
 
     // ---- Part-completion detection & bookkeeping ----
 
@@ -410,16 +419,13 @@ public partial class DownloadManager
 
     // ---- Small utilities ----
 
-    private static void ApplyHeaders(DownloadConfiguration cfg, IReadOnlyDictionary<string, string> headers)
+    internal static void ApplyHeaders(DownloadConfiguration cfg, IReadOnlyDictionary<string, string> headers)
     {
         if (headers == null || headers.Count == 0)
             return;
         cfg.RequestConfiguration ??= new RequestConfiguration();
         foreach (var (key, value) in headers)
-        {
-            try { cfg.RequestConfiguration.Headers.Add(key, value); }
-            catch { /* skip a header the framework restricts (must be set via a property) */ }
-        }
+            SetHeader(cfg.RequestConfiguration, key, value);
     }
 
     private static long SafeLength(string path)

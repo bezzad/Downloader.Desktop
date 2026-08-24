@@ -11,7 +11,8 @@ const {
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
   candidatePorts, discoverAppPort, APP_PORT_RANGE,
-  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor
+  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
+  isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -291,4 +292,27 @@ test("sendToAppSilently keeps the URL-only GET path when no cookies are captured
   assert.equal(result, "ok");
   assert.match(seen.endpoint, /\/api\/add\?url=/);
   assert.notEqual(seen.opts && seen.opts.method, "POST");
+});
+
+test("a DASH manifest counts as media", () => {
+  assert.ok(MEDIA_EXTENSIONS.includes("mpd"));
+  assert.ok(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd"));
+  assert.ok(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd?token=abc"));
+  assert.ok(isMediaContentType("application/dash+xml"));
+});
+
+test("manifests are recognised as manifests, plain media is not", () => {
+  assert.ok(isManifest("https://cdn.example.com/s/manifest.mpd"));
+  assert.ok(isManifest("https://cdn.example.com/s/master.m3u8"));
+  assert.equal(isManifest("https://cdn.example.com/s/movie.mp4"), false);
+});
+
+test("groupKey treats every .mpd URL as its own group", () => {
+  // A DASH manifest's representations are expanded by the app, so quality-token grouping must never
+  // merge two manifests (or a manifest with a plain file) into one card.
+  const a = "https://cdn.example.com/stream/video_720p.mpd";
+  const b = "https://cdn.example.com/stream/video_1080p.mpd";
+  assert.equal(groupKey(a), a);
+  assert.equal(groupKey(b), b);
+  assert.notEqual(groupKey(a), groupKey(b));
 });

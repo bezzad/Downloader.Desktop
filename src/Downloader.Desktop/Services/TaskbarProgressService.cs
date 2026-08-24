@@ -119,11 +119,11 @@ public static class TaskbarProgressService
 
     private static class UnityLauncher
     {
-        private static Tmds.DBus.Protocol.Connection _connection;
+        private static Tmds.DBus.Protocol.DBusConnection _connection;
 
         public static void Set(bool visible, double fraction)
         {
-            _connection ??= Tmds.DBus.Protocol.Connection.Session;
+            _connection ??= Tmds.DBus.Protocol.DBusConnection.Session;
 
             using var writer = _connection.GetMessageWriter();
             writer.WriteSignalHeader(

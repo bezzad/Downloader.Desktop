@@ -47,12 +47,23 @@ public class PluginLoadTests
         var ctx = new FakeContext();
         new HlsPlugin().Initialize(ctx);
 
-        Assert.Single(ctx.Resolvers);
+        // Two resolvers: HLS playlists and DASH manifests.
+        Assert.Equal(2, ctx.Resolvers.Count);
         Assert.Single(ctx.PostProcessors);
         Assert.Empty(ctx.TransferProviders);
-        Assert.True(ctx.Resolvers[0].CanResolve("https://cdn.example.com/v/index.m3u8"));
-        Assert.False(ctx.Resolvers[0].CanResolve("https://youtube.com/watch?v=abc"));
-        Assert.False(ctx.Resolvers[0].CanResolve("https://x.com/u/status/1"));
+
+        var hls = "https://cdn.example.com/v/index.m3u8";
+        var dash = "https://cdn.example.com/v/manifest.mpd";
+        Assert.Single(ctx.Resolvers, r => r.CanResolve(hls));
+        Assert.Single(ctx.Resolvers, r => r.CanResolve(dash));
+
+        // Neither claims a page URL, and neither is a fallback that could shadow another plugin.
+        foreach (var resolver in ctx.Resolvers)
+        {
+            Assert.False(resolver.IsFallback);
+            Assert.False(resolver.CanResolve("https://youtube.com/watch?v=abc"));
+            Assert.False(resolver.CanResolve("https://x.com/u/status/1"));
+        }
     }
 
     private sealed class HostMirroringLoadContext(string mainPath) : AssemblyLoadContext(isCollectible: true)

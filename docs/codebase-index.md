@@ -110,7 +110,7 @@ fail-soft and their pure parts are unit-tested, but behavior changes there need 
 | File | Role |
 | --- | --- |
 | `IDownloadManager.cs` / `DownloadManager.cs` (1.3k lines) | **The choke point.** Owns every download's lifetime: builds `DownloadService` instances, relays engine events to row VMs, enforces state-transition guards (pause/cancel/resume/retry), and runs the queue pump (`MaxConcurrent`). All start paths funnel through the pump — nothing calls `Start` directly except the pump. |
-| `DownloadManager.Plans.cs` | Multi-part plan execution (HLS segments, video+audio mux). Parts download into a hidden `.<name>.parts` folder, then the matching `IPostProcessor` assembles the final file. |
+| `DownloadManager.Plans.cs` | Multi-part plan execution (HLS/DASH segments, video+audio mux). Parts download into a hidden `.<name>.parts` folder, then the matching `IPostProcessor` assembles the final file. |
 | `DownloadManager.Transfers.cs` | The `ITransfer` path — a plugin owns the whole transfer (used by the Website offline-copy plugin). |
 | `PlanRunState.cs` | Thread-safe per-segment progress board a plan run writes to and the Details dialog polls. |
 | `UrlResolver.cs` | Name/size preview without downloading (wraps the engine's `RemoteFileResolver`; single `Range: 0-0` GET, follows redirects). Has a URL fast-path, a concurrency semaphore and an 8 s timeout so rows never hang on "Fetching name…". |
@@ -229,7 +229,7 @@ install; in the solution for build/test only. Installed on demand from Settings 
 
 | Plugin | Id / version | What it does |
 | --- | --- | --- |
-| `Downloader.Desktop.Plugins.Hls` | `com.bezzad.hls` / `2.0.0` | `.m3u8` → one part per segment + a `Concat` recipe; quality picker from master playlists; AES-128 decrypt, concat, ffmpeg `-c copy` remux. ffmpeg is downloaded on first use (`FfmpegBinary`, `BinaryFile` guards truncated downloads), never bundled. Interfaces (`IFfmpeg`, `IM3u8Parser`, `IContentTypeProbe`) exist so the unit tests stay network-free. **2.0.0 dropped yt-dlp/deno site extraction** — no third-party executables, no browser-cookie reading. |
+| `Downloader.Desktop.Plugins.Hls` | `com.bezzad.hls` / `2.2.0` | *Streaming media (HLS & DASH).* `.m3u8` → one part per segment + a `Concat` recipe; quality picker from master playlists; AES-128 decrypt, concat, ffmpeg `-c copy` remux. **`.mpd` (MPEG-DASH, 2.2.0)** → `Dash/DashResolver` + `Dash/MpdParser` expand a static manifest (SegmentTemplate ±SegmentTimeline, SegmentList, SegmentBase/BaseURL) into video parts then audio parts; the recipe's `Streams` groups say where one stream ends, so the post-processor concatenates each and muxes them. Live (`type=dynamic`) and DRM manifests are refused with a reason (`DashException`). ffmpeg is downloaded on first use (`FfmpegBinary`, `BinaryFile` guards truncated downloads), never bundled. Interfaces (`IFfmpeg`, `IM3u8Parser`, `IMpdParser`, `IContentTypeProbe`) exist so the unit tests stay network-free. **2.0.0 dropped yt-dlp/deno site extraction** — no third-party executables, no browser-cookie reading. |
 | `Downloader.Desktop.Plugins.Website` | `com.bezzad.website-zip` / `1.0.1` | Save a page/site as an offline-browsable `.zip`. A **fallback** resolver (specific resolvers always win) offering an "Offline copy (.zip)" variant on `text/html`; the crawl runs through the app's `ITransfer` path. `LocalPathMapper` assigns every URL its zip path *before* download so earlier documents can rewrite references to later ones. Requires app ≥ 2.1.0 via the catalog's `minAppVersion`. |
 
 **Release plumbing**: `scripts/build-plugins.sh` (run by `release.yml`) zips the optional plugins and
@@ -250,7 +250,7 @@ Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`).
 
 | File | Role |
 | --- | --- |
-| `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS sniffing, badge, forwarding to the app. |
+| `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS/DASH sniffing, badge, forwarding to the app. A `.mpd` is reported as `kind: "dash"` and never size-probed (its own few KB would be discarded as implausibly small media). |
 | `content.js` | Guesses which `<video>`/`<audio>` the user is looking at (a paused-on-last-frame element counts — X.com autoplay) and reports it as a hint. |
 | `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping (`computeMainGroups`). |
 | `popup.js/.html/.css` | The popup: detected media grouped by video with a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
@@ -272,7 +272,7 @@ declarations** (`[Fact]`/`[Theory]`/`[AvaloniaFact]`/`[AvaloniaTheory]` + the `T
 | `Unit/` | `LogicTests` (state guards, queue cap, progress flush), `LocalizationTests`, `UpdateSwapScriptTests`, `CookieHandoffTests`, `StartMenuShortcutTests`, `WindowResizeTests`, `AurPackagingTests`. |
 | `Integration/` | Real engine over a loopback server: `IntegrationTests`, `SpeedLimitTests`, `MemoryReleaseTests`, `DownloadStateDurabilityTests`, `PlanRunnerTests`, `ShutdownVerificationTests`, `LocalApiCliTests`, `XcomRepro`. |
 | `UI/` | Avalonia headless: `AppTests` (1.8k lines — the biggest single file in the repo), `DialogHelperTests`, `TrayServiceTests`, `NotchTests`, and **`CaptureScreenshots`** (gated). |
-| `Plugins/` | Plugin loading/isolation/reload, catalog, dependency installer, transfer path, link variants, Ollama; `Plugins/Hls/` (parser, resolver, post-processor, AES, loopback server + committed fixtures) and `Plugins/Website/`. |
+| `Plugins/` | Plugin loading/isolation/reload, catalog, dependency installer, transfer path, link variants, Ollama; `Plugins/Hls/` (m3u8 + MPD parsers, both resolvers, post-processor, AES, loopback server + committed `.m3u8`/`.mpd` fixtures) and `Plugins/Website/`. |
 | `TestSupport/` | `TestAppBuilder` + assembly attributes, `GlobalUsings`, `TimedAttributes`. Stays at the root namespace. |
 
 New tests go in the folder that fits, under its sub-namespace.

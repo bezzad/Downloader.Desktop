@@ -34,7 +34,7 @@ public class LogicTests
     [InlineData("garbage", false)] // unparseable
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void UpdateService_IsNewer_compares_against_1_0_0(string tag, bool expected)
+    public void UpdateService_IsNewer_compares_against_1_0_0(string? tag, bool expected)
     {
         Assert.Equal(expected, UpdateService.IsNewer(tag, new Version(1, 0, 0)));
     }
@@ -147,7 +147,7 @@ public class LogicTests
     [InlineData("http://127.0.0.1:15151/add?foo=1&url=https://host/a.bin", "https://host/a.bin")]
     [InlineData("http://127.0.0.1:15151/add?url=", null)]
     [InlineData("http://127.0.0.1:15151/add", null)]
-    public void BrowserIntegration_extracts_url_param(string requestUri, string expected)
+    public void BrowserIntegration_extracts_url_param(string requestUri, string? expected)
     {
         Assert.Equal(expected, LocalApiService.ExtractUrl(new System.Uri(requestUri)));
     }
@@ -273,7 +273,7 @@ public class LogicTests
     [InlineData("ftp://host/docs/", false)]
     [InlineData("not a url", false)]
     [InlineData(null, false)]
-    public void Page_like_url_heuristic(string url, bool expected)
+    public void Page_like_url_heuristic(string? url, bool expected)
     {
         // Page-like URLs are EXPECTED to produce HTML, so the expired-link check must skip them.
         Assert.Equal(expected, DownloadManager.UrlLooksLikePage(url));

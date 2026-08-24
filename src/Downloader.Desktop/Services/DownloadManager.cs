@@ -388,6 +388,7 @@ public partial class DownloadManager : IDownloadManager
         item.LastTry = DateTime.Now;
         vm.ErrorMessage = null;
         vm.AlreadyExisted = false;
+        vm.IsRefreshingLink = false;
         // Capture the known size before progress events overwrite it — only meaningful when resuming
         // (we already had bytes + a real size). Used to spot an expired link returning a tiny file.
         vm.PreAttemptSize = item.Downloaded > 0 ? item.Size : null;
@@ -401,6 +402,10 @@ public partial class DownloadManager : IDownloadManager
         if (item.HasCustomSpeedLimit)
             configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
                 ? 0 : item.CustomSpeedLimitBytesPerSecond;
+        // Cookies/headers/referer supplied with the link (issue #7) apply to THIS download's requests,
+        // overriding the global request settings — the resolve and the bytes now use the same context.
+        ApplyRequestContext(configuration, item.Request);
+        EnsureCookieFile(item);
         vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
         var fileName = item.FileName;
 
@@ -433,7 +438,7 @@ public partial class DownloadManager : IDownloadManager
                 var persisted = PersistedPlan.FromJson(item.PlanJson);
                 if (persisted == null)
                 {
-                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath, item.VariantId).ConfigureAwait(false);
+                    var plan = await ResolvePlanAsync(urls[0], default, item.CookieFilePath, item.VariantId, item.Request).ConfigureAwait(false);
                     if (plan?.Parts is { Count: > 0 })
                     {
                         // Remember WHICH plugin resolved this link so its post-download action (e.g.
@@ -510,6 +515,116 @@ public partial class DownloadManager : IDownloadManager
         }
     }
 
+    /// <summary>
+    /// Applies a download's own cookies, headers and referer (issue #7) to the engine configuration it is
+    /// about to run with. Per-item values win over the global settings already in <paramref name="cfg"/>.
+    /// Pure and side-effect-free apart from <paramref name="cfg"/>, so it is unit-tested directly.
+    /// </summary>
+    internal static void ApplyRequestContext(DownloadConfiguration cfg, RequestContext ctx)
+    {
+        if (cfg == null || ctx == null || ctx.IsEmpty)
+            return;
+
+        cfg.RequestConfiguration ??= new RequestConfiguration();
+        var req = cfg.RequestConfiguration;
+
+        if (ctx.Headers is { Count: > 0 })
+            foreach (var (key, value) in ctx.Headers)
+                SetHeader(req, key, value);
+
+        // Set after the headers so an explicit `referer` field wins over a Referer header, and both win
+        // over the global DownloadSettings.Referer that ToConfiguration() already applied.
+        if (!string.IsNullOrWhiteSpace(ctx.Referer))
+            req.Referer = ctx.Referer;
+
+        if (ctx.Cookies is { Count: > 0 })
+        {
+            req.CookieContainer ??= new System.Net.CookieContainer();
+            foreach (var cookie in ctx.Cookies)
+                TryAddCookie(req.CookieContainer, cookie);
+        }
+    }
+
+    /// <summary>Sets one request header, routing the four the engine models as properties (a
+    /// <see cref="System.Net.WebHeaderCollection"/> either rejects those or the engine ignores them).</summary>
+    internal static void SetHeader(RequestConfiguration req, string key, string value)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(key))
+            return;
+
+        switch (key.Trim().ToLowerInvariant())
+        {
+            case "user-agent": req.UserAgent = value; return;
+            case "referer":
+            case "referrer": req.Referer = value; return;
+            case "accept": req.Accept = value; return;
+            case "content-type": req.ContentType = value; return;
+        }
+
+        // Indexer, not Add: a per-item header replaces a global one of the same name instead of appending.
+        try { (req.Headers ??= new System.Net.WebHeaderCollection())[key] = value; }
+        catch { /* skip a header the framework restricts — never fail the download over one header */ }
+    }
+
+    /// <summary>Adds one browser cookie to the jar the engine will send. A cookie the framework rejects
+    /// (bad name/domain/value) is skipped, never fatal. Values are never logged.</summary>
+    private static void TryAddCookie(System.Net.CookieContainer jar, CookieDto c)
+    {
+        if (jar == null || string.IsNullOrEmpty(c?.Name) || string.IsNullOrEmpty(c.Domain))
+            return;
+        try
+        {
+            var cookie = new System.Net.Cookie(
+                c.Name,
+                c.Value ?? string.Empty,
+                string.IsNullOrEmpty(c.Path) ? "/" : c.Path,
+                c.Domain)
+            {
+                Secure = c.Secure
+            };
+            if (c.Expires is > 0)
+                cookie.Expires = DateTimeOffset.FromUnixTimeSeconds(c.Expires.Value).UtcDateTime;
+            jar.Add(cookie);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Skipped a cookie the framework rejected: {ex.GetType().Name}");
+        }
+    }
+
+    /// <summary>Re-creates the transient Netscape cookie file for this attempt when the item still has
+    /// cookies but the previous attempt's file was already deleted — so a retry isn't silently anonymous.</summary>
+    private static void EnsureCookieFile(DownloadItem item)
+    {
+        if (item?.Request?.Cookies is not { Count: > 0 })
+            return;
+        if (!string.IsNullOrEmpty(item.CookieFilePath) && File.Exists(item.CookieFilePath))
+            return;
+        try { item.CookieFilePath = CookieFile.WriteTempFile(item.Request.Cookies); }
+        catch (Exception ex) { AppLog.Warn($"Couldn't write temp cookie file: {ex.Message}"); }
+    }
+
+    /// <summary>Flattens a download's request context into the single header bag a resolver sees: the item's
+    /// headers plus its referer as a normal <c>Referer</c> entry (the referer field wins). Returns
+    /// null when there is nothing to send, so plugins keep their "no options" fast path.</summary>
+    internal static IReadOnlyDictionary<string, string> ResolveHeaders(RequestContext context)
+    {
+        if (context == null)
+            return null;
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (context.Headers is { Count: > 0 })
+            foreach (var (key, value) in context.Headers)
+                if (!string.IsNullOrWhiteSpace(key))
+                    headers[key] = value;
+        // Last, so the purpose-built `referer` field wins over a Referer header — same precedence as
+        // ApplyRequestContext uses on the engine side.
+        if (!string.IsNullOrWhiteSpace(context.Referer))
+            headers["Referer"] = context.Referer;
+
+        return headers.Count > 0 ? headers : null;
+    }
+
     /// <summary>Best-effort delete + clear of an item's transient extension-supplied cookie file.</summary>
     internal static void DeleteCookieFile(DownloadItem item)
     {
@@ -533,15 +648,21 @@ public partial class DownloadManager : IDownloadManager
     /// manager, or resolving fails.</summary>
     public async Task<Plugins.DownloadPlan> ResolvePlanAsync(
         string url, System.Threading.CancellationToken cancellationToken, string cookieFilePath = null,
-        string variantId = null)
+        string variantId = null, RequestContext context = null)
     {
         if (_plugins == null)
             return null;
         try
         {
-            var options = string.IsNullOrEmpty(cookieFilePath) && string.IsNullOrEmpty(variantId)
+            var headers = ResolveHeaders(context);
+            var options = string.IsNullOrEmpty(cookieFilePath) && string.IsNullOrEmpty(variantId) && headers == null
                 ? null
-                : new Plugins.ResolveOptions { CookieFilePath = cookieFilePath, VariantId = variantId };
+                : new Plugins.ResolveOptions
+                {
+                    CookieFilePath = cookieFilePath,
+                    VariantId = variantId,
+                    Headers = headers
+                };
             return await _plugins.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -608,6 +729,12 @@ public partial class DownloadManager : IDownloadManager
     }
 
     /// <summary>Turns an exception into a short, user-friendly root cause.</summary>
+    /// <summary>The message a failed row shows. An expired link that the app could not refresh by itself
+    /// gets wording that names the real problem and points at the fix (paste a fresh link in Details, #6)
+    /// instead of a bare "Network error: 403".</summary>
+    private static string DescribeFailure(Exception ex) =>
+        LooksLikeExpiredLinkError(ex) ? Localizer.Instance["Error_LinkExpiredRefresh"] : Describe(ex);
+
     private static string Describe(Exception ex)
     {
         var e = ex;
@@ -624,6 +751,102 @@ public partial class DownloadManager : IDownloadManager
                 "The download timed out — data stopped arriving in time after several retries. Please try again.",
             _ => e.Message
         };
+    }
+
+    /// <summary>How many times the app re-resolves an item's original link by itself after an expired-link
+    /// failure before giving up and asking the user for a fresh one (issue #6).</summary>
+    public const int MaxAutoLinkRefreshAttempts = 2;
+
+    /// <summary>Pure helper (testable): does this failure mean "the link is no longer valid" — the signature
+    /// on a time-limited URL expired, or the server withdrew it? Those are the statuses a CDN answers with
+    /// once a signed link times out (401/403 typically, 410 when it is explicit, 404 on some CDNs). A
+    /// timeout, a socket error or a 5xx is a transient problem with a still-valid link and is NOT matched.</summary>
+    public static bool LooksLikeExpiredLinkError(Exception ex)
+    {
+        foreach (var e in Unwrap(ex))
+            if (e is System.Net.Http.HttpRequestException { StatusCode: { } status } &&
+                status is System.Net.HttpStatusCode.Unauthorized
+                    or System.Net.HttpStatusCode.Forbidden
+                    or System.Net.HttpStatusCode.NotFound
+                    or System.Net.HttpStatusCode.Gone)
+                return true;
+        return false;
+    }
+
+    /// <summary>Flattens an exception into itself, its inner exceptions and any aggregated ones — the engine
+    /// wraps a chunk's failure before it reaches the completion event.</summary>
+    private static IEnumerable<Exception> Unwrap(Exception ex)
+    {
+        for (var e = ex; e != null; e = e.InnerException)
+        {
+            yield return e;
+            if (e is AggregateException agg)
+                foreach (var inner in agg.InnerExceptions)
+                foreach (var nested in Unwrap(inner))
+                    yield return nested;
+        }
+    }
+
+    /// <summary>
+    /// An expired signed link is usually reachable again by re-resolving the ORIGINAL url the user pasted:
+    /// it redirects to a freshly signed target. <see cref="Start"/> always re-resolves from
+    /// <c>item.Urls</c>, so re-queueing the item is the whole fix — and the partial file is kept, so the
+    /// download continues where it stopped. Bounded by <see cref="MaxAutoLinkRefreshAttempts"/>, and only
+    /// for a download that already has bytes: a link that never worked is a bad link, not an expired one.
+    /// Returns true when the item was re-queued (the caller must then NOT mark it Failed).
+    /// </summary>
+    private bool TryAutoRefreshLink(DownloadItemViewModel vm, Exception error)
+    {
+        if (!LooksLikeExpiredLinkError(error))
+            return false;
+        if (vm.GetItem().Downloaded <= 0)
+            return false;
+        if (vm.LinkRefreshAttempts >= MaxAutoLinkRefreshAttempts)
+            return false;
+
+        vm.LinkRefreshAttempts++;
+        vm.IsRefreshingLink = true; // labels the queued gap; not an error, so no red banner
+        // Queued, not Failed: the pump picks up a Created row, and the grid shows the honest "Queued"
+        // badge instead of flashing a failure the app is about to fix by itself.
+        vm.Status = DownloadStatus.Created;
+        vm.Speed = 0;
+        AppLog.Info($"Link looks expired, refreshing it (attempt {vm.LinkRefreshAttempts}" +
+                    $"/{MaxAutoLinkRefreshAttempts}): {vm.Url}");
+        ReleaseEngine(vm); // the failed engine is done; Start builds a fresh one for the new attempt
+        // Re-queue after this completion callback has finished rather than starting a download from
+        // inside the old engine's event handler.
+        Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
+        return true;
+    }
+
+    /// <summary>
+    /// The single place a failed attempt becomes a failed row. An expired link is refreshed automatically
+    /// first (issue #6) — that is a retry, not a failure, so the row keeps no error and nothing is notified.
+    /// </summary>
+    /// <returns>True when the failure was absorbed by an automatic link refresh (the row is queued for
+    /// another attempt); false when the row was marked Failed.</returns>
+    private bool HandleFailure(DownloadItemViewModel vm, Exception error, string fallbackMessage, string logPrefix)
+    {
+        if (TryAutoRefreshLink(vm, error))
+            return true;
+
+        vm.ErrorMessage = error != null ? DescribeFailure(error) : fallbackMessage;
+        vm.Status = DownloadStatus.Failed;
+        AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
+        if (NotifyFailedEnabled)
+            NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+        return false;
+    }
+
+    /// <summary>Re-queues an item for another attempt WITHOUT resetting its automatic-refresh counter (that
+    /// reset is reserved for the user's own Retry/Resume), so a dead link can't retry forever.</summary>
+    private void RequeueForRefresh(DownloadItemViewModel vm)
+    {
+        vm.GetItem().PlanJson = null;
+        vm.Status = DownloadStatus.Created;
+        EnsureQueueRunning(vm.GetItem().QueueId);
+        PumpQueue(vm.GetItem().QueueId);
+        NotifyList();
     }
 
     public void Pause(DownloadItemViewModel vm)
@@ -645,6 +868,10 @@ public partial class DownloadManager : IDownloadManager
         // "Start" over a mixed selection from re-running a completed item from 0%.
         if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
             return;
+
+        // The user asked for this attempt, so the automatic link-refresh budget starts over (issue #6):
+        // a link that was dead yesterday may well be fine today.
+        vm.LinkRefreshAttempts = 0;
 
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
@@ -696,6 +923,7 @@ public partial class DownloadManager : IDownloadManager
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
+        vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic-refresh budget (#6)
         // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
         // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
         // disk are reused only when the fresh plan's part paths match (same url → same part file).
@@ -792,6 +1020,16 @@ public partial class DownloadManager : IDownloadManager
     {
         vm.Status = DownloadStatus.Stopped;
         FinishTerminal(vm);
+    }
+
+    /// <summary>Test seam: simulate a failed attempt reaching the completion handler (same code path the
+    /// engine's completion event uses), so the expired-link auto-refresh can be exercised without a server.
+    /// Returns true when the failure was turned into an automatic link refresh instead of a failure.</summary>
+    public bool RaiseFailedForTest(DownloadItemViewModel vm, Exception error)
+    {
+        var refreshed = HandleFailure(vm, error, "connection lost", "Failed (test)");
+        FinishTerminal(vm);
+        return refreshed;
     }
 
     private DownloadQueue FindQueue(string id) =>
@@ -1052,22 +1290,14 @@ public partial class DownloadManager : IDownloadManager
                 }
                 else
                 {
-                    vm.ErrorMessage = e.Error != null
-                        ? Describe(e.Error)
-                        : "The connection was lost or timed out before the download finished. Please try again.";
-                    vm.Status = DownloadStatus.Failed;
-                    AppLog.Error($"Failed (interrupted): {vm.FileName ?? vm.Url}", e.Error);
-                    if (NotifyFailedEnabled)
-                        NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                    HandleFailure(vm, e.Error,
+                        "The connection was lost or timed out before the download finished. Please try again.",
+                        "Failed (interrupted)");
                 }
             }
             else if (e.Error != null)
             {
-                vm.ErrorMessage = Describe(e.Error);
-                vm.Status = DownloadStatus.Failed;
-                AppLog.Error($"Failed: {vm.FileName ?? vm.Url}", e.Error);
-                if (NotifyFailedEnabled)
-                    NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
+                HandleFailure(vm, e.Error, null, "Failed");
             }
             else if (IsCorruptedAfterResume(vm, e, out var finalBytes))
             {
@@ -1099,6 +1329,7 @@ public partial class DownloadManager : IDownloadManager
             else
             {
                 vm.Progress = 100;
+                vm.LinkRefreshAttempts = 0; // it worked — the refresh budget is spent only on live trouble
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
                 if (NotifyCompleteEnabled)

@@ -71,6 +71,12 @@ public sealed class ResolveOptions
 
     /// <summary>The <see cref="LinkVariant.Id"/> the user chose, or null for the resolver's default pick.</summary>
     public string? VariantId { get; init; }
+
+    /// <summary>Request headers this download must be fetched with (supplied per download by the host, e.g.
+    /// from the browser extension). A resolver SHOULD send them on its own manifest/API requests and stamp
+    /// them onto every <see cref="DownloadPart"/> it produces, so the segments are fetched with the same
+    /// context. Any referer the host was given appears here as a normal <c>Referer</c> entry. Null = none.</summary>
+    public IReadOnlyDictionary<string, string>? Headers { get; init; }
 }
 
 /// <summary>The result of resolving: the real parts to download + how to combine them afterwards.</summary>

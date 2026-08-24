@@ -416,7 +416,7 @@ public class LocalApiEndToEndTests
         {
             try { using var c = await squatter.AcceptTcpClientAsync(); await Task.Delay(3000); }
             catch { /* listener stopped */ }
-        });
+        }, TestContext.Current.CancellationToken);
         try
         {
             Assert.True(SingleInstanceService.TryClaim(Array.Empty<string>(), ports),
