@@ -101,6 +101,12 @@ async function probeMediaForTab(tabId) {
   if (!map) return [];
   const items = [...map.values()];
   const tasks = items.map(item => async signal => {
+    if (extOf(item.url) === "mpd") {
+      // A DASH manifest is expanded by the app (which reads its representations and picks a quality),
+      // so there is nothing useful to probe here — and probing would report the manifest's own few
+      // kilobytes as the media size, which the popup would then discard as implausibly small.
+      return { url: item.url, kind: "dash", size: null };
+    }
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
       if (variants.length === 0)

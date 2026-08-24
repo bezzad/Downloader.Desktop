@@ -483,3 +483,43 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
   `EnsureSuccessStatusCode()` (so `HttpRequestException.StatusCode` is populated); `ChunkDownloader` retries
   `MaxTryAgainOnFailure` times against the SAME url before it gives up; mirrors are load spreading, NOT
   failover (each chunk is pinned to one request instance, and the file-info probe uses the first URL only).
+
+## MPEG-DASH (`.mpd`) support — issue #5, `dash-mpd-support`
+- **DASH lives INSIDE the HLS plugin**, not a separate one: `Downloader.Desktop.Plugins.Hls/Dash/`
+  (`DashResolver`, `MpdParser`/`IMpdParser`, `MpdModels`, `DashException`), plugin id still
+  `com.bezzad.hls`, display name now *Streaming media (HLS & DASH)*, version 2.2.0. Rationale: a second
+  plugin would duplicate the whole `FfmpegBinary`/`BinaryFile` dependency machinery and make users
+  download a second ~80 MB ffmpeg into a second data dir. The two resolvers claim disjoint extensions
+  (`.m3u8`/`.m3u` vs `.mpd`), so `PluginManager`'s two-pass lookup is unaffected.
+- **Parse on LOCAL names, never a namespace URI** (`e.Name.LocalName`): real MPDs use several schema
+  namespace URIs and some omit the namespace entirely — binding to one URI rejects good files.
+- **Refuse, don't half-support**: `type="dynamic"` (live) and ANY `ContentProtection` element → a
+  `DashException` whose message reaches the failed row. A DRM manifest must never look downloadable.
+- **`SegmentBase` / bare `BaseURL` means the representation IS one whole file** — emit ONE part and let the
+  engine multi-chunk it (`PartKind.Video`/`Audio`). Do NOT translate `indexRange`/`Initialization@range`
+  into `Range` headers: those exist for player seeking, and a Range header fights the engine's own ranged
+  chunking. Segmented representations emit `PartKind.Segment` parts (1 chunk each, 4 in parallel).
+- **`$Number%04d$` (and `$Time%0Nd$`) zero-padding is common** — a naive `Replace("$Number$", …)` produces
+  wrong URLs. `MpdParser.Substitute` handles `$$`, `$RepresentationID$`, `$Bandwidth$`, `$Number$`,
+  `$Time$`, each with the optional `%0Nd` width form, and LEAVES an unknown identifier in place so a broken
+  URL is visible rather than silently mangled. `r="-1"` on a timeline `<S>` = repeat to the end of the
+  period → derive the count from `mediaPresentationDuration`.
+- **`ConcatRecipe` grew `Streams` + `IntermediateExtension`** instead of a new SDK `PostProcessKind`
+  (which every external plugin would have to learn). `Streams == null` → one group built from
+  `HasInitSegment`/`Segments.Count`, i.e. every pre-DASH recipe deserializes unchanged. `Segments` stays a
+  flat 1:1 list across all groups, so AES-128 support is untouched. One group → concat + `RemuxAsync`; two
+  → concat each + `MuxAsync(video, audio)`; more → refused. **A group of exactly one unencrypted whole file
+  skips concatenation** and is handed to ffmpeg in place — copying a multi-GB file first is pure waste.
+  DASH sets `IntermediateExtension = ".mp4"` (its segments are fMP4; labelling them `.ts` misleads ffmpeg's
+  probe).
+- **Extension**: `mpd` joined `MEDIA_EXTENSIONS` + `application/dash+xml` joined `MEDIA_CONTENT_TYPES`;
+  new `isManifest(url)`/`MANIFEST_EXTENSIONS` drives `groupKey` (each manifest is its own group).
+  `background.js` returns `kind: "dash"` with `size: null` and **must not size-probe a `.mpd`** — the
+  manifest's own ~1 KB would be filtered out by `isPlausibleMediaSize` and the card would vanish.
+- Fixtures for every addressing mode live in `Downloader.Desktop.Tests/Plugins/Hls/Fixtures/dash-*.mpd`.
+  End-to-end (real stream → ffmpeg → playable file) is NOT verifiable headlessly — left as the author's
+  manual check.
+- **`NormalizeAssembledName` must strip EVERY manifest extension, `.mpd` included** (`IsManifestExtension`
+  in `DownloadManager.Plans.cs`): the Add dialog's name preview probes the manifest URL, so an untouched
+  name arrives as `stream.mpd` and the assembled MP4 would be written under a `.mpd` name no player opens.
+  Any future manifest format has to be added there as well as to the resolver.

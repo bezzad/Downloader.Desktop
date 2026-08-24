@@ -348,15 +348,21 @@ public partial class DownloadManager
         if (string.IsNullOrWhiteSpace(name) || plan == null || plan.PostProcessKind == PostProcessKind.None)
             return name;
 
+        // A manifest extension is never the right name for the ASSEMBLED file — the Add dialog's name
+        // preview probes the manifest URL, so an untouched name can easily arrive as "stream.mpd".
         var ext = Path.GetExtension(name).ToLowerInvariant();
-        if (ext is not ("" or ".m3u8" or ".m3u"))
+        if (!IsManifestExtension(ext))
             return name; // already a concrete media extension
 
         var suggestedExt = Path.GetExtension(plan.SuggestedFileName ?? "").ToLowerInvariant();
-        var newExt = suggestedExt is "" or ".m3u8" or ".m3u" ? ".mp4" : suggestedExt;
+        var newExt = IsManifestExtension(suggestedExt) ? ".mp4" : suggestedExt;
         var stem = Path.GetFileNameWithoutExtension(name);
         return string.IsNullOrEmpty(stem) ? "download" + newExt : stem + newExt;
     }
+
+    /// <summary>An empty or adaptive-streaming-manifest extension (HLS <c>.m3u8</c>/<c>.m3u</c>, DASH
+    /// <c>.mpd</c>) — i.e. one the assembled output must not keep.</summary>
+    private static bool IsManifestExtension(string ext) => ext is "" or ".m3u8" or ".m3u" or ".mpd";
 
     // ---- Part-completion detection & bookkeeping ----
 

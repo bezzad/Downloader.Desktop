@@ -148,6 +148,152 @@ public class HlsPostProcessorTests
         Assert.True(new FileInfo(output).Length > 0);
     }
 
+    // ── multi-stream (DASH) recipes ──────────────────────────────────────────────────────────────────
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Two_stream_recipe_concatenates_each_stream_then_muxes()
+    {
+        using var tmp = new TempDir();
+        var vInit = tmp.WriteBytes("v-init.mp4", Encoding.UTF8.GetBytes("VI"));
+        var v0 = tmp.WriteBytes("v0.m4s", Encoding.UTF8.GetBytes("V0"));
+        var v1 = tmp.WriteBytes("v1.m4s", Encoding.UTF8.GetBytes("V1"));
+        var aInit = tmp.WriteBytes("a-init.mp4", Encoding.UTF8.GetBytes("AI"));
+        var a0 = tmp.WriteBytes("a0.m4s", Encoding.UTF8.GetBytes("A0"));
+
+        var recipe = new ConcatRecipe
+        {
+            IntermediateExtension = ".mp4",
+            Streams =
+            [
+                new StreamGroup { HasInitSegment = true, SegmentCount = 2 },
+                new StreamGroup { HasInitSegment = true, SegmentCount = 1 },
+            ],
+            Segments = { new SegmentEntry(), new SegmentEntry(), new SegmentEntry() },
+        };
+        var (proc, ffmpeg) = Build();
+        var progress = new ProgressSink();
+        var output = Path.Combine(tmp.Path, "out.mp4");
+
+        var result = await proc.ProcessAsync(
+            [vInit, v0, v1, aInit, a0], Plan(recipe), output, progress, CancellationToken.None);
+
+        Assert.True(ffmpeg.MuxWasCalled);
+        Assert.False(ffmpeg.WasCalled); // muxed, not remuxed
+        // The stub mux concatenates its two inputs, so this proves each stream was assembled separately
+        // and handed over in video-then-audio order.
+        Assert.Equal("VIV0V1" + "AIA0", File.ReadAllText(result));
+        Assert.Equal(1.0, progress.Last, 3);
+        // The per-stream intermediates are cleaned up.
+        Assert.Empty(Directory.GetFiles(tmp.Path, "*.concat.*"));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Whole_file_streams_are_muxed_without_making_a_copy()
+    {
+        using var tmp = new TempDir();
+        var video = tmp.WriteBytes("video.mp4", Encoding.UTF8.GetBytes("VIDEO"));
+        var audio = tmp.WriteBytes("audio.mp4", Encoding.UTF8.GetBytes("AUDIO"));
+        var recipe = new ConcatRecipe
+        {
+            IntermediateExtension = ".mp4",
+            Streams =
+            [
+                new StreamGroup { SegmentCount = 1 },
+                new StreamGroup { SegmentCount = 1 },
+            ],
+            Segments = { new SegmentEntry(), new SegmentEntry() },
+        };
+        var (proc, ffmpeg) = Build();
+        var output = Path.Combine(tmp.Path, "out.mp4");
+
+        await proc.ProcessAsync([video, audio], Plan(recipe), output, new ProgressSink(), CancellationToken.None);
+
+        Assert.True(ffmpeg.MuxWasCalled);
+        Assert.Equal("VIDEOAUDIO", File.ReadAllText(output));
+        // A single complete file per stream needs no intermediate at all — it is fed to ffmpeg in place.
+        Assert.Empty(Directory.GetFiles(tmp.Path, "*.concat.*"));
+        Assert.Equal(video, ffmpeg.LastMuxVideo);
+        Assert.Equal(audio, ffmpeg.LastMuxAudio);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_single_stream_group_still_remuxes_like_before()
+    {
+        using var tmp = new TempDir();
+        var init = tmp.WriteBytes("init.mp4", Encoding.UTF8.GetBytes("INIT"));
+        var seg = tmp.WriteBytes("s0.m4s", Encoding.UTF8.GetBytes("DATA"));
+        var recipe = new ConcatRecipe
+        {
+            Streams = [new StreamGroup { HasInitSegment = true, SegmentCount = 1 }],
+            Segments = { new SegmentEntry() },
+        };
+        var (proc, ffmpeg) = Build();
+        var output = Path.Combine(tmp.Path, "out.mp4");
+
+        await proc.ProcessAsync([init, seg], Plan(recipe), output, new ProgressSink(), CancellationToken.None);
+
+        Assert.True(ffmpeg.WasCalled);
+        Assert.False(ffmpeg.MuxWasCalled);
+        Assert.Equal("INITDATA", File.ReadAllText(output));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_recipe_written_before_dash_support_reads_as_one_stream()
+    {
+        // Exactly the JSON the HLS resolver has always produced — no "Streams" field.
+        const string legacy = """
+            {"HasInitSegment":true,"OutputExtension":".mp4",
+             "Segments":[{"Encrypted":false},{"Encrypted":false}]}
+            """;
+
+        var recipe = JsonSerializer.Deserialize<ConcatRecipe>(legacy)!;
+        var groups = recipe.StreamsOrSingle();
+
+        Assert.Null(recipe.Streams);
+        Assert.Equal(".ts", recipe.IntermediateExtension);
+        var group = Assert.Single(groups);
+        Assert.True(group.HasInitSegment);
+        Assert.Equal(2, group.SegmentCount);
+        Assert.Equal(3, group.FileCount);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task More_than_two_streams_is_refused()
+    {
+        using var tmp = new TempDir();
+        var f = tmp.WriteBytes("a.m4s", [1]);
+        var recipe = new ConcatRecipe
+        {
+            Streams =
+            [
+                new StreamGroup { SegmentCount = 1 },
+                new StreamGroup { SegmentCount = 1 },
+                new StreamGroup { SegmentCount = 1 },
+            ],
+            Segments = { new SegmentEntry(), new SegmentEntry(), new SegmentEntry() },
+        };
+        var (proc, _) = Build();
+
+        await Assert.ThrowsAsync<NotSupportedException>(() => proc.ProcessAsync(
+            [f, f, f], Plan(recipe), Path.Combine(tmp.Path, "o.mp4"), new ProgressSink(), CancellationToken.None));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Stream_groups_must_account_for_every_segment_in_the_recipe()
+    {
+        using var tmp = new TempDir();
+        var f = tmp.WriteBytes("a.m4s", [1]);
+        var recipe = new ConcatRecipe
+        {
+            Streams = [new StreamGroup { SegmentCount = 1 }],
+            Segments = { new SegmentEntry(), new SegmentEntry() }, // one too many
+        };
+        var (proc, _) = Build();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => proc.ProcessAsync(
+            [f], Plan(recipe), Path.Combine(tmp.Path, "o.mp4"), new ProgressSink(), CancellationToken.None));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
     private static (HlsPostProcessor, RecordingFfmpeg) Build(
@@ -188,6 +334,8 @@ public class HlsPostProcessorTests
     {
         public bool WasCalled { get; private set; }
         public bool MuxWasCalled { get; private set; }
+        public string? LastMuxVideo { get; private set; }
+        public string? LastMuxAudio { get; private set; }
         public Task RemuxAsync(string inputFile, string outputPath, CancellationToken cancellationToken)
         {
             WasCalled = true;
@@ -197,6 +345,8 @@ public class HlsPostProcessorTests
         public Task MuxAsync(string videoFile, string audioFile, string outputPath, CancellationToken cancellationToken)
         {
             MuxWasCalled = true;
+            LastMuxVideo = videoFile;
+            LastMuxAudio = audioFile;
             // Concatenate the two inputs so tests can assert both were consumed.
             File.WriteAllBytes(outputPath,
                 File.ReadAllBytes(videoFile).Concat(File.ReadAllBytes(audioFile)).ToArray());

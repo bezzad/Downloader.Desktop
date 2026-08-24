@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Downloader.Desktop.Plugins;
 using Microsoft.Extensions.Logging;
@@ -56,58 +57,101 @@ public sealed class HlsPostProcessor : IPostProcessor
         var recipe = JsonSerializer.Deserialize<ConcatRecipe>(plan.Recipe)
                      ?? throw new InvalidOperationException("Concat recipe could not be deserialized.");
 
-        int expected = recipe.Segments.Count + (recipe.HasInitSegment ? 1 : 0);
+        var groups = recipe.StreamsOrSingle();
+        if (groups.Count is 0 or > 2)
+            throw new NotSupportedException(
+                $"A concat recipe must describe one or two streams (video, audio) but describes {groups.Count}.");
+
+        int expected = groups.Sum(g => g.FileCount);
         if (inputFiles.Count != expected)
             throw new InvalidOperationException(
-                $"Expected {expected} input files (init: {recipe.HasInitSegment}, segments: {recipe.Segments.Count}) but got {inputFiles.Count}.");
+                $"Expected {expected} input files across {groups.Count} stream(s) but got {inputFiles.Count}.");
+        if (recipe.Segments.Count != groups.Sum(g => g.SegmentCount))
+            throw new InvalidOperationException(
+                $"Recipe lists {recipe.Segments.Count} segments but its streams account for {groups.Sum(g => g.SegmentCount)}.");
 
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
-        var concatPath = Path.Combine(
-            Path.GetDirectoryName(Path.GetFullPath(outputPath))!,
-            Path.GetFileNameWithoutExtension(outputPath) + ".concat.ts");
+        var outputDir = Path.GetDirectoryName(Path.GetFullPath(outputPath))!;
+        Directory.CreateDirectory(outputDir);
 
         var keyCache = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        int idx = 0;
+        var temporaries = new List<string>();
+        var streamFiles = new List<string>(groups.Count);
+        int fileIdx = 0, segIdx = 0, done = 0;
 
-        await using (var output = File.Create(concatPath))
+        try
         {
-            if (recipe.HasInitSegment)
+            for (int g = 0; g < groups.Count; g++)
             {
-                await AppendAsync(output, inputFiles[idx], cancellationToken).ConfigureAwait(false);
-                idx++;
-                progress.Report(0.05);
-            }
+                var group = groups[g];
 
-            for (int s = 0; s < recipe.Segments.Count; s++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var entry = recipe.Segments[s];
-                var bytes = await File.ReadAllBytesAsync(inputFiles[idx], cancellationToken).ConfigureAwait(false);
-
-                if (entry.Encrypted)
+                // A whole-file stream (a DASH SegmentBase representation) needs no concatenation — copying a
+                // multi-gigabyte file just to hand it to ffmpeg would be pure waste, so it is used in place.
+                if (group.FileCount == 1 && !group.HasInitSegment && !recipe.Segments[segIdx].Encrypted)
                 {
-                    var key = await GetKeyAsync(entry.KeyUri!, keyCache, cancellationToken).ConfigureAwait(false);
-                    var iv = Convert.FromHexString(entry.IvHex
-                        ?? throw new InvalidOperationException("Encrypted segment has no IV."));
-                    bytes = Aes128.DecryptCbc(bytes, key, iv);
+                    streamFiles.Add(inputFiles[fileIdx]);
+                    fileIdx++;
+                    segIdx++;
+                    progress.Report(0.85 * ++done / expected);
+                    continue;
                 }
 
-                await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
-                idx++;
-                // reserve the final 15% for the ffmpeg remux step
-                progress.Report(0.05 + 0.80 * (s + 1) / recipe.Segments.Count);
+                var concatPath = Path.Combine(
+                    outputDir,
+                    Path.GetFileNameWithoutExtension(outputPath)
+                    + (groups.Count > 1 ? $".s{g.ToString(CultureInfo.InvariantCulture)}" : string.Empty)
+                    + ".concat" + recipe.IntermediateExtension);
+                temporaries.Add(concatPath);
+                streamFiles.Add(concatPath);
+
+                await using var output = File.Create(concatPath);
+
+                if (group.HasInitSegment)
+                {
+                    await AppendAsync(output, inputFiles[fileIdx], cancellationToken).ConfigureAwait(false);
+                    fileIdx++;
+                    progress.Report(0.85 * ++done / expected);
+                }
+
+                for (int s = 0; s < group.SegmentCount; s++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var entry = recipe.Segments[segIdx];
+                    var bytes = await File.ReadAllBytesAsync(inputFiles[fileIdx], cancellationToken).ConfigureAwait(false);
+
+                    if (entry.Encrypted)
+                    {
+                        var key = await GetKeyAsync(entry.KeyUri!, keyCache, cancellationToken).ConfigureAwait(false);
+                        var iv = Convert.FromHexString(entry.IvHex
+                            ?? throw new InvalidOperationException("Encrypted segment has no IV."));
+                        bytes = Aes128.DecryptCbc(bytes, key, iv);
+                    }
+
+                    await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                    fileIdx++;
+                    segIdx++;
+                    // reserve the final 15% for the ffmpeg step
+                    progress.Report(0.85 * ++done / expected);
+                }
+            }
+
+            _log.LogInformation("Concat complete ({Streams} stream(s), {Segments} segments) → {Output}",
+                groups.Count, recipe.Segments.Count, outputPath);
+
+            if (streamFiles.Count == 1)
+                await _ffmpeg.RemuxAsync(streamFiles[0], outputPath, cancellationToken).ConfigureAwait(false);
+            else
+                await _ffmpeg.MuxAsync(streamFiles[0], streamFiles[1], outputPath, cancellationToken).ConfigureAwait(false);
+
+            progress.Report(1.0);
+            return outputPath;
+        }
+        finally
+        {
+            foreach (var temp in temporaries)
+            {
+                try { File.Delete(temp); } catch (IOException) { /* best effort */ }
             }
         }
-
-        _log.LogInformation("HLS concat complete ({Segments} segments) → remuxing to {Output}",
-            recipe.Segments.Count, outputPath);
-
-        await _ffmpeg.RemuxAsync(concatPath, outputPath, cancellationToken).ConfigureAwait(false);
-        progress.Report(1.0);
-
-        try { File.Delete(concatPath); } catch (IOException) { /* best effort */ }
-
-        return outputPath;
     }
 
     /// <summary>Mux an extracted video-only + audio-only pair (plan parts in [video, audio] order) into one file.</summary>

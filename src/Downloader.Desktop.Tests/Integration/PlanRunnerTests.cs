@@ -210,9 +210,21 @@ public class PlanRunnerTests
         Assert.Equal("mine.mkv", DownloadManager.NormalizeAssembledName("mine.mkv", mux));
         var suggested = new PersistedPlan { PostProcessKind = PostProcessKind.Mux, SuggestedFileName = "out.webm" };
         Assert.Equal("video.webm", DownloadManager.NormalizeAssembledName("video.m3u8", suggested));
-        // No post-process → playlist names stay untouched (the download IS the playlist).
+        // A DASH manifest name is just as wrong for the assembled file — the Add dialog's name preview
+        // probes the .mpd URL, so an untouched name arrives as "stream.mpd" and would produce MP4 bytes
+        // in a file no player opens.
+        Assert.Equal("stream.mp4", DownloadManager.NormalizeAssembledName("stream.mpd", mux));
+        Assert.Equal("stream.webm", DownloadManager.NormalizeAssembledName("stream.mpd", suggested));
+        var mpdSuggested = new PersistedPlan
+        {
+            PostProcessKind = PostProcessKind.Concat,
+            SuggestedFileName = "manifest.mpd", // a resolver that suggested a manifest name gets .mp4 too
+        };
+        Assert.Equal("manifest.mp4", DownloadManager.NormalizeAssembledName("manifest.mpd", mpdSuggested));
+        // No post-process → manifest names stay untouched (the download IS the manifest).
         var none = new PersistedPlan { PostProcessKind = PostProcessKind.None };
         Assert.Equal("list.m3u8", DownloadManager.NormalizeAssembledName("list.m3u8", none));
+        Assert.Equal("list.mpd", DownloadManager.NormalizeAssembledName("list.mpd", none));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

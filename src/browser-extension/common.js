@@ -56,17 +56,27 @@ function appBase(port) {
   return `${APP_HOST}:${port}`;
 }
 
-// Media we can hand to the engine: direct HTTP(S) files + HLS playlists. (YouTube and other
-// encrypted/DRM streaming sites are NOT supported — they don't expose a direct, fetchable URL.)
+// Media we can hand to the engine: direct HTTP(S) files + adaptive-streaming manifests. (YouTube and
+// other encrypted/DRM streaming sites are NOT supported — they don't expose a direct, fetchable URL.)
 const MEDIA_EXTENSIONS = [
   "mp4", "mkv", "webm", "mov", "avi", "flv", "m4v", "mpg", "mpeg", "ts",
   "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma",
-  "m3u8" // HLS playlist
+  "m3u8", // HLS playlist
+  "mpd"   // MPEG-DASH manifest
 ];
 const MEDIA_CONTENT_TYPES = [
   "video/", "audio/",
-  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl"
+  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl",
+  "application/dash+xml"
 ];
+
+// A manifest describes a stream rather than being one downloadable file, so it is never grouped or
+// size-probed like a plain media URL — the app expands it after the link is sent over.
+const MANIFEST_EXTENSIONS = ["m3u8", "mpd"];
+
+function isManifest(url) {
+  return MANIFEST_EXTENSIONS.includes(extOf(url));
+}
 
 function extOf(url) {
   try {
@@ -327,8 +337,9 @@ async function estimateHlsSize(variantUrl, { signal } = {}) {
 // Conservative "same video, different quality" grouping key: strips ONE trailing quality token
 // (e.g. "_720p", "-1080", ".hd") from the basename. Anything that doesn't match a known token
 // shape returns the full URL as its own unique key, so unrelated files are never merged.
-// Every HLS URL (.m3u8) is its own group — a master playlist's variants come from parsing it
-// (see parseHlsMaster), not from grouping with other sniffed URLs.
+// Every manifest URL (.m3u8, .mpd) is its own group — its variants come from parsing the manifest
+// (see parseHlsMaster; DASH representations are expanded by the app), not from grouping with other
+// sniffed URLs.
 const QUALITY_TOKEN_RE = /[_.-](\d{3,4}p?|hd|sd|4k|low|med(?:ium)?|high)$/i;
 
 function extractQualityToken(url) {
@@ -346,7 +357,7 @@ function extractQualityToken(url) {
 function groupKey(url) {
   try {
     const u = new URL(url);
-    if (extOf(url) === "m3u8") return url; // HLS: the master URL itself is the group key.
+    if (isManifest(url)) return url; // HLS/DASH: the manifest URL itself is the group key.
     const dir = u.pathname.slice(0, u.pathname.lastIndexOf("/") + 1);
     const base = u.pathname.slice(u.pathname.lastIndexOf("/") + 1);
     const dot = base.lastIndexOf(".");
@@ -441,6 +452,7 @@ function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
 if (typeof module !== "undefined") {
   module.exports = {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
+    isManifest, MANIFEST_EXTENSIONS,
     formatBytes, probeSize, parseHlsMaster, estimateHlsSize,
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,

@@ -47,13 +47,21 @@ function qualityLabel(url) {
 // Collapses rawItems into one card per group (see common.js's groupKey / design.md Decision 4),
 // then layers in whatever probeMedia has resolved so far (sizes, and for HLS masters, the real
 // quality variants replacing the single placeholder option).
+// "hls"/"dash" are manifests the app expands; everything else is one directly downloadable file.
+function kindOf(url) {
+  const ext = extOf(url);
+  if (ext === "m3u8") return "hls";
+  if (ext === "mpd") return "dash";
+  return "direct";
+}
+
 function buildGroups() {
   const map = new Map();
   for (const item of rawItems) {
     const key = item.group || groupKey(item.url);
     let g = map.get(key);
     if (!g) {
-      g = { key, kind: extOf(item.url) === "m3u8" ? "hls" : "direct", main: false, options: [] };
+      g = { key, kind: kindOf(item.url), main: false, options: [] };
       map.set(key, g);
     }
     g.main = g.main || !!item.main;
@@ -76,7 +84,7 @@ function buildGroups() {
     }
     if (g.kind === "direct" && g.options.length > 1)
       for (const opt of g.options) opt.label = opt.label || qualityLabel(opt.url);
-    g.title = fileName(g.kind === "hls" ? g.key : g.options[0]?.url ?? g.key);
+    g.title = fileName(g.kind === "direct" ? g.options[0]?.url ?? g.key : g.key);
 
     // Drop options a probe confirmed are implausibly tiny for real media (tracking beacons,
     // empty init segments — e.g. sub-1KB responses seen on X.com) — never before a probe has run.
