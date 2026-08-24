@@ -17,7 +17,7 @@ requested by @ray2me123 in the tail of issue #4.
 - **AUR**: mirror bumped (`043aade`, linux-x64 sha `fe147988…`) but **not published** — the
   `aur` job in `release.yml` warn-and-skipped again because the repo secret
   `AUR_SSH_PRIVATE_KEY` is still unset, so `downloader-bin` remains at 2.2.0.
-- **Snap**: `snap.yml` triggered by the tag; publish runs in CI.
+- **Snap**: `snap.yml` green — revision 18 released to `latest/stable`.
 
 ## Notes for the next release
 
