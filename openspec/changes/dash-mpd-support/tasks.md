@@ -49,6 +49,6 @@ Keep build + full `dotnet test` green; commit to `develop` per logical step.
 - [x] 6.1 `dotnet build` clean; full `dotnet test` green; `node --test src/browser-extension/common.test.js`
       green; Playwright suite green (`--workers=1`).
 - [x] 6.2 Docs: `docs/codebase-index.md` + the project skill note the DASH resolver.
-- [ ] 6.3 Commit + push on `develop`.
+- [x] 6.3 Commit + push on `develop` (`809d937`).
 - [ ] 6.4 Author manual check (cannot be automated here): download a real `.mpd` stream end to end, confirm
       the quality picker lists the representations and the produced file plays with both video and audio.
