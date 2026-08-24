@@ -19,15 +19,24 @@ requested by @ray2me123 in the tail of issue #4.
   `AUR_SSH_PRIVATE_KEY` is still unset, so `downloader-bin` remains at 2.2.0.
 - **Snap**: `snap.yml` green — revision 18 released to `latest/stable`.
 
-## Notes for the next release
+## Follow-ups (all resolved on 2026-08-24, commit `b320b76`)
 
-- `release.sh` waits only for the **macOS** archives, then hashes `Downloader-win-x64.zip`
-  unconditionally. On this run the Windows zip was not attached yet, so `sha256_of_asset` failed
-  under `set -e` and the script exited 1 right after the Homebrew step ("winget: not started").
-  Re-running the same command resumed cleanly and finished winget + the AUR mirror. Worth making
-  the asset wait cover win-x64 too.
-- The `extension.yml` AMO publish has failed on **every** run since 2026-07-07, independently of
-  this release: AMO validation rejects the Firefox package with *"A content script defined in the
-  manifest could not be found at content.js"* (plus `strict_min_version` warnings vs the
-  `data_collection_permissions` key). `content.js` exists in the repo, so the packaging step is
-  not including it. Firefox listings are therefore stale.
+- `release.sh` waited only for the **macOS** archives, then hashed `Downloader-win-x64.zip`
+  unconditionally. On this run the Windows zip was not attached yet, so under `set -euo pipefail`
+  the assignment failed and the script exited 1 right after the Homebrew step
+  ("winget: not started"). Re-running the same command resumed cleanly and finished winget + the
+  AUR mirror. **Fixed**: the wait now covers `WAIT_ASSETS` (osx-arm64, osx-x64, win-x64,
+  linux-x64) and the win/linux checksums are `|| true`.
+- `extension.yml` (AMO publish) had failed on **every** run since 2026-07-07, independently of
+  this release: AMO validation rejected the Firefox package with *"A content script defined in the
+  manifest could not be found at `content.js`"*. **Resolved by removal** — the author does not need
+  the extension store listings, so the workflow was deleted. The extension zips are still built and
+  attached to each release; store uploads are manual.
+- **AUR** remains at 2.2.0 until the repo secret `AUR_SSH_PRIVATE_KEY` is added (the key lives on
+  the author's Home-Ubuntu-PC; he said he would add it the evening of 2026-08-24). Re-running the
+  Release workflow for `v2.5.0` publishes `downloader-bin` once the secret exists.
+
+## Issue closure
+
+Issues #5, #6 and #7 were commented (crediting @ray2me123) and closed as completed on 2026-08-24
+once every channel was verified.
