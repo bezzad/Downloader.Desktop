@@ -523,3 +523,23 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
   in `DownloadManager.Plans.cs`): the Add dialog's name preview probes the manifest URL, so an untouched
   name arrives as `stream.mpd` and the assembled MP4 would be written under a `.mpd` name no player opens.
   Any future manifest format has to be added there as well as to the resolver.
+- **A REAL end-to-end DASH test exists and has actually been run**: `Integration/DashEndToEndTests` has
+  ffmpeg author a genuine DASH stream (`-f dash`, separate video/audio adaptation sets), serves the folder
+  over loopback, then runs `DashResolver` → `PersistedPlan.From` → `DownloadManager.ExecutePlanAsync` with
+  the REAL `HlsPostProcessor` + `FfmpegBinary`, and ffprobes the output. Verified run: 10 parts → a 355 KB
+  MP4, `streams=[video,audio]`, `duration=8.01s`, stages `10 × Plan_Part` then `Plan_Assembling`. ffmpeg's
+  own generated manifest is the best fixture there is — it uses `$RepresentationID$`, `$Number%05d$` and
+  two differently-shaped `SegmentTimeline`s (`r="3"` vs four explicit `<S>`).
+  **To run it**: it is gated on ffmpeg+ffprobe being on PATH (repo convention), so by default it silently
+  returns. Put a static build on PATH first:
+  `curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJ` then
+  `export PATH=$PWD/ffmpeg-*-amd64-static:$PATH`.
+  **Gotcha when asserting request counts**: the engine issues a **HEAD then a GET** per part, so 10 parts =
+  20 requests — count DISTINCT paths, not raw requests.
+- **`ffmpeg`/`ffprobe` 7.0.2 (johnvansickle static) SEGFAULTS (exit 139) reading MPEG-TS on this box**
+  (kernel 7.0.0-30-generic). Reproducible with a bare `ffprobe src.ts` — no app code involved. Consequence:
+  putting ffmpeg on PATH makes the pre-existing, normally-skipped
+  `HlsPostProcessorTests.Real_ffmpeg_remux_produces_mp4_when_ffmpeg_available` FAIL. That is the environment,
+  NOT a regression in `FfmpegBinary.RemuxAsync` (whose `-bsf:a aac_adtstoasc` was the first suspect and is
+  innocent — removing it still segfaults, and so does `-f null -`). The fMP4 path the DASH tests use works
+  fine with the same binary. Don't chase it as a code bug; try a different ffmpeg build if it ever matters.

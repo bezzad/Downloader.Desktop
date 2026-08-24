@@ -50,5 +50,12 @@ Keep build + full `dotnet test` green; commit to `develop` per logical step.
       green; Playwright suite green (`--workers=1`).
 - [x] 6.2 Docs: `docs/codebase-index.md` + the project skill note the DASH resolver.
 - [x] 6.3 Commit + push on `develop` (`809d937`).
-- [ ] 6.4 Author manual check (cannot be automated here): download a real `.mpd` stream end to end, confirm
-      the quality picker lists the representations and the produced file plays with both video and audio.
+- [x] 6.5 Real end-to-end verification (`Integration/DashEndToEndTests`): ffmpeg authors a genuine DASH
+      stream, a loopback server serves it, and the app resolves → downloads every segment through the real
+      engine → concatenates each stream → muxes with the real ffmpeg. Verified run: 10 parts → a 355 KB MP4,
+      ffprobe reports `[video, audio]`, duration 8.01s. Gated on ffmpeg being on PATH (see the skill for how
+      to run it).
+- [ ] 6.4 Author check in the real app (the one thing still unproven): paste a `.mpd` from an actual site
+      into the GUI and confirm the quality picker lists the representations and the saved file plays. The
+      automated e2e covers the whole pipeline but only against an ffmpeg-generated stream on loopback — not
+      a real CDN's manifest quirks, and not the Add-window UI.
