@@ -543,3 +543,15 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
   NOT a regression in `FfmpegBinary.RemuxAsync` (whose `-bsf:a aac_adtstoasc` was the first suspect and is
   innocent — removing it still segfaults, and so does `-f null -`). The fMP4 path the DASH tests use works
   fine with the same binary. Don't chase it as a code bug; try a different ffmpeg build if it ever matters.
+
+## Zero build warnings is a HARD rule (2026-08-24, author's standing instruction)
+- `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` must print **`0 Warning(s)`** — app, plugins and
+  the test project. Full rationale + the per-code fix recipes are in CLAUDE.md → "Zero build warnings".
+  **Use `-t:Rebuild` to check**: a plain incremental build re-reports nothing for up-to-date projects, so it
+  can look clean when it isn't (this is how 74 warnings accumulated unnoticed).
+- The test csproj is `<Nullable>annotations</Nullable>` (not `disable`) — that is what lets a test say
+  `string?` without a CS8632 per annotation. Don't flip it back to `disable`, and don't flip it to `enable`
+  either (that turns on nullable *warnings* across the whole suite).
+- `TreatWarningsAsErrors` was deliberately NOT enabled: the Windows/macOS CI legs can surface
+  platform-specific analyzer warnings that can't be reproduced here, and turning them into hard errors would
+  break releases from a machine that cannot verify the fix. The rule is enforced by discipline + this note.

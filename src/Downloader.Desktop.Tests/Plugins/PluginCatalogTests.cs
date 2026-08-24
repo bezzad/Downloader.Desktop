@@ -35,7 +35,7 @@ public class PluginCatalogTests
     public async Task Install_from_zip_with_matching_checksum_loads_the_plugin()
     {
         var zip = BuildSampleZip();
-        var sha = await PluginManager.ComputeSha256Async(zip);
+        var sha = await PluginManager.ComputeSha256Async(zip, TestContext.Current.CancellationToken);
         var root = Directory.CreateTempSubdirectory("plugins-root-").FullName;
 
         var pm = new PluginManager();

@@ -46,7 +46,9 @@ public static class StartMenuShortcut
     }
 
     /// <summary>Writes the .lnk through the shell's own shortcut object. Windows-only by construction —
-    /// the COM class doesn't exist elsewhere, hence the platform guard in <see cref="EnsureOnWindows"/>.</summary>
+    /// the COM class doesn't exist elsewhere, hence the platform guard in <see cref="EnsureOnWindows"/>.
+    /// The attribute states that for the analyzer, which cannot see the guard across the call.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static void Create(string lnkPath, string exePath)
     {
         var type = Type.GetTypeFromCLSID(ShellLinkClsid)

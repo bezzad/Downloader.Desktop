@@ -200,7 +200,7 @@ public class WebsiteCrawlTests
             Assert.Contains($"{site.Root.Host}/fonts/inter.woff2", names);
 
             using var reader = new StreamReader(zip.Entries.First(e => e.FullName.EndsWith("index.html")).Open());
-            Assert.Contains("href=\"css/site.css\"", await reader.ReadToEndAsync());
+            Assert.Contains("href=\"css/site.css\"", await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -219,12 +219,12 @@ public class WebsiteCrawlTests
             crawler.Pause(); // gate closed before the first request
 
             var crawl = crawler.CrawlAsync(site.Root, work, CancellationToken.None);
-            await Task.Delay(300);
+            await Task.Delay(300, TestContext.Current.CancellationToken);
             Assert.False(crawl.IsCompleted);
             Assert.False(File.Exists(Path.Combine(work, site.Root.Host, "index.html")));
 
             crawler.Resume();
-            var captured = await crawl.WaitAsync(TimeSpan.FromSeconds(15));
+            var captured = await crawl.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
             Assert.Equal(6, captured);
         }
         finally
@@ -250,8 +250,8 @@ public class WebsiteCrawlTests
 
             Assert.Empty(Directory.GetFiles(target)); // no zip produced
             // the temp working folder is removed (nothing left behind under %TEMP%/downloader-website-*)
-            Assert.Empty(Directory.GetDirectories(Path.GetTempPath(), "downloader-website-*")
-                .Where(d => Directory.GetLastWriteTimeUtc(d) > DateTime.UtcNow.AddMinutes(-1)));
+            Assert.DoesNotContain(Directory.GetDirectories(Path.GetTempPath(), "downloader-website-*"),
+                d => Directory.GetLastWriteTimeUtc(d) > DateTime.UtcNow.AddMinutes(-1));
         }
         finally
         {
@@ -277,7 +277,7 @@ public class WebsiteCrawlTests
             var index = zip.Entries.FirstOrDefault(e => e.FullName.EndsWith("index.html"));
             Assert.NotNull(index);
             using var reader = new StreamReader(index.Open());
-            Assert.Contains("Example", await reader.ReadToEndAsync());
+            Assert.Contains("Example", await reader.ReadToEndAsync(TestContext.Current.CancellationToken));
         }
         finally
         {

@@ -280,6 +280,36 @@ non-interactively). The manual steps below are the fallback / what the script do
 5. Verify with `brew info --cask downloader` (after refreshing the local tap) that it reports the new version.
 6. Record the release in the relevant OpenSpec change (or a short release note in the archive) — version, tag, commit hashes, tap commit, winget PR # — per the workflow above.
 
+## Zero build warnings (MANDATORY — standing rule, never wait to be told again)
+
+**The build must end with `0 Warning(s)`. Not "few", not "only pre-existing ones" — zero.** After *every*
+change, run a full solution build and fix every warning it reports, in app code, plugins **and** the test
+project. A warning left in place is a warning everyone learns to scroll past, and the next real one hides
+behind it. This is part of "done", exactly like a green `dotnet test` — a task with a clean test run but a
+new warning is NOT finished.
+
+- Check it with: `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` and read the `N Warning(s)` line.
+  A plain (incremental) build re-reports nothing for up-to-date projects, so it can look clean when it isn't
+  — use `-t:Rebuild` when you mean to verify.
+- **Never silence a warning you have not understood.** Fix the cause; if the warning is genuinely wrong,
+  state *why* in a code comment next to the targeted suppression. Do not add blanket `<NoWarn>` entries and
+  do not raise `TreatWarningsAsErrors` questions instead of fixing the code.
+- Inherited warnings count too. If a task touches a file that was already warning, clear it while you are
+  there rather than preserving it.
+- Zero here is verified on **Linux**; a Windows/macOS CI build can surface platform-specific analyzer
+  warnings (e.g. `CA1416` on the Windows-only paths) that cannot be reproduced on this box. If CI
+  reports one, it is still in scope — fix it the same way.
+- Fixes applied 2026-08-24, for reference on what "fix the cause" looks like: `CA1416` → annotate the
+  Windows-only method `[SupportedOSPlatform("windows")]`; `CS0618` → move to the replacement API
+  (`Tmds.DBus.Protocol.Connection` → `DBusConnection`); `AVLN5001` → use the current Avalonia property
+  (`SystemDecorations`→`WindowDecorations`, `Watermark`→`PlaceholderText`); `CS8625` → declare the parameter
+  `ResolveOptions?` (an implementation may widen a parameter to accept null) rather than passing `null!`;
+  `CS8632` → the test csproj is `<Nullable>annotations</Nullable>`, so `?` is meaningful there without
+  raising a wave of nullable warnings; `xUnit1051` → pass `TestContext.Current.CancellationToken`;
+  `xUnit2017`/`xUnit2029` → `Assert.Contains`/`Assert.DoesNotContain` instead of
+  `Assert.True(x.Contains(y))` / `Assert.Empty(x.Where(...))`; `xUnit1012` → make the theory parameter
+  `string?` when the `InlineData` deliberately passes null.
+
 ## Token-efficient builds & tests (MANDATORY)
 
 - **`dotnet build`**: always run with `-v q --nologo` (e.g. `dotnet build Downloader.Desktop.sln -v q --nologo`). Only re-run without `-v q` if you need to inspect a specific error in detail.

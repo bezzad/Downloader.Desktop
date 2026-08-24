@@ -33,10 +33,12 @@ public sealed class DashResolver : ILinkResolver
     public bool CanResolve(string url) => UrlLooksLikeDash(url);
 
     public Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
-        => ResolveAsync(url, options: null!, cancellationToken);
+        => ResolveAsync(url, options: null, cancellationToken);
 
+    /// <summary>The SDK declares <paramref name="options"/> non-nullable, but it is optional in practice;
+    /// widening a parameter to accept null is legal for an implementation, and honest here.</summary>
     public async Task<DownloadPlan> ResolveAsync(
-        string url, ResolveOptions options, CancellationToken cancellationToken)
+        string url, ResolveOptions? options, CancellationToken cancellationToken)
     {
         var headers = options?.Headers;
         var manifest = await LoadAsync(url, headers, cancellationToken).ConfigureAwait(false);

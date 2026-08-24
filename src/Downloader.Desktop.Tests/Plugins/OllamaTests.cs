@@ -231,7 +231,7 @@ public class OllamaIntegrationTests
         try
         {
             var file = Path.Combine(work, "gemma3-1b.gguf");
-            await File.WriteAllBytesAsync(file, model);
+            await File.WriteAllBytesAsync(file, model, TestContext.Current.CancellationToken);
             var store = Path.Combine(work, "store");
 
             await new OllamaInstaller(registry).InstallAsync(Parse("gemma3:1b"), file, store, null, CancellationToken.None);
@@ -243,9 +243,9 @@ public class OllamaIntegrationTests
             // Manifest written at manifests/registry.ollama.ai/library/gemma3/1b with the raw JSON.
             var manifestPath = Path.Combine(store, "manifests", "registry.ollama.ai", "library", "gemma3", "1b");
             Assert.True(File.Exists(manifestPath));
-            Assert.Contains(server.ModelDigest, await File.ReadAllTextAsync(manifestPath));
+            Assert.Contains(server.ModelDigest, await File.ReadAllTextAsync(manifestPath, TestContext.Current.CancellationToken));
             // The user's downloaded file is untouched.
-            Assert.Equal(model, await File.ReadAllBytesAsync(file));
+            Assert.Equal(model, await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken));
         }
         finally { TryDelete(work); }
     }
@@ -260,7 +260,7 @@ public class OllamaIntegrationTests
         try
         {
             var file = Path.Combine(work, "wrong.gguf");
-            await File.WriteAllBytesAsync(file, Bytes("TAMPERED", 4096)); // different bytes → wrong sha256
+            await File.WriteAllBytesAsync(file, Bytes("TAMPERED", 4096), TestContext.Current.CancellationToken); // different bytes → wrong sha256
             var store = Path.Combine(work, "store");
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>

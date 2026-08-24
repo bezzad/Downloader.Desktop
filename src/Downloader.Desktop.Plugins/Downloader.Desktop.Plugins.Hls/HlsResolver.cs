@@ -42,7 +42,9 @@ public sealed class HlsResolver : ILinkResolver
     public Task<DownloadPlan> ResolveAsync(string url, CancellationToken cancellationToken)
         => ResolveAsync(url, options: null, cancellationToken);
 
-    public Task<DownloadPlan> ResolveAsync(string url, ResolveOptions options, CancellationToken cancellationToken)
+    /// <summary>The SDK declares <paramref name="options"/> non-nullable, but it is optional in practice;
+    /// widening a parameter to accept null is legal for an implementation, and honest here.</summary>
+    public Task<DownloadPlan> ResolveAsync(string url, ResolveOptions? options, CancellationToken cancellationToken)
         => BuildHlsPlanAsync(url, SuggestFileName(url), options?.Headers, options?.VariantId, cancellationToken);
 
     /// <summary>The selectable qualities in a master playlist, so the host's Add window can offer a

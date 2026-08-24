@@ -1,7 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
-        <Nullable>disable</Nullable>
+        <!-- "annotations" = ? and ! are understood, but no nullable WARNINGS are raised. Plain "disable"
+             made every `string?` in a test file a CS8632 ("annotation used outside a #nullable context"),
+             and tests do legitimately want to say "this may be null". Keeps the zero-warning rule (see
+             CLAUDE.md) satisfiable without a nullable-annotation sweep of the whole suite. -->
+        <Nullable>annotations</Nullable>
         <!-- Implicit usings on: the consolidated HLS tests (Plugins/Hls/) were authored against them
              (System, System.Threading.Tasks, System.Collections.Generic, …). Existing tests keep their
              explicit usings — implicit + explicit coexist without conflict. -->

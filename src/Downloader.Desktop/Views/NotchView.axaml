@@ -6,7 +6,7 @@
         x:DataType="vm:NotchViewModel"
         Width="340" Height="34"
         CanResize="False"
-        SystemDecorations="None"
+        WindowDecorations="None"
         Background="Transparent"
         TransparencyLevelHint="Transparent"
         Topmost="True"

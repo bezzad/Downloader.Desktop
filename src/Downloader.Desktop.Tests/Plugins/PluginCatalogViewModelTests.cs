@@ -20,7 +20,7 @@ public class PluginCatalogViewModelTests
     private sealed class FakePlugin(string id, string version) : IDownloaderPlugin
     {
         public string Id { get; } = id;
-        public string Name => id;
+        public string Name => Id;
         public string Version { get; } = version;
         public string Author => "test";
         public string Description => "fake";

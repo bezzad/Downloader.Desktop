@@ -77,7 +77,7 @@ public class DashEndToEndTests
         Assert.Contains("/init-stream1.m4s", fetched);
         // The scratch folder and the per-stream intermediates are gone.
         Assert.Empty(Directory.GetDirectories(downloadDir));
-        Assert.Empty(Directory.GetFiles(downloadDir).Where(f => f != finalPath));
+        Assert.DoesNotContain(Directory.GetFiles(downloadDir), f => f != finalPath);
 
         // 3. Prove it is playable and complete — the point of the whole feature.
         var streams = await ProbeStreamsAsync(ffprobe, finalPath!);
