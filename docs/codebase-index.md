@@ -257,8 +257,9 @@ Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`).
 | `common.test.js` | `node --test` unit suite. |
 | `e2e/` | Playwright suite (own `package.json`) with a fixture server and real `.m3u8`/`.mp4` fixtures. |
 
-Also: `README.md`, `PRIVACY.md`, `PUBLISHING.md`. Built by `scripts/build-extension.sh` /
-`.github/workflows/extension.yml`.
+Also: `README.md`, `PRIVACY.md`, `PUBLISHING.md`. Built by `scripts/build-extension.sh`; the
+zips are attached to each release by `release.yml`. Store uploads are manual (the automated AMO
+workflow was removed 2026-08-24).
 
 ---
 
@@ -304,7 +305,7 @@ Windows binaries are **not Authenticode-signed** — see issue #4 (antivirus beh
 wait for assets → notes → Homebrew tap + mirror → winget mirror + PR). The playbook lives in
 `.claude/skills/release/SKILL.md`; release notes are mandatory and must be grouped Markdown.
 
-CI: `.github/workflows/dotnet-desktop.yml` (build + test), `release.yml`, `extension.yml`,
+CI: `.github/workflows/dotnet-desktop.yml` (build + test), `release.yml`,
 `snap.yml`. Coverage config in `codecov.yml`.
 
 ---
