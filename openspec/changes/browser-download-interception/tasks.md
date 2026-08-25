@@ -3,7 +3,7 @@
 - [x] 1.1 Confirm on current `develop` that neither manifest declares `downloads` or `options_ui` and
       that no `chrome.downloads` listener exists, so the answer to issue #9 is "never implemented",
       not "broken".
-- [ ] 1.2 Draft the reply to issue #9 — state the finding plainly, that his diagnosis was right, and
+- [x] 1.2 Draft the reply to issue #9 — state the finding plainly, that his diagnosis was right, and
       that interception is being built. **Show the exact text and get an explicit OK before posting**
       (standing rule); the reply states the request and the current state, not our design.
 
@@ -69,5 +69,5 @@
 - [x] 7.2 Update the extension `README.md` and the store listing copy in `PUBLISHING.md`, including a
       note that running another intercepting download manager alongside is unsupported.
 - [x] 7.3 Bump the extension version.
-- [ ] 7.4 Flag to the author that the permission increase means a slower store review, so this should
+- [x] 7.4 Flag to the author that the permission increase means a slower store review, so this should
       not ride along with an urgent fix.
