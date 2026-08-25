@@ -289,6 +289,69 @@ public class LocalApiEndToEndTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Api_add_reports_how_much_request_context_it_accepted()
+    {
+        var manager = new DownloadManager();
+        var config = Config.New();
+        config.DefaultQueue.IsRunning = false; // nothing must hit the network in this test
+        manager.Initialize(config);
+
+        LocalApiService.Manager = manager;
+        LocalApiService.Config = config;
+        LocalApiService.Start();
+        Assert.True(LocalApiService.IsRunning);
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+            // A GET add carrying a context in the wire shapes: Cookie-header string + `Name: value` block.
+            var add = Pump(Get(client,
+                "/api/add?start=false&url=" + Uri.EscapeDataString("https://cdn.example.com/v/index.m3u8") +
+                "&referer=" + Uri.EscapeDataString("https://site.example/watch/42") +
+                "&cookies=" + Uri.EscapeDataString("SID=s3cret; pref=1") +
+                "&headers=" + Uri.EscapeDataString("Origin: https://site.example\nX-Token: t0ken")));
+            Assert.Equal((HttpStatusCode)201, add.StatusCode);
+
+            var body = Pump(Task.Run(() => add.Content.ReadAsStringAsync()));
+            var json = JsonDocument.Parse(body).RootElement;
+            Assert.Equal(2, json.GetProperty("cookies").GetInt32());
+            Assert.Equal(2, json.GetProperty("headers").GetInt32());
+            Assert.True(json.GetProperty("referer").GetBoolean());
+
+            // Counts only — a value must never come back out. (The referer is a bool, not the URL.)
+            Assert.DoesNotContain("s3cret", body);
+            Assert.DoesNotContain("t0ken", body);
+            Assert.DoesNotContain("site.example", body);
+
+            // It really reached the item, not just the count.
+            var item = manager.Items[0].GetItem();
+            Assert.Equal(2, item.Request.Cookies.Count);
+            Assert.Equal("t0ken", item.Request.Headers["X-Token"]);
+            Assert.Equal("https://site.example/watch/42", item.Referer);
+
+            // The zero case is reported as zero, not omitted — that's what makes a dropped hand-off visible.
+            var plain = Pump(Get(client, "/api/add?start=false&url=https%3A%2F%2Fhost%2Ff.zip"));
+            var plainJson = JsonDocument.Parse(Pump(Task.Run(() => plain.Content.ReadAsStringAsync()))).RootElement;
+            Assert.Equal(0, plainJson.GetProperty("cookies").GetInt32());
+            Assert.Equal(0, plainJson.GetProperty("headers").GetInt32());
+            Assert.False(plainJson.GetProperty("referer").GetBoolean());
+        }
+        finally
+        {
+            foreach (var vm in manager.Items)
+            {
+                var path = vm.GetItem().CookieFilePath;
+                if (path is { Length: > 0 } && File.Exists(path))
+                    File.Delete(path);
+            }
+            LocalApiService.Stop();
+            LocalApiService.Manager = null;
+            LocalApiService.Config = null;
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Start_falls_back_to_next_port_when_preferred_is_taken()
     {
         // Occupy the preferred port so the service must fall back. If 15151 is ALREADY taken (e.g. a real

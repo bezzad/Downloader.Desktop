@@ -18,7 +18,7 @@
     <RootNamespace>Downloader.Desktop.Plugins.Hls</RootNamespace>
     <!-- This plugin carries its OWN version, independent of the app's VersionPrefix. Bump it only when
          the plugin's code changes; the catalog/update flow compares this against the running copy. -->
-    <Version>2.2.0</Version>
+    <Version>2.2.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

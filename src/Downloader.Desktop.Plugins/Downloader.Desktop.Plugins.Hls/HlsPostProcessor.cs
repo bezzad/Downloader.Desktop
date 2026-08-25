@@ -16,13 +16,16 @@ namespace Downloader.Desktop.Plugins.Hls;
 public sealed class HlsPostProcessor : IPostProcessor
 {
     private readonly IFfmpeg _ffmpeg;
-    private readonly Func<string, CancellationToken, Task<byte[]>> _keyFetcher;
+    /// <summary>Fetches an AES-128 key, given the key URI and the download's request headers (which may be
+    /// null). The headers are a parameter rather than baked into an <see cref="HttpClient"/> because one
+    /// processor instance serves every download.</summary>
+    private readonly Func<string, IReadOnlyDictionary<string, string>?, CancellationToken, Task<byte[]>> _keyFetcher;
     private readonly ILogger _log;
 
     public HlsPostProcessor(
         IFfmpeg ffmpeg,
         HttpClient? http = null,
-        Func<string, CancellationToken, Task<byte[]>>? keyFetcher = null,
+        Func<string, IReadOnlyDictionary<string, string>?, CancellationToken, Task<byte[]>>? keyFetcher = null,
         ILogger? logger = null)
     {
         _ffmpeg = ffmpeg ?? throw new ArgumentNullException(nameof(ffmpeg));
@@ -32,7 +35,18 @@ public sealed class HlsPostProcessor : IPostProcessor
         else
         {
             var client = http ?? new HttpClient();
-            _keyFetcher = (uri, ct) => client.GetByteArrayAsync(uri, ct);
+            _keyFetcher = async (uri, headers, ct) =>
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                if (headers is { Count: > 0 })
+                    foreach (var (name, value) in headers)
+                        // TryAdd, not Add: a value the server sent us may not satisfy .NET's validation for
+                        // that header, and a rejected header must not cost us the key request entirely.
+                        request.Headers.TryAddWithoutValidation(name, value);
+                using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            };
         }
     }
 
@@ -120,7 +134,8 @@ public sealed class HlsPostProcessor : IPostProcessor
 
                     if (entry.Encrypted)
                     {
-                        var key = await GetKeyAsync(entry.KeyUri!, keyCache, cancellationToken).ConfigureAwait(false);
+                        var key = await GetKeyAsync(entry.KeyUri!, recipe.KeyHeaders, keyCache, cancellationToken)
+                            .ConfigureAwait(false);
                         var iv = Convert.FromHexString(entry.IvHex
                             ?? throw new InvalidOperationException("Encrypted segment has no IV."));
                         bytes = Aes128.DecryptCbc(bytes, key, iv);
@@ -169,10 +184,11 @@ public sealed class HlsPostProcessor : IPostProcessor
         return outputPath;
     }
 
-    private async Task<byte[]> GetKeyAsync(string keyUri, Dictionary<string, byte[]> cache, CancellationToken ct)
+    private async Task<byte[]> GetKeyAsync(string keyUri, IReadOnlyDictionary<string, string>? headers,
+        Dictionary<string, byte[]> cache, CancellationToken ct)
     {
         if (cache.TryGetValue(keyUri, out var cached)) return cached;
-        var key = await _keyFetcher(keyUri, ct).ConfigureAwait(false);
+        var key = await _keyFetcher(keyUri, headers, ct).ConfigureAwait(false);
         if (key.Length != 16)
             throw new InvalidOperationException($"AES-128 key from {keyUri} was {key.Length} bytes, expected 16.");
         cache[keyUri] = key;

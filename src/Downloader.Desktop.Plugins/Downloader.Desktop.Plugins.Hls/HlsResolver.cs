@@ -105,6 +105,12 @@ public sealed class HlsResolver : ILinkResolver
                 KeyUri = s.Key is { } k2 && k2.IsEncrypted ? k2.Uri : null,
                 IvHex = s.Key?.Iv is { } iv ? Convert.ToHexString(iv) : null,
             }).ToList(),
+            // The key is fetched at assembly time, by the post-processor, out of a client that knows nothing
+            // about this download — so its context has to travel on the recipe. The key is normally served
+            // from the same protected origin as the playlist we just fetched with these very headers.
+            KeyHeaders = headers is { Count: > 0 } && media.IsEncrypted
+                ? headers.ToDictionary(h => h.Key, h => h.Value, StringComparer.OrdinalIgnoreCase)
+                : null,
         };
 
         _log.LogInformation("HLS resolved {Count} segments (encrypted: {Enc}) from {Url}",

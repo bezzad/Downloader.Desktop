@@ -276,6 +276,9 @@ public static class LocalApiService
         }
         catch (Exception ex)
         {
+            // ROUTE NAME ONLY — never the request URL or its query string. The GET form of /api/add carries
+            // cookies and headers in the query (issue #7), and logs are read, shipped and pasted into issues.
+            // Widening this to include the URI would put a live session in a log file. Don't.
             AppLog.Error($"Local API request failed ({route})", ex);
             try { RespondJson(ctx, 500, new Dictionary<string, object> { ["error"] = ex.Message }); }
             catch { /* response already gone */ }
@@ -311,7 +314,13 @@ public static class LocalApiService
             {
                 ["id"] = item.Id.ToString(),
                 ["name"] = vm.DisplayName,
-                ["status"] = vm.Status.ToString()
+                ["status"] = vm.Status.ToString(),
+                // How much request context we actually accepted, so a caller can tell a working hand-off from
+                // one we silently dropped (issue #7). COUNTS ONLY — a cookie or header value must never be
+                // echoed back; the caller already has them and the response is the wrong place for secrets.
+                ["cookies"] = item.Request.Cookies.Count,
+                ["headers"] = item.Request.Headers.Count,
+                ["referer"] = !string.IsNullOrEmpty(item.Referer)
             };
         });
         RespondJson(ctx, 201, result);
@@ -458,6 +467,70 @@ public static class LocalApiService
         return null;
     }
 
+    /// <summary>
+    /// Parses a browser <c>Cookie</c> header string (<c>name=value; name=value</c>) into cookies for
+    /// <paramref name="targetUrl"/>. This is the shape a capture tool actually has to hand on the GET form of
+    /// <c>/api/add</c> — the JSON body's per-cookie objects can carry a domain, a header string cannot, so the
+    /// domain is taken from the target URL's host (every cookie a browser attached to that URL is by
+    /// definition valid for it). Values are kept verbatim because they legitimately contain <c>=</c>.
+    /// Pure, and never logs a value.
+    /// </summary>
+    public static List<CookieDto> ParseCookieHeader(string cookieHeader, string targetUrl)
+    {
+        var cookies = new List<CookieDto>();
+        if (string.IsNullOrWhiteSpace(cookieHeader))
+            return cookies;
+
+        // No host ⇒ no domain to scope the cookies to. Drop them rather than invent one; the add itself
+        // still succeeds and the response's cookie count tells the caller none were accepted.
+        if (!Uri.TryCreate(targetUrl?.Trim(), UriKind.Absolute, out var uri) || string.IsNullOrEmpty(uri.Host))
+            return cookies;
+
+        foreach (var pair in cookieHeader.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=');
+            if (eq <= 0)
+                continue;
+            var name = pair[..eq].Trim();
+            if (name.Length == 0)
+                continue;
+            cookies.Add(new CookieDto
+            {
+                Name = name,
+                Value = pair[(eq + 1)..].Trim(),
+                Domain = uri.Host,
+                Path = "/",
+                Secure = uri.Scheme == Uri.UriSchemeHttps
+            });
+        }
+        return cookies;
+    }
+
+    /// <summary>
+    /// Parses a newline-separated <c>Name: value</c> header block (the form a capture tool emits) into a
+    /// case-insensitive map. Malformed and empty-named lines are skipped rather than failing the add.
+    /// Pure, and never logs a value.
+    /// </summary>
+    public static Dictionary<string, string> ParseHeaderBlock(string block)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(block))
+            return headers;
+
+        foreach (var line in block.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var colon = line.IndexOf(':');
+            if (colon <= 0)
+                continue;
+            var name = line[..colon].Trim();
+            var value = line[(colon + 1)..].Trim();
+            if (name.Length == 0 || value.Length == 0)
+                continue;
+            headers[name] = value;
+        }
+        return headers;
+    }
+
     /// <summary>Pulls the <c>id</c> property out of a JSON body (testable, no networking).</summary>
     public static string ExtractIdFromJson(string json)
     {
@@ -579,6 +652,13 @@ public sealed class ApiAddRequest
         };
         if (LocalApiService.QueryParam(requestUri, "start") is { } start)
             req.Start = !start.Equals("false", StringComparison.OrdinalIgnoreCase) && start != "0";
+
+        // The query form carries the same per-download context the JSON body does, in the WIRE shapes a
+        // browser/capture tool already has: a Cookie-header string and a `Name: value` block. Without this a
+        // caller's session hand-off was silently dropped while the add still answered 201 (issue #7).
+        // Parsing never fails the add — a bad context costs the caller its context, not its download.
+        req.Cookies = LocalApiService.ParseCookieHeader(LocalApiService.QueryParam(requestUri, "cookies"), req.Url);
+        req.Headers = LocalApiService.ParseHeaderBlock(LocalApiService.QueryParam(requestUri, "headers"));
         return req.Validate();
     }
 

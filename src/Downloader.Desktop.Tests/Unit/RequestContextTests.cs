@@ -232,6 +232,37 @@ public class RequestContextTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Cookies_reach_a_resolver_as_a_single_cookie_header()
+    {
+        // A plugin's own HttpClient never sees the engine's CookieContainer, so the only way the download's
+        // session reaches a resolver — and through it the assembly-time key fetch — is in header form.
+        var ctx = new RequestContext();
+        ctx.Cookies.Add(new CookieDto { Name = "SID", Value = "abc", Domain = "site.example" });
+        ctx.Cookies.Add(new CookieDto { Name = "pref", Value = "1", Domain = "site.example" });
+
+        Assert.Equal("SID=abc; pref=1", DownloadManager.ResolveHeaders(ctx)["Cookie"]);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_explicit_cookie_header_wins_over_the_synthesized_one()
+    {
+        // Stated deliberately by the caller, so it is not second-guessed.
+        var ctx = new RequestContext();
+        ctx.Headers["Cookie"] = "chosen=1";
+        ctx.Cookies.Add(new CookieDto { Name = "SID", Value = "abc", Domain = "site.example" });
+
+        Assert.Equal("chosen=1", DownloadManager.ResolveHeaders(ctx)["Cookie"]);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_context_with_no_cookies_produces_no_cookie_header()
+    {
+        var ctx = new RequestContext { Referer = "https://site.example" };
+
+        Assert.False(DownloadManager.ResolveHeaders(ctx).ContainsKey("Cookie"));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void The_referer_field_wins_over_a_referer_header_everywhere()
     {
         var ctx = new RequestContext { Referer = "https://from-field.example" };
