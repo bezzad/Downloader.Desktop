@@ -27,3 +27,8 @@ Shipped in **v2.3.0** (tag `v2.3.0` = `146de478d25f026a09a1a837cea9954734033a7f`
 [microsoft/winget-pkgs#422385](https://github.com/microsoft/winget-pkgs/pull/422385) open awaiting
 a moderator. `openspec` CLI wasn't available in the release session to run `/opsx:sync` + `/opsx:archive`
 — do that from a machine that has it (all 6 tasks are done, build+tests green).
+
+**Closed out 2026-08-25.** Delta specs synced in `78b9af8`: `hls-download` created as a new capability,
+three `link-variants` requirements retargeted off yt-dlp, and `video-site-extraction` retired entirely —
+its two unnamed requirements described extraction this change deleted, one of them asserting that
+YouTube page URLs resolve and download, which is false as of plugin 2.0.0.
