@@ -77,11 +77,23 @@ Base URL: `http://127.0.0.1:15151` (or the fallback port shown in Settings — s
 | `mirrors` | no | Extra URLs for the same file (JSON body only) |
 | `start` | no | `false` = add queued but don't start (default `true`) |
 | `referer` | no | `Referer` to send for this download only (overrides the global setting) |
-| `headers` | no | Extra request headers for this download only, as `{"Name":"value"}` (JSON body only) |
-| `cookies` | no | Cookies for this URL, in the `chrome.cookies.getAll` shape (JSON body only) |
+| `headers` | no | Extra request headers for this download only — see the two forms below |
+| `cookies` | no | Cookies for this URL — see the two forms below |
 
 The download is added **silently** — no dialog — and starts immediately (subject to the queue's
-concurrency cap). Responses: `201` with `{"id","name","status"}`, or `400` with `{"error"}`.
+concurrency cap). Responses: `400` with `{"error"}`, or `201` with:
+
+| Field | Meaning |
+|---|---|
+| `id` | The new download's id — keep it to track or control the download later |
+| `name` | The file name as resolved so far |
+| `status` | The download's state right after adding |
+| `cookies` | How many cookies were **accepted** |
+| `headers` | How many headers were **accepted** |
+| `referer` | `true` if a referer was accepted |
+
+The last three are what tell a working hand-off from one whose context was dropped: if you sent cookies
+and got `"cookies": 0` back, they didn't reach the download. Counts only — no value is ever echoed back.
 
 #### Links that need the context they were found in
 
@@ -98,6 +110,30 @@ curl -X POST http://127.0.0.1:15151/api/add \
 ```
 
 A malformed header entry is skipped rather than failing the add.
+
+**The GET form takes the same context, in the shapes a browser already has.** If your tool can only
+invoke a URL, put the context in the query string — `cookies` as a plain `Cookie:` header string and
+`headers` as a newline-separated `Name: value` block, both URL-encoded like any other parameter:
+
+```bash
+curl -G http://127.0.0.1:15151/api/add \
+  --data-urlencode "url=https://cdn.example.com/v/index.m3u8" \
+  --data-urlencode "referer=https://site.example/watch/42" \
+  --data-urlencode "cookies=SID=abc; pref=1" \
+  --data-urlencode "headers=Origin: https://site.example
+X-Token: abc"
+# → {"id":"…","name":"index.m3u8","status":"Running","cookies":2,"headers":2,"referer":true}
+```
+
+A cookie's value is taken verbatim (so a base64 value containing `=` survives), and each cookie is
+scoped to the **host of the link you are adding** — a query string has nowhere to put a per-cookie
+domain. A cookie string with no usable `name=value` pair is not an error: the download is added with no
+cookies and the response says `"cookies": 0`.
+
+> **Prefer POST when you can.** A URL is the wrong place for a secret — URLs end up in shell history,
+> process lists and logs. This app does not log the request URL or its query string, and the listener
+> only accepts connections from your own machine, but nothing protects the URL before it reaches us.
+> POST also models a cookie's domain per cookie, which the query form cannot.
 
 **How long it lives.** The cookies and headers are secrets: they are held in memory for the current
 session only — never written to `config.json` and never logged — so a retry in the same session still

@@ -257,8 +257,9 @@ Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`).
 | `common.test.js` | `node --test` unit suite. |
 | `e2e/` | Playwright suite (own `package.json`) with a fixture server and real `.m3u8`/`.mp4` fixtures. |
 
-Also: `README.md`, `PRIVACY.md`, `PUBLISHING.md`. Built by `scripts/build-extension.sh` /
-`.github/workflows/extension.yml`.
+Also: `README.md`, `PRIVACY.md`, `PUBLISHING.md`. Built by `scripts/build-extension.sh`; the
+zips are attached to each release by `release.yml`. Store uploads are manual (the automated AMO
+workflow was removed 2026-08-24).
 
 ---
 
@@ -304,7 +305,7 @@ Windows binaries are **not Authenticode-signed** — see issue #4 (antivirus beh
 wait for assets → notes → Homebrew tap + mirror → winget mirror + PR). The playbook lives in
 `.claude/skills/release/SKILL.md`; release notes are mandatory and must be grouped Markdown.
 
-CI: `.github/workflows/dotnet-desktop.yml` (build + test), `release.yml`, `extension.yml`,
+CI: `.github/workflows/dotnet-desktop.yml` (build + test), `release.yml`,
 `snap.yml`. Coverage config in `codecov.yml`.
 
 ---
@@ -313,16 +314,16 @@ CI: `.github/workflows/dotnet-desktop.yml` (build + test), `release.yml`, `exten
 
 The single source of truth for progress — `PLAN.md`/`TASKS.md` were retired 2026-06-23.
 
-- **`openspec/specs/`** — the living capability baseline, **26 capabilities**: `add-download`,
-  `downloads-list`, `download-status`, `queues`, `settings`, `speed-limit`, `notifications`,
-  `system-tray`, `taskbar-progress`, `notch-overlay`, `ui-navigation`, `ui-theme`,
-  `window-chrome`, `resource-management`, `plugins`, `link-variants`, `local-api`, `cli`,
-  `website-offline-copy`, `ollama-model-download`, `video-site-extraction`, `browser-extension`,
-  `extension-distribution`, `extension-media-details`, `extension-media-relevance`,
-  `platform-distribution`.
-- **`openspec/changes/`** — active work. Currently `hls-only-quality-picker` (proposal/design/
-  specs/tasks) and `packaging-donate-batch`.
-- **`openspec/changes/archive/`** — 34 completed changes, `YYYY-MM-DD-<name>`.
+- **`openspec/specs/`** — the living capability baseline, **30 capabilities**: `add-download`,
+  `browser-download-interception`, `browser-extension`, `cli`, `dash-streams`, `download-status`,
+  `downloads-list`, `extension-distribution`, `extension-media-details`,
+  `extension-media-relevance`, `hls-download`, `link-refresh`, `link-variants`, `local-api`,
+  `notch-overlay`, `notifications`, `ollama-model-download`, `platform-distribution`, `plugins`,
+  `queues`, `request-context`, `resource-management`, `settings`, `speed-limit`, `system-tray`,
+  `taskbar-progress`, `ui-navigation`, `ui-theme`, `website-offline-copy`, `window-chrome`.
+- **`openspec/changes/`** — active work. Currently `hls-only-quality-picker`,
+  `issue4-followups-batch` and `packaging-donate-batch`.
+- **`openspec/changes/archive/`** — 40 completed changes, `YYYY-MM-DD-<name>`.
 
 Flow: `/opsx:propose` → implement, ticking that change's `tasks.md` → `/opsx:sync` deltas into
 `openspec/specs/` → `/opsx:archive`. Start every session with `openspec list`.

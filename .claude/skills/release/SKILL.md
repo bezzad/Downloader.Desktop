@@ -133,7 +133,11 @@ If snap CI failed to publish (check the run log): download its artifact and publ
 
 ## Browser extension distribution (automated pieces)
 - Every `v*` release also carries `downloader-extension-chrome.zip` + `downloader-extension-firefox.zip` (release.yml `extension` job, runs post-matrix — never let it create the release or set notes).
-- **Firefox publishes itself**: `extension.yml` fires on pushes touching `src/browser-extension/**`, skips green when the manifest version already exists on AMO, else `web-ext sign --channel listed --approval-timeout 0` with secrets `AMO_JWT_ISSUER`/`AMO_JWT_SECRET`. Bumping the extension version (BOTH manifests) + pushing IS the Firefox release. Chrome/Edge stay manual: upload the chrome zip from the release page in their dashboards.
+- **Store uploads are all manual.** The `extension.yml` workflow that auto-submitted to Mozilla AMO
+  was **removed 2026-08-24** (it had failed every run since 2026-07-07: AMO validation rejected the
+  package with "A content script defined in the manifest could not be found at `content.js`", and the
+  author decided the extension listings aren't needed). Nothing in a release depends on it. If a store
+  version is ever wanted, upload the zip from the release page in that store's dashboard.
 
 ## release.sh is now machine-independent + RESUMABLE (2026-07-11, post-v2.0.0)
 Five failure classes that previously needed manual rescue are fixed IN the script:
@@ -154,3 +158,12 @@ still die with exact instructions. The same EXIT trap prints a per-channel repor
 resume" hint on failure. Changelog baseline = `PREV_TAG` (newest `v*` tag excluding the tag
 being published) — never `v$CUR_VERSION`, which on a resume equals the new tag itself and
 yields an empty changelog.
+
+## release.sh waits for ALL platform archives (2026-08-24, post-v2.5.0)
+The asset wait used to cover only the two macOS archives, then hashed `Downloader-win-x64.zip`
+unconditionally. With `set -euo pipefail`, `WIN_SHA="$(sha256_of_asset ... | tr ...)"` on a
+not-yet-attached asset **killed the run** — v2.5.0 died right after the Homebrew step with
+"winget: not started" (a plain re-run resumed and finished it). The wait now covers `WAIT_ASSETS`
+(osx-arm64, osx-x64, win-x64, linux-x64) and the win/linux checksums are `|| true`, so a missing
+asset degrades to the existing warn-and-skip instead of aborting. `missing` is a plain string, not
+an array — bash 3.2 on macOS trips over empty arrays under `set -u`.

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Downloader — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="" width="24" height="24" />
+    <span class="title">Downloader settings</span>
+    <span id="status" class="status">Checking app…</span>
+  </header>
+
+  <!-- Shown until the user has made a deliberate choice about interception, so turning it on is an
+       informed decision rather than something that happens to them. -->
+  <section id="firstRun" class="callout" hidden>
+    <h2>Take over browser downloads?</h2>
+    <p>
+      When this is on, downloads you start in the browser are handed to the Downloader app instead:
+      the browser's own download is cancelled and the app fetches the file, with the page's sign-in
+      details so restricted files keep working.
+    </p>
+    <p>
+      That is what the new <strong>downloads</strong> permission is for. It lets the extension see a
+      download the browser starts and cancel it. Nothing about your downloads leaves your machine —
+      the link is handed to the app over a loopback connection on your own computer, and the
+      permission goes unused while this setting is off.
+    </p>
+    <p><strong>If the app isn't running, the browser downloads the file as usual.</strong> Taking over
+      never costs you a file.</p>
+    <div class="row">
+      <button id="firstRunEnable" class="primary">Turn interception on</button>
+      <button id="firstRunDismiss">Leave it off</button>
+    </div>
+  </section>
+
+  <section>
+    <label class="toggle">
+      <input id="enabled" type="checkbox" />
+      <span><strong>Intercept browser downloads</strong></span>
+    </label>
+    <p class="hint">Off by default. When off, nothing below applies and the browser downloads normally.</p>
+  </section>
+
+  <fieldset id="rules">
+    <div class="section-head"><span>What to take over</span></div>
+
+    <div class="field">
+      <label for="typeMode">File types</label>
+      <select id="typeMode">
+        <option value="allow">Only these types</option>
+        <option value="deny">Everything except these types</option>
+      </select>
+    </div>
+    <textarea id="fileTypes" rows="3" spellcheck="false"
+              placeholder="zip, exe, iso"></textarea>
+    <p class="hint">
+      One extension per line, or comma-separated. <strong>If a download isn't being taken over, this
+      is almost always why</strong> — add its extension here.
+      <button id="resetTypes" class="link" type="button">Restore the default list</button>
+    </p>
+
+    <div class="field">
+      <label for="minSize">Minimum size</label>
+      <select id="minSize">
+        <option value="0">No minimum — take over any size</option>
+        <option value="1048576">Skip files under 1 MB</option>
+        <option value="5242880">Skip files under 5 MB</option>
+        <option value="52428800">Skip files under 50 MB</option>
+      </select>
+    </div>
+    <p class="hint">Files whose size the browser hasn't determined yet are still taken over.</p>
+
+    <div class="section-head"><span>Sites to leave alone</span></div>
+    <textarea id="excludedSites" rows="3" spellcheck="false"
+              placeholder="intranet.example.com"></textarea>
+    <p class="hint">One site per line. Subdomains are covered too, and this applies to the page a
+      download came from as well as the file's own host.</p>
+  </fieldset>
+
+  <footer>
+    <span id="saved" class="saved" hidden>Saved</span>
+    <p class="hint">
+      Running another download manager that also intercepts downloads alongside this one is not
+      supported — whichever extension reacts first wins.
+    </p>
+  </footer>
+
+  <script src="common.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

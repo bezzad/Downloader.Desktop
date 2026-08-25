@@ -17,11 +17,14 @@ namespace Downloader.Desktop.Services;
 /// single-file engine path. Parts download sequentially into a hidden <c>.&lt;name&gt;.parts</c> folder
 /// next to the target, then the matching <see cref="IPostProcessor"/> assembles the final file.
 ///
-/// <para>Pause/resume/cancel reuse the existing per-row <c>vm.Download</c> handle: each part's engine is
-/// published to it, so the manager's guarded Pause/Resume/Cancel act on the current part. Engine pause
-/// suspends the awaited part (the loop just waits); cancel makes the current part's task return, and the
-/// runner sees <c>Status == Stopped</c> and cleans up. Completed parts are detected by files on disk, so
-/// an app restart resumes from the first incomplete part with no extra bookkeeping.</para>
+/// <para>Pause/resume/cancel act through the row's <see cref="PlanController"/>, which holds EVERY part
+/// engine currently in flight — a segment plan runs <see cref="DownloadManager.SegmentParallelism"/> at a
+/// time, so pausing only <c>vm.Download</c> (the most recently started part) left the others transferring
+/// while the row read "Paused" and its progress bar sat frozen (issue #7 follow-up). Engine pause suspends
+/// the awaited part (the loop just waits); the controller's paused gate additionally stops the runner from
+/// starting the NEXT part, which is what actually silences the network. Cancel makes the parts' tasks
+/// return, and the runner sees <c>Status == Stopped</c> and cleans up. Completed parts are detected by
+/// files on disk, so an app restart resumes from the first incomplete part with no extra bookkeeping.</para>
 /// </summary>
 public partial class DownloadManager
 {
@@ -53,6 +56,8 @@ public partial class DownloadManager
 
         // Live per-segment board for the details dialog (waiting / downloading / done rows).
         var runState = new PlanRunState(plan.Parts.Count);
+        // Pause/Resume/Cancel for this row act on every in-flight part through here, not on vm.Download.
+        var controller = new PlanController();
         OnUi(() =>
         {
             // Keep the row in sync with the ACTUAL output name (a playlist-derived "video.m3u8" gets
@@ -60,6 +65,7 @@ public partial class DownloadManager
             if (!string.Equals(item.FileName, finalName, StringComparison.Ordinal))
                 vm.FileName = finalName;
             vm.PlanRun = runState;
+            vm.PlanControl = controller;
         });
 
         try
@@ -70,11 +76,15 @@ public partial class DownloadManager
                 onStage: stage => OnUi(() => vm.PlanStage = stage),
                 onProgress: p => { if (vm.Status == DownloadStatus.Running) vm.StageProgress(p.Percent, p.Speed, p.Downloaded, p.Total); },
                 isCancelled: () => vm.Status == DownloadStatus.Stopped,
-                ct, runState, item.Request).ConfigureAwait(false);
+                ct, runState, item.Request,
+                // Paused is the row's state, not the controller's, so a pause that arrives while the row is
+                // between parts is still honored. isCancelled semantics are untouched.
+                isPaused: () => vm.Status == DownloadStatus.Paused,
+                controller).ConfigureAwait(false);
 
             if (finalPath == null)
             {
-                OnUi(() => vm.PlanRun = null);
+                OnUi(() => { vm.PlanRun = null; vm.PlanControl = null; });
                 return; // user cancelled (parts folder already removed) — status stays Stopped
             }
 
@@ -83,6 +93,7 @@ public partial class DownloadManager
             {
                 vm.PlanStage = null;
                 vm.PlanRun = null;
+                vm.PlanControl = null;
                 item.PlanJson = null;
                 if (size > 0) { vm.Size = size; vm.Downloaded = size; }
                 vm.Progress = 100;
@@ -100,6 +111,7 @@ public partial class DownloadManager
             {
                 vm.PlanStage = null;
                 vm.PlanRun = null;
+                vm.PlanControl = null;
                 vm.ErrorMessage = Describe(ex);
                 vm.Status = DownloadStatus.Failed;
                 AppLog.Error($"Plan failed: {finalName}", ex);
@@ -124,11 +136,16 @@ public partial class DownloadManager
     /// <summary>How many segment parts may download concurrently (each single-chunk).</summary>
     internal const int SegmentParallelism = 4;
 
+    /// <summary>How often a paused plan re-checks whether it may continue. A poll rather than a signal: the
+    /// wait is idle either way and this stays trivially correct against pause/resume/cancel racing it.</summary>
+    internal const int PausePollMs = 200;
+
     internal async Task<string> ExecutePlanAsync(
         PersistedPlan plan, string folder, string finalName, IPostProcessor processor,
         Action<DownloadService> onPartService, Action<string> onStage,
         Action<PlanProgress> onProgress, Func<bool> isCancelled, CancellationToken ct,
-        PlanRunState runState = null, RequestContext context = null)
+        PlanRunState runState = null, RequestContext context = null,
+        Func<bool> isPaused = null, PlanController controller = null)
     {
         folder ??= ".";
         finalName = SanitizeFileName(finalName);
@@ -169,7 +186,19 @@ public partial class DownloadManager
             }
         }
 
-        var active = new System.Collections.Concurrent.ConcurrentBag<DownloadService>();
+        controller ??= new PlanController();
+        isPaused ??= () => controller.IsPaused;
+
+        bool Cancelled() => isCancelled != null && isCancelled();
+
+        // The gate that actually silences the network while paused: in-flight parts are suspended by
+        // PlanController.Pause, and this stops the runner claiming a slot for the NEXT one. Without it the
+        // loop kept working through the playlist behind a frozen "Paused" row (issue #7 follow-up).
+        async Task WaitWhilePausedAsync()
+        {
+            while (isPaused() && !Cancelled())
+                await Task.Delay(PausePollMs, ct).ConfigureAwait(false);
+        }
 
         async Task DownloadPartAsync(int index)
         {
@@ -193,7 +222,7 @@ public partial class DownloadManager
             }
 
             var svc = new DownloadService(cfg, AppLog.Factory);
-            active.Add(svc);
+            controller.Add(svc);
             Exception partError = null;
             svc.DownloadFileCompleted += (_, e) => partError = e.Error;
             svc.DownloadProgressChanged += (_, e) =>
@@ -205,8 +234,17 @@ public partial class DownloadManager
                 lock (progressGate) ReportProgress();
             };
 
-            onPartService?.Invoke(svc); // Pause/Resume/Cancel target the most recent part's engine
-            await svc.DownloadFileTaskAsync(new[] { part.Url }, partPath, ct).ConfigureAwait(false);
+            // The row's live handle, for what only needs "the current part" (details dialog, status).
+            // Pause/Resume/Cancel go through the controller instead — see the class remarks.
+            onPartService?.Invoke(svc);
+            try
+            {
+                await svc.DownloadFileTaskAsync(new[] { part.Url }, partPath, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                controller.Remove(svc); // stop pausing an engine that has already finished
+            }
 
             partSpeed[index] = 0;
             if (isCancelled != null && isCancelled())
@@ -256,7 +294,8 @@ public partial class DownloadManager
             StagePart();
             foreach (var index in pending)
             {
-                if (isCancelled != null && isCancelled())
+                await WaitWhilePausedAsync().ConfigureAwait(false);
+                if (Cancelled())
                     break;
                 await slots.WaitAsync(ct).ConfigureAwait(false);
                 running.Add(Task.Run(async () =>
@@ -278,10 +317,9 @@ public partial class DownloadManager
             {
                 // fall through to the cancel cleanup below
             }
-            if (isCancelled != null && isCancelled())
+            if (Cancelled())
             {
-                foreach (var svc in active)
-                    try { _ = svc.CancelTaskAsync(); } catch { /* best-effort */ }
+                controller.CancelAll();
                 TryDeleteDir(partsDir);
                 return null;
             }
@@ -290,9 +328,15 @@ public partial class DownloadManager
         {
             foreach (var index in pending)
             {
+                await WaitWhilePausedAsync().ConfigureAwait(false);
+                if (Cancelled())
+                {
+                    TryDeleteDir(partsDir);
+                    return null;
+                }
                 StagePart();
                 await DownloadPartAsync(index).ConfigureAwait(false);
-                if (isCancelled != null && isCancelled())
+                if (Cancelled())
                 {
                     TryDeleteDir(partsDir);
                     return null;
@@ -460,5 +504,88 @@ public partial class DownloadManager
             return "download";
         var cleaned = new string(name.Select(c => InvalidNameChars.Contains(c) ? '_' : c).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(cleaned) ? "download" : cleaned;
+    }
+}
+
+/// <summary>
+/// The live control surface of a running multi-part plan: every part engine currently in flight, plus a
+/// paused gate the runner checks before it starts another part.
+///
+/// <para>This exists because a plan's parts are not one download. A segment plan runs several engines at
+/// once, and the row's <c>vm.Download</c> only ever points at the most recently started one — so pausing
+/// through it stopped one segment while the rest kept transferring, and the runner, whose only stop signal
+/// was <c>Stopped</c>, worked on through the remaining playlist. Meanwhile the row displayed "Paused" with
+/// a frozen bar, because staged progress is dropped for a non-Running row. Pause therefore has to reach the
+/// whole set AND stop new parts being claimed; either half alone leaves bytes flowing.</para>
+///
+/// <para>Thread-safe: parts start and finish on runner tasks while the user pauses from the UI thread.</para>
+/// </summary>
+public sealed class PlanController
+{
+    private readonly object _gate = new();
+    private readonly List<DownloadService> _active = new();
+    private volatile bool _paused;
+
+    /// <summary>True while the user has paused this plan: no further part may be started.</summary>
+    public bool IsPaused => _paused;
+
+    /// <summary>Registers a part engine as in-flight. If the plan was paused between building this engine
+    /// and starting it, it is paused immediately so the race can't leak a running segment.</summary>
+    public void Add(DownloadService service)
+    {
+        if (service == null)
+            return;
+        lock (_gate)
+            _active.Add(service);
+        if (_paused)
+            TryPause(service);
+    }
+
+    /// <summary>Removes a part engine that has finished (or failed) from the in-flight set.</summary>
+    public void Remove(DownloadService service)
+    {
+        if (service == null)
+            return;
+        lock (_gate)
+            _active.Remove(service);
+    }
+
+    /// <summary>Snapshot of the engines currently in flight.</summary>
+    public IReadOnlyList<DownloadService> Active
+    {
+        get { lock (_gate) return _active.ToArray(); }
+    }
+
+    /// <summary>Pauses every in-flight part and closes the gate on starting new ones.</summary>
+    public void Pause()
+    {
+        _paused = true;
+        foreach (var service in Active)
+            TryPause(service);
+    }
+
+    /// <summary>Resumes every paused part and re-opens the gate.</summary>
+    public void Resume()
+    {
+        _paused = false;
+        foreach (var service in Active)
+            try { service.Resume(); } catch { /* engine already finished */ }
+    }
+
+    /// <summary>Cancels every in-flight part. Un-pauses first: a suspended engine never completes its task,
+    /// so cancelling a paused plan without this would leave the runner awaiting it forever.</summary>
+    public void CancelAll()
+    {
+        _paused = false;
+        foreach (var service in Active)
+        {
+            try { service.Resume(); } catch { /* not paused */ }
+            try { _ = service.CancelTaskAsync(); } catch { /* already finished */ }
+        }
+    }
+
+    private static void TryPause(DownloadService service)
+    {
+        try { service.Pause(); } catch { /* engine already finished */ }
     }
 }

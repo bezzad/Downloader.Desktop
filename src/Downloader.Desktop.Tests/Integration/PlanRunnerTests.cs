@@ -140,6 +140,149 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
+    // ---------------- Pause (issue #7 follow-up) ----------------
+
+    /// <summary>A segment plan big enough to run several parts in parallel and last long enough to be
+    /// paused mid-run. Segment kind + more than two parts is what selects the parallel path.</summary>
+    private static PersistedPlan SegmentPlan(string baseUrl, IEnumerable<string> names) => new()
+    {
+        SuggestedFileName = "out.bin",
+        PostProcessKind = PostProcessKind.None,
+        Parts = names.Select(n => new PersistedPart { Url = baseUrl + n, Kind = PartKind.Segment }).ToList()
+    };
+
+    private static Dictionary<string, byte[]> Segments(int count) =>
+        Enumerable.Range(0, count).ToDictionary(i => $"s{i:D2}.ts", i => Bytes($"S{i:D2}", 4000));
+
+    /// <summary>Spins until <paramref name="predicate"/> holds or the budget runs out (no hard sleep on a
+    /// guessed duration — the parts are real downloads and their timing varies with machine load).</summary>
+    private static async Task<bool> WaitUntil(Func<bool> predicate, int millis = 10_000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(millis);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (predicate())
+                return true;
+            await Task.Delay(25);
+        }
+        return predicate();
+    }
+
+    [Fact(Timeout = TestTimeouts.SlowMs)]
+    public async Task Pausing_a_plan_stops_starting_new_parts_and_resuming_finishes_without_redownloading()
+    {
+        var files = Segments(16);
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(120) };
+        var dir = TempDir();
+        try
+        {
+            var mgr = new DownloadManager();
+            var controller = new PlanController();
+            var paused = false;
+
+            var run = mgr.ExecutePlanAsync(
+                SegmentPlan(server.Url, files.Keys), dir, "video.mp4", processor: null,
+                onPartService: _ => { }, onStage: _ => { }, onProgress: _ => { },
+                isCancelled: () => false, CancellationToken.None,
+                runState: null, context: null,
+                isPaused: () => paused, controller: controller);
+
+            // Pause as soon as the run is genuinely under way, while most parts are still unfetched.
+            Assert.True(await WaitUntil(() => server.Requested.Count >= 1), "the run never started");
+            paused = true;
+            controller.Pause();
+
+            // Let anything already in flight settle, then take two samples a beat apart: a paused plan must
+            // not reach for a segment it hasn't started yet. Distinct paths, because a part that was
+            // suspended mid-body may legitimately re-request its own range on resume.
+            await Task.Delay(1200, TestContext.Current.CancellationToken);
+            var afterPause = server.Requested.Distinct().ToHashSet();
+            await Task.Delay(1200, TestContext.Current.CancellationToken);
+            var later = server.Requested.Distinct().ToHashSet();
+
+            Assert.Equal(afterPause, later);            // network went quiet and stayed quiet
+            Assert.True(afterPause.Count < files.Count, // and it stopped short of the whole playlist
+                $"the paused run kept going: {afterPause.Count}/{files.Count} segments were fetched");
+            Assert.False(run.IsCompleted, "the runner finished the plan while it was paused");
+
+            // Resume: the run completes, and every segment was fetched.
+            paused = false;
+            controller.Resume();
+            var finalPath = await run;
+
+            Assert.Equal(Path.Combine(dir, "video.mp4"), finalPath);
+            Assert.True(File.Exists(finalPath));
+            var expected = files.OrderBy(f => f.Key, StringComparer.Ordinal).SelectMany(f => f.Value).ToArray();
+            var got = await File.ReadAllBytesAsync(finalPath, TestContext.Current.CancellationToken);
+            Assert.True(expected.SequenceEqual(got), "the assembled file does not match the segments in order");
+
+            // Parts that had already completed before the pause were not fetched a second time.
+            foreach (var name in afterPause)
+                Assert.True(server.Requested.Count(r => r == name) <= 2,
+                    $"segment {name} was re-downloaded after resume");
+        }
+        finally { TryDelete(dir); }
+    }
+
+    [Fact(Timeout = TestTimeouts.SlowMs)]
+    public async Task Cancelling_a_paused_plan_tears_down_the_parts_folder()
+    {
+        // A suspended engine never completes its task, so cancelling a PAUSED plan used to leave the runner
+        // waiting on it. The controller un-pauses before cancelling, which is what unblocks the teardown.
+        var files = Segments(16);
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(120) };
+        var dir = TempDir();
+        try
+        {
+            var mgr = new DownloadManager();
+            var controller = new PlanController();
+            var paused = false;
+            var cancelled = false;
+
+            var run = mgr.ExecutePlanAsync(
+                SegmentPlan(server.Url, files.Keys), dir, "video.mp4", processor: null,
+                onPartService: _ => { }, onStage: _ => { }, onProgress: _ => { },
+                isCancelled: () => cancelled, CancellationToken.None,
+                runState: null, context: null,
+                isPaused: () => paused, controller: controller);
+
+            Assert.True(await WaitUntil(() => server.Requested.Count >= 1), "the run never started");
+            paused = true;
+            controller.Pause();
+            await Task.Delay(600, TestContext.Current.CancellationToken);
+
+            cancelled = true;
+            controller.CancelAll();
+
+            Assert.Null(await run);
+            Assert.False(Directory.Exists(Path.Combine(dir, ".video.mp4.parts")));
+            Assert.False(File.Exists(Path.Combine(dir, "video.mp4")));
+        }
+        finally { TryDelete(dir); }
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_paused_controller_pauses_a_part_engine_that_joins_late()
+    {
+        // The race the reporter's symptom hides: a part built just before the pause, started just after.
+        // Without this it would transfer while the row read "Paused" — one leaked segment is enough.
+        var controller = new PlanController();
+        controller.Pause();
+        Assert.True(controller.IsPaused);
+
+        var svc = new global::Downloader.DownloadService(new global::Downloader.DownloadConfiguration());
+        controller.Add(svc);
+
+        Assert.Contains(svc, controller.Active);
+        Assert.Equal(global::Downloader.DownloadStatus.Paused, svc.Status);
+
+        controller.Resume();
+        Assert.False(controller.IsPaused);
+
+        controller.Remove(svc);
+        Assert.DoesNotContain(svc, controller.Active);
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Missing_post_processor_throws_and_keeps_parts_for_retry()
     {

@@ -12,7 +12,9 @@ const {
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
   candidatePorts, discoverAppPort, APP_PORT_RANGE,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
-  isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType
+  isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
+  shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
+  INTERCEPT_DEFAULTS, handOffToApp
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -315,4 +317,190 @@ test("groupKey treats every .mpd URL as its own group", () => {
   assert.equal(groupKey(a), a);
   assert.equal(groupKey(b), b);
   assert.notEqual(groupKey(a), groupKey(b));
+});
+
+// ---------------- Download interception (issue #9) ----------------
+
+const ON = { ...INTERCEPT_DEFAULTS, enabled: true };
+
+test("interception is off by default, so updating the extension changes nothing", () => {
+  assert.equal(INTERCEPT_DEFAULTS.enabled, false);
+  const d = shouldIntercept({ url: "https://example.com/a.zip", size: 9e6 }, INTERCEPT_DEFAULTS);
+  assert.equal(d.intercept, false);
+  assert.equal(d.reason, "disabled");
+});
+
+test("an allow-listed type on an ordinary link is intercepted", () => {
+  for (const name of ["a.zip", "setup.exe", "disk.iso", "pkg.tar.gz"]) {
+    const d = shouldIntercept({ url: `https://example.com/${name}`, size: 9e6 }, ON);
+    assert.equal(d.intercept, true, `${name} should be intercepted`);
+    assert.equal(d.reason, "ok");
+  }
+});
+
+test("a type outside the allow list is left to the browser", () => {
+  const d = shouldIntercept({ url: "https://example.com/page.pdf", size: 9e6 }, ON);
+  assert.equal(d.intercept, false);
+  assert.equal(d.reason, "type-not-allowed");
+});
+
+test("the browser's suggested filename beats the URL when deciding the type", () => {
+  // A signed CDN link often has no extension in its path; Content-Disposition carries the real name.
+  const d = shouldIntercept(
+    { url: "https://cdn.example.com/download?id=42", filename: "installer.msi", size: 9e6 }, ON);
+  assert.equal(d.intercept, true);
+});
+
+test("a deny list intercepts everything except the listed types", () => {
+  const deny = { ...ON, fileTypes: { mode: "deny", list: ["pdf"] } };
+  assert.equal(shouldIntercept({ url: "https://e.com/a.pdf" }, deny).reason, "type-denied");
+  assert.equal(shouldIntercept({ url: "https://e.com/a.bin" }, deny).intercept, true);
+});
+
+test("size below the minimum is left to the browser, above it is taken", () => {
+  const min = { ...ON, minSizeBytes: 1048576 };
+  assert.equal(shouldIntercept({ url: "https://e.com/a.zip", size: 5000 }, min).reason, "too-small");
+  assert.equal(shouldIntercept({ url: "https://e.com/a.zip", size: 5e6 }, min).intercept, true);
+});
+
+test("an unknown size does NOT block interception", () => {
+  // downloads.onCreated routinely reports -1/0 before the headers land. Reading that as "too small"
+  // would make interception fail at random — the exact class of bug issue #9 is about.
+  const min = { ...ON, minSizeBytes: 1048576 };
+  for (const size of [undefined, null, 0, -1, NaN]) {
+    assert.equal(shouldIntercept({ url: "https://e.com/a.zip", size }, min).intercept, true,
+      `size ${size} should not block`);
+  }
+});
+
+test("an excluded site is left alone, including subdomains and the referring page", () => {
+  const ex = { ...ON, excludedSites: ["example.com"] };
+  assert.equal(shouldIntercept({ url: "https://example.com/a.zip" }, ex).reason, "excluded-site");
+  assert.equal(shouldIntercept({ url: "https://files.example.com/a.zip" }, ex).reason, "excluded-site");
+  assert.equal(shouldIntercept({ url: "https://www.example.com/a.zip" }, ex).reason, "excluded-site");
+  // The exclusion is about the page you're on, so a download it started is excluded too.
+  assert.equal(
+    shouldIntercept({ url: "https://cdn.other.com/a.zip", referrer: "https://example.com/p" }, ex).reason,
+    "excluded-site");
+  assert.equal(shouldIntercept({ url: "https://notexample.com/a.zip" }, ex).intercept, true);
+});
+
+test("non-http downloads are never intercepted", () => {
+  // There is no URL the app could re-fetch, so taking one over would destroy the download outright.
+  for (const url of ["blob:https://e.com/1234", "data:application/zip;base64,AAAA", "file:///tmp/a.zip", ""]) {
+    assert.equal(shouldIntercept({ url, filename: "a.zip" }, ON).reason, "not-http");
+  }
+});
+
+test("hostMatchesSite covers the host and its subdomains only", () => {
+  assert.ok(hostMatchesSite("example.com", "example.com"));
+  assert.ok(hostMatchesSite("a.b.example.com", "example.com"));
+  assert.ok(hostMatchesSite("example.com", ".example.com"));
+  assert.ok(!hostMatchesSite("badexample.com", "example.com"));
+  assert.ok(!hostMatchesSite("example.com", ""));
+});
+
+test("stored settings are normalized, so a partial or broken object can't wedge interception", () => {
+  const s = normalizeInterceptSettings(
+    { enabled: true, fileTypes: { mode: "nonsense", list: [".ZIP", " exe "] }, minSizeBytes: -5 });
+  assert.equal(s.fileTypes.mode, "allow");            // unknown mode falls back
+  assert.deepEqual(s.fileTypes.list, ["zip", "exe"]); // leading dots and case normalized
+  assert.equal(s.minSizeBytes, 0);                    // negative treated as no minimum
+  assert.deepEqual(s.excludedSites, []);
+  assert.equal(normalizeInterceptSettings(null).enabled, false);
+  assert.equal(normalizeInterceptSettings("garbage").enabled, false);
+});
+
+// ---------------- Hand-off with the page's context (the issue #7 half) ----------------
+
+test("handOffToApp POSTs the referer and headers alongside the cookies", async () => {
+  global.chrome.cookies.getAll = async () => [
+    { name: "SID", value: "v", domain: ".example.com", path: "/", secure: true, session: true }
+  ];
+  let seen = null;
+  global.fetch = async (endpoint, opts) => {
+    if (String(endpoint).endsWith("/ping")) return { ok: true, status: 200 };
+    seen = { endpoint, opts };
+    return { ok: true, status: 201, json: async () => ({ id: "abc", cookies: 1, headers: 1, referer: true }) };
+  };
+
+  const res = await handOffToApp("https://example.com/a.zip", "a.zip", {
+    referer: "https://example.com/page",
+    headers: { Referer: "https://example.com/page" }
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.reason, "ok");
+  assert.equal(seen.opts.method, "POST"); // never a GET — a session cookie has no business in a URL
+  const body = JSON.parse(seen.opts.body);
+  assert.equal(body.referer, "https://example.com/page");
+  assert.equal(body.headers.Referer, "https://example.com/page");
+  assert.equal(body.cookies[0].name, "SID");
+  assert.equal(body.filename, "a.zip");
+});
+
+test("handOffToApp reports a hand-off whose context the app dropped", async () => {
+  // A 201 whose accepted-cookie count is 0 means the session did not arrive: the download will run
+  // but a gated file will fail. Reporting it is what makes that explainable instead of mysterious.
+  global.chrome.cookies.getAll = async () => [
+    { name: "SID", value: "v", domain: ".example.com", path: "/", session: true }
+  ];
+  global.fetch = async (endpoint) => String(endpoint).endsWith("/ping")
+    ? { ok: true, status: 200 }
+    : { ok: true, status: 201, json: async () => ({ id: "abc", cookies: 0, headers: 0, referer: false }) };
+
+  const res = await handOffToApp("https://example.com/a.zip", null, { referer: "https://example.com/p" });
+  assert.equal(res.ok, true);                 // the add DID succeed — the browser copy may be cancelled
+  assert.equal(res.reason, "context-dropped");
+  assert.equal(res.contextSent.cookies, 1);
+});
+
+test("an older app that reports no counts is not treated as having dropped the context", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  global.fetch = async (endpoint) => String(endpoint).endsWith("/ping")
+    ? { ok: true, status: 200 }
+    : { ok: true, status: 201, json: async () => ({ id: "abc" }) };
+
+  const res = await handOffToApp("https://example.com/a.zip", null, { referer: "https://example.com/p" });
+  assert.equal(res.reason, "ok");
+  assert.equal(res.accepted.cookies, null); // unknown, not zero
+});
+
+test("handOffToApp fails cleanly when the app is unreachable, so the browser keeps the download", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  global.fetch = async () => { throw new Error("ECONNREFUSED"); };
+  const res = await handOffToApp("https://example.com/a.zip", null, {});
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "app-unreachable");
+});
+
+test("a cookie-capture failure never stops the hand-off", async () => {
+  global.chrome.cookies.getAll = async () => { throw new Error("no permission"); };
+  let posted = false;
+  global.fetch = async (endpoint) => {
+    if (String(endpoint).endsWith("/ping")) return { ok: true, status: 200 };
+    posted = true;
+    return { ok: true, status: 201, json: async () => ({ id: "x", cookies: 0, headers: 0, referer: true }) };
+  };
+  const res = await handOffToApp("https://example.com/a.zip", null, { referer: "https://example.com/p" });
+  assert.ok(posted, "the link must still be sent");
+  assert.equal(res.ok, true);
+  assert.equal(res.contextSent.cookies, 0);
+});
+
+test("handOffToApp refuses a non-http URL outright", async () => {
+  const res = await handOffToApp("blob:https://example.com/1234", null, {});
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "not-http");
+});
+
+test("sendToAppSilently now carries a referer even when there are no cookies", async () => {
+  // The right-click capture path gains the same context; previously it sent cookies only.
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [],
+    { referer: "https://e.com/page" });
+  assert.equal(result, "ok");
+  assert.equal(seen.opts.method, "POST");
+  assert.equal(JSON.parse(seen.opts.body).referer, "https://e.com/page");
 });

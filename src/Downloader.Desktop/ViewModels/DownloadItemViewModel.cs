@@ -429,6 +429,12 @@ public class DownloadItemViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _planRun, value);
     }
 
+    /// <summary>Live control surface for a running multi-part plan (null otherwise): the set of part engines
+    /// currently in flight plus the paused gate the runner checks before starting another part. Pause/Resume/
+    /// Cancel must act through this, NOT through <see cref="Download"/> — that is only the most recently
+    /// started part, so pausing it left the other parallel segments transferring (issue #7 follow-up).</summary>
+    public PlanController PlanControl { get; set; }
+
     /// <summary>Set by the multi-part plan runner to show "Part i/N" while downloading segments and
     /// "Assembling…" during post-processing. Null for a normal single-file download.</summary>
     public string PlanStage

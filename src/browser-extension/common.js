@@ -194,24 +194,44 @@ async function captureCookies(url) {
 
 // the Add dialog instead, which still captures the link), "fallback" (endpoint unknown, retry
 // the legacy dialog endpoint) or "fail".
-async function sendToAppSilently(base, url, filename, cookies) {
+// POST an add to the app and read back what it accepted. Since v2.5.0 the app answers a successful
+// add with `{id, name, status, cookies, headers, referer}` — counts of the request context it
+// actually took (never values). Older apps answer without those fields, which reads as "unknown"
+// rather than "dropped".
+async function postAdd(base, body) {
+  try {
+    const res = await fetch(`${base}/api/add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    let json = null;
+    try { json = await res.json?.(); } catch { /* an older app may answer with no/!JSON body */ }
+    return { ok: !!res.ok, status: res.status, json };
+  } catch {
+    return { ok: false, status: 0, json: null };
+  }
+}
+
+async function sendToAppSilently(base, url, filename, cookies, context) {
   // When we captured live cookies, POST JSON so the cookie list + metadata travel intact (a GET query
   // can't carry them). Otherwise keep the original URL-only GET path unchanged.
-  if (cookies && cookies.length) {
-    const body = { url, cookies };
+  const referer = context?.referer;
+  const headers = context?.headers;
+  const hasContext = (cookies && cookies.length) || referer || (headers && Object.keys(headers).length);
+  if (hasContext) {
+    const body = { url };
+    if (cookies && cookies.length) body.cookies = cookies;
     if (filename) body.filename = filename;
-    try {
-      const res = await fetch(`${base}/api/add`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) return "ok";
-      if (res.status === 404) return "fallback";
-      return "fail";
-    } catch {
-      return "fail";
-    }
+    // The browser WOULD have sent a referer. If we take a download over and don't, we turn a working
+    // download into a broken one — so for an intercepted download this is not an extra, it's a
+    // precondition. The app applies it to that download only (issue #7).
+    if (referer) body.referer = referer;
+    if (headers && Object.keys(headers).length) body.headers = headers;
+    const res = await postAdd(base, body);
+    if (res.ok) return "ok";
+    if (res.status === 404) return "fallback";
+    return "fail";
   }
   let endpoint = `${base}/api/add?url=${encodeURIComponent(url)}`;
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
@@ -228,7 +248,7 @@ async function sendToAppSilently(base, url, filename, cookies) {
 // Send a single URL to the desktop app, honoring the user's silent-vs-dialog choice.
 // Discovers the app's effective port first (the app may have fallen back within the declared
 // range if 15151 was taken by another process). Returns true on success.
-async function sendToApp(url, filename) {
+async function sendToApp(url, filename, context) {
   if (!isHttp(url)) return false;
   const port = await discoverAppPort();
   if (port == null) return false;
@@ -236,7 +256,7 @@ async function sendToApp(url, filename) {
   if (await getAddMode() === "silent") {
     // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
     const cookies = await captureCookies(url);
-    const silent = await sendToAppSilently(base, url, filename, cookies);
+    const silent = await sendToAppSilently(base, url, filename, cookies, context);
     if (silent === "ok") return true;
     if (silent === "fail") return false;
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
@@ -247,6 +267,64 @@ async function sendToApp(url, filename) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Hand an INTERCEPTED download to the app. Stricter than `sendToApp`, because the caller is about to
+ * cancel the browser's own download on the strength of the answer:
+ *  - always the POST form (a session cookie has no business in a URL),
+ *  - reports what the app said it accepted, so a hand-off that silently lost its context is not
+ *    counted as a win,
+ *  - never throws; an unreachable app is a plain `{ ok: false }`, which the caller reads as
+ *    "leave the browser download alone".
+ *
+ * Returns `{ ok, reason, accepted, contextSent, id }`.
+ */
+async function handOffToApp(url, filename, context) {
+  if (!isHttp(url)) return { ok: false, reason: "not-http", accepted: null, contextSent: null };
+
+  const port = await discoverAppPort();
+  if (port == null) return { ok: false, reason: "app-unreachable", accepted: null, contextSent: null };
+
+  // Best-effort throughout: a context we couldn't gather is worth less than the download itself.
+  const cookies = await captureCookies(url);
+  const referer = context?.referer || "";
+  const headers = context?.headers && Object.keys(context.headers).length ? context.headers : null;
+  const contextSent = { cookies: cookies.length, headers: headers ? Object.keys(headers).length : 0, referer: !!referer };
+
+  const body = { url };
+  if (filename) body.filename = filename;
+  if (cookies.length) body.cookies = cookies;
+  if (referer) body.referer = referer;
+  if (headers) body.headers = headers;
+
+  const res = await postAdd(appBase(port), body);
+  if (!res.ok) {
+    return {
+      ok: false,
+      reason: res.status ? `app-rejected-${res.status}` : "app-unreachable",
+      accepted: null,
+      contextSent
+    };
+  }
+
+  // What the app says it took. Absent fields = an older app that doesn't report them; treat that as
+  // unknown, not as a loss, or every pre-2.5.0 app would look like a failure.
+  const j = res.json || {};
+  const accepted = {
+    cookies: Number.isFinite(j.cookies) ? j.cookies : null,
+    headers: Number.isFinite(j.headers) ? j.headers : null,
+    referer: typeof j.referer === "boolean" ? j.referer : null
+  };
+  const lost =
+    (accepted.cookies === 0 && contextSent.cookies > 0) ||
+    (accepted.headers === 0 && contextSent.headers > 0) ||
+    (accepted.referer === false && contextSent.referer);
+
+  // The add succeeded either way — the file is being fetched, so the caller may cancel the browser's
+  // copy. `context-dropped` is reported so a gated download that will now fail is explainable
+  // instead of mysterious.
+  return { ok: true, reason: lost ? "context-dropped" : "ok", accepted, contextSent, id: j.id || null };
 }
 
 // Is the desktop app reachable on any port in the declared range?
@@ -449,6 +527,144 @@ function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
   return mainGroups;
 }
 
+// ---------------- Download interception (issue #9) ----------------
+
+// Types worth handing to a download manager. An ALLOW list, so ordinary browsing is untouched by
+// default: a PDF opening inline, an image, a page asset — none of these are in it, so none of them
+// are taken over. Users who want more add to it on the options page, which is why that control is
+// the most prominent one there.
+const INTERCEPT_FILE_TYPES = [
+  "7z", "apk", "appimage", "bin", "bz2", "deb", "dmg", "exe", "gz", "img", "iso", "jar",
+  "msi", "pkg", "rar", "rpm", "run", "tar", "tgz", "txz", "xz", "zip", "zst"
+];
+
+// One versioned object rather than scattered keys, so adding a rule later doesn't need a migration
+// per key. `enabled: false` is deliberate: updating the extension must never change how someone's
+// browser behaves without them asking for it.
+const INTERCEPT_DEFAULTS = {
+  version: 1,
+  enabled: false,
+  // 0 = no size floor. `shouldIntercept` still implements the rule, so a user can raise it.
+  minSizeBytes: 0,
+  fileTypes: { mode: "allow", list: INTERCEPT_FILE_TYPES.slice() },
+  excludedSites: []
+};
+
+// Extension of a bare FILE NAME. `extOf` parses a URL, so it returns "" for "installer.msi" — and
+// the browser's suggested filename (from Content-Disposition) is exactly a bare name, and is often
+// the only place the real type appears when the URL is a signed, extensionless CDN link.
+function extOfName(name) {
+  const n = String(name || "").trim().toLowerCase();
+  const base = n.slice(Math.max(n.lastIndexOf("/"), n.lastIndexOf("\\")) + 1);
+  const dot = base.lastIndexOf(".");
+  return dot > 0 ? base.slice(dot + 1) : "";
+}
+
+// Does `host` match a site-list entry? An entry covers the host itself and its subdomains, so
+// "example.com" excludes "files.example.com" too — which is what a user typing a site expects.
+function hostMatchesSite(host, entry) {
+  if (!host || !entry) return false;
+  const h = String(host).toLowerCase().replace(/^www\./, "");
+  const e = String(entry).toLowerCase().trim().replace(/^www\./, "").replace(/^\.+/, "");
+  if (!e) return false;
+  return h === e || h.endsWith("." + e);
+}
+
+// Merge stored settings over the defaults so a partial or older stored object still yields a
+// complete, usable one (and an unknown `mode` can't wedge interception).
+function normalizeInterceptSettings(stored) {
+  const s = stored && typeof stored === "object" ? stored : {};
+  const types = s.fileTypes && typeof s.fileTypes === "object" ? s.fileTypes : {};
+  const size = Number(s.minSizeBytes);
+  return {
+    version: INTERCEPT_DEFAULTS.version,
+    enabled: s.enabled === true,
+    minSizeBytes: Number.isFinite(size) && size > 0 ? Math.floor(size) : 0,
+    fileTypes: {
+      mode: types.mode === "deny" ? "deny" : "allow",
+      list: Array.isArray(types.list)
+        ? types.list.map(t => String(t).toLowerCase().trim().replace(/^\./, "")).filter(Boolean)
+        : INTERCEPT_DEFAULTS.fileTypes.list.slice()
+    },
+    excludedSites: Array.isArray(s.excludedSites)
+      ? s.excludedSites.map(x => String(x).toLowerCase().trim()).filter(Boolean)
+      : []
+  };
+}
+
+/**
+ * Should the app take this browser download over? Pure — no browser APIs, no network — so the whole
+ * rule set is unit-testable and the listener in background.js stays a thin shell around it.
+ *
+ * Returns `{ intercept, reason }`. The reason is not decoration: when a user reports "it didn't
+ * intercept my file", the reason is the difference between a diagnosable report and a guess.
+ */
+function shouldIntercept(item, settings) {
+  const s = normalizeInterceptSettings(settings);
+  const url = item?.url || "";
+
+  if (!s.enabled) return { intercept: false, reason: "disabled" };
+
+  // blob:, data:, filesystem: and extension-internal downloads have no URL the app could re-fetch.
+  // Taking one over would destroy the download outright, so they are never candidates.
+  if (!isHttp(url)) return { intercept: false, reason: "not-http" };
+
+  let host = "";
+  try { host = new URL(url).hostname; } catch { /* unparseable — the site rule just can't match */ }
+  if (s.excludedSites.some(entry => hostMatchesSite(host, entry)))
+    return { intercept: false, reason: "excluded-site" };
+  // A site exclusion is about the page you're on, so it applies to the referring page too.
+  let refHost = "";
+  try { refHost = item?.referrer ? new URL(item.referrer).hostname : ""; } catch { /* ignore */ }
+  if (refHost && s.excludedSites.some(entry => hostMatchesSite(refHost, entry)))
+    return { intercept: false, reason: "excluded-site" };
+
+  // The browser's suggested filename is the better source (it reflects Content-Disposition); fall
+  // back to the URL path for a link the browser hasn't named yet.
+  const ext = extOfName(item?.filename) || extOf(url);
+  const listed = !!ext && s.fileTypes.list.includes(ext);
+  if (s.fileTypes.mode === "allow" && !listed)
+    return { intercept: false, reason: ext ? "type-not-allowed" : "type-unknown" };
+  if (s.fileTypes.mode === "deny" && listed)
+    return { intercept: false, reason: "type-denied" };
+
+  // Unknown size must NOT read as "too small": downloads.onCreated routinely reports -1/0 because
+  // the headers haven't landed yet, so treating that as below the floor would make interception
+  // fail at random — exactly the class of bug this issue is about.
+  const size = Number(item?.size);
+  if (s.minSizeBytes > 0 && Number.isFinite(size) && size > 0 && size < s.minSizeBytes)
+    return { intercept: false, reason: "too-small" };
+
+  return { intercept: true, reason: "ok" };
+}
+
+// Read the interception settings. `sync` so a user's rules follow their profile, falling back to
+// `local` (Firefox private windows and some enterprise policies leave sync unavailable).
+async function getInterceptSettings() {
+  const read = async (area) => {
+    if (!api?.storage?.[area]) return null;
+    const r = await api.storage[area].get({ intercept: null });
+    return r?.intercept ?? null;
+  };
+  try {
+    const synced = await read("sync");
+    if (synced) return normalizeInterceptSettings(synced);
+  } catch { /* fall through to local */ }
+  try {
+    const local = await read("local");
+    if (local) return normalizeInterceptSettings(local);
+  } catch { /* fall through to defaults */ }
+  return normalizeInterceptSettings(null);
+}
+
+// Persist the settings to `sync`, mirroring to `local` so a later sync failure still reads them back.
+async function setInterceptSettings(settings) {
+  const value = normalizeInterceptSettings(settings);
+  try { await api.storage.sync?.set({ intercept: value }); } catch { /* sync is optional */ }
+  try { await api.storage.local?.set({ intercept: value }); } catch { /* local is optional */ }
+  return value;
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
@@ -459,6 +675,10 @@ if (typeof module !== "undefined") {
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
-    captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor
+    captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
+    shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
+    INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
+    getInterceptSettings, setInterceptSettings,
+    postAdd, handOffToApp
   };
 }

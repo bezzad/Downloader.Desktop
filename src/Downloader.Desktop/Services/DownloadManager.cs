@@ -622,6 +622,21 @@ public partial class DownloadManager : IDownloadManager
         if (!string.IsNullOrWhiteSpace(context.Referer))
             headers["Referer"] = context.Referer;
 
+        // A plugin's own HttpClient never sees RequestConfiguration.CookieContainer (that's the engine's),
+        // so the only way a resolver — and through it the assembly-time key fetch — can present the
+        // download's session is as a Cookie header. Synthesize it here rather than teaching ResolveOptions
+        // about cookies: one place, no SDK change, and it is exactly the wire form. An explicit Cookie
+        // header the caller supplied wins, since it was stated deliberately.
+        if (context.Cookies is { Count: > 0 } && !headers.ContainsKey("Cookie"))
+        {
+            var pairs = context.Cookies
+                .Where(c => !string.IsNullOrWhiteSpace(c?.Name))
+                .Select(c => $"{c.Name}={c.Value}")
+                .ToList();
+            if (pairs.Count > 0)
+                headers["Cookie"] = string.Join("; ", pairs);
+        }
+
         return headers.Count > 0 ? headers : null;
     }
 
@@ -856,6 +871,9 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status != DownloadStatus.Running)
             return;
         vm.Download?.Pause();
+        // A multi-part plan has several part engines in flight; vm.Download is only the newest of them, so
+        // this is what makes Pause actually stop the transfer (and stop the runner starting the next part).
+        vm.PlanControl?.Pause();
         vm.ActiveTransfer?.Pause();
         vm.Status = DownloadStatus.Paused;
         vm.Speed = 0;
@@ -911,6 +929,9 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
             return;
         vm.Download?.CancelAsync();
+        // Cancel every in-flight part, un-pausing them first: a suspended engine never completes its task,
+        // so stopping a PAUSED plan would otherwise leave the runner waiting on it forever.
+        vm.PlanControl?.CancelAll();
         vm.TransferCancellation?.Cancel();
         vm.Status = DownloadStatus.Stopped;
         vm.Speed = 0;
@@ -1066,6 +1087,7 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status == DownloadStatus.Paused && (vm.Download != null || vm.ActiveTransfer != null))
         {
             vm.Download?.Resume();
+            vm.PlanControl?.Resume(); // every paused part, and re-open the gate on starting new ones
             vm.ActiveTransfer?.Resume();
             vm.Status = DownloadStatus.Running;
             EnsureUiPump();

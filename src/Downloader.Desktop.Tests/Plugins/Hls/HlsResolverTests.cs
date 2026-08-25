@@ -226,6 +226,50 @@ public class HlsResolverTests
         Assert.Equal("000102030405060708090A0B0C0D0E0F", recipe.Segments[0].IvHex);
     }
 
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_encrypted_plan_carries_the_request_headers_for_the_key_fetch()
+    {
+        // The key is fetched later, by the post-processor, from a client that knows nothing about this
+        // download — so the context has to ride on the recipe or that one request goes out anonymous.
+        const string media =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n" +
+            "#EXT-X-KEY:METHOD=AES-128,URI=\"k.bin\",IV=0x000102030405060708090A0B0C0D0E0F\n" +
+            "#EXTINF:6.0,\nseg0.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer().MapText("/enc/index.m3u8", media);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+        var headers = new Dictionary<string, string>
+        {
+            ["Cookie"] = "SID=abc",
+            ["Referer"] = "https://site.example/watch",
+        };
+
+        var plan = await resolver.ResolveAsync(
+            server.Url("enc/index.m3u8"), new ResolveOptions { Headers = headers }, CancellationToken.None);
+
+        var recipe = JsonSerializer.Deserialize<ConcatRecipe>(plan.PostProcess.Recipe!)!;
+        Assert.Equal("SID=abc", recipe.KeyHeaders!["Cookie"]);
+        Assert.Equal("https://site.example/watch", recipe.KeyHeaders["Referer"]);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_unencrypted_plan_carries_no_key_headers()
+    {
+        // Nothing to fetch a key for, so nothing to carry — and a recipe with no KeyHeaders is exactly what
+        // every recipe written before this change looks like.
+        const string media = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:6.0,\nseg0.ts\n#EXT-X-ENDLIST\n";
+        using var server = new LoopbackServer().MapText("/plain/index.m3u8", media);
+        using var http = new HttpClient();
+        var resolver = new HlsResolver(http);
+
+        var plan = await resolver.ResolveAsync(
+            server.Url("plain/index.m3u8"),
+            new ResolveOptions { Headers = new Dictionary<string, string> { ["Cookie"] = "SID=abc" } },
+            CancellationToken.None);
+
+        Assert.Null(JsonSerializer.Deserialize<ConcatRecipe>(plan.PostProcess.Recipe!)!.KeyHeaders);
+    }
+
     private sealed class FakeProbe(bool isHls) : IContentTypeProbe
     {
         public bool LooksLikeHls(string url) => isHls;

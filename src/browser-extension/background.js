@@ -69,6 +69,132 @@ function notify(title, message) {
   } catch { /* notifications are optional */ }
 }
 
+// ---------------- Download interception (issue #9) ----------------
+// Take a download the BROWSER started and give it to the app instead.
+//
+// The ordering here is the whole safety property, so it is worth stating plainly: decide → hand off →
+// and only cancel the browser's download once the app has accepted it. Cancel first and one failed
+// fetch means the user has lost the file with nothing to show for it. Every failure path below
+// therefore does nothing at all, which leaves the browser downloading exactly as it would have.
+//
+// Chromium fires `onDeterminingFilename` (which knows the suggested filename); Firefox has no such
+// event, so both browsers are driven from `onCreated` and the filename is taken from the item.
+// `downloads.onCreated` fires once the browser has committed to downloading rather than navigating.
+
+const interceptedIds = new Set(); // download ids we cancelled, so onChanged doesn't re-report them
+let takeoverCount = 0;
+
+function downloadsApi() {
+  // Absent when the permission was declined, or in a context without the API. Never assume it.
+  return api?.downloads?.onCreated ? api.downloads : null;
+}
+
+// The referer the browser itself would have sent. `DownloadItem.referrer` is the right answer when
+// present; when it is empty (a direct navigation, some redirect chains) the originating tab's URL is
+// the honest approximation.
+async function refererFor(item) {
+  if (item?.referrer && isHttp(item.referrer)) return item.referrer;
+  try {
+    // A DownloadItem carries no tab id in either browser, so the originating tab has to be inferred.
+    // The active tab is the honest approximation: a download the user just started came from the page
+    // they are looking at. Only used when the browser gave us no referrer at all.
+    if (!api.tabs?.query) return "";
+    const tabs = await api.tabs.query({ active: true, currentWindow: true });
+    const url = tabs?.[0]?.url;
+    return url && isHttp(url) ? url : "";
+  } catch {
+    return ""; // context is best-effort; never let this stop the hand-off
+  }
+}
+
+async function onDownloadCreated(item) {
+  try {
+    const settings = await getInterceptSettings();
+    const decision = shouldIntercept({
+      url: item?.finalUrl || item?.url,
+      filename: item?.filename,
+      mime: item?.mime,
+      size: item?.fileSize ?? item?.totalBytes,
+      referrer: item?.referrer
+    }, settings);
+    if (!decision.intercept) return; // the browser keeps it — including whenever interception is off
+
+    const url = item.finalUrl || item.url;
+    const referer = await refererFor(item);
+    const headers = referer ? { Referer: referer } : null;
+    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers });
+
+    // The app didn't take it. Say nothing and change nothing: the browser download is still running,
+    // which is the outcome the user already had.
+    if (!result.ok) return;
+
+    // Only now is cancelling safe.
+    const cancelled = await cancelBrowserDownload(item.id);
+    if (!cancelled) {
+      // We could not stop the browser's copy, so the file may now be downloading twice. Tell the
+      // user rather than let them find two copies and no explanation.
+      notify("Downloading twice", "Downloader took this over but the browser's own download could not be stopped.");
+      return;
+    }
+
+    interceptedIds.add(item.id);
+    takeoverCount++;
+    updateTakeoverBadge();
+    notify(
+      result.reason === "context-dropped" ? "Sent to Downloader (without page context)" : "Sent to Downloader",
+      result.reason === "context-dropped"
+        ? "The app didn't accept this page's sign-in details, so a restricted file may fail."
+        : (suggestedNameOf(item) || url)
+    );
+  } catch {
+    // An unexpected failure must leave the browser download exactly as it was.
+  }
+}
+
+// The browser's suggested name, without the directory part.
+function suggestedNameOf(item) {
+  const name = item?.filename || "";
+  const cut = Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\"));
+  return cut >= 0 ? name.slice(cut + 1) : name;
+}
+
+function cancelBrowserDownload(id) {
+  return new Promise(resolve => {
+    try {
+      const downloads = downloadsApi();
+      if (!downloads?.cancel) return resolve(false);
+      const maybe = downloads.cancel(id, () => resolve(!api.runtime?.lastError));
+      if (maybe && typeof maybe.then === "function") maybe.then(() => resolve(true), () => resolve(false));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+// A takeover removes the download from the browser's own list, so it needs to be visible somewhere or
+// the file just seems to vanish. The badge is the ambient half; the notification is the explicit one.
+function updateTakeoverBadge() {
+  try {
+    api.action.setBadgeBackgroundColor({ color: "#0E8FB3" });
+    api.action.setBadgeText({ text: takeoverCount > 0 ? String(takeoverCount) : "" });
+  } catch { /* badge is optional */ }
+}
+
+// Chromium and Firefox are driven from the SAME event on purpose. `downloads.onCreated` and
+// `downloads.cancel` exist in both; `onDeterminingFilename` is Chromium-only and is deliberately NOT
+// used, because a path that exists on one browser and not the other is how a shared code path ends up
+// quietly half-working. Everything this needs — url, filename, referrer, size — is on the created
+// item in both. `downloadsApi()` still capability-checks, so a browser without the API (or with the
+// permission declined) simply never intercepts instead of throwing on load.
+function registerInterception() {
+  const downloads = downloadsApi();
+  if (!downloads) return false;
+  downloads.onCreated.addListener(item => { onDownloadCreated(item); });
+  return true;
+}
+
+registerInterception();
+
 // ---------------- Media sniffing ----------------
 api.webRequest.onHeadersReceived.addListener(
   details => {

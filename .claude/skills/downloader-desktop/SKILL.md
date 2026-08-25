@@ -443,6 +443,48 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
   flattens item headers + referer into it (**the `referer` field wins over a `Referer` header, on both sides**).
   `HlsResolver` passes `options?.Headers` to every playlist GET and stamps it on each produced `DownloadPart`.
 
+## Pause and the plan runner: `DownloadManager.Pause` alone is NOT enough (issue #7 follow-up)
+- **The trap, and it is invisible from `Pause`**: `vm.Download` is only the MOST RECENTLY started part
+  engine (`onPartService?.Invoke(svc)` per part). A segment plan runs `SegmentParallelism = 4` engines at
+  once, so `vm.Download?.Pause()` stopped one segment and left three transferring. Worse, the runner loop's
+  only stop signal was `isCancelled: () => vm.Status == Stopped` — `Paused` was invisible to it, so as each
+  in-flight segment finished it started the next, working through the rest of the playlist. The row read
+  "Paused" with a frozen bar the whole time, because `FlushProgress` drops staged progress for a non-Running
+  row. That frozen-bar-while-still-downloading is exactly what the reporter saw.
+- **The fix is two halves and you need BOTH**: `PlanController` (bottom of `DownloadManager.Plans.cs`, hung
+  off the row as `vm.PlanControl`) holds every in-flight `DownloadService` and a paused flag. `Pause` pauses
+  the whole set; an `isPaused` predicate beside `isCancelled` makes the runner wait rather than claim a slot
+  for the next part. Pausing the live set without the gate just lets the loop start fresh parts; the gate
+  without the set leaves the current ones running.
+- **`PlanController.Add` pauses a late joiner** — an engine built just before the pause and started just
+  after would otherwise leak one running segment.
+- **Cancelling a PAUSED plan needs `CancelAll()`, which un-pauses first.** A suspended engine never completes
+  its awaited task, so cancelling without resuming leaves the runner waiting on it forever.
+- **`isPaused` reads the ROW's status** (`vm.Status == Paused`), not the controller's flag, so a pause that
+  lands while the runner is between parts is still honored. `isCancelled` semantics are untouched.
+- Both new `ExecutePlanAsync` params are optional and default to today's behavior, so existing callers and
+  tests are unaffected.
+
+## `/api/add`: the GET query carries a request context too, in WIRE shapes (issue #7 follow-up)
+- `ApiAddRequest.FromQuery` parsed only `url`/`filename`/`path`/`queue`/`start`/`referer` and **silently
+  dropped `cookies`/`headers` while still answering `201`** — a capture tool driving us from a GET template
+  had never actually handed over a session. The query form now takes `LocalApiService.ParseCookieHeader`
+  (a `name=value; name=value` Cookie-header string, first `=` splits so base64 values survive, domain taken
+  from the TARGET URL's host) and `ParseHeaderBlock` (newline-separated `Name: value`). Both pure; a parse
+  problem never fails the add.
+- **The `201` body now reports `cookies`/`headers` counts + a `referer` bool.** Counts only — never a value.
+  This is what turns "it silently didn't work" into a two-second diagnosis.
+- **Contract, not a preference: never log the request URL or query string.** `LocalApiService`'s error log is
+  route-name only, and there's a comment at the log site saying why. Widening it would put a live session in
+  a log file, which is the whole mitigation for accepting secrets in a query at all.
+- **Cookies reach a plugin resolver as a synthesized `Cookie` header** (`DownloadManager.ResolveHeaders`):
+  a plugin's own `HttpClient` never sees the engine's `RequestConfiguration.CookieContainer`. An explicit
+  `Cookie` header from the caller wins over the synthesized one.
+- **`ConcatRecipe.KeyHeaders`** carries that context to the AES-128 key fetch, which happens at ASSEMBLY
+  time out of a bare client — the one request that went out anonymous, and the reason an encrypted stream
+  could fail at ~99%. `HlsResolver` stamps it only when the playlist is actually encrypted; null (every
+  older recipe, and DASH) ⇒ unchanged behavior. The `keyFetcher` delegate gained a headers parameter.
+
 ## Two build/test traps that cost a session
 - **`pkill -f "dotnet test"` kills your own shell** (exit 144) — the invoking bash's command string contains
   the pattern. Same family as the `pkill -f "Downloader.Desktop"` note above. Match the child by a pattern

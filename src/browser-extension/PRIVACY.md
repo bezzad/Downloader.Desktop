@@ -1,6 +1,6 @@
 # Privacy Policy — Downloader Browser Integration
 
-_Last updated: 2026-07-07_
+_Last updated: 2026-08-25_
 
 The **Downloader Browser Integration** extension is designed to send download links to the
 **Downloader** desktop application on your own computer. It is built to collect as little data as
@@ -13,6 +13,11 @@ possible.
   it reads that URL so it can hand it to the desktop app.
 - **Network requests on pages you visit**: the extension observes response headers to detect
   downloadable media (e.g. `.m3u8`, video/audio content types). This happens locally in your browser.
+- **Downloads you start in the browser** (only while *Intercept browser downloads* is turned on, which
+  it is **not** by default): the extension is told when the browser begins a download and reads that
+  download's URL, suggested file name, size and referring page, so it can decide whether to hand it to
+  the desktop app and then cancel the browser's own copy. While the setting is off, nothing about your
+  downloads is read at all.
 - **Cookies for a link you explicitly send**: when you send a link to the app, the extension reads the
   cookies for **that exact URL only** (via the browser's `cookies` API) so that a site needing a
   signed-in session (e.g. YouTube) can be downloaded. It never reads cookies for other sites, and never
@@ -20,6 +25,10 @@ possible.
 
 ## What it does with it
 
+- An intercepted download is handed to the desktop app the same way an explicitly-sent link is: the
+  URL, the file name, the referring page and that URL's cookies go to your local app so the file can be
+  fetched with the same session the browser would have used. If the app cannot be reached, nothing is
+  sent and the browser downloads the file itself, exactly as it would have.
 - The captured URL — and, when present, the cookies for that one URL — are sent **only** to the
   Downloader desktop app running on your own machine, over a local loopback connection
   (`http://127.0.0.1:15151`, or the next port in the small declared `15151`–`15155` range when that one
@@ -43,6 +52,11 @@ possible.
 - `webRequest` + host access — to detect media on the current page locally.
 - `storage` — to remember two local preferences (add silently vs open the app's Add dialog, and the
   app's last-known listen port).
+- `downloads` — to intercept downloads you start in the browser: to be told a download began, read its
+  URL/name/size/referrer, and cancel the browser's copy once the desktop app has accepted it. It reads
+  nothing else about your download history, sends nothing anywhere but your own local app, and is
+  **unused entirely while _Intercept browser downloads_ is off** (the default). In the install prompt
+  your browser describes this as "manage your downloads".
 - `cookies` — to read the cookies for a single URL you send to the app (only at that moment), so a
   site that needs a signed-in session can be downloaded. Sent only to your local app, never logged,
   and the app deletes them right after the download attempt.

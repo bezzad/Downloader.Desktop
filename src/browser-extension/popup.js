@@ -280,5 +280,12 @@ const silentEl = document.getElementById("silentMode");
 getAddMode().then(mode => { silentEl.checked = mode === "silent"; });
 silentEl.onchange = () => setAddMode(silentEl.checked ? "silent" : "dialog");
 
+// Interception rules and the rest of the settings live on the options page; the popup only links to
+// it (the extension had no settings surface at all before — see issue #9).
+document.getElementById("openOptions").onclick = () => {
+  if (api.runtime?.openOptionsPage) api.runtime.openOptionsPage();
+  else api.tabs?.create({ url: api.runtime.getURL("options.html") });
+};
+
 refreshStatus();
 loadDetected();

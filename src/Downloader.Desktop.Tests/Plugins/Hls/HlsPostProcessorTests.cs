@@ -1,3 +1,4 @@
+using System.Net;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -51,7 +52,7 @@ public class HlsPostProcessorTests
             },
         };
         int keyFetches = 0;
-        var (proc, _) = Build(keyFetcher: (_, _) => { keyFetches++; return Task.FromResult(Key); });
+        var (proc, _) = Build(keyFetcher: (_, _, _) => { keyFetches++; return Task.FromResult(Key); });
         var output = Path.Combine(tmp.Path, "out.mp4");
 
         await proc.ProcessAsync([c0, c1], Plan(recipe), output, new ProgressSink(), CancellationToken.None);
@@ -294,10 +295,125 @@ public class HlsPostProcessorTests
             [f], Plan(recipe), Path.Combine(tmp.Path, "o.mp4"), new ProgressSink(), CancellationToken.None));
     }
 
+    // ── the key request carries the download's context (issue #7 follow-up) ─────────────────────────
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_key_request_sends_the_recipes_headers_so_a_protected_key_can_be_fetched()
+    {
+        // Every segment goes out with the download's cookies/referer, but the key is fetched here, at
+        // assembly time, out of a bare client — so on a protected origin it was the one request that could
+        // fail, at the very end of an otherwise complete download.
+        using var server = new KeyServer(Key, requiredCookie: "SID=s3cret", requiredReferer: "https://site.example/watch");
+        using var tmp = new TempDir();
+        var plain = Encoding.UTF8.GetBytes("hello-segment-zero-plaintext");
+        var cipher = tmp.WriteBytes("s0.ts", Aes128.EncryptCbc(plain, Key, Iv));
+
+        ConcatRecipe Recipe(Dictionary<string, string>? keyHeaders) => new()
+        {
+            KeyHeaders = keyHeaders,
+            Segments =
+            {
+                new SegmentEntry { Encrypted = true, KeyUri = server.KeyUrl, IvHex = Convert.ToHexString(Iv) },
+            },
+        };
+
+        // With the context: the key is served and the stream assembles.
+        var (withContext, _) = Build();
+        var output = Path.Combine(tmp.Path, "with.mp4");
+        await withContext.ProcessAsync([cipher], Plan(Recipe(new Dictionary<string, string>
+        {
+            ["Cookie"] = "SID=s3cret",
+            ["Referer"] = "https://site.example/watch",
+        })), output, new ProgressSink(), CancellationToken.None);
+
+        Assert.Equal(Encoding.UTF8.GetString(plain), File.ReadAllText(output));
+        Assert.Contains("SID=s3cret", server.SeenCookies);
+
+        // Without it: the key origin refuses, and the failure surfaces rather than producing a broken file.
+        var (bare, _) = Build();
+        await Assert.ThrowsAnyAsync<Exception>(() => bare.ProcessAsync(
+            [cipher], Plan(Recipe(null)), Path.Combine(tmp.Path, "without.mp4"),
+            new ProgressSink(), CancellationToken.None));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_recipe_without_key_headers_round_trips_unchanged()
+    {
+        // Older recipes (and DASH, whose encrypted manifests are refused as DRM) carry no KeyHeaders.
+        var old = JsonSerializer.Deserialize<ConcatRecipe>(
+            """{"HasInitSegment":false,"OutputExtension":".mp4","Segments":[{"Encrypted":false}]}""")!;
+        Assert.Null(old.KeyHeaders);
+        Assert.Single(old.Segments);
+
+        var withHeaders = JsonSerializer.Deserialize<ConcatRecipe>(JsonSerializer.Serialize(new ConcatRecipe
+        {
+            KeyHeaders = new Dictionary<string, string> { ["Cookie"] = "SID=abc" },
+            Segments = { new SegmentEntry() },
+        }))!;
+        Assert.Equal("SID=abc", withHeaders.KeyHeaders!["Cookie"]);
+    }
+
+    /// <summary>A loopback origin that serves the AES key ONLY to a request carrying the expected session.</summary>
+    private sealed class KeyServer : IDisposable
+    {
+        private readonly HttpListener _listener = new();
+        private readonly byte[] _key;
+        private readonly string _cookie;
+        private readonly string _referer;
+
+        public List<string> SeenCookies { get; } = new();
+        public string KeyUrl { get; }
+
+        public KeyServer(byte[] key, string requiredCookie, string requiredReferer)
+        {
+            _key = key;
+            _cookie = requiredCookie;
+            _referer = requiredReferer;
+            var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            probe.Start();
+            var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+            var root = $"http://127.0.0.1:{port}/";
+            KeyUrl = root + "key.bin";
+            _listener.Prefixes.Add(root);
+            _listener.Start();
+            _ = Task.Run(LoopAsync);
+        }
+
+        private async Task LoopAsync()
+        {
+            while (_listener.IsListening)
+            {
+                HttpListenerContext ctx;
+                try { ctx = await _listener.GetContextAsync(); }
+                catch { break; }
+
+                var cookie = ctx.Request.Headers["Cookie"];
+                lock (SeenCookies) SeenCookies.Add(cookie ?? "");
+                if (cookie == _cookie && ctx.Request.Headers["Referer"] == _referer)
+                {
+                    ctx.Response.ContentLength64 = _key.Length;
+                    ctx.Response.OutputStream.Write(_key, 0, _key.Length);
+                }
+                else
+                {
+                    ctx.Response.StatusCode = 403;
+                }
+                ctx.Response.OutputStream.Close();
+            }
+        }
+
+        public void Dispose()
+        {
+            try { _listener.Stop(); } catch { /* already stopped */ }
+            ((IDisposable)_listener).Dispose();
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
     private static (HlsPostProcessor, RecordingFfmpeg) Build(
-        Func<string, CancellationToken, Task<byte[]>>? keyFetcher = null)
+        Func<string, IReadOnlyDictionary<string, string>?, CancellationToken, Task<byte[]>>? keyFetcher = null)
     {
         var ffmpeg = new RecordingFfmpeg();
         var proc = new HlsPostProcessor(ffmpeg, keyFetcher: keyFetcher);

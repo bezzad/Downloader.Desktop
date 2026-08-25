@@ -27,11 +27,27 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   **“Add silently (no dialog)”** in the popup to review each link in the app's Add dialog
   (`/add?url=…`) instead. On an app version without the API the extension falls back to the
   dialog automatically.
+- **Download interception** *(off by default)* — take over downloads the **browser** starts and hand
+  them to the app instead. Turn it on in **Settings** (the popup's *Settings & download interception*
+  link, or your browser's extension options), where you also control what gets taken over: which file
+  types (an allow list of archive/installer types by default), an optional minimum size, and sites to
+  leave alone. **If a download isn't being taken over, the file-type list is almost always why.**
+  The browser's own download is cancelled only *after* the app has accepted the hand-off, so a
+  closed app, an unreachable app or a refused add all just leave the browser downloading as usual —
+  interception can never cost you a file. Each takeover shows a notification and counts on the badge,
+  so a download disappearing from the browser is never unexplained.
+  Requires the `downloads` permission, which is unused while the setting is off ([PRIVACY.md](PRIVACY.md)).
 - **Signed-in session hand-off** — when you send a link, the extension also passes the cookies for
   **that one URL** to the app, so a site that needs you to be logged in (e.g. a YouTube video handled
   by the app's video downloader) can be fetched with your live session. Cookies are read only for the
   URL you send, go only to your local app, are never logged, and the app deletes them right after the
-  download. See [PRIVACY.md](PRIVACY.md).
+  download. An intercepted download carries the **referring page** as well, because the browser would
+  have sent it — without it a site that checks the referer would refuse a file it was about to serve.
+  See [PRIVACY.md](PRIVACY.md).
+
+> **Running another intercepting download manager alongside this one is not supported.** If two
+> extensions both take over downloads, whichever reacts first wins and the outcome is not something
+> either can arbitrate. Turn interception off in one of them.
 
 > **Direct media capture doesn't work on DRM/encrypted streaming sites** (Netflix, and YouTube's
 > in-page player) — they don't expose a fetchable media URL. A YouTube *video page* link can still be
@@ -85,9 +101,10 @@ involved.
 | `manifest.json` | Chrome/Edge MV3 manifest (service-worker background) |
 | `manifest.firefox.json` | Firefox MV3 manifest (scripts background + gecko id) |
 | `common.js` | Shared helpers: media detection, `sendToApp()`, size/HLS probing, grouping |
-| `background.js` | Context menus, response sniffing, badge, message handler, probing coordinator |
+| `background.js` | Context menus, response sniffing, badge, message handler, probing coordinator, download interception |
 | `content.js` | Tracks the visible/playing `<video>`/`<audio>` element for Main-vs-Other triage |
 | `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI (grouped cards, quality picker) |
+| `options.html` / `options.css` / `options.js` | Settings page: download-interception rules |
 | `icons/` | Toolbar/store icons (16/48/128) |
 
 Run the unit tests (pure helpers in `common.js`) with `node --test src/browser-extension/common.test.js`.

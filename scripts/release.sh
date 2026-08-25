@@ -335,16 +335,26 @@ else
 fi
 
 # --- 4. wait for the GitHub Release assets ---------------------------------
-step "Waiting for the Release build to attach the macOS archives"
+# Wait for EVERY archive this script later checksums, not just the macOS pair: with
+# `set -euo pipefail`, `WIN_SHA="$(sha256_of_asset ... | tr ...)"` on a not-yet-attached
+# asset kills the whole run (it did on v2.5.0, right after the Homebrew step).
+WAIT_ASSETS=(
+  Downloader-osx-arm64.tar.gz
+  Downloader-osx-x64.tar.gz
+  Downloader-win-x64.zip
+  Downloader-linux-x64.tar.gz
+)
+step "Waiting for the Release build to attach the platform archives"
 deadline=$(( $(date +%s) + 1800 ))   # up to 30 minutes
 while :; do
-  have_arm="no"; have_x64="no"
   assets="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' 2>/dev/null || true)"
-  grep -q '^Downloader-osx-arm64.tar.gz$' <<<"$assets" && have_arm="yes"
-  grep -q '^Downloader-osx-x64.tar.gz$'   <<<"$assets" && have_x64="yes"
-  [[ "$have_arm" == "yes" && "$have_x64" == "yes" ]] && { ok "both macOS archives are attached"; S_RELEASE="live ($TAG, all assets attached)"; break; }
-  [[ $(date +%s) -ge $deadline ]] && die "timed out waiting for macOS archives — check: gh run list --repo $REPO"
-  echo "    ...still building (arm64=$have_arm x64=$have_x64); rechecking in 30s"
+  missing=""   # a plain string, not an array: bash 3.2 (macOS) + `set -u` trips on empty arrays
+  for a in "${WAIT_ASSETS[@]}"; do
+    grep -q "^$a\$" <<<"$assets" || missing="$missing $a"
+  done
+  [[ -z "$missing" ]] && { ok "all platform archives are attached"; S_RELEASE="live ($TAG, all assets attached)"; break; }
+  [[ $(date +%s) -ge $deadline ]] && die "timed out waiting for:$missing — check: gh run list --repo $REPO"
+  echo "    ...still building (waiting on:$missing); rechecking in 30s"
   sleep 30
 done
 
@@ -470,7 +480,8 @@ fi
 # --- 6. winget (in-repo mirror + winget-pkgs PR) ---------------------------
 step "Updating winget manifests + submitting to $WINGET_UPSTREAM"
 WIN_URL="https://github.com/$REPO/releases/download/$TAG/Downloader-win-x64.zip"
-WIN_SHA="$(sha256_of_asset "$TAG" "Downloader-win-x64.zip" | tr '[:lower:]' '[:upper:]')"
+WIN_SHA="$(sha256_of_asset "$TAG" "Downloader-win-x64.zip" || true)"
+WIN_SHA="$(tr '[:lower:]' '[:upper:]' <<<"$WIN_SHA")"
 if [[ -n "$WIN_SHA" && -d "$WINGET_DIR" ]]; then
   ok "win-x64 sha256 = $WIN_SHA"
   rewrite_winget
@@ -496,7 +507,7 @@ fi
 # This step only keeps the in-repo mirror in sync (plain git, works anywhere).
 step "Syncing AUR mirror (publish runs in CI)"
 AUR_DIR="packaging/aur"
-LIN_SHA="$(sha256_of_asset "$TAG" "Downloader-linux-x64.tar.gz")"
+LIN_SHA="$(sha256_of_asset "$TAG" "Downloader-linux-x64.tar.gz" || true)"
 if [[ -n "$LIN_SHA" && -d "$AUR_DIR" ]]; then
   ok "linux-x64 sha256 = $LIN_SHA"
   "$(dirname "$0")/bump-aur.sh" "$VERSION" "$LIN_SHA"

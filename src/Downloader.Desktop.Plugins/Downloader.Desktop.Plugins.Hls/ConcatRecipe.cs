@@ -33,6 +33,15 @@ public sealed class ConcatRecipe
     /// segment files, init segments excluded).</summary>
     public List<SegmentEntry> Segments { get; set; } = new();
 
+    /// <summary>
+    /// Request headers (cookies, referer, …) to send when fetching an AES-128 key. The key usually lives on
+    /// the same protected origin as the playlist, but it is fetched at ASSEMBLY time — long after the
+    /// segments — so without this it was the one request that went out anonymous, and it failed at the very
+    /// end of an otherwise complete download. Null (every recipe written before this) ⇒ a bare request,
+    /// exactly as before.
+    /// </summary>
+    public Dictionary<string, string>? KeyHeaders { get; set; }
+
     /// <summary>The stream groups, treating a recipe without <see cref="Streams"/> as a single group.</summary>
     public IReadOnlyList<StreamGroup> StreamsOrSingle() =>
         Streams is { Count: > 0 }

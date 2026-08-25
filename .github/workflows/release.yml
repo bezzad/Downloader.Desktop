@@ -155,7 +155,8 @@ jobs:
   # Attach the browser-extension store zips to the same release so users (and the manual Chrome/Edge
   # dashboard upload) can grab the build matching this version. Runs AFTER the app matrix so the
   # release already exists — a concurrent create here would reintroduce the "tag_name already_exists"
-  # race (see the note above). Firefox publishing to AMO is automated separately (extension.yml).
+  # race (see the note above). Store uploads (AMO / Chrome / Edge) are manual dashboard uploads
+  # of these zips — the automated AMO workflow was removed 2026-08-24.
   extension:
     name: Attach extension zips
     needs: build
