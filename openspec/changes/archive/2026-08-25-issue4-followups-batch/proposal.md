@@ -117,3 +117,31 @@ no app-core change. Extension sniffing needs `.mpd` + `application/dash+xml` add
 
 Proposal only, at the author's request — `design.md` and `tasks.md` are deliberately not created yet.
 Nothing is implemented.
+
+## Outcome (archived 2026-08-25)
+
+**Superseded — every thread analysed here has been delivered by its own change.** This document was
+always analysis rather than work (no `tasks.md`, no delta specs, by request), so it is archived with no
+tasks ticked and nothing abandoned. It did its job: each item was implemented in the order it
+recommended.
+
+| Item | Delivered by |
+|---|---|
+| #7 — cookies / headers / referer per download | `archive/2026-08-23-per-download-request-context`, then `archive/2026-08-25-issue7-followup-fixes` |
+| #6 — refreshing an expired link | `archive/2026-08-24-refresh-expired-link` |
+| #5 — MPEG-DASH (`.mpd`) | `archive/2026-08-24-dash-mpd-support` |
+| The automatic-interception problem listed under "Out of scope" | became issue #9 → `archive/2026-08-25-browser-download-interception` |
+
+Two recommendations in here were followed rather than overruled, and are worth not relitigating:
+
+- **`downloader://` was not registered.** The local API's loopback POST carries credentials out of band;
+  a URL scheme would push them through a command line, into process listings and shell history. The
+  request context arrives over `/api/add` instead — and as of the issue #7 follow-up, the GET form
+  accepts it too, for tools that can only build a URL.
+- **DASH landed inside the HLS plugin, not as a new plugin.** The analysis above proposed a separate
+  catalog plugin; `dash-mpd-support` folded it into `com.bezzad.hls` instead, so users do not download a
+  second ~80 MB ffmpeg into a second data directory. The two resolvers claim disjoint extensions.
+
+The one item explicitly deferred to the engine repo — **automatic failover across the URL list when one
+URL starts returning 403/410 mid-transfer** — was never opened against `bezzad/downloader` and remains
+the only unaddressed thread from this analysis.
