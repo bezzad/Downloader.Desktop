@@ -55,3 +55,22 @@ use. All three are confirmed defects in our code, not in his setup:
   request headers; `HlsPostProcessor` uses them. Plugin `<Version>` bumps (standing rule).
 - `docs/local-api.md` — the query form's context parameters.
 - No change to the persistence split: cookies and headers stay transient, referer stays persisted.
+
+## Outcome (archived 2026-08-25)
+
+Implemented on `develop` in commit `f5b38da`. 22 of 24 tasks complete; full solution rebuild reports
+`0 Warning(s)`, and all three suites are green (525 app tests incl. 13 new, 36 browser-extension unit
+tests, 7 Playwright specs run with `--workers=1`). Delta specs synced into `openspec/specs/`
+(`local-api`, `plugins`, `request-context`). HLS plugin bumped 2.2.0 → 2.2.1.
+
+**Two tasks are deliberately left unchecked — neither is abandoned, both are gated on someone else:**
+
+- **5.5 — the author's manual check.** A real gated stream added through the GET query form with real
+  cookies, paused mid-download to confirm the network genuinely goes quiet, resumed and completed.
+  The pause fix is covered by loopback regression tests (a paused plan starts no new segment, resumes
+  without re-downloading, and a paused plan can still be cancelled), but "the network actually went
+  quiet on a real stream" is not verifiable headlessly.
+- **5.6 — blocked on the reporter.** The ~99% failure on the encrypted stream was diagnosed as the
+  anonymous AES-128 key fetch, and that fix ships here because the request-context capability requires
+  it either way — but it is **not proven** to be his root cause; ffmpeg on the remux is the other
+  candidate. **Issue #7 must not be closed as fixed until his log confirms it.**

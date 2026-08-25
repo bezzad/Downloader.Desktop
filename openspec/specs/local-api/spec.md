@@ -7,7 +7,9 @@ Loopback HTTP JSON API on `127.0.0.1:15151` so scripts and the CLI can add, list
 ### Requirement: Silent programmatic add
 The local API SHALL accept an add request on `/api/add` (POST JSON body or GET query parameters) with a required `url` and optional `filename`, `path`, `queue`, `mirrors` and `start` parameters, add the download silently (no dialog), and auto-start it unless `start` is false.
 
-The POST JSON body SHALL additionally accept an optional `headers` object (string→string) and an optional `referer` string, which apply to **that download only** and override the app's global request settings.
+Both request forms SHALL additionally accept an optional per-download request context — `cookies`, a `headers` mapping, and a `referer` — which applies to **that download only** and overrides the app's global request settings. In the POST body `headers` is a string→string object and `cookies` is an array of cookie objects. In the GET query `headers` and `cookies` are the wire forms a browser or capture tool already has to hand: `cookies` is a `name=value; name=value` Cookie-header string, and `headers` is a newline-separated `Name: value` block; both are URL-encoded like any other parameter.
+
+The response to a successful add SHALL report how much request context was accepted, so a caller can distinguish a working hand-off from one whose context was dropped.
 
 #### Scenario: Minimal add auto-starts
 - **WHEN** a client sends `POST /api/add` with body `{"url":"https://example.com/file.zip"}` while the integration toggle is on
@@ -28,9 +30,22 @@ The POST JSON body SHALL additionally accept an optional `headers` object (strin
 - **THEN** the item is created carrying those headers and that referer
 - **AND** every request the app makes for that download sends them
 
+#### Scenario: Add with a request context through the GET query form
+- **WHEN** a client sends `GET /api/add?url=…&referer=…&cookies=SID%3Dv%3B%20other%3Dw` while the integration toggle is on
+- **THEN** the item is created carrying both cookies and that referer
+- **AND** every request the app makes for that download sends them
+
+#### Scenario: The caller can see that its context was accepted
+- **WHEN** an add request carries cookies and headers and the item is created
+- **THEN** the `201` response body reports the number of cookies and headers that were accepted
+
 #### Scenario: Malformed request context does not fail the add
-- **WHEN** an add request's `headers` is not an object, or contains entries whose name or value is not a string
+- **WHEN** an add request's `headers` is not an object (POST) or is not parseable (GET), or contains entries whose name or value is empty
 - **THEN** those entries are ignored and the download is still added
+
+#### Scenario: A cookie string with no usable pairs is not an error
+- **WHEN** a `GET /api/add` request's `cookies` parameter is empty or contains no `name=value` pair
+- **THEN** the download is added with no cookies and the response reports zero accepted cookies
 
 ### Requirement: Download list endpoint
 The local API SHALL expose `GET /api/list` returning a JSON array of every download with its `id`, `name`, `url`, `status`, `progress`, `size`, `downloaded`, `speed`, `folder`, `filePath` and `queue`.
