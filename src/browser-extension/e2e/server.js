@@ -8,7 +8,7 @@ const path = require("node:path");
 const ROOT = path.join(__dirname, "fixtures");
 const PORT = 8991;
 
-const MIME = { ".html": "text/html", ".m3u8": "application/vnd.apple.mpegurl", ".mp4": "video/mp4", ".ts": "video/mp2t" };
+const MIME = { ".html": "text/html", ".m3u8": "application/vnd.apple.mpegurl", ".mp4": "video/mp4", ".ts": "video/mp2t", ".zip": "application/zip" };
 
 function start() {
   const server = http.createServer((req, res) => {
@@ -20,6 +20,11 @@ function start() {
       const ext = path.extname(filePath);
       const type = MIME[ext] || "application/octet-stream";
       const range = req.headers.range;
+      // ?attach=1 makes the browser DOWNLOAD the file rather than render it — that is what fires
+      // chrome.downloads.onCreated, which the interception tests need.
+      if (/[?&]attach=1/.test(req.url)) {
+        res.setHeader("Content-Disposition", `attachment; filename="${path.basename(filePath)}"`);
+      }
       if (req.method === "HEAD") {
         res.writeHead(200, { "Content-Type": type, "Content-Length": stat.size });
         res.end();
@@ -35,6 +40,21 @@ function start() {
           "Content-Length": end - start + 1
         });
         fs.createReadStream(filePath, { start, end }).pipe(res);
+        return;
+      }
+      // ?slow=1 trickles the body out over a few seconds. The interception tests need a download
+      // that is still IN PROGRESS when the extension gets around to cancelling it — a local 200 KB
+      // file otherwise completes before the hand-off (port discovery + cookie capture + POST) even
+      // finishes, and cancelling a finished download is a no-op.
+      if (/[?&]slow=1/.test(req.url)) {
+        res.writeHead(200, { "Content-Type": type, "Content-Length": stat.size });
+        const stream = fs.createReadStream(filePath, { highWaterMark: 8 * 1024 });
+        stream.on("data", chunk => {
+          stream.pause();
+          res.write(chunk);
+          setTimeout(() => stream.resume(), 120);
+        });
+        stream.on("end", () => res.end());
         return;
       }
       res.writeHead(200, { "Content-Type": type, "Content-Length": stat.size });

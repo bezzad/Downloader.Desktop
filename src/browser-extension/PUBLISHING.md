@@ -31,7 +31,11 @@
   > send it to the Downloader desktop app, or open the popup to grab the page’s links and detected
   > media (including HLS/.m3u8 streams). Captured links are sent only to the Downloader app running on
   > your own computer — nothing is uploaded anywhere. Requires the free Downloader desktop app with
-  > “Browser integration” enabled. Note: DRM/encrypted streaming sites (e.g. YouTube) are not supported.
+  > “Browser integration” enabled. Optionally, it can take over downloads the browser starts and hand
+  > them to the app instead — this is off until you turn it on, and you choose which file types, sizes
+  > and sites it applies to. If the app isn’t running, the browser downloads the file as usual.
+  > Note: DRM/encrypted streaming sites (e.g. YouTube) are not supported, and running another
+  > intercepting download manager alongside this one is not supported.
 - **Privacy policy URL:** `https://github.com/bezzad/Downloader.Desktop/blob/main/src/browser-extension/PRIVACY.md`
 - **Screenshots:** capture the popup (1280×800 recommended) — paste a link, the detected-media list, the context menu.
 - **Icon:** `icons/icon128.png` (already in the package).
@@ -40,6 +44,13 @@
 
 1. One-time: register at <https://chrome.google.com/webstore/devconsole> ($5 fee).
 2. **New item** → upload `dist/downloader-extension-chrome.zip`.
+> **This version adds the `downloads` permission — expect a slower review.** Both stores scrutinise a
+> permission increase, and “manage your downloads” reads alarmingly in the install prompt. Justify it
+> as: “take over downloads the user starts in the browser and hand them to the user’s own desktop app;
+> used only while the user enables the interception setting, which is off by default; nothing is sent
+> anywhere but the user’s own machine.” Do **not** bundle this version with an urgent fix — ship urgent
+> fixes before or after it, not in the same submission.
+
 3. Fill the listing (above), add screenshots, set the privacy policy URL, declare permissions
    (justify `webRequest`/host access: “detect downloadable media on the current page”; host
    `127.0.0.1` ports `15151`–`15155`: “send links to the local desktop app; the app falls back

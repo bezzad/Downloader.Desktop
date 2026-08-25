@@ -1,0 +1,66 @@
+/* Matches popup.css: same system palette, accent and control shapes, wider layout for a full page. */
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+  font: 13px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+  background: Canvas;
+  color: CanvasText;
+}
+header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; border-bottom: 1px solid rgba(128,128,128,.25);
+}
+.title { font-weight: 600; font-size: 15px; flex: 1; }
+.status { font-size: 12px; color: #888; }
+.status.on { color: #1FA971; }
+.status.off { color: #E5594F; }
+
+section, fieldset, footer { padding: 14px 16px; }
+fieldset { border: none; margin: 0; }
+fieldset[disabled] { opacity: .5; }
+footer { border-top: 1px solid rgba(128,128,128,.25); }
+
+.section-head {
+  margin: 14px 0 8px; color: #888; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.section-head:first-child { margin-top: 0; }
+
+.toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.toggle input { accent-color: #0E8FB3; width: 16px; height: 16px; }
+
+.field { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+.field label { min-width: 110px; color: #888; }
+
+.hint { margin: 4px 0 0; color: #888; font-size: 12px; }
+
+textarea, select {
+  width: 100%; padding: 7px 9px; border-radius: 7px; font: inherit;
+  border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
+}
+select { width: auto; flex: 1; }
+textarea { resize: vertical; }
+
+button {
+  cursor: pointer; border: none; border-radius: 7px; padding: 7px 11px;
+  background: rgba(128,128,128,.18); color: CanvasText; font: inherit;
+}
+button:hover { background: rgba(128,128,128,.30); }
+button.primary { background: #0E8FB3; color: #fff; }
+button.primary:hover { background: #0c7c9c; }
+button.link { background: none; color: #0E8FB3; padding: 0 2px; }
+
+.row { display: flex; gap: 8px; margin-top: 12px; }
+
+.callout {
+  margin: 14px 16px; padding: 14px 16px;
+  border: 1px solid rgba(14,143,179,.45); border-radius: 10px;
+  background: rgba(14,143,179,.08);
+}
+.callout h2 { margin: 0 0 8px; font-size: 14px; }
+.callout p { margin: 0 0 8px; }
+
+.saved { color: #1FA971; font-size: 12px; }
