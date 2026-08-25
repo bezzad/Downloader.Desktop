@@ -11,15 +11,15 @@ The plugin SDK SHALL let an `ILinkResolver` optionally report the selectable var
 - **THEN** it returns null and the host resolves the link exactly as before
 
 #### Scenario: Variant-capable resolver lists choices
-- **WHEN** the HLS resolver is asked for variants of a video page URL
-- **THEN** it returns one variant per distinct video height plus an "Audio only" variant, with the best quality marked `IsDefault`
+- **WHEN** the HLS resolver is asked for variants of a master `.m3u8` playlist
+- **THEN** it returns one variant per `#EXT-X-STREAM-INF` rendition (highest bandwidth marked `IsDefault`), with approximate sizes when duration is known
 
 ### Requirement: The chosen variant drives the resolve
 `ResolveOptions` SHALL carry a `VariantId`; when set, the resolver SHALL build the plan for exactly that variant. The chosen id SHALL persist on the download item so retries and restarts re-resolve the same variant.
 
 #### Scenario: Resolve honors the selected variant
-- **WHEN** a download item with `VariantId = "720"` is started
-- **THEN** the resolver receives `VariantId = "720"` and the resulting plan downloads the 720p stream, not the default pick
+- **WHEN** a download item with `VariantId` set to a master-playlist bandwidth id is started
+- **THEN** the resolver builds the segment plan from that rendition, not the default (best) pick
 
 #### Scenario: Retry keeps the user's choice
 - **WHEN** a failed variant download is retried
@@ -41,11 +41,11 @@ For a single pasted URL claimed by an enabled variant-capable resolver, the Add 
 - **THEN** the Download button enables and the add proceeds with the resolver's automatic pick (no variant)
 
 ### Requirement: Listing must not double heavy extraction
-A resolver whose variant listing requires an expensive extraction (e.g. yt-dlp) SHALL reuse that extraction for the subsequent resolve of the same URL instead of running it twice.
+A resolver whose variant listing requires a network fetch (HLS playlist GET) SHALL cache that playlist briefly so the subsequent resolve of the same URL does not re-download it.
 
-#### Scenario: One extraction serves list and resolve
-- **WHEN** variants were just listed for a YouTube URL and the user starts a selected variant
-- **THEN** the resolve reuses the cached extraction result rather than re-running yt-dlp
+#### Scenario: One fetch serves list and resolve
+- **WHEN** variants were just listed for a master playlist and the user starts the default (or a selected) quality
+- **THEN** the resolve reuses the cached playlist GET rather than fetching the master again
 
 ### Requirement: Variant offers merge across all claiming resolvers
 When multiple enabled resolvers claim the same URL, the host SHALL collect variants from all of them (non-fallback resolvers first) and present the merged list in the Add window's picker. The first resolver's default marking SHALL win; a later resolver's variants join the list unchecked. A failing resolver's variant lookup SHALL NOT suppress the others' variants.

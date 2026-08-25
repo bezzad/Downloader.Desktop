@@ -314,16 +314,16 @@ CI: `.github/workflows/dotnet-desktop.yml` (build + test), `release.yml`,
 
 The single source of truth for progress — `PLAN.md`/`TASKS.md` were retired 2026-06-23.
 
-- **`openspec/specs/`** — the living capability baseline, **26 capabilities**: `add-download`,
-  `downloads-list`, `download-status`, `queues`, `settings`, `speed-limit`, `notifications`,
-  `system-tray`, `taskbar-progress`, `notch-overlay`, `ui-navigation`, `ui-theme`,
-  `window-chrome`, `resource-management`, `plugins`, `link-variants`, `local-api`, `cli`,
-  `website-offline-copy`, `ollama-model-download`, `video-site-extraction`, `browser-extension`,
-  `extension-distribution`, `extension-media-details`, `extension-media-relevance`,
-  `platform-distribution`.
-- **`openspec/changes/`** — active work. Currently `hls-only-quality-picker` (proposal/design/
-  specs/tasks) and `packaging-donate-batch`.
-- **`openspec/changes/archive/`** — 34 completed changes, `YYYY-MM-DD-<name>`.
+- **`openspec/specs/`** — the living capability baseline, **30 capabilities**: `add-download`,
+  `browser-download-interception`, `browser-extension`, `cli`, `dash-streams`, `download-status`,
+  `downloads-list`, `extension-distribution`, `extension-media-details`,
+  `extension-media-relevance`, `hls-download`, `link-refresh`, `link-variants`, `local-api`,
+  `notch-overlay`, `notifications`, `ollama-model-download`, `platform-distribution`, `plugins`,
+  `queues`, `request-context`, `resource-management`, `settings`, `speed-limit`, `system-tray`,
+  `taskbar-progress`, `ui-navigation`, `ui-theme`, `website-offline-copy`, `window-chrome`.
+- **`openspec/changes/`** — active work. Currently `hls-only-quality-picker`,
+  `issue4-followups-batch` and `packaging-donate-batch`.
+- **`openspec/changes/archive/`** — 40 completed changes, `YYYY-MM-DD-<name>`.
 
 Flow: `/opsx:propose` → implement, ticking that change's `tasks.md` → `/opsx:sync` deltas into
 `openspec/specs/` → `/opsx:archive`. Start every session with `openspec list`.
