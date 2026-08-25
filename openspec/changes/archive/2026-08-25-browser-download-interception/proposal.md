@@ -55,3 +55,36 @@ in a way the browser would not have.
 - `PRIVACY.md`, `README.md`, `PUBLISHING.md`.
 - **Depends on `issue7-followup-fixes`** for the app side: an intercepted download is added through
   `/api/add`, and it needs the request context to arrive intact.
+
+## Outcome (archived 2026-08-25)
+
+Implemented on `develop` in commit `988561b`; specs synced in `a10d25d`. 25 of 26 tasks complete.
+Extension `1.2.2` → `1.3.0`. Verified green: 54 `node --test` unit tests (20 new, covering the whole
+rule set and the hand-off), 11 Playwright e2e specs run with `--workers=1`, and a clean
+`dotnet build -t:Rebuild` (`0 Warning(s)`) confirming the app side was untouched.
+
+The dependency landed first: `issue7-followup-fixes` was archived the same day, so the app accepts
+the context an intercepted download carries and reports back how much of it arrived.
+
+Replies to issue #9 (comment `5409598598`) and issue #10 (comment `5409599728`) were shown in full
+and posted only after an explicit OK.
+
+**Left unverified — one task, and it needs a human at a browser:**
+
+- **6.4 — the author's manual check.** Load the unpacked extension in Chrome, download a real file
+  from a real site with interception on, then with it off, then with the app closed. Everything that
+  *can* be checked headlessly is: the decide-then-cancel ordering, the rules, the hand-off payload,
+  and the "app refused it, so the browser keeps the file" path all have e2e coverage against a stub
+  app. What that cannot prove is behaviour against a real site and a real app on a real desktop.
+
+**Two things the next session should know:**
+
+- **Interception is off by default and the file-type rule is an ALLOW list** (archive/installer types).
+  A download of an unlisted type is left to the browser by design — this is the first thing to check
+  against any "it didn't intercept my file" report, and the options page says so in those words.
+- **A small file can finish before the hand-off completes**, leaving the browser's copy done *and* the
+  app fetching it; the extension detects the failed cancel and says "Downloading twice". A non-zero
+  minimum size would remove the class of problem, but the default was deliberately set to 0.
+
+**Not yet released**, and the version that carries this adds the `downloads` permission — expect a
+slower store review, and do not bundle it with an urgent fix (`PUBLISHING.md` carries the same note).
