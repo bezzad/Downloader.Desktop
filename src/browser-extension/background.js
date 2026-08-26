@@ -129,6 +129,21 @@ async function onDownloadCreated(item) {
     // which is the outcome the user already had.
     if (!result.ok) return;
 
+    // Accepting is NOT fetching. `/api/add` answers 201 as soon as the item is queued, before the app
+    // has contacted the server at all, so cancelling here used to lose the file whenever the app then
+    // could not fetch the link — a spent single-use token, or a server refusing the app's request
+    // (issue #9, Softpedia "Secure Download"). Wait for proof that bytes are actually coming.
+    const confirmed = await confirmAppFetching(appBase(result.port), result.id);
+    if (!confirmed.ok) {
+      // The browser's own download is still running and must stay that way — the user keeps the file.
+      notify(
+        "Downloader could not take this over",
+        confirmed.reason === "failed"
+          ? "The app could not fetch this link, so your browser is still downloading it."
+          : "The app didn't start fetching in time, so your browser is still downloading it.");
+      return;
+    }
+
     // Only now is cancelling safe.
     const cancelled = await cancelBrowserDownload(item.id);
     if (!cancelled) {

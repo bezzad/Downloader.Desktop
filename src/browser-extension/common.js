@@ -280,6 +280,63 @@ async function sendToApp(url, filename, context) {
  *
  * Returns `{ ok, reason, accepted, contextSent, id }`.
  */
+/**
+ * Wait until the app's transfer has demonstrably REACHED THE SERVER, so the browser's own download
+ * can be cancelled without risking the file.
+ *
+ * A 201 from /api/add is not that proof: the app answers it straight after queueing the item, before
+ * a single packet leaves the machine. Cancelling on it is what made a link the app could not fetch
+ * (a spent single-use token, a server refusing the app's request) lose the user's file outright.
+ *
+ * Confirmation is `downloaded > 0` or `size > 0` — the engine only learns a total size from a real
+ * response, so either one means the link was fetchable. `status: "Running"` is deliberately NOT
+ * enough: the app sets it synchronously before any network work, so it carries the same weakness as
+ * the 201.
+ *
+ * Resolves `{ ok, reason }` and never throws. `reason` is one of:
+ *   "confirmed" — bytes or a size arrived; the caller may cancel the browser's copy
+ *   "failed"    — the app reported the download failed; keep the browser's copy
+ *   "timeout"   — nothing was confirmed in time; keep the browser's copy
+ */
+async function confirmAppFetching(base, id, opts) {
+  const timeoutMs = opts?.timeoutMs ?? 12000;
+  const intervalMs = opts?.intervalMs ?? 400;
+  const now = opts?.now || (() => Date.now());
+  const sleep = opts?.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+  if (!id) return { ok: false, reason: "timeout" };
+
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    let rows = null;
+    try {
+      const res = await fetch(`${base}/api/list`);
+      if (res?.ok) rows = await res.json?.();
+    } catch { /* the app went away mid-wait — treated as "not confirmed" below */ }
+
+    const row = Array.isArray(rows) ? rows.find(r => String(r?.id) === String(id)) : null;
+    if (row) {
+      const downloaded = Number(row.downloaded) || 0;
+      const size = Number(row.size) || 0;
+      if (downloaded > 0 || size > 0) return { ok: true, reason: "confirmed" };
+      // A failure is final: there is nothing left to wait for.
+      if (String(row.status).toLowerCase() === "failed") return { ok: false, reason: "failed" };
+    }
+
+    if (now() >= deadline) return { ok: false, reason: "timeout" };
+    await sleep(intervalMs);
+  }
+}
+
+// The browser's own User-Agent. `navigator` exists in an MV3 service worker and in a Firefox
+// background script, but not in the plain-Node test context, so this must never assume it.
+function browserUserAgent() {
+  try {
+    return typeof navigator !== "undefined" && navigator.userAgent ? String(navigator.userAgent) : "";
+  } catch {
+    return "";
+  }
+}
+
 async function handOffToApp(url, filename, context) {
   if (!isHttp(url)) return { ok: false, reason: "not-http", accepted: null, contextSent: null };
 
@@ -289,7 +346,14 @@ async function handOffToApp(url, filename, context) {
   // Best-effort throughout: a context we couldn't gather is worth less than the download itself.
   const cookies = await captureCookies(url);
   const referer = context?.referer || "";
-  const headers = context?.headers && Object.keys(context.headers).length ? context.headers : null;
+
+  // The app's request should resemble the request the browser was about to make, or a server that
+  // checks the client identity refuses it — a candidate cause of the Softpedia "Secure Download"
+  // failures on issue #9. The app maps `user-agent` onto its request configuration already.
+  const merged = { ...(context?.headers || {}) };
+  const ua = browserUserAgent();
+  if (ua && !Object.keys(merged).some(k => k.toLowerCase() === "user-agent")) merged["User-Agent"] = ua;
+  const headers = Object.keys(merged).length ? merged : null;
   const contextSent = { cookies: cookies.length, headers: headers ? Object.keys(headers).length : 0, referer: !!referer };
 
   const body = { url };
@@ -324,7 +388,12 @@ async function handOffToApp(url, filename, context) {
   // The add succeeded either way — the file is being fetched, so the caller may cancel the browser's
   // copy. `context-dropped` is reported so a gated download that will now fail is explainable
   // instead of mysterious.
-  return { ok: true, reason: lost ? "context-dropped" : "ok", accepted, contextSent, id: j.id || null };
+  // `port` is returned so the caller can confirm the transfer actually reached the server before
+  // cancelling the browser's copy — see `confirmAppFetching`.
+  return {
+    ok: true, reason: lost ? "context-dropped" : "ok",
+    accepted, contextSent, id: j.id || null, port
+  };
 }
 
 // Is the desktop app reachable on any port in the declared range?
@@ -786,6 +855,7 @@ if (typeof module !== "undefined") {
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
+    confirmAppFetching, browserUserAgent, appBase,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
     filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
     MIME_EXTENSIONS,

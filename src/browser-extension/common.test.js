@@ -11,7 +11,7 @@ const {
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
   candidatePorts, discoverAppPort, APP_PORT_RANGE,
-  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
+  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
   filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
@@ -537,6 +537,102 @@ test("handOffToApp POSTs the referer and headers alongside the cookies", async (
   assert.equal(body.headers.Referer, "https://example.com/page");
   assert.equal(body.cookies[0].name, "SID");
   assert.equal(body.filename, "a.zip");
+});
+
+// ---- Confirming the app is really fetching before cancelling the browser's copy (issue #9, 2b) ----
+// A 201 from /api/add means "queued", not "reachable". Cancelling on it lost the user's file
+// whenever the app then could not fetch the link.
+
+/** Feed confirmAppFetching a scripted sequence of /api/list responses; no real clock, no real waits. */
+function listReturning(rowsPerCall) {
+  let i = 0;
+  global.fetch = async () => {
+    const rows = rowsPerCall[Math.min(i++, rowsPerCall.length - 1)];
+    return { ok: true, json: async () => rows };
+  };
+}
+const FAST = { timeoutMs: 50, intervalMs: 1 };
+
+test("the hand-off is confirmed once bytes have actually arrived", async () => {
+  listReturning([
+    [{ id: "abc", status: "Running", size: 0, downloaded: 0 }],
+    [{ id: "abc", status: "Running", size: 0, downloaded: 4096 }]
+  ]);
+  const r = await confirmAppFetching("http://127.0.0.1:15151", "abc", FAST);
+  assert.deepEqual(r, { ok: true, reason: "confirmed" });
+});
+
+test("a known total size also confirms it — the engine only learns one from a real response", async () => {
+  listReturning([[{ id: "abc", status: "Running", size: 1048576, downloaded: 0 }]]);
+  const r = await confirmAppFetching("http://127.0.0.1:15151", "abc", FAST);
+  assert.deepEqual(r, { ok: true, reason: "confirmed" });
+});
+
+test("status Running alone NEVER confirms — the app sets it before touching the network", async () => {
+  listReturning([[{ id: "abc", status: "Running", size: 0, downloaded: 0 }]]);
+  const r = await confirmAppFetching("http://127.0.0.1:15151", "abc", FAST);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "timeout", "a queued-but-silent download must not license a cancel");
+});
+
+test("a reported failure ends the wait at once rather than timing out", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return { ok: true, json: async () => [{ id: "abc", status: "Failed", size: 0, downloaded: 0 }] };
+  };
+  const r = await confirmAppFetching("http://127.0.0.1:15151", "abc", { timeoutMs: 5000, intervalMs: 1 });
+  assert.deepEqual(r, { ok: false, reason: "failed" });
+  assert.equal(calls, 1, "it should not keep polling a download the app already gave up on");
+});
+
+test("an unreachable or malformed /api/list never throws, it just fails to confirm", async () => {
+  global.fetch = async () => { throw new Error("ECONNREFUSED"); };
+  assert.deepEqual(await confirmAppFetching("http://127.0.0.1:15151", "abc", FAST),
+    { ok: false, reason: "timeout" });
+
+  global.fetch = async () => ({ ok: true, json: async () => ({ not: "an array" }) });
+  assert.deepEqual(await confirmAppFetching("http://127.0.0.1:15151", "abc", FAST),
+    { ok: false, reason: "timeout" });
+
+  // No id to look for means nothing can ever be confirmed.
+  assert.deepEqual(await confirmAppFetching("http://127.0.0.1:15151", null, FAST),
+    { ok: false, reason: "timeout" });
+});
+
+test("the hand-off carries the browser's User-Agent so a server that checks it isn't refused", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  // `navigator` is a getter-only global in Node, so assert against whatever it really reports rather
+  // than fabricating one — the behaviour under test is "the browser's own UA is forwarded".
+  const expectedUa = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  assert.ok(expectedUa, "this Node build should expose navigator.userAgent");
+  let seen = null;
+  global.fetch = async (endpoint, opts) => {
+    if (String(endpoint).endsWith("/ping")) return { ok: true, status: 200 };
+    seen = JSON.parse(opts.body);
+    return { ok: true, status: 201, json: async () => ({ id: "abc" }) };
+  };
+
+  const res = await handOffToApp("https://example.com/a.zip", "a.zip",
+    { referer: "https://example.com/p", headers: { Referer: "https://example.com/p" } });
+
+  assert.equal(res.ok, true);
+  assert.equal(seen.headers["User-Agent"], expectedUa);
+  assert.equal(seen.headers.Referer, "https://example.com/p", "the referer is still sent");
+  assert.ok(res.port, "the port comes back so the caller can confirm the transfer");
+});
+
+test("a User-Agent the caller set explicitly is not overwritten", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  let seen = null;
+  global.fetch = async (endpoint, opts) => {
+    if (String(endpoint).endsWith("/ping")) return { ok: true, status: 200 };
+    seen = JSON.parse(opts.body);
+    return { ok: true, status: 201, json: async () => ({ id: "abc" }) };
+  };
+  await handOffToApp("https://example.com/a.zip", "a.zip", { headers: { "user-agent": "Explicit/9" } });
+  assert.equal(seen.headers["user-agent"], "Explicit/9");
+  assert.equal(seen.headers["User-Agent"], undefined, "no duplicate under a different casing");
 });
 
 test("handOffToApp reports a hand-off whose context the app dropped", async () => {
