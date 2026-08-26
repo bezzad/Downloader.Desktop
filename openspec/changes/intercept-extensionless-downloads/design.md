@@ -53,21 +53,27 @@ so it must never override a name that does.
 that signs without a content-disposition parameter broken, and does nothing about the empty
 `filename` in Chromium, which is the deeper defect.
 
-**2. Use `onDeterminingFilename` in Chromium, keep `onCreated` for Firefox.**
+**2. Keep `onCreated` for both browsers. `onDeterminingFilename` was tried and rejected on evidence.**
 
-This reverses the original symmetry decision, which is the root cause. `onDeterminingFilename`
-supplies `suggestedFilename` — the real name, before the file is written — and is the event Chromium
-provides for exactly this purpose. Firefox has no such event but populates `filename` at
-`onCreated`, so each browser is driven by the event that actually carries the name.
+The plan was to switch Chromium to `onDeterminingFilename`, the only event that carries the browser's
+suggested name. It was implemented, and then abandoned after measurement:
 
-Both paths funnel into the same `onDownloadCreated` logic, so the decide → hand off → cancel
-ordering and every failure path are shared, not duplicated. The listener registration stays inside
-the existing try/catch so a browser lacking either event simply never intercepts rather than
-throwing on load.
+- A probe confirmed the premise — `DownloadItem.filename` really is `(empty)` at `onCreated` in
+  Chromium, while `mime` is populated.
+- But Chromium permits only **one** `onDeterminingFilename` listener per extension (a second
+  `addListener` throws "Too many listeners"), making it a scarce, un-shareable slot.
+- And it does **not fire at all** when the browser's download behaviour has been set over CDP —
+  precisely what an automated browser does. Switching to it turned three previously-green e2e
+  interception tests red, including ones unrelated to this change, because the extension simply
+  stopped seeing downloads.
 
-*Risk accepted:* `onDeterminingFilename` requires the `downloads.shelf`-adjacent behaviour of
-returning quickly. The handler must not block on the hand-off — it decides, then does the async work
-without holding up the browser's filename determination.
+Shipping a primary code path that cannot be exercised by our own suite is a worse trade than the gap
+it closes — especially since Decision 1 already recovers the type for every case in the report.
+`onCreated` stays the single event for both browsers.
+
+*Residual gap, accepted and documented in the code:* a download named **only** by the browser's
+suggestion — no extension in the URL path, no content-disposition anywhere, and an unidentifiable
+MIME — is still left to the browser. None of the reported sites are in that category.
 
 **3. Keep MIME mapping deliberately small.**
 

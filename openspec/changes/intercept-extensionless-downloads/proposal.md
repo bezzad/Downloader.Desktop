@@ -24,11 +24,11 @@ the wild — has no coverage at all.
 
 ## What Changes
 
-- Determine the download's file type from the browser's **suggested filename** where the browser
-  offers one: use `downloads.onDeterminingFilename` in Chromium (it supplies `suggestedFilename`)
-  while keeping `downloads.onCreated` for Firefox, which populates `filename` at creation.
-- Fall back to the filename carried in the URL's `response-content-disposition` / `rscd` query
-  parameters when the path has no extension.
+- Resolve the download's file type from an ordered chain of sources instead of the URL path alone:
+  the browser's suggested filename (Firefox supplies one at creation) → the filename carried in the
+  URL's `response-content-disposition` / `rscd` query parameters → the URL path → the MIME type.
+- Keep `downloads.onCreated` as the single event for both browsers. Switching Chromium to
+  `onDeterminingFilename` was implemented and then reverted on evidence — see design.md, Decision 2.
 - Let `item.mime` participate in the type decision as a last resort, so an `application/vnd.android.package-archive`
   with no usable name is still recognised.
 - Add `xapk` (and the related `apks`, `obb`) to `INTERCEPT_FILE_TYPES`.

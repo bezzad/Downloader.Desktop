@@ -534,8 +534,8 @@ function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
 // are taken over. Users who want more add to it on the options page, which is why that control is
 // the most prominent one there.
 const INTERCEPT_FILE_TYPES = [
-  "7z", "apk", "appimage", "bin", "bz2", "deb", "dmg", "exe", "gz", "img", "iso", "jar",
-  "msi", "pkg", "rar", "rpm", "run", "tar", "tgz", "txz", "xz", "zip", "zst"
+  "7z", "apk", "apks", "appimage", "bin", "bz2", "deb", "dmg", "exe", "gz", "img", "iso", "jar",
+  "msi", "obb", "pkg", "rar", "rpm", "run", "tar", "tgz", "txz", "xapk", "xz", "zip", "zst"
 ];
 
 // One versioned object rather than scattered keys, so adding a rule later doesn't need a migration
@@ -558,6 +558,116 @@ function extOfName(name) {
   const base = n.slice(Math.max(n.lastIndexOf("/"), n.lastIndexOf("\\")) + 1);
   const dot = base.lastIndexOf(".");
   return dot > 0 ? base.slice(dot + 1) : "";
+}
+
+// The filename a content-disposition value names, or "". Handles the two shapes that actually turn
+// up: `attachment; filename=thing.zip` (optionally quoted) and RFC 5987's
+// `filename*=UTF-8''thing.zip`. `filename*` wins when both are present, since that is the encoded
+// one the spec says to prefer.
+//
+// Hostile input is the norm here — this parses whatever a CDN put in a URL — so it must never throw.
+// An unparseable value returns "" and the caller falls through to the next source.
+function filenameFromContentDisposition(value) {
+  let v = String(value || "");
+  if (!v) return "";
+  try {
+    // Read through a value that is still wholly percent-encoded (`attachment%3B%20filename%3Dx.zip`).
+    // `searchParams.get` decodes for us, so this only matters for a raw value, but decoding here
+    // costs nothing and means the parser doesn't depend on how it was handed over.
+    if (!/filename\s*\*?\s*=/i.test(v) && /%[0-9a-f]{2}/i.test(v)) {
+      try { v = decodeURIComponent(v); } catch { /* keep the original; the tests below just fail */ }
+    }
+    const star = /filename\*\s*=\s*(?:UTF-8|ISO-8859-1)?''([^;]+)/i.exec(v);
+    if (star) {
+      const name = decodeURIComponent(star[1].trim());
+      if (name) return baseNameOf(name);
+    }
+    const plain = /filename\s*=\s*("([^"]*)"|[^;]+)/i.exec(v);
+    if (plain) {
+      // Group 2 is the quoted body; group 1 is the raw run when unquoted.
+      let name = (plain[2] !== undefined ? plain[2] : plain[1]).trim();
+      // A value that reached us through a query string may still be percent-encoded.
+      try { name = decodeURIComponent(name); } catch { /* already decoded, or invalid escapes */ }
+      if (name) return baseNameOf(name);
+    }
+  } catch { /* fall through — an unreadable value simply names nothing */ }
+  return "";
+}
+
+// Strip any directory part a name arrived with. A content-disposition filename is supposed to be a
+// bare name, but nothing stops a server sending a path, and only the last segment is the file.
+function baseNameOf(name) {
+  const n = String(name || "").trim();
+  const cut = Math.max(n.lastIndexOf("/"), n.lastIndexOf("\\"));
+  return cut >= 0 ? n.slice(cut + 1) : n;
+}
+
+// A signed CDN link carries the real filename in its query string rather than its path — GitHub's
+// release assets use both `response-content-disposition` and the short `rscd`. Without this, such a
+// URL looks typeless and is never intercepted (issue #9).
+const CONTENT_DISPOSITION_PARAMS = ["response-content-disposition", "rscd"];
+
+function filenameFromUrlQuery(url) {
+  try {
+    const params = new URL(url).searchParams;
+    for (const key of CONTENT_DISPOSITION_PARAMS) {
+      const name = filenameFromContentDisposition(params.get(key));
+      if (name) return name;
+    }
+  } catch { /* unparseable URL — nothing to read */ }
+  return "";
+}
+
+// MIME types that identify a file unambiguously. Deliberately small: it exists to catch a download
+// nothing else names, not to classify the web. Generic containers are absent ON PURPOSE —
+// `application/octet-stream` is what GitHub serves for every asset, so honouring it would intercept
+// by MIME alone and take over files the user never asked for.
+const MIME_EXTENSIONS = {
+  "application/vnd.android.package-archive": "apk",
+  "application/x-msdownload": "exe",
+  "application/x-msi": "msi",
+  "application/x-ms-installer": "msi",
+  "application/zip": "zip",
+  "application/x-zip-compressed": "zip",
+  "application/x-7z-compressed": "7z",
+  "application/x-rar-compressed": "rar",
+  "application/vnd.rar": "rar",
+  "application/x-tar": "tar",
+  "application/gzip": "gz",
+  "application/x-gzip": "gz",
+  "application/x-bzip2": "bz2",
+  "application/x-xz": "xz",
+  "application/x-iso9660-image": "iso",
+  "application/x-apple-diskimage": "dmg",
+  "application/vnd.debian.binary-package": "deb",
+  "application/x-debian-package": "deb",
+  "application/x-redhat-package-manager": "rpm",
+  "application/x-rpm": "rpm",
+  "application/java-archive": "jar"
+};
+
+function extFromMime(mime) {
+  const m = String(mime || "").toLowerCase().split(";")[0].trim();
+  return MIME_EXTENSIONS[m] || "";
+}
+
+/**
+ * The file type of a download, from the most trustworthy source that can name it.
+ *
+ * Order matters. The browser's suggested filename is what the file WILL be called, so it wins.
+ * Content-disposition is the same answer straight from the server and beats the URL path, which is
+ * frequently a signed opaque blob id. MIME comes last because the common value identifies nothing —
+ * it must never override a real name.
+ *
+ * Returns "" only when no source identified a type, which the caller reports distinctly from "the
+ * user does not want this type".
+ */
+function resolveDownloadExt(item) {
+  const url = item?.url || "";
+  return extOfName(item?.filename)
+    || extOfName(filenameFromUrlQuery(url))
+    || extOf(url)
+    || extFromMime(item?.mime);
 }
 
 // Does `host` match a site-list entry? An entry covers the host itself and its subdomains, so
@@ -619,9 +729,9 @@ function shouldIntercept(item, settings) {
   if (refHost && s.excludedSites.some(entry => hostMatchesSite(refHost, entry)))
     return { intercept: false, reason: "excluded-site" };
 
-  // The browser's suggested filename is the better source (it reflects Content-Disposition); fall
-  // back to the URL path for a link the browser hasn't named yet.
-  const ext = extOfName(item?.filename) || extOf(url);
+  // Not the URL path alone: a signed CDN link (GitHub releases, APKPure, Softpedia) has an opaque
+  // path and names the file elsewhere. See `resolveDownloadExt` for the source order.
+  const ext = resolveDownloadExt({ url, filename: item?.filename, mime: item?.mime });
   const listed = !!ext && s.fileTypes.list.includes(ext);
   if (s.fileTypes.mode === "allow" && !listed)
     return { intercept: false, reason: ext ? "type-not-allowed" : "type-unknown" };
@@ -677,6 +787,8 @@ if (typeof module !== "undefined") {
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
+    filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
+    MIME_EXTENSIONS,
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
     getInterceptSettings, setInterceptSettings,
     postAdd, handOffToApp

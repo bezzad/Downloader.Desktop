@@ -13,6 +13,34 @@ const MIME = { ".html": "text/html", ".m3u8": "application/vnd.apple.mpegurl", "
 function start() {
   const server = http.createServer((req, res) => {
     const urlPath = decodeURIComponent(req.url.split("?")[0]);
+
+    // A signed-CDN shaped response: an opaque path with NO file extension, a generic content type,
+    // and the real name only in Content-Disposition. This is what GitHub releases, APKPure and
+    // Softpedia actually serve, and what interception used to miss entirely (issue #9 follow-up).
+    if (urlPath.startsWith("/signed-blob")) {
+      const blob = path.join(ROOT, "sample.zip");
+      const size = fs.statSync(blob).size;
+      res.writeHead(200, {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": size,
+        "Content-Disposition": 'attachment; filename="signed-sample.zip"'
+      });
+      // Honour ?slow=1 for the same reason the static route does: the download must still be in
+      // progress when the extension cancels it.
+      const stream = fs.createReadStream(blob, { highWaterMark: 8 * 1024 });
+      if (/[?&]slow=1/.test(req.url)) {
+        stream.on("data", chunk => {
+          stream.pause();
+          res.write(chunk);
+          setTimeout(() => stream.resume(), 120);
+        });
+        stream.on("end", () => res.end());
+        return;
+      }
+      stream.pipe(res);
+      return;
+    }
+
     const filePath = path.join(ROOT, urlPath);
     if (!filePath.startsWith(ROOT)) { res.writeHead(403).end(); return; }
     fs.stat(filePath, (err, stat) => {

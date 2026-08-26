@@ -156,6 +156,36 @@ test.describe("download interception", () => {
     expect(state.error).toBe("USER_CANCELED");
   });
 
+  // The regression the whole follow-up is about. Every other test here downloads `/sample.zip`, so
+  // the extension was always visible in the URL path — which is exactly why this shipped broken.
+  // Here the path has no extension at all and only Content-Disposition names the file, the shape
+  // GitHub releases / APKPure / Softpedia serve.
+  test("a signed link with no extension in its path is still intercepted by type", async ({ context }) => {
+    app = await startStubApp("accept");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    // The name is in the QUERY, as GitHub's `rscd` / `response-content-disposition` puts it — that is
+    // what the decision can actually see. A name carried only in the response *header* is invisible
+    // at `onCreated` in Chromium and is the documented residual gap.
+    await startBrowserDownload(
+      context,
+      "http://127.0.0.1:8991/signed-blob/9f3c1a?sig=abc"
+        + "&slow=1&rscd=attachment%3B+filename%3Dsigned-sample.zip");
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+    expect(app.adds[0].body.url).toContain("/signed-blob/");
+
+    const state = await downloadState(context, "signed-blob");
+    expect(state).not.toBeNull();
+    expect(state.state).toBe("interrupted");
+    expect(state.error).toBe("USER_CANCELED");
+  });
+
   test("a download the rules exclude is left entirely to the browser", async ({ context }) => {
     app = await startStubApp("accept");
     test.skip(!app, "no free port in the app range for the stub");

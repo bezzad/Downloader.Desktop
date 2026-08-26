@@ -14,7 +14,8 @@ const {
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
-  INTERCEPT_DEFAULTS, handOffToApp
+  filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
+  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -348,6 +349,105 @@ test("the browser's suggested filename beats the URL when deciding the type", ()
   // A signed CDN link often has no extension in its path; Content-Disposition carries the real name.
   const d = shouldIntercept(
     { url: "https://cdn.example.com/download?id=42", filename: "installer.msi", size: 9e6 }, ON);
+  assert.equal(d.intercept, true);
+});
+
+// ---- Type resolution for signed / extensionless links (issue #9 follow-up) ----
+// The real-world shape: the URL path is an opaque blob id and the filename lives in a
+// content-disposition query parameter. Before this, every such download looked typeless.
+
+test("content-disposition parsing covers the shapes servers actually send", () => {
+  const cases = [
+    ["attachment; filename=Downloader-win-x64.zip", "Downloader-win-x64.zip"],
+    ['attachment; filename="my file.exe"', "my file.exe"],
+    ["attachment; filename*=UTF-8''report%20final.msi", "report final.msi"],
+    ["attachment%3B%20filename%3Dapp.apk", "app.apk"],          // still percent-encoded
+    ["attachment; filename=/tmp/nested/app.deb", "app.deb"],     // path stripped to the base name
+    ["inline", ""],
+    ["", ""],
+    [null, ""]
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(filenameFromContentDisposition(input), expected, `for ${JSON.stringify(input)}`);
+  }
+});
+
+test("filename* wins over filename when a server sends both", () => {
+  const v = "attachment; filename=fallback.zip; filename*=UTF-8''real.iso";
+  assert.equal(filenameFromContentDisposition(v), "real.iso");
+});
+
+test("malformed content-disposition never throws, it just names nothing", () => {
+  for (const junk of ["filename*=UTF-8''%E0%A4%A", "filename=", "%%%", "attachment;;;"]) {
+    assert.doesNotThrow(() => filenameFromContentDisposition(junk));
+  }
+});
+
+test("a filename is read from either content-disposition query parameter", () => {
+  assert.equal(
+    filenameFromUrlQuery("https://cdn.example.com/blob/abc?rscd=attachment%3B+filename%3Dapp.apk"),
+    "app.apk");
+  assert.equal(
+    filenameFromUrlQuery("https://cdn.example.com/blob/abc?response-content-disposition=attachment%3B%20filename%3Dsetup.exe"),
+    "setup.exe");
+  assert.equal(filenameFromUrlQuery("https://cdn.example.com/blob/abc?sig=xyz"), "");
+  assert.equal(filenameFromUrlQuery("not a url"), "");
+});
+
+test("a real GitHub release asset URL is intercepted despite having no extension in its path", () => {
+  // Taken from an actual v2.6.1 asset redirect: the path is an opaque id and the name is in `rscd`.
+  const url = "https://release-assets.githubusercontent.com/github-production-release-asset/830513186/"
+    + "76697026-b00b-4edf-88eb-ae09b19e728e?sp=r&sv=2018-11-09"
+    + "&rscd=attachment%3B+filename%3DDownloader-win-x64.zip"
+    + "&rsct=application%2Foctet-stream&sig=abc%3D";
+  assert.equal(new URL(url).pathname.includes("."), false, "the path really has no extension");
+
+  const d = shouldIntercept({ url, filename: "", mime: "application/octet-stream", size: 9e6 }, ON);
+  assert.equal(d.intercept, true);
+  assert.equal(d.reason, "ok");
+});
+
+test("type sources are consulted most-trustworthy first", () => {
+  const url = "https://cdn.example.com/blob/1?rscd=attachment%3B+filename%3Dfrom-query.iso";
+  // The browser's suggested name outranks the query parameter.
+  assert.equal(resolveDownloadExt({ url, filename: "from-browser.exe" }), "exe");
+  // With no suggested name, the query parameter outranks the path.
+  assert.equal(resolveDownloadExt({ url: url.replace("/blob/1", "/blob/1.bin") }), "iso");
+  // MIME is the last resort only.
+  assert.equal(
+    resolveDownloadExt({ url: "https://e.com/x", mime: "application/vnd.android.package-archive" }),
+    "apk");
+  // Nothing names it.
+  assert.equal(resolveDownloadExt({ url: "https://e.com/x", mime: "application/octet-stream" }), "");
+});
+
+test("a generic octet-stream identifies nothing, so it cannot trigger interception by itself", () => {
+  assert.equal(extFromMime("application/octet-stream"), "");
+  assert.equal(extFromMime("binary/octet-stream"), "");
+  assert.equal(extFromMime(""), "");
+  // Parameters after the type are ignored.
+  assert.equal(extFromMime("application/zip; charset=binary"), "zip");
+});
+
+test("a download nothing can identify is left to the browser and says so", () => {
+  const d = shouldIntercept(
+    { url: "https://cdn.example.com/blob/opaque", mime: "application/octet-stream", size: 9e6 }, ON);
+  assert.equal(d.intercept, false);
+  assert.equal(d.reason, "type-unknown", "must be distinguishable from 'type-not-allowed'");
+});
+
+test("Android package types are intercepted by default", () => {
+  for (const ext of ["apk", "xapk", "apks", "obb"]) {
+    assert.ok(INTERCEPT_FILE_TYPES.includes(ext), `${ext} should be an allow-listed type`);
+    const d = shouldIntercept({ url: `https://apkpure.example/app.${ext}`, size: 9e6 }, ON);
+    assert.equal(d.intercept, true, `${ext} should be intercepted`);
+  }
+});
+
+test("an APKPure-shaped signed link with the name only in the query is intercepted", () => {
+  const url = "https://d.apkpure.example/b/XAPK/com.example.app?"
+    + "response-content-disposition=attachment%3B%20filename%3Dcom.example.app.xapk&k=sig";
+  const d = shouldIntercept({ url, filename: "", mime: "application/octet-stream", size: 9e6 }, ON);
   assert.equal(d.intercept, true);
 });
 
