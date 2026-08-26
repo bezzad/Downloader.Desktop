@@ -46,6 +46,26 @@ public static class UpdateFlow
     public static bool IsManagedExternally =>
         !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SNAP"));
 
+    /// <summary>
+    /// Test seam. This coordinator is static, so its state (and any staged archive path) is
+    /// process-wide and would otherwise leak from one test into the next — an earlier test leaving
+    /// State=Ready would make a later one's guard clauses no-op and pass for the wrong reason.
+    /// Resets to a freshly-started app. Never called by the app itself.
+    /// </summary>
+    internal static void ResetForTests()
+    {
+        State = UpdateState.Idle;
+        Progress = 0;
+        AvailableVersion = null;
+        _archivePath = null;
+        _busy = false;
+        _pending = null;
+        _downloadCts = null;
+        Changed = null;
+        RequestQuit = null;
+        PromptUpdate = null;
+    }
+
     private static void Raise(UpdateState state, double progress)
     {
         State = state;

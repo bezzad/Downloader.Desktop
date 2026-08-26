@@ -114,7 +114,13 @@ public static class UpdateService
             string.IsNullOrWhiteSpace(rid) || rid.StartsWith("unknown") ? fallback : rid;
     }
 
-    private static (string url, string name) FindAsset(JsonElement root)
+    /// <summary>
+    /// Picks this platform's archive out of a GitHub release payload. Internal rather than private so
+    /// the asset-matching can be tested against a real release JSON shape without a network call —
+    /// picking the wrong asset (or none) is what silently downgrades an update to "just open the
+    /// release page".
+    /// </summary>
+    internal static (string url, string name) FindAsset(JsonElement root)
     {
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return (null, null);
