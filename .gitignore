@@ -475,3 +475,6 @@ snap-creds.txt
 /parts/
 /stage/
 /prime/
+
+# Local coverage runs (dotnet test --results-directory)
+src/TestResults/
