@@ -49,4 +49,4 @@
 - [x] 4.2 Run all three suites green: `node --test src/browser-extension/common.test.js`, the
       Playwright e2e suite, and `dotnet test` for the app.
 - [x] 4.3 Verify `./scripts/build-extension.sh` still passes its `verify_zip` guard.
-- [ ] 4.4 Commit on `develop` referencing issue #9.
+- [x] 4.4 Commit on `develop` referencing issue #9 (`e2439ac`).
