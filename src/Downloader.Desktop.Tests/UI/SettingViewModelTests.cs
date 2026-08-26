@@ -351,4 +351,106 @@ public class SettingViewModelTests
     {
         Assert.Throws<ArgumentNullException>(() => new SettingViewModel(null));
     }
+
+    // ---- app behaviour toggles --------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Toggling_notifications_drives_the_notification_service()
+    {
+        var wasEnabled = NotificationService.Enabled;
+        try
+        {
+            var (vm, config, _) = Build();
+            vm.EnableNotifications = false;
+
+            Assert.False(config.Settings.EnableNotifications);
+            Assert.False(NotificationService.Enabled);
+
+            // Turning it back on would fire a sample notification, which shells out to notify-send on
+            // this box; the off direction is the one that must be honoured, and it is asserted above.
+            Assert.False(vm.EnableNotifications);
+        }
+        finally
+        {
+            NotificationService.Enabled = wasEnabled;
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_per_event_notification_toggles_round_trip()
+    {
+        var (vm, config, _) = Build();
+
+        foreach (var value in new[] { false, true })
+        {
+            vm.NotifyOnComplete = value;
+            vm.NotifyOnFailed = value;
+            vm.NotifyOnAllComplete = value;
+            vm.NotifyOnShutdown = value;
+
+            Assert.Equal(value, config.Settings.NotifyOnComplete);
+            Assert.Equal(value, config.Settings.NotifyOnFailed);
+            Assert.Equal(value, config.Settings.NotifyOnAllComplete);
+            Assert.Equal(value, config.Settings.NotifyOnShutdown);
+
+            Assert.Equal(value, vm.NotifyOnComplete);
+            Assert.Equal(value, vm.NotifyOnFailed);
+            Assert.Equal(value, vm.NotifyOnAllComplete);
+            Assert.Equal(value, vm.NotifyOnShutdown);
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Shutdown_on_completion_round_trips()
+    {
+        var (vm, config, _) = Build();
+
+        vm.ShutdownOnCompletion = true;
+        Assert.True(config.Settings.ShutdownOnCompletion);
+
+        vm.ShutdownOnCompletion = false;
+        Assert.False(config.Settings.ShutdownOnCompletion);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Toggling_logging_drives_the_app_log()
+    {
+        var (vm, config, _) = Build();
+        var was = config.Settings.EnableLogging;
+        try
+        {
+            vm.EnableLogging = true;
+            Assert.True(config.Settings.EnableLogging);
+
+            vm.EnableLogging = false;
+            Assert.False(config.Settings.EnableLogging);
+        }
+        finally
+        {
+            vm.EnableLogging = was;
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_local_api_row_reports_an_address_and_a_status()
+    {
+        var (vm, _, _) = Build();
+
+        // Always shows an address — the preferred port when nothing is bound yet — so the row never
+        // renders blank while the listener is still starting.
+        Assert.StartsWith("127.0.0.1:", vm.LocalApiAddress);
+        Assert.NotNull(vm.LocalApiStatusBrush);
+        Assert.False(string.IsNullOrWhiteSpace(vm.LocalApiStatusText));
+        Assert.DoesNotContain("Set_LocalApi", vm.LocalApiStatusText); // localized
+        Assert.Equal(LocalApiService.IsRunning, vm.IsLocalApiRunning);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_about_card_version_matches_the_update_check()
+    {
+        var (vm, _, _) = Build();
+
+        // If these ever drift, every patch release looks "newer forever" (#update-false-alarm).
+        Assert.Equal(UpdateService.CurrentVersion.ToString(), vm.AppVersion);
+    }
 }

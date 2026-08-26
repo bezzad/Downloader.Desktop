@@ -233,6 +233,77 @@ public class UpdateStackTests
     // ---- swap scripts ------------------------------------------------------
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Unix_swap_script_waits_extracts_and_relaunches_detached()
+    {
+        var script = UpdateService.BuildUnixScript(
+            archive: "/tmp/Downloader-linux-x64.tar.gz", appDir: "/opt/downloader",
+            exe: "/opt/downloader/Downloader", pid: 4242);
+
+        // Wait for the old process to actually exit before overwriting its files.
+        Assert.Contains("kill -0 4242", script);
+
+        // The swapper must survive the parent's exit, and the NEW app must start in its own session —
+        // without that detachment "restart to update" appears to do nothing, because the relaunched
+        // app is torn down with the old process group.
+        Assert.Contains("trap '' HUP", script);
+        Assert.Contains("setsid", script);
+        Assert.Contains("nohup", script); // fallback where setsid is unavailable
+
+        Assert.Contains("tar -xzf \"/tmp/Downloader-linux-x64.tar.gz\" -C \"/opt/downloader\"", script);
+        Assert.Contains("chmod +x", script); // the extracted apphost must stay executable
+        Assert.Contains("rm -f \"/tmp/Downloader-linux-x64.tar.gz\"", script);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Unix_swap_script_uses_unzip_for_a_zip_archive()
+    {
+        var script = UpdateService.BuildUnixScript("/tmp/Downloader.zip", "/opt/downloader",
+            "/opt/downloader/Downloader", 7);
+
+        Assert.Contains("unzip -o", script);
+        Assert.DoesNotContain("tar -xzf", script);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Mac_swap_script_replaces_the_whole_app_bundle()
+    {
+        var script = UpdateService.BuildMacScript(
+            archive: "/tmp/Downloader-osx-arm64.tar.gz",
+            bundle: "/Applications/Downloader.app", pid: 99);
+
+        Assert.Contains("kill -0 99", script);
+
+        // The whole bundle is replaced. Extracting INTO Contents/MacOS nests a second .app and
+        // relaunches the OLD binary, which re-detects the update — the restart loop.
+        Assert.Contains("rm -rf \"/Applications/Downloader.app\"", script);
+        Assert.Contains("mv ", script);
+        Assert.Contains("/Applications/Downloader.app", script);
+        Assert.DoesNotContain("Contents/MacOS", script);
+
+        // Gatekeeper would otherwise refuse the freshly downloaded bundle.
+        Assert.Contains("xattr -dr com.apple.quarantine", script);
+        Assert.Contains("open \"/Applications/Downloader.app\"", script);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void No_swap_script_ever_reaches_for_powershell()
+    {
+        // Issue #4: an unsigned binary spawning PowerShell to overwrite its own executable is the
+        // strongest signal a behavioural antivirus engine can see. Guarded for every platform here,
+        // not just Windows.
+        foreach (var script in new[]
+                 {
+                     UpdateService.BuildUnixScript("/tmp/a.tar.gz", "/opt/d", "/opt/d/D", 1),
+                     UpdateService.BuildMacScript("/tmp/a.tar.gz", "/Applications/Downloader.app", 1),
+                     UpdateService.BuildWindowsScript(@"C:\a.zip", @"C:\d", @"C:\d\D.exe", 1)
+                 })
+        {
+            Assert.DoesNotContain("powershell", script, System.StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Expand-Archive", script, System.StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Apply_downloaded_archive_refuses_a_missing_file()
     {
         var missing = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
