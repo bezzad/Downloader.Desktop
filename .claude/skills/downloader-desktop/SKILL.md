@@ -605,15 +605,26 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
   code is. The runsettings excludes generated/compiler-emitted code and the test assembly.
 - **XML comments in a .runsettings cannot contain `--`** (not even inside a word like `--collect`), or
   vstest fails with *"Settings file provided does not conform to required format"* before running anything.
-- **Coverlet intermittently DROPS an assembly's hits.** The same 113-test filter reported the Website
-  plugin at 0% on one run and fully covered on the next, with no code change. A surprising 0% on
-  well-tested code is a re-run, not a bisect. (Cost a session once — don't repeat it.)
-- **Current split (know this before promising a number):** authored code the suite can actually guard is
-  **~82%**; the overall figure is ~74% because of four categories that can't run here — network/modal
-  flows (`UpdateFlow`/`UpdateService`/`PluginCatalogService`/`DialogHelper`), view code-behind + real
-  windows, platform OS integration (Windows/macOS notifiers, tray, autostart), and `Program.cs`/`App.axaml.cs`.
-  Raising the OVERALL number past ~80% needs either a scope decision (exclude `Views/**` + platform files)
-  or production seams for HTTP/config paths. Don't quietly add either.
+- **Coverlet DROPS whole PLUGIN assemblies' hits, and it is the ALC tests that cause it.** Symptom: the
+  Hls/Website/Ollama assemblies report 0% on one run and 84–95% on the next, no code change; one full run
+  came out at 59.8% instead of ~77%. Cause: `PluginLoadTests`/`PluginReloadTests` load the SAME plugin
+  DLLs into collectible `AssemblyLoadContext`s that then unload, and coverlet's per-module hit flushing
+  loses the data when that happens — only plugin assemblies are ever affected. Filtering just those two
+  classes out of a coverage run gives a stable 77.6–77.9% vs 59.8–78% with them. CI keeps running them
+  (correctness beats a tidy number), so **expect the reported figure to wobble a point or two**.
+  Coverlet only ever LOSES hits, never invents them, so when you need an accurate figure, run the suite
+  2–3 times into the same `--results-directory` and max-merge per line — that is the closest to truth.
+  A surprising 0% on well-tested code is a re-run, not a bisect. (Cost a session once — don't repeat it.)
+- **Scope (author's decision, 2026-08-27): `Views/**` and the platform-integration files are EXCLUDED**
+  from the measurement (Windows/macOS notifiers, StartMenuShortcut, StartupService, TrayService,
+  TaskbarProgressService) — they need a specific OS or a live desktop session, and StartupService would
+  mutate the developer's real "launch at login" just by running the suite. The views are still TESTED by
+  `UI/ViewLoadTests`; only the metric's scope changed. Kept deliberately in scope: `SingleInstanceService`
+  (loopback IPC, genuinely tested), `Program.cs`/`App.axaml.cs`, and every network-bound service.
+  With that scope the number is **~78.5%**, and **82.7%** across the code the suite can guard.
+  **Don't quietly widen the exclusions to make a number.** Getting past ~80% needs either another explicit
+  scope call (excluding `UpdateFlow`/`UpdateService`/`PluginCatalogService`/`DialogHelper`/`CliRunner`,
+  ~636 lines at 40%, which would report ~82%) or real seams for their HTTP/config paths.
 - **A "passing" test can be testing nothing.** `ShutdownVerificationTests` is gated behind
   `DLDESKTOP_VERIFY=1` and `return`s immediately otherwise — it passed for months while `ShutdownService`
   sat at 0%. Before writing new tests for a file, check whether an existing suite is env-gated.

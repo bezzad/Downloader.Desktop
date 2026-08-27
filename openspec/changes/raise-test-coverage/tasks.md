@@ -2,8 +2,9 @@
 
 Baseline (develop, 525 tests green): raw **51.5%**, real C# code **61.2%**.
 After task 1 (generated code excluded from the denominator): **65.0%** (5849/9000), same 525 tests.
-**Final: 74.0% overall (6693/9041) with 883 tests** — and **82.3% across the code the suite can
-meaningfully guard** (see "Where the remaining gap is" below).
+**Final: 883 tests green.** On the full scope, **74.5%** (6715/9018). After the author's scope
+decision (views + platform files excluded, 2026-08-27), **78.5%** (6359/8104) — and **82.7% across
+the code the suite can guard**. See "Scope decision applied" and "Where the remaining gap is" below.
 
 ## 1. Make the measurement honest
 
@@ -81,30 +82,59 @@ meaningfully guard** (see "Where the remaining gap is" below).
 - [x] 8.3 Browser-extension unit suite green (untouched by this change).
 - [x] 8.4 Final coverage measured and reported; SKILL.md updated.
 
+## Scope decision applied (author's call, 2026-08-27)
+
+`Views/**` and the platform-integration files (Windows/macOS notifiers, the Windows shortcut COM
+path, run-at-startup, tray, taskbar progress) are now excluded from the measurement — they need a
+specific OS or a live desktop session, and run-at-startup would mutate the developer's real
+"launch at login" setting just by running the suite. The views are still *tested*
+(`UI/ViewLoadTests`); only the metric's scope changed.
+
+Deliberately kept in scope so this stays a scope decision and not a way to flatter the number:
+`SingleInstanceService` (loopback IPC, genuinely tested — 81%), `Program.cs`/`App.axaml.cs`, and
+every network-bound service.
+
+**Result: 78.5%** (6359/8104), up from 74.5% on the full scope.
+
+**Correction to an earlier estimate:** this was previously predicted to land at "~82%". That was
+wrong — the 82.7% figure was the *"code the suite can guard"* bucket, which also excluded the
+network/modal-dialog service files. Views + platform alone gives ~78.5%.
+
+### Measurement variance (important for reading codecov)
+
+Single runs of the same commit report **76–78%**, and one reported 59.8% because two whole plugin
+assemblies came back at 0%. Cause, now pinned: the plugin tests load the *same* plugin DLLs into
+collectible `AssemblyLoadContext`s that then unload, and coverlet's per-module hit flushing loses
+data when that happens — only plugin assemblies are ever affected. Excluding just
+`PluginLoadTests`+`PluginReloadTests` from a coverage run gives a stable 77.6–77.9%.
+
+Coverlet only ever *loses* hits, never invents them, so the maximum across runs is the closest
+estimate to truth — that is where 78.5% comes from (three runs, max-merged). CI still runs the whole
+suite in one invocation (correctness beats a tidier number), so expect its reported figure to wobble
+a point or two.
+
 ## Where the remaining gap is
 
-Grouping every uncovered line by why it is uncovered:
+With views and platform files excluded, the measured 8104 lines break down as:
 
 | category | covered/total | rate |
 |---|---|---|
-| **code the suite can guard** | 5962 / 7246 | **82.3%** |
-| network / modal-dialog flows | 268 / 659 | 40.7% |
-| view code-behind / real windows | 268 / 632 | 42.4% |
-| platform OS integration (Windows/macOS notifiers, tray, autostart) | 195 / 450 | 43.3% |
-| real user config file | 0 / 31 | 0% |
-| app bootstrap (`Program.cs`, `App.axaml.cs`) | 0 / 23 | 0% |
-| **total** | 6693 / 9041 | **74.0%** |
+| **code the suite can guard** | 5995 / 7246 | **82.7%** |
+| network / modal-dialog flows (`UpdateFlow`, `UpdateService`, `PluginCatalogService`, `DialogHelper`, `CliRunner`) | 257 / 636 | 40.4% |
+| `SingleInstanceService` (kept in scope) | 88 / 109 | 80.7% |
+| app bootstrap (`Program.cs`, `App.axaml.cs`) | 19 / 82 | 23.2% |
+| real user config file (`FileService`) | 0 / 31 | 0% |
+| **total** | 6359 / 8104 | **78.5%** |
 
-The 80% target is not reachable on the current measurement without one of two author decisions:
+Two levers remain for the last ~1.5 points, both the author's call:
 
-1. **Narrow what is measured** to the code the suite can guard — excluding `Views/**`, the
-   platform-specific notifiers/tray/autostart, and the bootstrap — which reports ~82% today. This is
-   common practice, but it is a judgement call about what the number should mean, so it was not done
-   unilaterally.
-2. **Add production seams for network and OS work** (an injectable `HttpClient`/base URL on
-   `UpdateService`/`PluginCatalogService`, a redirectable config path on `FileService`). That buys
-   real coverage of the update and catalog flows, but it changes shipping code to suit the tests,
-   which the repo's "smallest change, no speculative abstractions" rule argues against.
+1. **Also exclude the network-bound services** (the 636-line row above) — would report ~82%. Weaker
+   justification than views/platform: those are ordinary app services that simply lack seams to
+   reach, not code the suite is barred from running.
+2. **Add seams and test them for real** — an injectable `HttpClient`/base URL on `UpdateService` and
+   `PluginCatalogService`, a redirectable config path on `FileService`. This buys genuine coverage of
+   the update and catalog flows rather than hiding them, at the cost of changing shipping code to
+   suit tests.
 
-Windows- and macOS-only paths (`WindowsNotifier`, `StartMenuShortcut`, `MacNotifier`, the update
-self-swap) cannot execute on the Linux CI box at all and would need a Windows/macOS CI leg.
+Windows- and macOS-only paths are now out of scope entirely; testing them would need a Windows or
+macOS CI leg.
