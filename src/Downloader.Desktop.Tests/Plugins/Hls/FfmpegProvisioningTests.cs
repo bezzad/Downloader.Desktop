@@ -49,6 +49,27 @@ public class FfmpegProvisioningTests : IDisposable
     private static bool TarAvailable =>
         !OperatingSystem.IsWindows() && File.Exists("/usr/bin/tar");
 
+    /// <summary>The install path only understands the archive shape its own platform downloads: a
+    /// <c>.tar.xz</c> on Linux (unpacked with the system tar) and a <c>.zip</c> on macOS/Windows. Feeding
+    /// it the wrong one is not a test of anything — so the fixture follows the platform.</summary>
+    private static bool ArchiveSupported => !OperatingSystem.IsLinux() || TarAvailable;
+
+    /// <summary>The file name the installer looks for inside the archive.</summary>
+    private static string FfmpegName => OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+
+    /// <summary>Packs a directory into whatever archive shape this platform's install path expects.</summary>
+    private static byte[] BuildArchive(string sourceDir)
+    {
+        if (OperatingSystem.IsLinux())
+            return TarXz(sourceDir);
+
+        var archive = Path.Combine(Path.GetTempPath(), "ffmpeg-" + Guid.NewGuid().ToString("N") + ".zip");
+        System.IO.Compression.ZipFile.CreateFromDirectory(sourceDir, archive);
+        var zipped = File.ReadAllBytes(archive);
+        File.Delete(archive);
+        return zipped;
+    }
+
     /// <summary>A stand-in ffmpeg: a script big enough to pass the "plausibly a real binary" size gate.</summary>
     private static string WriteFakeFfmpeg(string path, int exitCode, string stderr = "")
     {
@@ -105,11 +126,11 @@ public class FfmpegProvisioningTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task A_missing_ffmpeg_is_downloaded_and_installed_on_first_use()
     {
-        if (!TarAvailable) return; // the .tar.xz install path needs the system tar
+        if (!ArchiveSupported) return; // the .tar.xz install path needs the system tar
 
         var staged = Directory.CreateTempSubdirectory("ffmpeg-src-").FullName;
-        WriteFakeFfmpeg(Path.Combine(staged, "ffmpeg-7.0-static", "ffmpeg"), exitCode: 0);
-        var ffmpeg = BinaryServing(TarXz(staged), out var handler);
+        WriteFakeFfmpeg(Path.Combine(staged, "ffmpeg-7.0-static", FfmpegName), exitCode: 0);
+        var ffmpeg = BinaryServing(BuildArchive(staged), out var handler);
         Directory.Delete(staged, recursive: true);
 
         var exe = await ffmpeg.EnsureFfmpegAsync(CancellationToken.None);
@@ -122,7 +143,7 @@ public class FfmpegProvisioningTests : IDisposable
         Assert.Equal(1, handler.Requests);
 
         // Nothing may be left behind for the next run to trip over.
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_dir, "ffmpeg-bin"), "*.tar.xz"));
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_dir, "ffmpeg-bin"), "ffmpeg-download*"));
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(_dir, "ffmpeg-bin"), "*.partial"));
 
         // Second call is answered from the cache — no second download.
@@ -137,9 +158,9 @@ public class FfmpegProvisioningTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task A_corrupt_archive_is_deleted_so_the_next_attempt_starts_clean()
     {
-        if (!TarAvailable) return;
+        if (!ArchiveSupported) return;
 
-        var ffmpeg = BinaryServing(Encoding.UTF8.GetBytes("this is not an xz archive"), out _);
+        var ffmpeg = BinaryServing(Encoding.UTF8.GetBytes("this is not an archive"), out _);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => ffmpeg.EnsureFfmpegAsync(CancellationToken.None));
@@ -157,11 +178,11 @@ public class FfmpegProvisioningTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task An_archive_with_no_ffmpeg_inside_is_reported_as_such()
     {
-        if (!TarAvailable) return;
+        if (!ArchiveSupported) return;
 
         var staged = Directory.CreateTempSubdirectory("ffmpeg-src-").FullName;
         File.WriteAllText(Path.Combine(staged, "README.txt"), "wrong archive");
-        var ffmpeg = BinaryServing(TarXz(staged), out _);
+        var ffmpeg = BinaryServing(BuildArchive(staged), out _);
         Directory.Delete(staged, recursive: true);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -177,15 +198,15 @@ public class FfmpegProvisioningTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task A_truncated_cached_ffmpeg_is_replaced_rather_than_used()
     {
-        if (!TarAvailable) return;
+        if (!ArchiveSupported) return;
 
-        var fragment = Path.Combine(_dir, "ffmpeg-bin", "ffmpeg");
+        var fragment = Path.Combine(_dir, "ffmpeg-bin", FfmpegName);
         Directory.CreateDirectory(Path.GetDirectoryName(fragment)!);
         File.WriteAllText(fragment, "a 23MB-of-40MB fragment, in spirit"); // too small to be real
 
         var staged = Directory.CreateTempSubdirectory("ffmpeg-src-").FullName;
-        WriteFakeFfmpeg(Path.Combine(staged, "ffmpeg"), exitCode: 0);
-        var ffmpeg = BinaryServing(TarXz(staged), out var handler);
+        WriteFakeFfmpeg(Path.Combine(staged, FfmpegName), exitCode: 0);
+        var ffmpeg = BinaryServing(BuildArchive(staged), out var handler);
         Directory.Delete(staged, recursive: true);
 
         var exe = await ffmpeg.EnsureFfmpegAsync(CancellationToken.None);

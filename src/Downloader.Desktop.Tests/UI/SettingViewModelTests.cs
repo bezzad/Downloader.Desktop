@@ -473,7 +473,6 @@ public class SettingViewModelTests
     public void The_browser_integration_toggle_starts_and_stops_the_local_api()
     {
         var (vm, config, _) = Build();
-        var wasRunning = LocalApiService.IsRunning;
         try
         {
             vm.EnableBrowserIntegration = true;
@@ -493,8 +492,9 @@ public class SettingViewModelTests
         }
         finally
         {
-            if (!wasRunning)
-                LocalApiService.Stop();
+            // The listener is a process-wide singleton: leaving it bound would make another test's
+            // "the preferred port is taken" scenario read as "already running" and no-op.
+            LocalApiService.Stop();
         }
     }
 
@@ -676,16 +676,20 @@ public class SettingViewModelTests
 
             Assert.True(config.Settings.EnableNotifications);
             Assert.True(NotificationService.Enabled);
-            var sample = Assert.Single(sent);
-            Assert.Contains(sample, a => a.Contains("Notifications enabled"));
+            // Only Linux posts its notification through a launched command (notify-send); macOS and
+            // Windows post in-process, so there the sample is not observable through ShellLauncher.
+            var expected = OperatingSystem.IsLinux() ? 1 : 0;
+            Assert.Equal(expected, sent.Count);
+            if (expected == 1)
+                Assert.Contains(sent[0], a => a.Contains("Notifications enabled"));
 
             // Already on — no second sample.
             vm.EnableNotifications = true;
-            Assert.Single(sent);
+            Assert.Equal(expected, sent.Count);
 
             vm.EnableNotifications = false;
             Assert.False(NotificationService.Enabled);
-            Assert.Single(sent);
+            Assert.Equal(expected, sent.Count);
         }
         finally
         {

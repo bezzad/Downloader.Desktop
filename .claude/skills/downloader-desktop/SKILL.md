@@ -701,3 +701,29 @@ out to be reachable, and two suites were passing **without executing the code th
 - **`RxApp.MainThreadScheduler`, `Application._applicationLifetime`, `PluginManager.PluginsRootOverride`,
   `FileService.ConfigFileOverride` are process-wide.** Always restore them in `Dispose` — collection
   parallelisation is off, so leaking one silently changes a LATER test rather than the current one.
+
+## CI-only test failures from the coverage push (fixed 2026-08-29)
+Four failures that a green Linux-Debug run cannot show you. Check all four shapes before blaming the code:
+- **A test that asserts on `ShellLauncher` is a LINUX-only assertion.** `NotificationService` only launches a
+  command (`notify-send`) on Linux; macOS/Windows post in-process (`MacNotifier`/`WindowsNotifier`), so
+  `Assert.Single(sent)` was empty there. Gate the launch assertion on `OperatingSystem.IsLinux()`.
+- **The ffmpeg install fixture must match the PLATFORM'S archive shape**: `.tar.xz` on Linux (system `tar`),
+  `.zip` on macOS/Windows (`ZipFile`). Feeding a tar.xz to the macOS path fails with *"End of Central
+  Directory record could not be found"*. `FfmpegProvisioningTests.BuildArchive` now branches, and the
+  fixture's binary is named `ffmpeg.exe` on Windows or nothing is found inside the archive.
+- **`LocalApiService` is a process-wide singleton and `Start()` no-ops when it is already running** — a test
+  that leaves it bound makes the port-fallback test read 15151 as its "fallback". Always `Stop()` it in a
+  `finally` (never conditionally), and `Stop()` defensively at the top of a test that needs a known state.
+- **`DownloadPackage.Chunks` can hold a NULL element mid-setup** — the engine fills the array element by
+  element. `DownloadDetailsViewModel.ReconcileParts` runs from a POSTED dispatcher job, so the NRE surfaced
+  as a "Test Case Cleanup Failure" in an unrelated test. Skip null slots.
+
+## The engine drops a part on the floor if it is paused on its finish line (plan runner)
+`DownloadService.StartDownload`'s success branch is `_chunkError is null && Status is DownloadStatus.Running`.
+`Pause()` sets `Package.SetState(Paused)`, so a pause that lands between "chunks finished" and that check
+falls into the `else` — **no completion signal, no error, and the file never finalized**. The runner then saw
+a task that completed with `partError == null` and no usable file: *"Part 4/16 did not finish downloading."*
+(Only reproducible under CI load; 5/5 green locally.) Fix is app-side in `DownloadManager.Plans.cs`:
+`PlanController.PauseCount` counts pauses, `DownloadPartOnceAsync` returns false instead of throwing, and
+`DownloadPartAsync` re-fetches the part (up to `PausedPartRetries`) **only when the count changed during the
+attempt** — a part that comes up empty with no pause still fails honestly.

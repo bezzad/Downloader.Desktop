@@ -556,6 +556,11 @@ public class DownloadDetailsViewModel : ViewModelBase
 
         foreach (var c in chunks)
         {
+            // The engine fills the chunk array element by element, so a reconcile that lands mid-setup
+            // can see a slot that is still null.
+            if (c == null)
+                continue;
+
             var part = GetOrAddPart(c.Id, c.Length);
             part.SyncFromPackage(c.Position, c.Length);
         }

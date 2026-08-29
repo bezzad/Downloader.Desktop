@@ -357,6 +357,10 @@ public class LocalApiEndToEndTests
         // Occupy the preferred port so the service must fall back. If 15151 is ALREADY taken (e.g. a real
         // Downloader instance is running on this machine), that satisfies the precondition just as well —
         // don't fail the test trying to double-bind it.
+        // A service left running by an earlier test would make Start() a no-op on the port it already
+        // holds, so start from a known-stopped state.
+        LocalApiService.Stop();
+
         HttpListener blocker = null;
         try
         {

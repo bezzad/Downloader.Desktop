@@ -26,6 +26,27 @@ namespace Downloader.Desktop.Tests.Integration;
 /// </summary>
 public class DetailsProgressTests
 {
+    /// <summary>
+    /// The engine fills its chunk array element by element, so a reconcile that lands mid-setup sees a
+    /// slot that is still null. That threw a NullReferenceException out of a posted dispatcher job —
+    /// which is not catchable anywhere useful and took the test host's cleanup down with it.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_half_built_chunk_set_is_skipped_instead_of_throwing()
+    {
+        var manager = new DownloadManager();
+        manager.Initialize(Config.New());
+        var vm = new DownloadItemViewModel(new DownloadItem { Url = "http://10.255.255.1/f.bin" }, manager);
+        var engine = new DownloadService(new DownloadConfiguration());
+        engine.Package.Chunks = new[] { new Chunk(0, 99) { Id = "c0" }, null };
+        vm.Download = engine;
+
+        var details = new DownloadDetailsViewModel(vm);
+
+        // The real chunk still came through; the empty slot was simply skipped.
+        Assert.Single(details.Parts);
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public async Task A_finished_download_shows_every_connection_complete()
     {
