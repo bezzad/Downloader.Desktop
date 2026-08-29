@@ -731,9 +731,19 @@ attempt** — a part that comes up empty with no pause still fails honestly.
 **The in-host hang still happens on CI (2026-08-29).** The ubuntu-latest/Release job burned its whole
 30-minute timeout after 1202 of 1232 tests, with the log stopping mid-suite and no culprit named; a plain
 re-run of the same commit was green, and the exact CI command (coverage collector, Release) is green locally.
-CI's test step now carries `--blame-hang --blame-hang-timeout 180s --blame-crash` so the next occurrence
+CI's test step now carries `--blame-hang --blame-hang-timeout 180s --blame-crash` so the occurrence
 kills the host and NAMES the test instead of leaving a silent 30-minute gap. To find what did not run, diff
 `--list-tests` against the job log's `Passed …` lines (`LC_ALL=C sort` both — plain `comm` mis-sorts these).
+
+It fired on the very next run: aborted after **810** tests with *"The test running when the crash occurred:
+AppTests.Staged_progress_flushes_only_while_running"* — a pure, instant test that cannot itself hang, so the
+name is where the host went unresponsive, not the cause. Different runs stop at different counts (810, 1202),
+which points at the shared headless dispatcher wedging rather than at one test. Still NOT reproducible here:
+the exact CI command (Release + coverlet collector) is green locally, including 3 consecutive runs pinned to
+2 cores with `taskset -c 0,1` to imitate a small runner. A re-run of the job passes. **Grab the artifacts
+while they exist** — a re-run REPLACES the artifact, so the `Sequence_*.xml` (its `Completed="False"` rows
+are the in-flight tests) and the hang dumps from the failing attempt are gone once you re-run it. Download
+first, re-run second.
 
 **Never conditionally restore `LocalApiService`.** Three tests used the "remember whether it was running,
 only stop it if it wasn't" pattern, which PRESERVES another test's leak instead of clearing it — one leak
