@@ -96,3 +96,18 @@ paths a user actually walks. A task is not done without them.
 - Two items (Softpedia's secure mirror, the reporter's app-detection claim) cannot be reproduced from this
   machine — Softpedia and APKPure both answer a datacenter IP with a Cloudflare challenge — so they close on
   the reporter's confirmation, not ours.
+
+
+## Status (2026-08-30)
+
+Groups 1–5 are implemented and green (solution rebuild with 0 warnings, `dotnet test`, `node --test`,
+Playwright). Two tasks are deliberately left open because they are outward-facing and need the author's
+explicit go-ahead before anything is posted:
+
+- **3.2** — telling the reporter, from the evidence in `design.md`, that nothing in extension 1.5.0 ever
+  required app 2.7.0, and asking them to confirm with the new "not found on ports …" diagnostic.
+- **6.4** — the issue #9 reply covering what was fixed and what still needs their confirmation (Softpedia's
+  secure mirror, which cannot be reproduced from a datacenter IP).
+
+Both are drafted; the change stays active (not archived, 6.5 open) until the author approves and they are
+posted. Everything they describe is already shipped on `develop`.
