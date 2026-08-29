@@ -61,7 +61,7 @@
 ## 6. Close-out
 
 - [x] 6.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four, per CLAUDE.md's standing apply-session step.
-- [ ] 6.2 Refresh `docs/screenshots/` if any view changed (`DLDESKTOP_CAPTURE=1 dotnet test --filter FullyQualifiedName~CaptureScreenshots`) and **view the PNGs** before committing them.
-- [ ] 6.3 Update `CLAUDE.md` and `docs/codebase-index.md` for the new plugin and the interception changes, and append any non-obvious gotcha found here to `.claude/skills/downloader-desktop/SKILL.md`.
+- [x] 6.2 Refresh `docs/screenshots/` if any view changed (`DLDESKTOP_CAPTURE=1 dotnet test --filter FullyQualifiedName~CaptureScreenshots`) and **view the PNGs** before committing them.
+- [x] 6.3 Update `CLAUDE.md` and `docs/codebase-index.md` for the new plugin and the interception changes, and append any non-obvious gotcha found here to `.claude/skills/downloader-desktop/SKILL.md`.
 - [ ] 6.4 Draft the issue #9 reply (what was fixed, what needs the reporter's confirmation on Softpedia's secure mirror) and **wait for the author's explicit OK before posting** — state the request and the current state only, never our proposed approach.
 - [ ] 6.5 `/opsx:sync` the delta specs into `openspec/specs/`, then `/opsx:archive` this change.

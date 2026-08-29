@@ -775,3 +775,39 @@ executed `OpenFolderCommand` with no seam, so on CI it actually ran `xdg-open` �
 (*"file '/tmp/dldesktop-plugins-vm-…' does not exist"*) ended up quoted as the test host's crash reason,
 which is a great way to spend an hour blaming the wrong thing. Set `ShellLauncher.OpenOverride` (or
 `RunOverride`) and assert the target instead; both are `internal` seams visible to the test project.
+
+## Two plugins cannot share source, and other lessons from adding SiteMedia (2026-08-30)
+- **Never link the same `.cs` into two plugin projects.** The obvious way to give the new site-media
+  plugin the HLS plugin's segment pipeline + ffmpeg provisioning was `<Compile Include="..\Hls\*.cs"
+  Link="Shared\…" />`. It builds — and then the TEST project, which compile-references both plugins,
+  cannot name any of those types (CS0433, ambiguous between two assemblies). A runtime reference between
+  two separately-downloaded plugins is worse still: either becomes unloadable without the other. So a
+  plugin that needs the same capability gets its OWN types under its OWN names (`ToolFile` vs
+  `BinaryFile`, `FfmpegMuxer` vs `FfmpegBinary`) and the duplication is the price of independent
+  installability. Same reason SiteMedia refuses an adaptive-only page instead of re-implementing the m3u8
+  pipeline.
+- **`ResolvePlanAsync` used to swallow a claiming resolver's failure** and fall through to "download the
+  link as-is", i.e. fetch the page's HTML and report whatever that turned into — which is how "this is a
+  live stream" reached the user as an invalid link. It now rethrows as `PluginResolveException` when
+  `FindResolver(url) != null`; an UNCLAIMED link still falls through unchanged. `Start`'s catch was also
+  calling `Describe(ex)` rather than `DescribeFailure(ex, item)`, so the item-aware wording (extension
+  hand-off, session-required) never applied there.
+- **The post-download action is found by the id of the plugin that OWNED the download**, and that id was
+  only ever recorded for a plugin that RESOLVED the link. A transfer-route download has no resolver, so
+  `FindResolverPluginId` returned null and the finished row never offered "Add to …". `Start` now tries
+  `FindTransferProviderPluginId` first on that path. When something like this is reported, drive all three
+  completion routes (engine / `Plans.cs` / `Transfers.cs`) in one test — four of the five paths were fine.
+- **yt-dlp's `SHA2-256SUMS` lists every asset, Deno ships one `.sha256sum` per asset.** One coreutils
+  parser reads both, but "a single entry matches whatever you asked for" must be OPT-IN
+  (`ParseSums(text, asset, allowSingleEntry)`) — as a default it silently accepts the wrong asset's digest
+  from a multi-asset listing.
+- **A test project's own `Tests.Plugins` namespace shadows the unqualified `Plugins.` prefix**, so
+  `Plugins.Ollama.X` resolves to the wrong place from a test in `Tests.Integration`. Use a using-alias
+  (`using OllamaPlugins = Downloader.Desktop.Plugins.Ollama;`); `global::` inside the type name works but
+  reads terribly.
+- **Ollama's Ollama-tier version lives in `OllamaPlugin.Version` (a string), not the csproj** — it is a
+  BUILT-IN plugin and ships with the app, so there is no catalog `<Version>` to bump. Catalog-tier plugins
+  are the ones whose csproj `<Version>` is the single source.
+- `python3 - <<'PY'` heredocs and C# raw strings (`"""`) fight each other; write those edits with the Edit
+  tool. And a `cd X && python3 …` whose `cd` fails runs nothing — check the shell's cwd, which this
+  session's tooling resets independently of `cd`.
