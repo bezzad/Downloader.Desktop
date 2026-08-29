@@ -167,3 +167,11 @@ not-yet-attached asset **killed the run** — v2.5.0 died right after the Homebr
 (osx-arm64, osx-x64, win-x64, linux-x64) and the win/linux checksums are `|| true`, so a missing
 asset degrades to the existing warn-and-skip instead of aborting. `missing` is a plain string, not
 an array — bash 3.2 on macOS trips over empty arrays under `set -u`.
+
+## Never run release.sh with a dirty tree, even though preflight let you (2026-08-30, v2.8.0)
+Preflight checks the tree ONCE, at the start. The mirror steps near the end (`cask` → `winget` → `aur`)
+each `git pull --rebase` develop first, and an unstaged edit made WHILE the script runs makes every one of
+those fail — `error: cannot pull with rebase: You have unstaged changes` — burning all five `retry()`
+attempts per step before it recovers. v2.8.0 survived it (the pushes still landed, exit 0), but it turns a
+clean run into a minute of red herrings in the log. If you need to edit during the ~15 min asset wait,
+either commit it or hold it until the script exits.
