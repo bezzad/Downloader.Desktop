@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Downloader.Desktop.Plugins.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Downloader.Desktop.Plugins.Website", "Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Website\Downloader.Desktop.Plugins.Website.csproj", "{5C1948F8-92D9-4B54-9C20-9043EFE26670}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Downloader.Desktop.Plugins.SiteMedia", "Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.SiteMedia\Downloader.Desktop.Plugins.SiteMedia.csproj", "{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,18 @@ Global
 		{5C1948F8-92D9-4B54-9C20-9043EFE26670}.Release|x64.Build.0 = Release|Any CPU
 		{5C1948F8-92D9-4B54-9C20-9043EFE26670}.Release|x86.ActiveCfg = Release|Any CPU
 		{5C1948F8-92D9-4B54-9C20-9043EFE26670}.Release|x86.Build.0 = Release|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Debug|x64.Build.0 = Debug|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Debug|x86.Build.0 = Debug|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Release|x64.ActiveCfg = Release|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Release|x64.Build.0 = Release|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Release|x86.ActiveCfg = Release|Any CPU
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -122,6 +136,7 @@ Global
 		{7C1D867B-27FE-4E84-BC37-CC78128C15E3} = {ED719078-3190-22D0-AF3B-C9EEF0992CAA}
 		{3593F888-3928-403C-96FB-BC5C5D73D49C} = {ED719078-3190-22D0-AF3B-C9EEF0992CAA}
 		{5C1948F8-92D9-4B54-9C20-9043EFE26670} = {ED719078-3190-22D0-AF3B-C9EEF0992CAA}
+		{66AB14A9-75CC-45C3-A43C-3E68D7AA375D} = {ED719078-3190-22D0-AF3B-C9EEF0992CAA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FD67F78A-3FD0-4EAE-87D9-B0D783B97C62}

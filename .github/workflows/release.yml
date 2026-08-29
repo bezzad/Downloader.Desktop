@@ -135,7 +135,7 @@ jobs:
           dotnet publish src/Downloader.Desktop/Downloader.Desktop.csproj \
             -c Release -r linux-x64 --self-contained true \
             -p:DebugType=None -p:DebugSymbols=false -o publish/isolation-check
-          if find publish/isolation-check \( -iname 'Downloader.Desktop.Plugins.Hls*' -o -iname 'Downloader.Desktop.Plugins.Website*' \) | grep -q .; then
+          if find publish/isolation-check \( -iname 'Downloader.Desktop.Plugins.Hls*' -o -iname 'Downloader.Desktop.Plugins.Website*' -o -iname 'Downloader.Desktop.Plugins.SiteMedia*' \) | grep -q .; then
             echo "::error::optional plugin leaked into the app publish output"; exit 1
           fi
           echo "OK: no optional-plugin assemblies in the app publish output."

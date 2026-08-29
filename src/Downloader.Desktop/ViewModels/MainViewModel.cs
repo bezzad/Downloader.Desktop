@@ -270,6 +270,7 @@ public class MainViewModel : ViewModelBase
         LocalApiService.OnUrlCaptured = CaptureUrl;
         LocalApiService.Manager = _downloadManager;
         LocalApiService.Config = _config;
+        LocalApiService.Plugins = _pluginManager;
         if (_config.Settings.EnableBrowserIntegration)
         {
             // If the preferred port was taken and we fell back within the declared range, tell the user

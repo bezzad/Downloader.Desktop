@@ -335,6 +335,10 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
     } else if (msg.type === "ping") {
       sendResponse({ ok: await pingApp() });
+    } else if (msg.type === "canHandlePage") {
+      // What THIS install can do decides the popup's unsupported-site message — the answer depends on
+      // which plugins the user has enabled, so only the app can give it.
+      sendResponse(await askAppCanHandlePage(msg.url));
     } else {
       sendResponse({});
     }

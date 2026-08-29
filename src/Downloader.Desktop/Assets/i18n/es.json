@@ -307,5 +307,6 @@
   "Det_RefreshUnreachable": "No se pudo acceder al nuevo enlace: {0}",
   "Det_RefreshMismatchTitle": "Este enlace apunta a otro archivo",
   "Det_RefreshMismatchBody": "El nuevo enlace indica {0}, pero esta descarga es de {1}. Continuar descarta lo descargado y empieza de cero.",
-  "Det_RefreshDone": "Enlace actualizado: continuando la descarga."
+  "Det_RefreshDone": "Enlace actualizado: continuando la descarga.",
+  "Error_SiteNeedsBrowserSession": "Este sitio solo entrega el vídeo a una sesión con la sesión iniciada en el navegador. Envía la página desde la extensión de Downloader: así se envía tu sesión actual junto con el enlace."
 }

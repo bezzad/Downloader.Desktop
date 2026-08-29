@@ -416,6 +416,12 @@ async function pingApp() {
   return await discoverAppPort() != null;
 }
 
+// Does the running app claim this page? Discovers the port the same way every other call does.
+async function askAppCanHandlePage(url) {
+  const port = await discoverAppPort();
+  return await appCanHandlePage(url, port);
+}
+
 // ---------------- Media metadata probing (popup: size/resolution/quality) ----------------
 
 // "12345" -> "1.2 KB"/"3.4 MB"/etc. Returns null for a non-positive/unknown size.
@@ -570,6 +576,46 @@ function isKnownUnsupportedHost(hostname) {
   if (!hostname) return false;
   const h = hostname.toLowerCase();
   return KNOWN_UNSUPPORTED_HOSTS.some(host => h === host || h.endsWith("." + host));
+}
+
+// The name of the app plugin that turns pages on video sites into downloads. Named in the popup so a
+// user on such a page is told what would make it work, instead of a dead end.
+const SITE_MEDIA_PLUGIN_NAME = "Video sites (YouTube and others)";
+
+// Does THIS install of the app claim this page? Asks the app's /api/can-handle, which answers from the
+// plugins that are actually enabled. Never throws: an unreachable or older app (404) answers "no", which
+// reproduces the behaviour from before this endpoint existed.
+async function appCanHandlePage(url, port) {
+  if (!url || port == null) return { handled: false, by: null };
+  try {
+    const res = await fetch(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`);
+    if (!res.ok) return { handled: false, by: null };
+    const body = await res.json();
+    return { handled: body?.handled === true, by: body?.by ?? null };
+  } catch {
+    return { handled: false, by: null };
+  }
+}
+
+// What the popup shows for a page on a site whose video can't be sniffed off the network (MSE/DRM).
+// Pure, so both branches are unit-tested: with a plugin that claims the page the page itself is
+// offered to the app; without one the user is told which plugin would do it. Deliberately never "you
+// must be signed in" — that was the old wording and it is wrong: the people who see it ARE signed in,
+// and signing in again changes nothing (issue #9 follow-up).
+function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName }) {
+  if (!hostUnsupported) return { mode: "normal", message: null };
+  if (appHandlesPage) {
+    return {
+      mode: "offer",
+      message: "This site's player hides the video file, but Downloader can fetch this page itself"
+        + (handlerName ? ` (${handlerName})` : "") + ". Send the page to the app.",
+    };
+  }
+  return {
+    mode: "unsupported",
+    message: "This site streams video in a format Downloader can't capture from the page. "
+      + `Install the “${SITE_MEDIA_PLUGIN_NAME}” plugin in the app (Settings → Plugins) to download from here.`,
+  };
 }
 
 // Below this size, a "detected" item is almost certainly a tracking beacon, empty init segment,
@@ -971,6 +1017,7 @@ if (typeof module !== "undefined") {
     formatBytes, probeSize, parseHlsMaster, estimateHlsSize,
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
+    unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,

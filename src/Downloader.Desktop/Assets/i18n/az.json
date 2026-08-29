@@ -307,5 +307,6 @@
   "Det_RefreshUnreachable": "Yeni keçidə çatmaq mümkün olmadı: {0}",
   "Det_RefreshMismatchTitle": "Bu keçid başqa fayla aparır",
   "Det_RefreshMismatchBody": "Yeni keçid {0} bildirir, lakin bu yükləmə {1}-dır. Davam etmək yüklənmiş hissəni silir və yenidən başlayır.",
-  "Det_RefreshDone": "Keçid yeniləndi — yükləmə davam edir."
+  "Det_RefreshDone": "Keçid yeniləndi — yükləmə davam edir.",
+  "Error_SiteNeedsBrowserSession": "Bu sayt videonu yalnız brauzerdə giriş etmiş sessiyaya verir. Səhifəni Downloader brauzer əlavəsindən göndərin — o, mövcud sessiyanızı keçidlə birlikdə ötürür."
 }

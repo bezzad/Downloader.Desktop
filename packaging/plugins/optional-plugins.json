@@ -14,5 +14,13 @@
     "name": "Website offline copy",
     "description": "Save a web page — or a whole site — for offline reading: adds an “Offline copy (.zip)” option when you paste a page link. Pages, styles, scripts, images and fonts are captured with links rewritten for offline viewing, packaged as a single .zip. No extra tools needed.",
     "minAppVersion": "2.1.0"
+  },
+  {
+    "id": "com.bezzad.site-media",
+    "assembly": "Downloader.Desktop.Plugins.SiteMedia",
+    "project": "src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.SiteMedia/Downloader.Desktop.Plugins.SiteMedia.csproj",
+    "name": "Video sites (YouTube and others)",
+    "description": "Downloads the video behind a page on YouTube, X, Instagram, TikTok, Vimeo and other video sites: lists the available qualities, downloads the chosen one, and assembles it into a playable file. It uses the browser session the Downloader extension sends with a link — never the cookies stored in your browser. The extraction tool and FFmpeg are downloaded and checksum-verified on first use.",
+    "minAppVersion": "2.1.0"
   }
 ]

@@ -41,6 +41,9 @@ public class LocalizationTests
             // fetching (issue #9) — a pack missing it would tell the user to paste a fresh link in
             // English, for a file they have not lost.
             Assert.NotEqual("Error_BrowserHandoffRefused", Localizer.Instance["Error_BrowserHandoffRefused"]);
+            // What a site that only serves a signed-in session is told to do. A pack missing it would fall
+            // back to English for the one message whose old wording ("sign in") was actively misleading.
+            Assert.NotEqual("Error_SiteNeedsBrowserSession", Localizer.Instance["Error_SiteNeedsBrowserSession"]);
         }
         finally
         {

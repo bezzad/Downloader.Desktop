@@ -34,18 +34,18 @@
 
 - [x] 3.1 Show an explicit "Downloader not found on ports 15151–15155" state in the popup when discovery fails, clearing when the app returns; cover both with a Playwright e2e case (app stub down, then up).
 - [ ] 3.2 Record in the issue thread — from the evidence in design.md — that nothing in extension 1.5.0 requires app 2.7.0 (`/ping` since 2.5.0, `id` since v1.6.0, app diff v2.6.1→v2.7.0 touches only the updater), and ask the reporter to confirm with the new diagnostic. **Draft the text and get the author's explicit OK before posting** (standing rule).
-- [ ] 3.3 Bump the extension version, refresh `PUBLISHING.md`/`README.md` where they state what is fixed, and verify the packaged zip loads unpacked in Chromium with no console errors.
+- [x] 3.3 Bump the extension version, refresh `PUBLISHING.md`/`README.md` where they state what is fixed, and verify the packaged zip loads unpacked in Chromium with no console errors.
 
 ## 4. YouTube: an optional site-extraction plugin (author's choice — see design decision 7)
 
-- [ ] 4.1 Create the optional plugin project `Downloader.Desktop.Plugins.SiteMedia` (id `com.bezzad.site-media`), NOT referenced by the app and NOT in the app csproj's `StageBundledPlugins` allow-list; verify with `PluginIsolationTests` and by grepping a `dotnet publish` output for the assembly (the check `release.yml` performs).
-- [ ] 4.2 Implement claiming + resolution of a supported site page into media parts with a title-derived file name, behind an interface so tests are network-free; unit-test claim/decline, the parts produced from a recorded tool output, and the "unextractable page" failure message.
-- [ ] 4.3 Offer per-quality link variants through the existing `link-variants` mechanism; unit-test that several qualities produce several variants and that the chosen one is what gets downloaded.
-- [ ] 4.4 Fetch + sha256-verify the extraction tool on first use, run it from an absolute path with no shell (reuse the `BinaryFile`/`FfmpegBinary` pattern); unit-test that a checksum mismatch discards and never executes, and **extend `NoShellSpawnTests` to scan this plugin's source** rather than exempting it.
-- [ ] 4.5 Pass the extension's cookies through `ResolveOptions`/`CookieFile` into the extraction, and assert by test that no browser profile/cookie-store path is ever read and that cookies are neither persisted with the download record nor written to the log.
-- [ ] 4.6 Make the extension's unsupported-site state conditional on what the running app can handle (design decision 7); unit-test the popup decision (plugin present ⇒ offer the page; absent ⇒ today's message naming the plugin, never "sign in"), plus a Playwright e2e case for both states.
-- [ ] 4.7 Replace the misleading "you must be signed in in the browser" wording on the manual-paste path with one that names the real cause, in all 16 i18n packs; unit-test the message and the pack coverage.
-- [ ] 4.8 Add the plugin to `packaging/plugins/optional-plugins.json` + `scripts/build-plugins.sh` with a `minAppVersion`, and verify the generated `plugins-catalog.json` lists it with a real version and sha256.
+- [x] 4.1 Create the optional plugin project `Downloader.Desktop.Plugins.SiteMedia` (id `com.bezzad.site-media`), NOT referenced by the app and NOT in the app csproj's `StageBundledPlugins` allow-list; verify with `PluginIsolationTests` and by grepping a `dotnet publish` output for the assembly (the check `release.yml` performs).
+- [x] 4.2 Implement claiming + resolution of a supported site page into media parts with a title-derived file name, behind an interface so tests are network-free; unit-test claim/decline, the parts produced from a recorded tool output, and the "unextractable page" failure message.
+- [x] 4.3 Offer per-quality link variants through the existing `link-variants` mechanism; unit-test that several qualities produce several variants and that the chosen one is what gets downloaded.
+- [x] 4.4 Fetch + sha256-verify the extraction tool on first use, run it from an absolute path with no shell (reuse the `BinaryFile`/`FfmpegBinary` pattern); unit-test that a checksum mismatch discards and never executes, and **extend `NoShellSpawnTests` to scan this plugin's source** rather than exempting it.
+- [x] 4.5 Pass the extension's cookies through `ResolveOptions`/`CookieFile` into the extraction, and assert by test that no browser profile/cookie-store path is ever read and that cookies are neither persisted with the download record nor written to the log.
+- [x] 4.6 Make the extension's unsupported-site state conditional on what the running app can handle (design decision 7); unit-test the popup decision (plugin present ⇒ offer the page; absent ⇒ today's message naming the plugin, never "sign in"), plus a Playwright e2e case for both states.
+- [x] 4.7 Replace the misleading "you must be signed in in the browser" wording on the manual-paste path with one that names the real cause, in all 16 i18n packs; unit-test the message and the pack coverage.
+- [x] 4.8 Add the plugin to `packaging/plugins/optional-plugins.json` + `scripts/build-plugins.sh` with a `minAppVersion`, and verify the generated `plugins-catalog.json` lists it with a real version and sha256.
 
 ## 5. Ollama plugin: HuggingFace models and the lost install offer
 

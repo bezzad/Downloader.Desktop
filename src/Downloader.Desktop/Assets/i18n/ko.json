@@ -307,5 +307,6 @@
   "Det_RefreshUnreachable": "새 링크에 연결할 수 없습니다: {0}",
   "Det_RefreshMismatchTitle": "이 링크는 다른 파일을 가리킵니다",
   "Det_RefreshMismatchBody": "새 링크는 {0}(으)로 표시되지만 이 다운로드는 {1}입니다. 계속하면 받은 부분을 버리고 처음부터 다시 받습니다.",
-  "Det_RefreshDone": "링크를 업데이트했습니다 — 다운로드를 계속합니다."
+  "Det_RefreshDone": "링크를 업데이트했습니다 — 다운로드를 계속합니다.",
+  "Error_SiteNeedsBrowserSession": "이 사이트는 브라우저에 로그인된 세션에만 영상을 제공합니다. Downloader 브라우저 확장에서 페이지를 보내면 현재 세션이 링크와 함께 전달됩니다."
 }

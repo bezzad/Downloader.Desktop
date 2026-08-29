@@ -502,7 +502,9 @@ public partial class DownloadManager : IDownloadManager
             AppLog.Error($"Failed to start: {urls[0]}", ex);
             OnUi(() =>
             {
-                vm.ErrorMessage = Describe(ex);
+                // DescribeFailure, not Describe: a resolver that claimed this link has its own reason to
+                // give, and an extension hand-off must not be described as an expired link.
+                vm.ErrorMessage = DescribeFailure(ex, item);
                 vm.Status = DownloadStatus.Failed;
                 NotifyList();
             });
@@ -682,6 +684,16 @@ public partial class DownloadManager : IDownloadManager
         }
         catch (Exception ex)
         {
+            // A resolver that CLAIMED this link and then failed has something to say — that the page is a
+            // live stream, that the site wants a session, that the tool couldn't be verified. Falling
+            // through to "use the link as-is" downloads the page's HTML instead and reports whatever that
+            // turns into, so the real reason never reaches the user. Only an UNCLAIMED link falls through.
+            if (_plugins.FindResolver(url) != null)
+            {
+                AppLog.Error($"Plugin resolve failed for {url}", ex);
+                throw new PluginResolveException(ex.Message, ex);
+            }
+
             AppLog.Error($"Plugin resolve failed for {url} — using the link as-is", ex);
             return null;
         }
@@ -755,11 +767,32 @@ public partial class DownloadManager : IDownloadManager
     /// people hunting for a fresh link they never needed (issue #9).</summary>
     private static string DescribeFailure(Exception ex, DownloadItem item)
     {
+        // A resolver's own explanation is already the clearest thing anyone can say about the link, so it
+        // is passed through verbatim — except for the one case that used to be worded misleadingly: a site
+        // that wants a signed-in session. The people who see it ARE signed in; what is missing is the
+        // session reaching the app, which is what sending the page from the extension does.
+        if (ex is PluginResolveException resolve)
+            return LooksLikeNeedsBrowserSession(resolve.Message)
+                ? Localizer.Instance["Error_SiteNeedsBrowserSession"]
+                : resolve.Message;
+
         if (!LooksLikeExpiredLinkError(ex))
             return Describe(ex);
         return item?.FromBrowserDownload == true
             ? Localizer.Instance["Error_BrowserHandoffRefused"]
             : Localizer.Instance["Error_LinkExpiredRefresh"];
+    }
+
+    /// <summary>Does a resolver's failure mean "this site only serves a signed-in session"? Matched on the
+    /// wording plugins use, so the app can say the one useful thing (send it from the extension) in the
+    /// user's own language instead of repeating the plugin's English.</summary>
+    internal static bool LooksLikeNeedsBrowserSession(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return false;
+        var lower = message.ToLowerInvariant();
+        return lower.Contains("signed-in session") || lower.Contains("browser session")
+            || lower.Contains("signed in session");
     }
 
     private static string Describe(Exception ex)

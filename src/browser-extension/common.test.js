@@ -18,7 +18,8 @@ const {
   candidateExts, isPlausiblePathExt,
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
-  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp
+  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
+  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -895,4 +896,59 @@ test("the app-not-found message names the ports actually probed", () => {
   assert.match(msg, /Downloader was not found/);
   // It must point at something the user can check, not just state a failure.
   assert.match(msg, /Browser integration/);
+});
+
+
+// ── What a "we can't capture this site" page actually says ───────────────────────────────────────
+// The old message was a dead end, and the wording on the manual path told people to sign in — which
+// they already were. What the page can do depends on which plugins the running app has, so the app
+// is asked before anything is claimed (issue #9 follow-up).
+
+test("a page the app can handle is offered, not declared unsupported", () => {
+  const state = unsupportedSiteState({
+    hostUnsupported: true, appHandlesPage: true, handlerName: "Video sites (YouTube and others)"
+  });
+  assert.equal(state.mode, "offer");
+  assert.match(state.message, /Downloader can fetch this page/);
+  assert.match(state.message, /Video sites/);
+  assert.doesNotMatch(state.message, /sign in|signed in/i);
+});
+
+test("without the plugin the message names the plugin, never a sign-in", () => {
+  const state = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: false, handlerName: null });
+  assert.equal(state.mode, "unsupported");
+  assert.match(state.message, new RegExp(SITE_MEDIA_PLUGIN_NAME.replace(/[()]/g, "\\$&")));
+  assert.match(state.message, /Settings/);
+  // The whole point: people who saw the old wording WERE signed in. Saying it again is misleading.
+  assert.doesNotMatch(state.message, /sign in|signed in|log in/i);
+});
+
+test("an ordinary site is left alone", () => {
+  const state = unsupportedSiteState({ hostUnsupported: false, appHandlesPage: false, handlerName: null });
+  assert.equal(state.mode, "normal");
+  assert.equal(state.message, null);
+});
+
+test("asking the app what it can handle survives an old app, an error and no app at all", async () => {
+  const realFetch = global.fetch;
+  try {
+    global.fetch = async () => ({ ok: true, json: async () => ({ handled: true, by: "Video sites (YouTube and others)" }) });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
+      { handled: true, by: "Video sites (YouTube and others)" });
+
+    // An app older than this endpoint 404s — that must read as "no", exactly as before it existed.
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151), { handled: false, by: null });
+
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151), { handled: false, by: null });
+
+    // No port discovered at all — never even attempts a request.
+    let called = false;
+    global.fetch = async () => { called = true; };
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null), { handled: false, by: null });
+    assert.equal(called, false);
+  } finally {
+    global.fetch = realFetch;
+  }
 });
