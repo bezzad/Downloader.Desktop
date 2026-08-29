@@ -130,7 +130,9 @@ public class DownloadDetailsViewModel : ViewModelBase
     public string CopyPathTooltip => _pathCopied ? L("Action_PathCopied") : L("Action_CopyPath");
 
     /// <summary>Copies the saved file path to the clipboard and briefly confirms it on the button.</summary>
-    private async Task CopyPathAsync()
+    /// <summary>Internal (like <see cref="RefreshLinkAsync"/>) so a test can await the copy and
+    /// its self-reverting confirmation without driving a ReactiveCommand.</summary>
+    internal async Task CopyPathAsync()
     {
         var path = FilePath;
         if (string.IsNullOrEmpty(path))
@@ -165,7 +167,9 @@ public class DownloadDetailsViewModel : ViewModelBase
     public string CopyUrlTooltip => _urlCopied ? L("Action_UrlCopied") : L("Action_CopyUrl");
 
     /// <summary>Copies the source URL to the clipboard and briefly confirms it on the button.</summary>
-    private async Task CopyUrlAsync()
+    /// <summary>Internal (like <see cref="RefreshLinkAsync"/>) so a test can await the copy and
+    /// its self-reverting confirmation without driving a ReactiveCommand.</summary>
+    internal async Task CopyUrlAsync()
     {
         var url = Item?.Url;
         if (string.IsNullOrWhiteSpace(url))
@@ -200,7 +204,9 @@ public class DownloadDetailsViewModel : ViewModelBase
     public string CopyErrorTooltip => _errorCopied ? L("Action_ErrorCopied") : L("Action_CopyError");
 
     /// <summary>Copies the failure message to the clipboard so the user can paste it into a GitHub issue.</summary>
-    private async Task CopyErrorAsync()
+    /// <summary>Internal (like <see cref="RefreshLinkAsync"/>) so a test can await the copy and
+    /// its self-reverting confirmation without driving a ReactiveCommand.</summary>
+    internal async Task CopyErrorAsync()
     {
         if (string.IsNullOrWhiteSpace(ErrorMessage))
             return;
