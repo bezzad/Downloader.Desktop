@@ -168,6 +168,29 @@ public class PlanRunnerTests
         return predicate();
     }
 
+    /// <summary>
+    /// The runner tells "a pause landed on this part's finish line" from "this part really came up
+    /// empty" by counting pauses across the attempt — a paused engine reports neither an error nor a
+    /// finished file, so without that count a pause at the wrong moment failed the whole plan.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Every_pause_is_counted_so_a_part_can_tell_a_pause_race_from_a_real_failure()
+    {
+        var controller = new PlanController();
+        Assert.Equal(0, controller.PauseCount);
+
+        controller.Pause();
+        Assert.True(controller.IsPaused);
+        Assert.Equal(1, controller.PauseCount);
+
+        controller.Resume();          // resuming does not reset the count
+        Assert.False(controller.IsPaused);
+        Assert.Equal(1, controller.PauseCount);
+
+        controller.Pause();
+        Assert.Equal(2, controller.PauseCount);
+    }
+
     [Fact(Timeout = TestTimeouts.SlowMs)]
     public async Task Pausing_a_plan_stops_starting_new_parts_and_resuming_finishes_without_redownloading()
     {

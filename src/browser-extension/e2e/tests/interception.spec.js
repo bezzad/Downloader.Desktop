@@ -139,6 +139,20 @@ async function downloadState(context, filenameIncludes) {
   return null;
 }
 
+/** Record the notifications the extension raises, so "the user was told" can be asserted. */
+async function recordNotifications(context) {
+  const [sw] = context.serviceWorkers();
+  await sw.evaluate(() => {
+    globalThis.__seenNotifications = [];
+    const real = chrome.notifications.create.bind(chrome.notifications);
+    chrome.notifications.create = (opts, cb) => {
+      globalThis.__seenNotifications.push({ title: opts?.title || "", message: opts?.message || "" });
+      return real(opts, cb);
+    };
+  });
+  return () => sw.evaluate(() => globalThis.__seenNotifications);
+}
+
 test.describe("download interception", () => {
   let app;
 
@@ -165,9 +179,51 @@ test.describe("download interception", () => {
     expect(add.body).not.toBeNull();
     expect(add.body.url).toContain("sample.zip");
     expect(add.body.referer).toContain("127.0.0.1");
+    // The app is told the browser had already started this, which is what lets it read a first-request
+    // failure as a spent single-use link rather than a bad one (issue #9, Softpedia).
+    expect(add.body.fromBrowser).toBe(true);
 
     // And only then was the browser's own download cancelled.
     const state = await downloadState(context, "sample.zip");
+    expect(state).not.toBeNull();
+    expect(state.state).toBe("interrupted");
+    expect(state.error).toBe("USER_CANCELED");
+  });
+
+  // The APKPure regression (issue #9 follow-up). Nothing about this URL names the file: the path's
+  // last segment is a package name, the content type is generic, and Chromium reports no suggested
+  // filename at `downloads.onCreated`. The only source is the response's own Content-Disposition,
+  // which the extension records as the response goes past.
+  test("a download named only by its response header is intercepted", async ({ context }) => {
+    app = await startStubApp("accept");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+
+    // Only .xapk is allowed, so interception can only happen if the header was actually read.
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["xapk"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    const url = "http://127.0.0.1:8991/b/XAPK/com.example.app?version=latest&slow=1";
+
+    // Fetch it from the page first, so the response passes through `webRequest` and its header is
+    // recorded. In real use that happens by itself: a click navigates, the server answers with the
+    // Content-Disposition, and only THEN does the browser turn it into a download. This test has to
+    // arrange it explicitly because `chrome.downloads.download()` — the only way to start a download
+    // Playwright does not intercept (see startBrowserDownload) — is not observed by `webRequest` at
+    // all, so on its own it would test the fallback, not the header path.
+    await page.evaluate(u => fetch(u).then(r => r.body?.cancel()), url);
+    await expect.poll(async () => {
+      const [sw] = context.serviceWorkers();
+      return sw.evaluate(u => !!recallResponseHeaders(u), url);
+    }, { timeout: 10000 }).toBe(true);
+
+    await startBrowserDownload(context, url);
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+    expect(app.adds[0].body.url).toContain("com.example.app");
+
+    const state = await downloadState(context, "com.example.app");
     expect(state).not.toBeNull();
     expect(state.state).toBe("interrupted");
     expect(state.error).toBe("USER_CANCELED");
@@ -196,12 +252,13 @@ test.describe("download interception", () => {
     expect(state.state).not.toBe("interrupted");
   });
 
-  test("an add the app reports as failed leaves the browser's download alone", async ({ context }) => {
+  test("an add the app reports as failed leaves the browser's download alone, and says so", async ({ context }) => {
     app = await startStubApp("failing");
     test.skip(!app, "no free port in the app range for the stub");
     await setCachedPort(context, app.port);
 
     await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+    const notifications = await recordNotifications(context);
 
     const page = await context.newPage();
     await page.goto("/empty.html");
@@ -211,6 +268,12 @@ test.describe("download interception", () => {
     const state = await downloadState(context, "sample.zip");
     expect(state).not.toBeNull();
     expect(state.state).not.toBe("interrupted");
+
+    // Keeping the file is not enough on its own: a download the app visibly refused, with no word
+    // about it, reads as the extension having done nothing at all.
+    const seen = await notifications();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(`${seen[0].title} ${seen[0].message}`.toLowerCase()).toContain("browser is still downloading");
   });
 
   // The regression the whole follow-up is about. Every other test here downloads `/sample.zip`, so

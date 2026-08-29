@@ -44,7 +44,12 @@
 
 1. One-time: register at <https://chrome.google.com/webstore/devconsole> ($5 fee).
 2. **New item** → upload `dist/downloader-extension-chrome.zip`.
-> **This version adds the `downloads` permission — expect a slower review.** Both stores scrutinise a
+> **1.6.0 changes no permissions** — it only fixes how an intercepted download's type is decided, which
+> link is handed to the app, and what the popup says when the app cannot be found. If 1.5.0 (which
+> introduced the `downloads` permission) has not been published yet, the note below still applies to the
+> submission; if it has, this is an ordinary update.
+>
+> **The `downloads` permission — expect a slower review on the submission that introduces it.** Both stores scrutinise a
 > permission increase, and “manage your downloads” reads alarmingly in the install prompt. Justify it
 > as: “take over downloads the user starts in the browser and hand them to the user’s own desktop app;
 > used only while the user enables the interception setting, which is off by default; nothing is sent

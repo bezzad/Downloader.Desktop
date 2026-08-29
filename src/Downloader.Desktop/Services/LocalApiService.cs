@@ -51,6 +51,10 @@ public static class LocalApiService
     /// <summary>The loaded config (save path + queues for building items) — wired by the app at startup.</summary>
     public static Config Config { get; set; }
 
+    /// <summary>The loaded plugins, so the extension can ask what this install can actually handle — wired
+    /// by the app at startup. Null when no plugin system is available, which answers "handled: false".</summary>
+    public static PluginManager Plugins { get; set; }
+
     public static bool IsRunning => _listener is { IsListening: true };
 
     /// <summary>Ordered bind candidates: the last-known-good persisted port first (if it's in the declared
@@ -259,6 +263,9 @@ public static class LocalApiService
                 case "add":
                     await HandleAddAsync(ctx, manager, config).ConfigureAwait(false);
                     break;
+                case "can-handle":
+                    HandleCanHandle(ctx);
+                    break;
                 case "list":
                     await HandleListAsync(ctx, manager).ConfigureAwait(false);
                     break;
@@ -283,6 +290,29 @@ public static class LocalApiService
             try { RespondJson(ctx, 500, new Dictionary<string, object> { ["error"] = ex.Message }); }
             catch { /* response already gone */ }
         }
+    }
+
+    /// <summary>Answers whether THIS install can turn a page URL into a download — i.e. whether an enabled
+    /// plugin's resolver claims it. The extension asks before declaring a site unsupported, so a user who
+    /// installed the site-media plugin is offered the page instead of being told nothing can be done, and a
+    /// user who hasn't is told which plugin would do it (never "sign in", which is not the problem).</summary>
+    private static void HandleCanHandle(HttpListenerContext ctx)
+    {
+        var url = QueryParam(ctx.Request.Url, "url");
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            RespondJson(ctx, 400, new Dictionary<string, object> { ["error"] = "missing url" });
+            return;
+        }
+
+        // CanResolve only — pure and network-free by contract, so this stays a cheap popup-time question.
+        var by = Plugins?.FindResolverPluginName(url);
+        RespondJson(ctx, 200, new Dictionary<string, object>
+        {
+            ["url"] = url,
+            ["handled"] = by != null,
+            ["by"] = by,
+        });
     }
 
     private static async Task HandleAddAsync(HttpListenerContext ctx, IDownloadManager manager, Config config)
@@ -415,6 +445,7 @@ public static class LocalApiService
             FileName = string.IsNullOrWhiteSpace(req.Filename) ? null : req.Filename.Trim(),
             SaveFolder = string.IsNullOrWhiteSpace(req.Path) ? config.Settings.DefaultSavePath : req.Path.Trim(),
             QueueId = queue?.Id ?? config.DefaultQueue?.Id,
+            FromBrowserDownload = req.FromBrowser,
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
@@ -598,6 +629,11 @@ public sealed class ApiAddRequest
     /// <summary>Optional per-download referer, overriding the global setting for this download only.</summary>
     public string Referer { get; set; }
 
+    /// <summary>True when the browser extension took this download over from the browser itself. Such a link
+    /// was demonstrably fetchable a second ago, which changes how a first-request failure is read — see
+    /// <see cref="DownloadItem.FromBrowserDownload"/>.</summary>
+    public bool FromBrowser { get; set; }
+
     /// <summary>Human-readable validation error, or null when the request is usable.</summary>
     public string Error { get; set; }
 
@@ -615,6 +651,9 @@ public sealed class ApiAddRequest
                 Queue = GetString(root, "queue"),
                 Referer = GetString(root, "referer")
             };
+            if (root.TryGetProperty("fromBrowser", out var fromBrowser) &&
+                fromBrowser.ValueKind is JsonValueKind.False or JsonValueKind.True)
+                req.FromBrowser = fromBrowser.GetBoolean();
             if (root.TryGetProperty("start", out var start) &&
                 start.ValueKind is JsonValueKind.False or JsonValueKind.True)
                 req.Start = start.GetBoolean();
@@ -650,6 +689,8 @@ public sealed class ApiAddRequest
             Queue = LocalApiService.QueryParam(requestUri, "queue"),
             Referer = LocalApiService.QueryParam(requestUri, "referer")
         };
+        if (LocalApiService.QueryParam(requestUri, "fromBrowser") is { } fromBrowser)
+            req.FromBrowser = !fromBrowser.Equals("false", StringComparison.OrdinalIgnoreCase) && fromBrowser != "0";
         if (LocalApiService.QueryParam(requestUri, "start") is { } start)
             req.Start = !start.Equals("false", StringComparison.OrdinalIgnoreCase) && start != "0";
 

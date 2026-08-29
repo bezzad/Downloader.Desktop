@@ -111,19 +111,30 @@ async function refererFor(item) {
 async function onDownloadCreated(item) {
   try {
     const settings = await getInterceptSettings();
+    // What the response for this download actually said. `downloads.onCreated` leaves `filename`
+    // empty on Chromium and often reports a generic MIME, so for a signed CDN link this header is
+    // frequently the only thing that names the file (issue #9).
+    const seen = recallResponseHeaders(item?.finalUrl) || recallResponseHeaders(item?.url);
     const decision = shouldIntercept({
       url: item?.finalUrl || item?.url,
       filename: item?.filename,
-      mime: item?.mime,
+      contentDisposition: seen?.contentDisposition,
+      mime: item?.mime || seen?.contentType,
       size: item?.fileSize ?? item?.totalBytes,
       referrer: item?.referrer
     }, settings);
     if (!decision.intercept) return; // the browser keeps it — including whenever interception is off
 
-    const url = item.finalUrl || item.url;
+    // Hand over the link the browser was ASKED to fetch, keeping the one its redirect chain ended
+    // on as a fallback. The end of a chain is frequently a signed, single-use address the browser
+    // has already spent, so the app's very first request fails on it — the Softpedia "Secure
+    // Download" case (issue #9). The starting link can be resolved again to a freshly signed one,
+    // which is exactly what the app's own expired-link recovery relies on.
+    const url = item.url && isHttp(item.url) ? item.url : item.finalUrl;
+    const mirrors = item.finalUrl && item.finalUrl !== url ? [item.finalUrl] : null;
     const referer = await refererFor(item);
     const headers = referer ? { Referer: referer } : null;
-    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers });
+    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers, mirrors });
 
     // The app didn't take it. Say nothing and change nothing: the browser download is still running,
     // which is the outcome the user already had.
@@ -228,8 +239,15 @@ registerInterception();
 // ---------------- Media sniffing ----------------
 api.webRequest.onHeadersReceived.addListener(
   details => {
-    const ct = (details.responseHeaders || [])
-      .find(h => h.name.toLowerCase() === "content-type")?.value;
+    const header = name => (details.responseHeaders || [])
+      .find(h => h.name.toLowerCase() === name)?.value;
+    const ct = header("content-type");
+    // Record what the response said about the file BEFORE the tab check: a download can be started
+    // from a request with no tab of its own, and interception needs this answer either way.
+    rememberResponseHeaders(details.url, {
+      contentDisposition: header("content-disposition"),
+      contentType: ct
+    });
     if (details.tabId < 0) return;
     if (looksLikeMedia(details.url) || isMediaContentType(ct)) {
       addMedia(details.tabId, details.url, ct);
@@ -317,6 +335,10 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
     } else if (msg.type === "ping") {
       sendResponse({ ok: await pingApp() });
+    } else if (msg.type === "canHandlePage") {
+      // What THIS install can do decides the popup's unsupported-site message — the answer depends on
+      // which plugins the user has enabled, so only the app can give it.
+      sendResponse(await askAppCanHandlePage(msg.url));
     } else {
       sendResponse({});
     }

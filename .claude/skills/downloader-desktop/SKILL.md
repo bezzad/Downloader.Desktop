@@ -701,3 +701,113 @@ out to be reachable, and two suites were passing **without executing the code th
 - **`RxApp.MainThreadScheduler`, `Application._applicationLifetime`, `PluginManager.PluginsRootOverride`,
   `FileService.ConfigFileOverride` are process-wide.** Always restore them in `Dispose` — collection
   parallelisation is off, so leaking one silently changes a LATER test rather than the current one.
+
+## CI-only test failures from the coverage push (fixed 2026-08-29)
+Four failures that a green Linux-Debug run cannot show you. Check all four shapes before blaming the code:
+- **A test that asserts on `ShellLauncher` is a LINUX-only assertion.** `NotificationService` only launches a
+  command (`notify-send`) on Linux; macOS/Windows post in-process (`MacNotifier`/`WindowsNotifier`), so
+  `Assert.Single(sent)` was empty there. Gate the launch assertion on `OperatingSystem.IsLinux()`.
+- **The ffmpeg install fixture must match the PLATFORM'S archive shape**: `.tar.xz` on Linux (system `tar`),
+  `.zip` on macOS/Windows (`ZipFile`). Feeding a tar.xz to the macOS path fails with *"End of Central
+  Directory record could not be found"*. `FfmpegProvisioningTests.BuildArchive` now branches, and the
+  fixture's binary is named `ffmpeg.exe` on Windows or nothing is found inside the archive.
+- **`LocalApiService` is a process-wide singleton and `Start()` no-ops when it is already running** — a test
+  that leaves it bound makes the port-fallback test read 15151 as its "fallback". Always `Stop()` it in a
+  `finally` (never conditionally), and `Stop()` defensively at the top of a test that needs a known state.
+- **`DownloadPackage.Chunks` can hold a NULL element mid-setup** — the engine fills the array element by
+  element. `DownloadDetailsViewModel.ReconcileParts` runs from a POSTED dispatcher job, so the NRE surfaced
+  as a "Test Case Cleanup Failure" in an unrelated test. Skip null slots.
+
+## The engine drops a part on the floor if it is paused on its finish line (plan runner)
+`DownloadService.StartDownload`'s success branch is `_chunkError is null && Status is DownloadStatus.Running`.
+`Pause()` sets `Package.SetState(Paused)`, so a pause that lands between "chunks finished" and that check
+falls into the `else` — **no completion signal, no error, and the file never finalized**. The runner then saw
+a task that completed with `partError == null` and no usable file: *"Part 4/16 did not finish downloading."*
+(Only reproducible under CI load; 5/5 green locally.) Fix is app-side in `DownloadManager.Plans.cs`:
+`PlanController.PauseCount` counts pauses, `DownloadPartOnceAsync` returns false instead of throwing, and
+`DownloadPartAsync` re-fetches the part (up to `PausedPartRetries`) **only when the count changed during the
+attempt** — a part that comes up empty with no pause still fails honestly.
+
+**The in-host hang still happens on CI (2026-08-29).** The ubuntu-latest/Release job burned its whole
+30-minute timeout after 1202 of 1232 tests, with the log stopping mid-suite and no culprit named; a plain
+re-run of the same commit was green, and the exact CI command (coverage collector, Release) is green locally.
+CI's test step now carries `--blame-hang --blame-hang-timeout 180s --blame-crash` so the occurrence
+kills the host and NAMES the test instead of leaving a silent 30-minute gap. To find what did not run, diff
+`--list-tests` against the job log's `Passed …` lines (`LC_ALL=C sort` both — plain `comm` mis-sorts these).
+
+It fired on the very next run: aborted after **810** tests with *"The test running when the crash occurred:
+AppTests.Staged_progress_flushes_only_while_running"* — a pure, instant test that cannot itself hang, so the
+name is where the host went unresponsive, not the cause. Different runs stop at different counts (810, 1202),
+which points at the shared headless dispatcher wedging rather than at one test. Still NOT reproducible here:
+the exact CI command (Release + coverlet collector) is green locally, including 3 consecutive runs pinned to
+2 cores with `taskset -c 0,1` to imitate a small runner. A re-run of the job passes. **Grab the artifacts
+while they exist** — a re-run REPLACES the artifact, so the `Sequence_*.xml` (its `Completed="False"` rows
+are the in-flight tests) and the hang dumps from the failing attempt are gone once you re-run it. Download
+first, re-run second.
+
+**It also fires LOCALLY, not just on CI (2026-08-29).** A full local run stopped after **1063** of
+~1232 tests and named
+`Integration.PlanRowFlowTests.A_multi_part_plan_runs_to_completion_and_leaves_the_row_finished`; that
+whole class then passed in **487 ms** on its own, and a re-run of the full suite was green. So the
+named test is again just where the shared dispatcher went unresponsive. Reach for this explanation
+only AFTER running the named class in isolation — that one command separates "known hang" from "you
+broke it", and takes seconds. The `Sequence_*.xml` is worth reading: parse it for
+`Completed="False"` (`re.findall(r'<Test Name="([^"]+)"[^>]*Completed="(\w+)"', xml)`) and you get
+both the culprit and the exact count of tests that did run.
+
+**Never conditionally restore `LocalApiService`.** Three tests used the "remember whether it was running,
+only stop it if it wasn't" pattern, which PRESERVES another test's leak instead of clearing it — one leak
+then reached `AppShellStartupTests.Starting_up_builds_the_pages_and_re_applies_the_saved_choices`
+(`Assert.False(LocalApiService.IsRunning)`) and failed a test that had done nothing wrong. Note
+`ResetDefaultsCommand` re-applies the shipped defaults, and `EnableBrowserIntegration` defaults to ON, so
+the Settings reset test BINDS the listener. Always `Stop()` unconditionally in `finally`, and stop it once
+more to establish a baseline in any test that asserts on `IsRunning`.
+
+**`Start_retries_in_background_until_a_port_frees_up` needs EVERY port taken, and macOS CI won't always
+give you that.** It blocks all five with `HttpListener`s, but a prefix can be refused there while the port
+stays free — the service then binds it and `Assert.False(IsRunning)` fails, reporting a bug that isn't
+there. The test now probes each port it failed to block with a raw `TcpListener` (`PortIsFree`) and leaves
+without asserting when the "everything is taken" precondition cannot be met, plus `Stop()`s first so a
+leaked listener isn't mistaken for a successful bind.
+
+**A test must never really spawn the desktop.** `PluginsViewModelCatalogTests.Reloading_rereads_the_plugins_folder`
+executed `OpenFolderCommand` with no seam, so on CI it actually ran `xdg-open` — its stderr
+(*"file '/tmp/dldesktop-plugins-vm-…' does not exist"*) ended up quoted as the test host's crash reason,
+which is a great way to spend an hour blaming the wrong thing. Set `ShellLauncher.OpenOverride` (or
+`RunOverride`) and assert the target instead; both are `internal` seams visible to the test project.
+
+## Two plugins cannot share source, and other lessons from adding SiteMedia (2026-08-30)
+- **Never link the same `.cs` into two plugin projects.** The obvious way to give the new site-media
+  plugin the HLS plugin's segment pipeline + ffmpeg provisioning was `<Compile Include="..\Hls\*.cs"
+  Link="Shared\…" />`. It builds — and then the TEST project, which compile-references both plugins,
+  cannot name any of those types (CS0433, ambiguous between two assemblies). A runtime reference between
+  two separately-downloaded plugins is worse still: either becomes unloadable without the other. So a
+  plugin that needs the same capability gets its OWN types under its OWN names (`ToolFile` vs
+  `BinaryFile`, `FfmpegMuxer` vs `FfmpegBinary`) and the duplication is the price of independent
+  installability. Same reason SiteMedia refuses an adaptive-only page instead of re-implementing the m3u8
+  pipeline.
+- **`ResolvePlanAsync` used to swallow a claiming resolver's failure** and fall through to "download the
+  link as-is", i.e. fetch the page's HTML and report whatever that turned into — which is how "this is a
+  live stream" reached the user as an invalid link. It now rethrows as `PluginResolveException` when
+  `FindResolver(url) != null`; an UNCLAIMED link still falls through unchanged. `Start`'s catch was also
+  calling `Describe(ex)` rather than `DescribeFailure(ex, item)`, so the item-aware wording (extension
+  hand-off, session-required) never applied there.
+- **The post-download action is found by the id of the plugin that OWNED the download**, and that id was
+  only ever recorded for a plugin that RESOLVED the link. A transfer-route download has no resolver, so
+  `FindResolverPluginId` returned null and the finished row never offered "Add to …". `Start` now tries
+  `FindTransferProviderPluginId` first on that path. When something like this is reported, drive all three
+  completion routes (engine / `Plans.cs` / `Transfers.cs`) in one test — four of the five paths were fine.
+- **yt-dlp's `SHA2-256SUMS` lists every asset, Deno ships one `.sha256sum` per asset.** One coreutils
+  parser reads both, but "a single entry matches whatever you asked for" must be OPT-IN
+  (`ParseSums(text, asset, allowSingleEntry)`) — as a default it silently accepts the wrong asset's digest
+  from a multi-asset listing.
+- **A test project's own `Tests.Plugins` namespace shadows the unqualified `Plugins.` prefix**, so
+  `Plugins.Ollama.X` resolves to the wrong place from a test in `Tests.Integration`. Use a using-alias
+  (`using OllamaPlugins = Downloader.Desktop.Plugins.Ollama;`); `global::` inside the type name works but
+  reads terribly.
+- **Ollama's Ollama-tier version lives in `OllamaPlugin.Version` (a string), not the csproj** — it is a
+  BUILT-IN plugin and ships with the app, so there is no catalog `<Version>` to bump. Catalog-tier plugins
+  are the ones whose csproj `<Version>` is the single source.
+- `python3 - <<'PY'` heredocs and C# raw strings (`"""`) fight each other; write those edits with the Edit
+  tool. And a `cd X && python3 …` whose `cd` fails runs nothing — check the shell's cwd, which this
+  session's tooling resets independently of `cd`.

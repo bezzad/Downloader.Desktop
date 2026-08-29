@@ -10,6 +10,12 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The plugin's tests (Plugins/HuggingFaceTests.cs) call internal helpers such as the
+         repository-listing parser, which is where the API's real JSON shape is pinned. -->
+    <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>

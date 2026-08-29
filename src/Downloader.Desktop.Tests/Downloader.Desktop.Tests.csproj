@@ -46,6 +46,10 @@
         <!-- The optional Website plugin is compile-referenced the same way: its tests (Plugins/Website/)
              call internal types (SiteCrawler, LinkExtractor, LocalPathMapper, …) directly. -->
         <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Website\Downloader.Desktop.Plugins.Website.csproj" />
+        <!-- The optional site-media plugin, likewise: its tests (Plugins/SiteMedia/) call internal
+             types (ToolChecksum, the argument builder). Referencing an OPTIONAL plugin from the TEST
+             project is fine — the isolation rule bars only the APP project (PluginIsolationTests). -->
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.SiteMedia\Downloader.Desktop.Plugins.SiteMedia.csproj" />
     </ItemGroup>
 
     <!-- HLS plugin test fixtures (sample playlists) → <testout>/Fixtures, where TestFixtures.Dir reads them. -->

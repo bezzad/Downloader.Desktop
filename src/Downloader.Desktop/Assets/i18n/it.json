@@ -299,6 +299,7 @@
   "Donate_Star": "Stella su GitHub",
   "State_RefreshingLink": "Link scaduto: ne sto ottenendo uno nuovo…",
   "Error_LinkExpiredRefresh": "Questo link non è più valido: è scaduto o è stato rimosso. Apri Dettagli e incolla un link nuovo per continuare senza perdere la parte già scaricata.",
+  "Error_BrowserHandoffRefused": "Downloader non è riuscito a scaricare questo link, quindi il browser lo sta ancora scaricando: il file non è perso. Di solito significa che il link del sito funziona una volta sola.",
   "Det_RefreshLink": "Aggiorna link",
   "Det_RefreshHint": "Link scaduto? Incollane uno nuovo qui sopra e premi Aggiorna link: il download riprende da dove si era fermato.",
   "Det_RefreshChecking": "Controllo del nuovo link…",
@@ -306,5 +307,6 @@
   "Det_RefreshUnreachable": "Impossibile raggiungere il nuovo link: {0}",
   "Det_RefreshMismatchTitle": "Questo link punta a un file diverso",
   "Det_RefreshMismatchBody": "Il nuovo link indica {0}, ma questo download è di {1}. Continuando si scarta quanto scaricato e si ricomincia.",
-  "Det_RefreshDone": "Link aggiornato: download in corso."
+  "Det_RefreshDone": "Link aggiornato: download in corso.",
+  "Error_SiteNeedsBrowserSession": "Questo sito fornisce il video solo a una sessione con accesso effettuato nel browser. Invia la pagina dall’estensione Downloader: trasmette la tua sessione attuale insieme al link."
 }

@@ -299,6 +299,7 @@
   "Donate_Star": "Auf GitHub sternen",
   "State_RefreshingLink": "Link abgelaufen – neuer Link wird geholt…",
   "Error_LinkExpiredRefresh": "Dieser Link ist nicht mehr gültig – er ist abgelaufen oder wurde zurückgezogen. Öffne die Details und füge einen frischen Link ein, um ohne Verlust des bereits geladenen Teils fortzufahren.",
+  "Error_BrowserHandoffRefused": "Downloader konnte diesen Link nicht abrufen, daher lädt Ihr Browser ihn weiterhin herunter – die Datei ist nicht verloren. Meist funktioniert der Link der Website nur ein einziges Mal.",
   "Det_RefreshLink": "Link erneuern",
   "Det_RefreshHint": "Link abgelaufen? Füge oben einen frischen ein und klicke auf Link erneuern – der Download läuft dort weiter, wo er stehen geblieben ist.",
   "Det_RefreshChecking": "Neuer Link wird geprüft…",
@@ -306,5 +307,6 @@
   "Det_RefreshUnreachable": "Der neue Link ist nicht erreichbar: {0}",
   "Det_RefreshMismatchTitle": "Dieser Link zeigt auf eine andere Datei",
   "Det_RefreshMismatchBody": "Der neue Link meldet {0}, dieser Download ist aber {1}. Fortfahren verwirft das bereits Geladene und beginnt von vorn.",
-  "Det_RefreshDone": "Link aktualisiert – der Download läuft weiter."
+  "Det_RefreshDone": "Link aktualisiert – der Download läuft weiter.",
+  "Error_SiteNeedsBrowserSession": "Diese Seite gibt das Video nur an eine im Browser angemeldete Sitzung heraus. Sende die Seite über die Downloader-Browsererweiterung – sie übergibt deine bestehende Sitzung mit dem Link."
 }

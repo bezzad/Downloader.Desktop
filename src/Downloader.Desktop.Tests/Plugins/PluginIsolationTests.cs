@@ -18,6 +18,7 @@ public class PluginIsolationTests
     {
         "Downloader.Desktop.Plugins.Hls",
         "Downloader.Desktop.Plugins.Website",
+        "Downloader.Desktop.Plugins.SiteMedia",
     };
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

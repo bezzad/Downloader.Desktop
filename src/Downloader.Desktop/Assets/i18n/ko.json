@@ -299,6 +299,7 @@
   "Donate_Star": "GitHub 별주기",
   "State_RefreshingLink": "링크 만료 — 새 링크를 가져오는 중…",
   "Error_LinkExpiredRefresh": "이 링크는 더 이상 유효하지 않습니다(만료되었거나 회수됨). 상세 정보를 열고 새 링크를 붙여넣으면 이미 받은 부분을 잃지 않고 이어받을 수 있습니다.",
+  "Error_BrowserHandoffRefused": "Downloader가 이 링크를 가져오지 못해 브라우저가 계속 내려받고 있습니다. 파일은 사라지지 않았습니다. 보통 사이트의 링크가 한 번만 작동한다는 뜻입니다.",
   "Det_RefreshLink": "링크 새로 고침",
   "Det_RefreshHint": "링크가 만료되었나요? 위에 새 링크를 붙여넣고 ‘링크 새로 고침’을 누르세요 — 중단된 지점부터 계속됩니다.",
   "Det_RefreshChecking": "새 링크 확인 중…",
@@ -306,5 +307,6 @@
   "Det_RefreshUnreachable": "새 링크에 연결할 수 없습니다: {0}",
   "Det_RefreshMismatchTitle": "이 링크는 다른 파일을 가리킵니다",
   "Det_RefreshMismatchBody": "새 링크는 {0}(으)로 표시되지만 이 다운로드는 {1}입니다. 계속하면 받은 부분을 버리고 처음부터 다시 받습니다.",
-  "Det_RefreshDone": "링크를 업데이트했습니다 — 다운로드를 계속합니다."
+  "Det_RefreshDone": "링크를 업데이트했습니다 — 다운로드를 계속합니다.",
+  "Error_SiteNeedsBrowserSession": "이 사이트는 브라우저에 로그인된 세션에만 영상을 제공합니다. Downloader 브라우저 확장에서 페이지를 보내면 현재 세션이 링크와 함께 전달됩니다."
 }

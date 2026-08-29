@@ -427,7 +427,11 @@ public partial class DownloadManager : IDownloadManager
                 var transferProvider = _plugins?.FindTransferProvider(urls[0]);
                 if (transferProvider != null)
                 {
-                    item.ResolverPluginId ??= _plugins.FindResolverPluginId(urls[0]);
+                    // The OWNING plugin, which on this route is the one whose transfer provider claimed
+                    // the link — it has no resolver to be found by. Without this the finished row never
+                    // offers that plugin's post-download action.
+                    item.ResolverPluginId ??= _plugins.FindTransferProviderPluginId(urls[0])
+                                              ?? _plugins.FindResolverPluginId(urls[0]);
                     await RunTransferAsync(vm, transferProvider, urls[0], folder).ConfigureAwait(false);
                     return;
                 }
@@ -502,7 +506,9 @@ public partial class DownloadManager : IDownloadManager
             AppLog.Error($"Failed to start: {urls[0]}", ex);
             OnUi(() =>
             {
-                vm.ErrorMessage = Describe(ex);
+                // DescribeFailure, not Describe: a resolver that claimed this link has its own reason to
+                // give, and an extension hand-off must not be described as an expired link.
+                vm.ErrorMessage = DescribeFailure(ex, item);
                 vm.Status = DownloadStatus.Failed;
                 NotifyList();
             });
@@ -682,6 +688,16 @@ public partial class DownloadManager : IDownloadManager
         }
         catch (Exception ex)
         {
+            // A resolver that CLAIMED this link and then failed has something to say — that the page is a
+            // live stream, that the site wants a session, that the tool couldn't be verified. Falling
+            // through to "use the link as-is" downloads the page's HTML instead and reports whatever that
+            // turns into, so the real reason never reaches the user. Only an UNCLAIMED link falls through.
+            if (_plugins.FindResolver(url) != null)
+            {
+                AppLog.Error($"Plugin resolve failed for {url}", ex);
+                throw new PluginResolveException(ex.Message, ex);
+            }
+
             AppLog.Error($"Plugin resolve failed for {url} — using the link as-is", ex);
             return null;
         }
@@ -747,8 +763,41 @@ public partial class DownloadManager : IDownloadManager
     /// <summary>The message a failed row shows. An expired link that the app could not refresh by itself
     /// gets wording that names the real problem and points at the fix (paste a fresh link in Details, #6)
     /// instead of a bare "Network error: 403".</summary>
-    private static string DescribeFailure(Exception ex) =>
-        LooksLikeExpiredLinkError(ex) ? Localizer.Instance["Error_LinkExpiredRefresh"] : Describe(ex);
+    private static string DescribeFailure(Exception ex) => DescribeFailure(ex, item: null);
+
+    /// <summary>As above, but knowing which download failed. A download the browser extension handed over
+    /// while its OWN copy kept running must not be described as an expired link the user has to replace:
+    /// the user has not lost anything, the browser is still fetching it. Naming the wrong problem sends
+    /// people hunting for a fresh link they never needed (issue #9).</summary>
+    private static string DescribeFailure(Exception ex, DownloadItem item)
+    {
+        // A resolver's own explanation is already the clearest thing anyone can say about the link, so it
+        // is passed through verbatim — except for the one case that used to be worded misleadingly: a site
+        // that wants a signed-in session. The people who see it ARE signed in; what is missing is the
+        // session reaching the app, which is what sending the page from the extension does.
+        if (ex is PluginResolveException resolve)
+            return LooksLikeNeedsBrowserSession(resolve.Message)
+                ? Localizer.Instance["Error_SiteNeedsBrowserSession"]
+                : resolve.Message;
+
+        if (!LooksLikeExpiredLinkError(ex))
+            return Describe(ex);
+        return item?.FromBrowserDownload == true
+            ? Localizer.Instance["Error_BrowserHandoffRefused"]
+            : Localizer.Instance["Error_LinkExpiredRefresh"];
+    }
+
+    /// <summary>Does a resolver's failure mean "this site only serves a signed-in session"? Matched on the
+    /// wording plugins use, so the app can say the one useful thing (send it from the extension) in the
+    /// user's own language instead of repeating the plugin's English.</summary>
+    internal static bool LooksLikeNeedsBrowserSession(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return false;
+        var lower = message.ToLowerInvariant();
+        return lower.Contains("signed-in session") || lower.Contains("browser session")
+            || lower.Contains("signed in session");
+    }
 
     private static string Describe(Exception ex)
     {
@@ -802,6 +851,13 @@ public partial class DownloadManager : IDownloadManager
         }
     }
 
+    /// <summary>Pure helper (testable): may a download with NO bytes yet still be worth one automatic link
+    /// refresh? Normally no — a link that never delivered a byte is a bad link, not an expired one. The
+    /// exception is a download the browser extension took over: the browser was fetching that link moments
+    /// earlier, so the usual cause of an immediate 401/403/410 is a single-use address the browser already
+    /// spent, and re-resolving the original link mints a fresh one (issue #9, Softpedia "Secure Download").</summary>
+    public static bool WorthRefreshingFromZeroBytes(DownloadItem item) => item?.FromBrowserDownload == true;
+
     /// <summary>
     /// An expired signed link is usually reachable again by re-resolving the ORIGINAL url the user pasted:
     /// it redirects to a freshly signed target. <see cref="Start"/> always re-resolves from
@@ -814,7 +870,7 @@ public partial class DownloadManager : IDownloadManager
     {
         if (!LooksLikeExpiredLinkError(error))
             return false;
-        if (vm.GetItem().Downloaded <= 0)
+        if (!WorthRefreshingFromZeroBytes(vm.GetItem()) && vm.GetItem().Downloaded <= 0)
             return false;
         if (vm.LinkRefreshAttempts >= MaxAutoLinkRefreshAttempts)
             return false;
@@ -845,7 +901,7 @@ public partial class DownloadManager : IDownloadManager
         if (TryAutoRefreshLink(vm, error))
             return true;
 
-        vm.ErrorMessage = error != null ? DescribeFailure(error) : fallbackMessage;
+        vm.ErrorMessage = error != null ? DescribeFailure(error, vm.GetItem()) : fallbackMessage;
         vm.Status = DownloadStatus.Failed;
         AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
         if (NotifyFailedEnabled)

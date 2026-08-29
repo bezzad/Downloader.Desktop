@@ -13,6 +13,10 @@
     <span id="status" class="status off" title="Desktop app connection">●</span>
   </header>
 
+  <!-- Shown only when the app answers on none of its ports. Silence there is indistinguishable from
+       a broken extension, and leaves the user nothing to check (issue #9). -->
+  <p id="appMissing" class="notfound" style="display:none"></p>
+
   <section>
     <div class="row">
       <input id="manualUrl" type="text" placeholder="Paste a link to download…" />

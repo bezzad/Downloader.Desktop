@@ -299,6 +299,7 @@
   "Donate_Star": "Star on GitHub",
   "State_RefreshingLink": "Link expired — getting a fresh one…",
   "Error_LinkExpiredRefresh": "This link is no longer valid — it expired or was withdrawn. Open Details and paste a fresh link to continue without losing the downloaded part.",
+  "Error_BrowserHandoffRefused": "Downloader couldn't fetch this link, so your browser is still downloading it — the file isn't lost. This usually means the site's link works only once.",
   "Det_RefreshLink": "Refresh link",
   "Det_RefreshHint": "Link expired? Paste a fresh one above and press Refresh link — the download continues from where it stopped.",
   "Det_RefreshChecking": "Checking the new link…",
@@ -306,5 +307,6 @@
   "Det_RefreshUnreachable": "Couldn't reach the new link: {0}",
   "Det_RefreshMismatchTitle": "This link points to a different file",
   "Det_RefreshMismatchBody": "The new link reports {0}, but this download is {1}. Continuing discards what has been downloaded and starts over.",
-  "Det_RefreshDone": "Link updated — continuing the download."
+  "Det_RefreshDone": "Link updated — continuing the download.",
+  "Error_SiteNeedsBrowserSession": "This site only gives the video to a signed-in browser session. Send the page from the Downloader browser extension — it passes your existing session along with the link."
 }

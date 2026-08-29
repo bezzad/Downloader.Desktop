@@ -7,11 +7,14 @@ const otherSectionEl = document.getElementById("otherSection");
 const otherSummaryEl = document.getElementById("otherSummary");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
+const appMissingEl = document.getElementById("appMissing");
 
 let rawItems = []; // { url, type, group, capturedAt, main }
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
 let currentTabId = null;
 let isUnsupportedHost = false;
+let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
+let currentPageUrl = "";
 let currentGroups = [];
 const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
@@ -166,7 +169,7 @@ function render() {
   // sound-effect mp3s), since none of it is ever the protected video content the user wants.
   // Real-world fix: v1.2.0 only checked this when zero items existed, so those unrelated sounds
   // were shown as if they were downloadable.
-  if (isUnsupportedHost) {
+  if (siteState.mode !== "normal") {
     currentGroups = [];
     selectsByGroup.clear();
     mainListEl.innerHTML = "";
@@ -175,7 +178,15 @@ function render() {
     otherSectionEl.style.display = "none";
     emptyEl.style.display = "block";
     emptyEl.classList.add("unsupported");
-    emptyEl.textContent = "This site streams video in a format Downloader can't capture directly.";
+    emptyEl.textContent = siteState.message;
+    // When the app CAN take the page, saying so isn't enough — offer the one action that works.
+    if (siteState.mode === "offer" && currentPageUrl) {
+      const btn = document.createElement("button");
+      btn.className = "send";
+      btn.textContent = "Send this page";
+      btn.onclick = () => sendOne(currentPageUrl, btn);
+      emptyEl.append(document.createElement("br"), btn);
+    }
     return;
   }
 
@@ -219,7 +230,14 @@ async function refreshStatus() {
   const { ok } = await send("ping", {});
   statusEl.className = "status " + (ok ? "on" : "off");
   statusEl.title = ok ? "Desktop app connected" : "Desktop app not reachable — start it and enable browser integration";
+  // The dot alone only says something is wrong once you hover it. Say what was actually tried, so a
+  // report can be answered with a screenshot instead of a guess.
+  if (appMissingEl) {
+    appMissingEl.textContent = ok ? "" : appNotFoundMessage();
+    appMissingEl.style.display = ok ? "none" : "block";
+  }
 }
+
 
 // Renders immediately with whatever's known, then upgrades in place once probes resolve — a slow
 // or blocked probe never delays first paint (design.md Decision 6).
@@ -233,7 +251,15 @@ async function probeAndRender() {
 async function loadDetected() {
   const tab = await activeTab();
   currentTabId = tab.id;
+  currentPageUrl = tab.url || "";
   try { isUnsupportedHost = isKnownUnsupportedHost(new URL(tab.url).hostname); } catch { isUnsupportedHost = false; }
+  // Whether such a page is a dead end depends on the app, not on this list: with the site-media plugin
+  // installed the page itself is downloadable. Ask before deciding what to say (issue #9 follow-up).
+  siteState = unsupportedSiteState({ hostUnsupported: isUnsupportedHost, appHandlesPage: false, handlerName: null });
+  if (isUnsupportedHost) {
+    const { handled, by } = await send("canHandlePage", { url: tab.url });
+    siteState = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: handled, handlerName: by });
+  }
   const { media } = await send("getMedia", { tabId: tab.id });
   for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
   render();

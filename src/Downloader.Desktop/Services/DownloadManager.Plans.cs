@@ -140,6 +140,9 @@ public partial class DownloadManager
     /// wait is idle either way and this stays trivially correct against pause/resume/cancel racing it.</summary>
     internal const int PausePollMs = 200;
 
+    /// <summary>How many times a part may be re-fetched because a pause landed on its finish line.</summary>
+    internal const int PausedPartRetries = 2;
+
     internal async Task<string> ExecutePlanAsync(
         PersistedPlan plan, string folder, string finalName, IPostProcessor processor,
         Action<DownloadService> onPartService, Action<string> onStage,
@@ -202,6 +205,28 @@ public partial class DownloadManager
 
         async Task DownloadPartAsync(int index)
         {
+            // A pause that lands exactly as a part's engine finishes leaves that engine in neither state:
+            // its final check requires a Running status, so a just-paused engine reports no error AND never
+            // finalizes its file. That is indistinguishable here from a genuine short download, so when a
+            // pause overlapped the attempt, fetch the part again after the resume instead of failing the
+            // whole plan. (Bounded: a part that keeps coming up empty without a pause still fails.)
+            for (var attempt = 0; ; attempt++)
+            {
+                var pausesBefore = controller.PauseCount;
+                if (await DownloadPartOnceAsync(index).ConfigureAwait(false))
+                    return; // cancelled or finished
+                if (attempt >= PausedPartRetries || controller.PauseCount == pausesBefore)
+                    throw new IOException($"Part {index + 1}/{parts.Count} did not finish downloading.");
+                await WaitWhilePausedAsync().ConfigureAwait(false);
+                if (Cancelled())
+                    return;
+            }
+        }
+
+        /// <summary>One attempt at a part. Returns false when the engine ended without a usable file and
+        /// without reporting an error — the caller decides whether that is a pause race or a real failure.</summary>
+        async Task<bool> DownloadPartOnceAsync(int index)
+        {
             var part = parts[index];
             var partPath = partPaths[index];
             runState?.SetActive(index);
@@ -248,16 +273,17 @@ public partial class DownloadManager
 
             partSpeed[index] = 0;
             if (isCancelled != null && isCancelled())
-                return; // outer loop handles cleanup
+                return true; // outer loop handles cleanup
             if (partError != null)
                 throw partError; // the engine reports a part failure via the event, not by throwing
             if (!PartDownloadedOk(partPath, part.ExpectedSize))
-                throw new IOException($"Part {index + 1}/{parts.Count} did not finish downloading.");
+                return false;
 
             MarkPartDone(partPath, part.ExpectedSize);
             partFraction[index] = 1;
             runState?.SetDone(index, part.ExpectedSize ?? SafeLength(partPath));
             System.Threading.Interlocked.Add(ref doneBytes, part.ExpectedSize ?? SafeLength(partPath));
+            return true;
         }
 
         // Which parts still need fetching (restart-resume skips completed ones).
@@ -525,6 +551,7 @@ public sealed class PlanController
     private readonly object _gate = new();
     private readonly List<DownloadService> _active = new();
     private volatile bool _paused;
+    private int _pauseCount;
 
     /// <summary>True while the user has paused this plan: no further part may be started.</summary>
     public bool IsPaused => _paused;
@@ -556,9 +583,14 @@ public sealed class PlanController
         get { lock (_gate) return _active.ToArray(); }
     }
 
+    /// <summary>How many times this plan has been paused. The runner compares it across a part attempt to
+    /// tell "the engine was suspended on its finish line" from "this part really came up empty".</summary>
+    public int PauseCount => _pauseCount;
+
     /// <summary>Pauses every in-flight part and closes the gate on starting new ones.</summary>
     public void Pause()
     {
+        System.Threading.Interlocked.Increment(ref _pauseCount);
         _paused = true;
         foreach (var service in Active)
             TryPause(service);

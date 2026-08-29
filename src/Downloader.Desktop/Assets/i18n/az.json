@@ -299,6 +299,7 @@
   "Donate_Star": "GitHub-da ulduzla",
   "State_RefreshingLink": "Keçid vaxtı bitdi — yenisi alınır…",
   "Error_LinkExpiredRefresh": "Bu keçid artıq etibarlı deyil — vaxtı bitib və ya geri götürülüb. Təfərrüatları açıb yeni keçid yapışdırın; yüklənmiş hissə itmədən davam edir.",
+  "Error_BrowserHandoffRefused": "Downloader bu keçidi ala bilmədi, ona görə brauzeriniz onu yükləməyə davam edir — fayl itməyib. Bu adətən saytın keçidinin yalnız bir dəfə işlədiyini bildirir.",
   "Det_RefreshLink": "Keçidi yenilə",
   "Det_RefreshHint": "Keçidin vaxtı bitib? Yuxarıya yenisini yapışdırıb Keçidi yenilə düyməsini basın — yükləmə dayandığı yerdən davam edir.",
   "Det_RefreshChecking": "Yeni keçid yoxlanılır…",
@@ -306,5 +307,6 @@
   "Det_RefreshUnreachable": "Yeni keçidə çatmaq mümkün olmadı: {0}",
   "Det_RefreshMismatchTitle": "Bu keçid başqa fayla aparır",
   "Det_RefreshMismatchBody": "Yeni keçid {0} bildirir, lakin bu yükləmə {1}-dır. Davam etmək yüklənmiş hissəni silir və yenidən başlayır.",
-  "Det_RefreshDone": "Keçid yeniləndi — yükləmə davam edir."
+  "Det_RefreshDone": "Keçid yeniləndi — yükləmə davam edir.",
+  "Error_SiteNeedsBrowserSession": "Bu sayt videonu yalnız brauzerdə giriş etmiş sessiyaya verir. Səhifəni Downloader brauzer əlavəsindən göndərin — o, mövcud sessiyanızı keçidlə birlikdə ötürür."
 }

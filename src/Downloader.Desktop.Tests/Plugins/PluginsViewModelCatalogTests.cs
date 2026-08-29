@@ -398,10 +398,21 @@ public class PluginsViewModelCatalogTests : IDisposable
     public void Reloading_rereads_the_plugins_folder()
     {
         var vm = new PluginsViewModel(new PluginManager(), Config.New());
+        var opened = new List<string>();
+        // Without this the command really spawns xdg-open on a machine with no desktop session — it
+        // prints to the test host's stderr and leaves a child process behind for no added coverage.
+        ShellLauncher.OpenOverride = target => { opened.Add(target); return true; };
+        try
+        {
+            vm.ReloadCommand.Execute(null);      // an empty temp root — must be a clean no-op
+            vm.OpenFolderCommand.Execute(null);
 
-        vm.ReloadCommand.Execute(null);      // an empty temp root — must be a clean no-op
-        vm.OpenFolderCommand.Execute(null);  // best-effort; no file manager on a headless box
-
-        Assert.True(vm.IsEmpty);
+            Assert.True(vm.IsEmpty);
+            Assert.Single(opened);
+        }
+        finally
+        {
+            ShellLauncher.OpenOverride = null;
+        }
     }
 }

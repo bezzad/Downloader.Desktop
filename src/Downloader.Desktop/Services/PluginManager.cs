@@ -156,6 +156,18 @@ public sealed class PluginManager
         return Enabled().FirstOrDefault(p => p.Resolvers.Contains(resolver))?.Descriptor.Id;
     }
 
+    /// <summary>The id of the enabled plugin whose TRANSFER PROVIDER claims <paramref name="url"/>, or
+    /// null. A transfer-owned download has no resolver at all, so looking the owner up among resolvers
+    /// finds nothing and the plugin's own post-download action is never offered on the finished row — the
+    /// missing "Add to …" offer on that route (issue #9 round).</summary>
+    public string FindTransferProviderPluginId(string url)
+    {
+        var provider = FindTransferProvider(url);
+        if (provider == null)
+            return null;
+        return Enabled().FirstOrDefault(p => p.TransferProviders.Contains(provider))?.Descriptor.Id;
+    }
+
     /// <summary>The display name of the enabled plugin whose resolver claims <paramref name="url"/>, or
     /// null. Cheap + sync (CanResolve pass only) — drives the Add window's "Handled by ‹plugin›" badge.</summary>
     public string FindResolverPluginName(string url)

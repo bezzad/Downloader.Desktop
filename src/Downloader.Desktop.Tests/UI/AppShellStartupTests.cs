@@ -31,7 +31,6 @@ namespace Downloader.Desktop.Tests.UI;
 public class AppShellStartupTests : IDisposable
 {
     private readonly bool _notificationsWereEnabled = NotificationService.Enabled;
-    private readonly bool _apiWasRunning = LocalApiService.IsRunning;
     private readonly List<bool> _startupApplied = new();
     private readonly IScheduler _realScheduler = RxApp.MainThreadScheduler;
     private readonly string _pluginsRoot =
@@ -61,8 +60,7 @@ public class AppShellStartupTests : IDisposable
         UpdateFlow.ResetForTests();
         PluginCatalogService.ReleasesUrlOverride = null;
         SingleInstanceService.SetMessageHandler(null);
-        if (!_apiWasRunning)
-            LocalApiService.Stop();
+        LocalApiService.Stop();
         NotificationService.Enabled = _notificationsWereEnabled;
         NotchService.Stop();
     }
@@ -92,6 +90,11 @@ public class AppShellStartupTests : IDisposable
     private static (MainViewModel Main, Window Window, PluginManager Plugins) Start(
         Config config, DownloadManager manager = null)
     {
+        // The API listener is process-wide: whether the shell binds it is only observable from a
+        // known-stopped baseline, and any test that left it bound would otherwise be read as this
+        // shell's doing.
+        LocalApiService.Stop();
+
         manager ??= new DownloadManager();
         var plugins = new PluginManager();
         var main = new MainViewModel(new StubFileService(config), manager, plugins);
