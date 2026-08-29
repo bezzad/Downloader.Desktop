@@ -50,9 +50,14 @@ public class FfmpegProvisioningTests : IDisposable
         !OperatingSystem.IsWindows() && File.Exists("/usr/bin/tar");
 
     /// <summary>The install path only understands the archive shape its own platform downloads: a
-    /// <c>.tar.xz</c> on Linux (unpacked with the system tar) and a <c>.zip</c> on macOS/Windows. Feeding
-    /// it the wrong one is not a test of anything — so the fixture follows the platform.</summary>
-    private static bool ArchiveSupported => !OperatingSystem.IsLinux() || TarAvailable;
+    /// <c>.tar.xz</c> on Linux (unpacked with the system tar) and a <c>.zip</c> on macOS. Feeding it the
+    /// wrong one is not a test of anything — so the fixture follows the platform.
+    ///
+    /// Windows stays out: these tests blank the process-wide PATH for their whole lifetime, and on Windows
+    /// that is a much bigger hammer than on Unix (it is how every child process, not just tar, is found).
+    /// They have never run there, and the install path they cover is shared with macOS.</summary>
+    private static bool ArchiveSupported =>
+        !OperatingSystem.IsWindows() && (!OperatingSystem.IsLinux() || TarAvailable);
 
     /// <summary>The file name the installer looks for inside the archive.</summary>
     private static string FfmpegName => OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
