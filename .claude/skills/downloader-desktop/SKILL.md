@@ -752,3 +752,10 @@ then reached `AppShellStartupTests.Starting_up_builds_the_pages_and_re_applies_t
 `ResetDefaultsCommand` re-applies the shipped defaults, and `EnableBrowserIntegration` defaults to ON, so
 the Settings reset test BINDS the listener. Always `Stop()` unconditionally in `finally`, and stop it once
 more to establish a baseline in any test that asserts on `IsRunning`.
+
+**`Start_retries_in_background_until_a_port_frees_up` needs EVERY port taken, and macOS CI won't always
+give you that.** It blocks all five with `HttpListener`s, but a prefix can be refused there while the port
+stays free — the service then binds it and `Assert.False(IsRunning)` fails, reporting a bug that isn't
+there. The test now probes each port it failed to block with a raw `TcpListener` (`PortIsFree`) and leaves
+without asserting when the "everything is taken" precondition cannot be met, plus `Stop()`s first so a
+leaked listener isn't mistaken for a successful bind.

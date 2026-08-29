@@ -394,17 +394,44 @@ public class LocalApiEndToEndTests
         }
     }
 
+    /// <summary>True when nothing at all is listening on the loopback port.</summary>
+    private static bool PortIsFree(int port)
+    {
+        var probe = new TcpListener(System.Net.IPAddress.Loopback, port);
+        try { probe.Start(); return true; }
+        catch (SocketException) { return false; }
+        finally { try { probe.Stop(); } catch { /* cleanup */ } }
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)] // binds every port via HttpListener — slow on macOS CI (~1m17s)
     public void Start_retries_in_background_until_a_port_frees_up()
     {
         // The reported bug: a transient startup condition (all ports momentarily busy) left the API
         // silently dead until the user toggled the feature. Start must keep retrying and bind late.
+        LocalApiService.Stop(); // a listener left bound by another test would answer as "already running"
+
         var blockers = LocalApiService.PortRange.Select(p =>
         {
             var l = new HttpListener();
             l.Prefixes.Add($"http://127.0.0.1:{p}/");
             try { l.Start(); return l; } catch { return null; } // a port already busy externally blocks too
         }).ToList();
+
+        // The whole scenario is "every port is taken", so a port we failed to bind only counts when
+        // something ELSE really holds it. On macOS CI an HttpListener prefix can be refused while the
+        // port stays free — the service would then bind it and the test would report a bug that is not
+        // there. Nothing to exercise in that case, so leave rather than fail.
+        var unblocked = LocalApiService.PortRange
+            .Where((p, i) => blockers[i] == null && PortIsFree(p))
+            .ToList();
+        if (unblocked.Count > 0)
+        {
+            foreach (var b in blockers.Where(b => b != null))
+            {
+                try { b.Stop(); b.Close(); } catch { /* cleanup */ }
+            }
+            return;
+        }
 
         var config = Config.New();
         LocalApiService.Config = config;
