@@ -55,7 +55,9 @@ jobs:
     - name: Test
       # --settings enables the coverage collector AND keeps generated source-generator output
       # (regex DFAs, compiled XAML) out of the denominator, so codecov reports authored code.
-      run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --settings src/coverlet.runsettings
+      # --blame-hang makes a stuck test host get killed and NAMED: without it a hang just burns the
+      # job's whole timeout and the log stops mid-suite without saying which test was in flight.
+      run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --settings src/coverlet.runsettings --blame-hang --blame-hang-timeout 180s --blame-crash
 
     - name: Upload test results
       if: always()

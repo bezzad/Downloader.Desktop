@@ -727,3 +727,10 @@ a task that completed with `partError == null` and no usable file: *"Part 4/16 d
 `PlanController.PauseCount` counts pauses, `DownloadPartOnceAsync` returns false instead of throwing, and
 `DownloadPartAsync` re-fetches the part (up to `PausedPartRetries`) **only when the count changed during the
 attempt** — a part that comes up empty with no pause still fails honestly.
+
+**The in-host hang still happens on CI (2026-08-29).** The ubuntu-latest/Release job burned its whole
+30-minute timeout after 1202 of 1232 tests, with the log stopping mid-suite and no culprit named; a plain
+re-run of the same commit was green, and the exact CI command (coverage collector, Release) is green locally.
+CI's test step now carries `--blame-hang --blame-hang-timeout 180s --blame-crash` so the next occurrence
+kills the host and NAMES the test instead of leaving a silent 30-minute gap. To find what did not run, diff
+`--list-tests` against the job log's `Passed …` lines (`LC_ALL=C sort` both — plain `comm` mis-sorts these).
