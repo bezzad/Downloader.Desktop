@@ -499,6 +499,53 @@ public class SettingViewModelTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_tray_toggle_is_safe_to_flip_while_run_at_startup_is_off()
+    {
+        var (vm, config, _) = Build();
+
+        // Guard: turning the tray OFF also turns run-at-startup off, which writes to the developer's
+        // real autostart entry. Keeping the setting false means that branch is not taken here — the
+        // coupling itself is asserted in the next test without touching the machine.
+        config.Settings.RunAtStartup = false;
+
+        vm.EnableSystemTray = true;
+        Assert.True(config.Settings.EnableSystemTray);
+        Assert.True(vm.EnableSystemTray);
+
+        vm.EnableSystemTray = false;
+        Assert.False(config.Settings.EnableSystemTray);
+        Assert.False(vm.EnableSystemTray);
+
+        // Setting the same value twice must not re-run the tray plumbing.
+        vm.EnableSystemTray = false;
+        Assert.False(vm.EnableSystemTray);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Run_at_startup_is_recorded_as_off_when_the_tray_is_turned_off()
+    {
+        var (vm, config, _) = Build();
+        var startupWasEnabled = StartupService.IsEnabled();
+        try
+        {
+            config.Settings.EnableSystemTray = true;
+            config.Settings.RunAtStartup = true;
+
+            vm.EnableSystemTray = false;
+
+            // Launching at login only makes sense with the tray: the app starts minimized into it.
+            // Leaving RunAtStartup on with no tray would start a hidden app with no way to reach it.
+            Assert.False(config.Settings.RunAtStartup);
+            Assert.False(vm.RunAtStartup);
+        }
+        finally
+        {
+            // That path calls StartupService.Apply(false); put the real machine state back.
+            StartupService.Apply(startupWasEnabled);
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void The_remaining_simple_settings_round_trip()
     {
         var (vm, config, _) = Build();

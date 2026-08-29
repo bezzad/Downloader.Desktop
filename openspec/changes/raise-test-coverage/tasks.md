@@ -2,9 +2,9 @@
 
 Baseline (develop, 525 tests green): raw **51.5%**, real C# code **61.2%**.
 After task 1 (generated code excluded from the denominator): **65.0%** (5849/9000), same 525 tests.
-**Final: 883 tests green.** On the full scope, **74.5%** (6715/9018). After the author's scope
-decision (views + platform files excluded, 2026-08-27), **78.5%** (6359/8104) — and **82.7% across
-the code the suite can guard**. See "Scope decision applied" and "Where the remaining gap is" below.
+After the author's scope decision (views + platform files excluded, 2026-08-27): **78.5%**.
+**Final: 951 tests green, 82.7%** (6643/8036) after the per-file pass — with files under 80% down
+from 34 to 20. See "Per-file pass" for what remains and what blocks each file.
 
 ## 1. Make the measurement honest
 
@@ -81,6 +81,50 @@ the code the suite can guard**. See "Scope decision applied" and "Where the rema
 - [x] 8.2 Full suite green, bounded run.
 - [x] 8.3 Browser-extension unit suite green (untouched by this change).
 - [x] 8.4 Final coverage measured and reported; SKILL.md updated.
+
+## Per-file pass (author: "each code must above 80")
+
+951 tests. Overall **82.7%**; files under 80% went **34 -> 20**. What moved:
+
+- Six near-identical `Process.Start(UseShellExecute)` helpers were consolidated into
+  `Services/ShellLauncher` with an override seam. Covering those call sites for real would open
+  browser tabs and file-manager windows on whoever runs the suite, which is exactly why they had
+  never been covered. `NotificationService` and `ShutdownService`'s private copies of the same
+  helper fold in too, which made the notification icons and the per-platform power-off command
+  assertable for the first time.
+- Plugin entry points, the file logger (incl. the engine's ILoggerFactory bridge), URL/name
+  resolution, the notch overlay, SDK interface defaults, the countdown timer actually running down,
+  Settings' service-backed toggles and reset-to-defaults, the per-connection segment
+  (freeze/thaw/sync) and the copy buttons.
+
+### The 20 files still under 80%, by what actually blocks them
+
+**Needs a production seam** (each would install/write to the developer's real machine, or hit the
+network, with no way to redirect it):
+
+| file | cov | blocker |
+|---|---|---|
+| `PluginsViewModel` | 58% | Add/Update/Install write to the real `PluginsRoot`; Install also opens a file picker |
+| `PluginCatalogService` | 69% | `FetchAsync`/`DownloadAssetAsync` hit GitHub; `InstallOrUpdateAsync` installs into the real `PluginsRoot` |
+| `UpdateFlow` / `UpdateService` | 31% / 55% | GitHub release check, asset download, and the self-swap that replaces the running install |
+| `DialogHelper` | 28% | `ShowDialog` against real modal windows |
+| `CliRunner` | 15% | the `add` verb calls `Process.Start(Environment.ProcessPath)` — it would launch a real GUI |
+| `FileService` | 0% | its config path is a private static resolved from the real `%AppData%`/`~/.config` |
+| `BinaryFile` / `FfmpegBinary` | 40% / 75% | download real tool binaries (~80 MB ffmpeg) |
+| `OllamaRegistry` / `OllamaInstaller` | 69% / 71% | talk to a real registry / local Ollama daemon |
+
+The unlock is small and specific: a redirectable plugins root and config path, and an injectable
+`HttpClient`/base URL on the two services that fetch. That is ~350 of the 513 remaining lines.
+
+**App bootstrap** — only exists once the app really starts: `Program.cs` (0%), `App.axaml.cs` (32%),
+and `MainViewModel` (57%, of which 70 lines are `SetupAppShell`: tray + single-instance IPC + local
+API + update check, all of which need a live window and OS session).
+
+**Platform branch limited** — only one of several OS branches can execute on the Linux runner:
+`NotificationService` (59%), `ShutdownService` (76%), `ShellLauncher` (78%), `NotchService` (77%).
+
+**Just needs more tests**: `DownloadManager.Plans` (72%) and one default-interface line in
+`IDownloaderPlugin`.
 
 ## Scope decision applied (author's call, 2026-08-27)
 
