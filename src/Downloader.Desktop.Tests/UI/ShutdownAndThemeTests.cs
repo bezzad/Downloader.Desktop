@@ -92,6 +92,109 @@ public class ShutdownAndThemeTests : IDisposable
         Assert.False(poweredOff);
     }
 
+    /// <summary>
+    /// Both entry points are documented as safe from any thread — the all-downloads-complete trigger
+    /// and the tray's cancel can both arrive off the UI thread, and touching a window from there
+    /// silently does nothing (the same class of bug that made the tray's "Open" a no-op). So the
+    /// off-thread call has to marshal, not skip.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async System.Threading.Tasks.Task Arming_and_cancelling_from_a_background_thread_still_reaches_the_dialog()
+    {
+        Localizer.Instance.Load("en");
+        var poweredOff = false;
+        ShutdownService.PowerOffOverride = () => poweredOff = true;
+
+        await System.Threading.Tasks.Task.Run(() => ShutdownService.Schedule(notify: false));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(ShutdownService.IsScheduled, "an off-thread arm must be marshaled onto the UI thread");
+
+        await System.Threading.Tasks.Task.Run(ShutdownService.Cancel);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.False(ShutdownService.IsScheduled, "an off-thread cancel must be marshaled too");
+        Assert.False(poweredOff);
+    }
+
+    /// <summary>The override short-circuits the platform dispatch — that is what keeps the suite from
+    /// powering the developer's machine off, so it has to actually take priority over it.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_power_off_override_replaces_the_real_command()
+    {
+        var calls = 0;
+        var ran = new List<string>();
+        ShutdownService.PowerOffOverride = () => calls++;
+        ShellLauncher.RunOverride = (file, _) => { ran.Add(file); return true; };
+        try
+        {
+            ShutdownService.PowerOff();
+
+            Assert.Equal(1, calls);
+            Assert.Empty(ran); // no platform command may be issued while the override is installed
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+        }
+    }
+
+    /// <summary>
+    /// With no override this picks the platform's real power-off command. Only the branch for the
+    /// running OS can execute here, and the command is intercepted at the launcher rather than run —
+    /// a wrong command means the machine simply never shuts down, with nothing reported to anyone.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Without_an_override_this_platform_gets_its_own_power_off_command()
+    {
+        var ran = new List<(string File, string[] Args)>();
+        ShutdownService.PowerOffOverride = null;
+        ShellLauncher.RunOverride = (file, args) => { ran.Add((file, args)); return true; };
+        try
+        {
+            ShutdownService.PowerOff();
+
+            var (file, args) = Assert.Single(ran);
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.Equal("shutdown", file);
+                Assert.Equal(new[] { "/s", "/t", "0" }, args);
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                Assert.Equal("osascript", file);
+                Assert.Contains("shut down", args[1]);
+            }
+            else
+            {
+                Assert.Equal("systemctl", file);
+                Assert.Equal(new[] { "poweroff" }, args);
+            }
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+        }
+    }
+
+    /// <summary>An OS that refuses the power-off must not take the app down with it.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_OS_that_refuses_to_power_off_is_swallowed()
+    {
+        ShutdownService.PowerOffOverride = null;
+        ShellLauncher.RunOverride = (_, _) => throw new InvalidOperationException("no such command");
+        try
+        {
+            var ex = Record.Exception(ShutdownService.PowerOff);
+
+            Assert.Null(ex);
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+        }
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public async System.Threading.Tasks.Task The_countdown_reaching_zero_powers_the_machine_off()
     {

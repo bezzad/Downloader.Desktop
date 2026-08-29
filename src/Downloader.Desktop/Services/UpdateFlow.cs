@@ -52,8 +52,18 @@ public static class UpdateFlow
     /// State=Ready would make a later one's guard clauses no-op and pass for the wrong reason.
     /// Resets to a freshly-started app. Never called by the app itself.
     /// </summary>
+    /// <summary>
+    /// Test seam for the release lookup only. <see cref="CheckAsync"/> is where the whole decision
+    /// lives — up to date, no asset for this platform, prompt the user, or the check itself failed —
+    /// and each of those branches ends in a different thing happening to the user. With the GitHub
+    /// call behind this hook the decisions are assertable without a network; the download that
+    /// follows is still network-bound and stays uncovered. Never set by the app.
+    /// </summary>
+    internal static Func<Task<UpdateInfo>> CheckOverride { get; set; }
+
     internal static void ResetForTests()
     {
+        CheckOverride = null;
         State = UpdateState.Idle;
         Progress = 0;
         AvailableVersion = null;
@@ -74,12 +84,7 @@ public static class UpdateFlow
         if (Dispatcher.UIThread.CheckAccess()) Fire(); else Dispatcher.UIThread.Post(Fire);
     }
 
-    /// <summary>Checks GitHub; if a newer version exists, downloads it in the background automatically.</summary>
-    // Reaching GitHub is the entire purpose of this method, so there is no seam that would leave
-    // anything meaningful to assert. Its guard clauses (already running, already staged, managed
-    // externally under snap) ARE tested — see Unit/UpdateStackTests.
-    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
-        Justification = "Network: queries the GitHub releases API. Guard clauses are covered separately.")]
+    /// <summary>Checks GitHub; if a newer version exists, asks the user before downloading it.</summary>
     public static async Task CheckAsync(bool manual)
     {
         if (IsManagedExternally || _busy ||
@@ -95,7 +100,7 @@ public static class UpdateFlow
         try
         {
             Raise(UpdateState.Checking, 0);
-            var info = await UpdateService.CheckAsync().ConfigureAwait(false);
+            var info = await (CheckOverride?.Invoke() ?? UpdateService.CheckAsync()).ConfigureAwait(false);
             if (info == null)
             {
                 Raise(UpdateState.Idle, 0);
