@@ -272,6 +272,127 @@ public class PluginsViewModelCatalogTests : IDisposable
         Assert.Empty(vm.CatalogPlugins);
     }
 
+    // ---- installing a DLL by hand ------------------------------------------
+
+    /// <summary>
+    /// The manual Install button: pick a .dll, it is copied into the plugins folder (with its deps
+    /// sidecar) and loaded. This used to swallow every failure silently, which is why "install does
+    /// nothing" was a real report — so each outcome now has to be visible.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void Installing_a_picked_dll_copies_it_into_the_plugins_folder_and_loads_it()
+    {
+        var dll = typeof(Downloader.Desktop.Plugins.Ollama.OllamaPlugin).Assembly.Location;
+        DialogHelper.OpenFilePickerOverride = () => new Uri(dll);
+        try
+        {
+            var pm = new PluginManager();
+            var vm = new PluginsViewModel(pm, Config.New());
+
+            vm.InstallCommand.Execute(null);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            Assert.True(File.Exists(Path.Combine(_root, Path.GetFileName(dll))),
+                "the picked DLL belongs in the plugins folder");
+            Assert.Contains(vm.Plugins, p => p.Id == PluginId);
+            // The deps sidecar has to travel with it, or a plugin with its own dependencies won't load.
+            var deps = Path.ChangeExtension(dll, ".deps.json");
+            if (File.Exists(deps))
+                Assert.True(File.Exists(Path.Combine(_root, Path.GetFileName(deps))));
+        }
+        finally
+        {
+            DialogHelper.OpenFilePickerOverride = null;
+        }
+    }
+
+    /// <summary>A DLL that carries no plugin must say so rather than looking like it worked.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void Installing_a_dll_that_is_not_a_plugin_leaves_the_list_empty()
+    {
+        // The SDK assembly is a perfectly good DLL with no IDownloaderPlugin in it.
+        var dll = typeof(IDownloaderPlugin).Assembly.Location;
+        DialogHelper.OpenFilePickerOverride = () => new Uri(dll);
+        try
+        {
+            var vm = new PluginsViewModel(new PluginManager(), Config.New());
+
+            vm.InstallCommand.Execute(null);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            Assert.True(vm.IsEmpty, "nothing in that file is a plugin");
+        }
+        finally
+        {
+            DialogHelper.OpenFilePickerOverride = null;
+        }
+    }
+
+    /// <summary>A file that vanished between picking and copying must not throw out of the button.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void Installing_a_file_that_cannot_be_copied_is_reported_not_thrown()
+    {
+        DialogHelper.OpenFilePickerOverride = () =>
+            new Uri(Path.Combine(Path.GetTempPath(), "gone-" + Guid.NewGuid().ToString("N") + ".dll"));
+        try
+        {
+            var vm = new PluginsViewModel(new PluginManager(), Config.New());
+
+            var ex = Record.Exception(() =>
+            {
+                vm.InstallCommand.Execute(null);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            });
+
+            Assert.Null(ex);
+            Assert.True(vm.IsEmpty);
+        }
+        finally
+        {
+            DialogHelper.OpenFilePickerOverride = null;
+        }
+    }
+
+    /// <summary>Cancelling the picker does nothing at all.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void Cancelling_the_picker_installs_nothing()
+    {
+        DialogHelper.OpenFilePickerOverride = () => null;
+        try
+        {
+            var vm = new PluginsViewModel(new PluginManager(), Config.New());
+
+            vm.InstallCommand.Execute(null);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            Assert.True(vm.IsEmpty);
+            Assert.Empty(Directory.EnumerateFiles(_root));
+        }
+        finally
+        {
+            DialogHelper.OpenFilePickerOverride = null;
+        }
+    }
+
+    /// <summary>Removing an installed plugin drops it from disk and from the list.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void Removing_a_plugin_takes_it_out_of_the_list()
+    {
+        var pm = new PluginManager();
+        pm.RegisterPlugin(new FakePlugin(PluginId, "1.0.0"));
+        var config = Config.New();
+        config.DisabledPlugins = new List<string> { PluginId };
+        var vm = new PluginsViewModel(pm, config);
+        var row = Assert.Single(vm.Plugins);
+
+        row.RemoveCommand.Execute(null);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.IsEmpty);
+        Assert.False(pm.IsInstalled(PluginId));
+        Assert.DoesNotContain(PluginId, config.DisabledPlugins);
+    }
+
     /// <summary>Reload re-reads the plugins folder — how a hand-copied DLL is picked up without a restart.</summary>
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Reloading_rereads_the_plugins_folder()

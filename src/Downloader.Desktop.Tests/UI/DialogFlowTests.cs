@@ -300,6 +300,55 @@ public class DialogFlowTests
         public Task SaveToFileAsync(Config itemToSave) => Task.CompletedTask;
     }
 
+    /// <summary>
+    /// The pickers ask the platform, and the platform can always say "nothing". Returning null there is
+    /// the whole contract — a bogus relative Uri used to come back instead, and callers reading
+    /// .LocalPath on it threw UriFormatException (#21).
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async Task A_picker_the_user_cancels_hands_back_nothing()
+    {
+        Localizer.Instance.Load("en");
+        using var scope = new DesktopLifetimeScope();
+
+        Assert.Null(await DialogHelper.OpenFilePicker("Pick a plugin", "Plugin", "dll")
+            .WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.Null(await DialogHelper.SaveFilePicker("Export log file", "downloader.log")
+            .WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.Null(await DialogHelper.OpenFolderPicker("Select default save folder")
+            .WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.Null(await DialogHelper.OpenFolderPicker("Select default save folder", scope.MainWindow)
+            .WaitAsync(TimeSpan.FromSeconds(15)));
+    }
+
+    /// <summary>
+    /// Before the window exists — during startup, or on a platform with no desktop lifetime — every
+    /// dialog has to degrade instead of throwing into whatever asked. A confirmation in particular has
+    /// to answer YES, because there is no one to ask and blocking would wedge the caller.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async Task With_no_window_yet_every_dialog_degrades_instead_of_throwing()
+    {
+        Localizer.Instance.Load("en");
+        Assert.Null(DialogHelper.MainWindow); // no scope here — this is the pre-window state
+
+        Assert.True(await DialogHelper.Confirm("Replace the file?", "…").WaitAsync(TimeSpan.FromSeconds(10)));
+        await WithTimeout(DialogHelper.ShowAbout());
+        await WithTimeout(DialogHelper.ShowDonate());
+        await WithTimeout(DialogHelper.ShowDetails(null));
+        Assert.Null(await DialogHelper.OpenFilePicker("t", "Plugin", "dll").WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Null(await DialogHelper.SaveFilePicker("t", "f.log").WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Null(await DialogHelper.OpenFolderPicker("t").WaitAsync(TimeSpan.FromSeconds(10)));
+
+        var config = Config.New();
+        Assert.Null(await DialogHelper
+            .ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
+                new AddDownloadItemView(), new AddDownloadItemViewModel(config, ""), config)
+            .WaitAsync(TimeSpan.FromSeconds(10)));
+
+        Assert.Empty(DialogHelper.OpenModals);
+    }
+
     /// <summary>Copying is best-effort: no text, or no clipboard, must both be survivable.</summary>
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public async Task Copying_text_is_best_effort()
