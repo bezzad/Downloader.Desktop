@@ -52,6 +52,14 @@ async function pingPort(port) {
   }
 }
 
+// What to tell the user when the app answers on none of its ports. Names the ports actually probed —
+// the whole declared range, which is all the extension is allowed to reach (MV3 host_permissions are
+// static) — so "it didn't detect the app" can be diagnosed instead of guessed at (issue #9).
+function appNotFoundMessage(range = APP_PORT_RANGE) {
+  return `Downloader was not found on 127.0.0.1 ports ${range[0]}–${range[range.length - 1]}. `
+    + "Start the app, and check Settings → Browser integration is on.";
+}
+
 function appBase(port) {
   return `${APP_HOST}:${port}`;
 }
@@ -356,8 +364,15 @@ async function handOffToApp(url, filename, context) {
   const headers = Object.keys(merged).length ? merged : null;
   const contextSent = { cookies: cookies.length, headers: headers ? Object.keys(headers).length : 0, referer: !!referer };
 
-  const body = { url };
+  // Every caller of this function is the interception path, so the app is told the link came from a
+  // download the browser had already started — which is what lets it read a first-request failure as
+  // a spent single-use address rather than a bad link.
+  const body = { url, fromBrowser: true };
   if (filename) body.filename = filename;
+  // Fallback links for the same file — see the caller in background.js for why the redirect chain's
+  // end travels as a mirror rather than as the download's own address. The app tries them in order.
+  const mirrors = (context?.mirrors || []).filter(m => isHttp(m) && m !== url);
+  if (mirrors.length) body.mirrors = mirrors;
   if (cookies.length) body.cookies = cookies;
   if (referer) body.referer = referer;
   if (headers) body.headers = headers;
@@ -960,7 +975,7 @@ if (typeof module !== "undefined") {
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
-    confirmAppFetching, browserUserAgent, appBase,
+    confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
     candidateExts, isPlausiblePathExt,
     rememberResponseHeaders, recallResponseHeaders,

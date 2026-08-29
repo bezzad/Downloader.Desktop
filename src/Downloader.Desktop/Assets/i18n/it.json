@@ -299,6 +299,7 @@
   "Donate_Star": "Stella su GitHub",
   "State_RefreshingLink": "Link scaduto: ne sto ottenendo uno nuovo…",
   "Error_LinkExpiredRefresh": "Questo link non è più valido: è scaduto o è stato rimosso. Apri Dettagli e incolla un link nuovo per continuare senza perdere la parte già scaricata.",
+  "Error_BrowserHandoffRefused": "Downloader non è riuscito a scaricare questo link, quindi il browser lo sta ancora scaricando: il file non è perso. Di solito significa che il link del sito funziona una volta sola.",
   "Det_RefreshLink": "Aggiorna link",
   "Det_RefreshHint": "Link scaduto? Incollane uno nuovo qui sopra e premi Aggiorna link: il download riprende da dove si era fermato.",
   "Det_RefreshChecking": "Controllo del nuovo link…",

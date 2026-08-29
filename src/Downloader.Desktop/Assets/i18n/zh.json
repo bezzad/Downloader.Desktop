@@ -299,6 +299,7 @@
   "Donate_Star": "在 GitHub 加星",
   "State_RefreshingLink": "链接已过期 — 正在获取新链接…",
   "Error_LinkExpiredRefresh": "此链接已失效——它已过期或被撤回。打开“详情”并粘贴新链接，即可在不丢失已下载部分的情况下继续。",
+  "Error_BrowserHandoffRefused": "Downloader 无法获取此链接，因此浏览器仍在下载它——文件没有丢失。这通常表示该网站的链接只能使用一次。",
   "Det_RefreshLink": "刷新链接",
   "Det_RefreshHint": "链接过期了？在上方粘贴新链接并点击“刷新链接”——下载会从中断处继续。",
   "Det_RefreshChecking": "正在检查新链接…",

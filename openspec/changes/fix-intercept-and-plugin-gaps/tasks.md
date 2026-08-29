@@ -23,16 +23,16 @@
 
 ## 2. Interception: hand over a link the app can actually fetch (issue #9 — Softpedia)
 
-- [ ] 2.1 Send the clicked link as primary and the redirect chain's end as a mirror (design decision 4); unit-test the hand-off body for the redirected case (`url` = `item.url`, `mirrors` = `[finalUrl]`), the non-redirected case (no `mirrors`), and that cookies are captured for the primary link's host.
-- [ ] 2.2 Add an app-side test that `/api/add` with `mirrors` produces a `DownloadItem` whose `Urls` are primary-then-mirror in order (`LocalApiService` already merges them — the test pins it against regression).
-- [ ] 2.3 Mark a download that arrived from the extension on the `DownloadItem`, set it in `/api/add` when the request carried extension context, and unit-test that it round-trips through save/load with `false` for existing records.
-- [ ] 2.4 Allow one auto link-refresh from zero bytes for such downloads (design decision 5) and unit-test all four cases: extension hand-off at 0 bytes retries once; a pasted link at 0 bytes still fails immediately; the bound still holds; a non-expired failure never retries.
-- [ ] 2.5 Add the honest failure message for an extension hand-off the app could not fetch while the browser still has the file (design decision 6), with the new key added to **all 16** `Assets/i18n/*.json` packs; unit-test the message selection and add a test asserting no i18n pack is missing the key.
-- [ ] 2.6 Add a Playwright e2e case where the stub app accepts then fails the transfer, asserting the browser's download is never cancelled and the user is told — pinning the v2.7.0 safety net against regression.
+- [x] 2.1 Send the clicked link as primary and the redirect chain's end as a mirror (design decision 4); unit-test the hand-off body for the redirected case (`url` = `item.url`, `mirrors` = `[finalUrl]`), the non-redirected case (no `mirrors`), and that cookies are captured for the primary link's host.
+- [x] 2.2 Add an app-side test that `/api/add` with `mirrors` produces a `DownloadItem` whose `Urls` are primary-then-mirror in order (`LocalApiService` already merges them — the test pins it against regression).
+- [x] 2.3 Mark a download that arrived from the extension on the `DownloadItem`, set it in `/api/add` when the request carried extension context, and unit-test that it round-trips through save/load with `false` for existing records.
+- [x] 2.4 Allow one auto link-refresh from zero bytes for such downloads (design decision 5) and unit-test all four cases: extension hand-off at 0 bytes retries once; a pasted link at 0 bytes still fails immediately; the bound still holds; a non-expired failure never retries.
+- [x] 2.5 Add the honest failure message for an extension hand-off the app could not fetch while the browser still has the file (design decision 6), with the new key added to **all 16** `Assets/i18n/*.json` packs; unit-test the message selection and add a test asserting no i18n pack is missing the key.
+- [x] 2.6 Add a Playwright e2e case where the stub app accepts then fails the transfer, asserting the browser's download is never cancelled and the user is told — pinning the v2.7.0 safety net against regression.
 
 ## 3. Interception: diagnostics and the app-detection report
 
-- [ ] 3.1 Show an explicit "Downloader not found on ports 15151–15155" state in the popup when discovery fails, clearing when the app returns; cover both with a Playwright e2e case (app stub down, then up).
+- [x] 3.1 Show an explicit "Downloader not found on ports 15151–15155" state in the popup when discovery fails, clearing when the app returns; cover both with a Playwright e2e case (app stub down, then up).
 - [ ] 3.2 Record in the issue thread — from the evidence in design.md — that nothing in extension 1.5.0 requires app 2.7.0 (`/ping` since 2.5.0, `id` since v1.6.0, app diff v2.6.1→v2.7.0 touches only the updater), and ask the reporter to confirm with the new diagnostic. **Draft the text and get the author's explicit OK before posting** (standing rule).
 - [ ] 3.3 Bump the extension version, refresh `PUBLISHING.md`/`README.md` where they state what is fixed, and verify the packaged zip loads unpacked in Chromium with no console errors.
 

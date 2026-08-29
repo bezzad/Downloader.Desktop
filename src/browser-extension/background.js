@@ -125,10 +125,16 @@ async function onDownloadCreated(item) {
     }, settings);
     if (!decision.intercept) return; // the browser keeps it — including whenever interception is off
 
-    const url = item.finalUrl || item.url;
+    // Hand over the link the browser was ASKED to fetch, keeping the one its redirect chain ended
+    // on as a fallback. The end of a chain is frequently a signed, single-use address the browser
+    // has already spent, so the app's very first request fails on it — the Softpedia "Secure
+    // Download" case (issue #9). The starting link can be resolved again to a freshly signed one,
+    // which is exactly what the app's own expired-link recovery relies on.
+    const url = item.url && isHttp(item.url) ? item.url : item.finalUrl;
+    const mirrors = item.finalUrl && item.finalUrl !== url ? [item.finalUrl] : null;
     const referer = await refererFor(item);
     const headers = referer ? { Referer: referer } : null;
-    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers });
+    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers, mirrors });
 
     // The app didn't take it. Say nothing and change nothing: the browser download is still running,
     // which is the outcome the user already had.

@@ -299,6 +299,7 @@
   "Donate_Star": "Auf GitHub sternen",
   "State_RefreshingLink": "Link abgelaufen – neuer Link wird geholt…",
   "Error_LinkExpiredRefresh": "Dieser Link ist nicht mehr gültig – er ist abgelaufen oder wurde zurückgezogen. Öffne die Details und füge einen frischen Link ein, um ohne Verlust des bereits geladenen Teils fortzufahren.",
+  "Error_BrowserHandoffRefused": "Downloader konnte diesen Link nicht abrufen, daher lädt Ihr Browser ihn weiterhin herunter – die Datei ist nicht verloren. Meist funktioniert der Link der Website nur ein einziges Mal.",
   "Det_RefreshLink": "Link erneuern",
   "Det_RefreshHint": "Link abgelaufen? Füge oben einen frischen ein und klicke auf Link erneuern – der Download läuft dort weiter, wo er stehen geblieben ist.",
   "Det_RefreshChecking": "Neuer Link wird geprüft…",

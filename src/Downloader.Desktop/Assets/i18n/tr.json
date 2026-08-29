@@ -299,6 +299,7 @@
   "Donate_Star": "GitHub’da yıldızla",
   "State_RefreshingLink": "Bağlantının süresi doldu — yenisi alınıyor…",
   "Error_LinkExpiredRefresh": "Bu bağlantı artık geçerli değil — süresi doldu veya kaldırıldı. Ayrıntılar'ı açıp yeni bir bağlantı yapıştırın; indirilen kısım kaybolmadan devam eder.",
+  "Error_BrowserHandoffRefused": "Downloader bu bağlantıyı alamadı, bu yüzden tarayıcınız onu indirmeye devam ediyor — dosya kaybolmadı. Bu genellikle sitenin bağlantısının yalnızca bir kez çalıştığı anlamına gelir.",
   "Det_RefreshLink": "Bağlantıyı yenile",
   "Det_RefreshHint": "Bağlantının süresi mi doldu? Yukarıya yenisini yapıştırıp Bağlantıyı yenile'ye basın — indirme kaldığı yerden devam eder.",
   "Det_RefreshChecking": "Yeni bağlantı denetleniyor…",

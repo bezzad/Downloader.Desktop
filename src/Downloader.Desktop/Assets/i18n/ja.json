@@ -299,6 +299,7 @@
   "Donate_Star": "GitHub でスター",
   "State_RefreshingLink": "リンクの有効期限切れ — 新しいリンクを取得中…",
   "Error_LinkExpiredRefresh": "このリンクはもう有効ではありません（期限切れまたは取り下げ）。詳細を開いて新しいリンクを貼り付けると、ダウンロード済みの部分を失わずに続行できます。",
+  "Error_BrowserHandoffRefused": "Downloader はこのリンクを取得できなかったため、ブラウザーが引き続きダウンロードしています。ファイルは失われていません。通常、このサイトのリンクは一度しか使えないことを意味します。",
   "Det_RefreshLink": "リンクを更新",
   "Det_RefreshHint": "リンクが期限切れですか？上に新しいリンクを貼り付けて「リンクを更新」を押すと、中断した位置から続きます。",
   "Det_RefreshChecking": "新しいリンクを確認中…",

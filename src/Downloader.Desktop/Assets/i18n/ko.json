@@ -299,6 +299,7 @@
   "Donate_Star": "GitHub 별주기",
   "State_RefreshingLink": "링크 만료 — 새 링크를 가져오는 중…",
   "Error_LinkExpiredRefresh": "이 링크는 더 이상 유효하지 않습니다(만료되었거나 회수됨). 상세 정보를 열고 새 링크를 붙여넣으면 이미 받은 부분을 잃지 않고 이어받을 수 있습니다.",
+  "Error_BrowserHandoffRefused": "Downloader가 이 링크를 가져오지 못해 브라우저가 계속 내려받고 있습니다. 파일은 사라지지 않았습니다. 보통 사이트의 링크가 한 번만 작동한다는 뜻입니다.",
   "Det_RefreshLink": "링크 새로 고침",
   "Det_RefreshHint": "링크가 만료되었나요? 위에 새 링크를 붙여넣고 ‘링크 새로 고침’을 누르세요 — 중단된 지점부터 계속됩니다.",
   "Det_RefreshChecking": "새 링크 확인 중…",

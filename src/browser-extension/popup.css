@@ -44,6 +44,8 @@ select.quality {
   border-radius: 5px; border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
 }
 .empty { color: #888; text-align: center; padding: 8px 0; }
+.notfound { margin: 0 10px 8px; padding: 8px 10px; border-radius: 6px; line-height: 1.4;
+  color: #E5594F; background: rgba(229, 89, 79, 0.10); border: 1px solid rgba(229, 89, 79, 0.35); }
 .empty.unsupported { color: #E5594F; }
 details#otherSection { margin-top: 4px; }
 details#otherSection summary {

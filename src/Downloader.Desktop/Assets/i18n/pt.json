@@ -299,6 +299,7 @@
   "Donate_Star": "Estrela no GitHub",
   "State_RefreshingLink": "Link expirado — obtendo um novo…",
   "Error_LinkExpiredRefresh": "Este link não é mais válido — expirou ou foi retirado. Abra os Detalhes e cole um link novo para continuar sem perder a parte já baixada.",
+  "Error_BrowserHandoffRefused": "O Downloader não conseguiu obter este link, por isso o seu navegador continua a baixá-lo — o arquivo não foi perdido. Isso costuma significar que o link do site só funciona uma vez.",
   "Det_RefreshLink": "Atualizar link",
   "Det_RefreshHint": "Link expirado? Cole um novo acima e clique em Atualizar link — o download continua de onde parou.",
   "Det_RefreshChecking": "Verificando o novo link…",

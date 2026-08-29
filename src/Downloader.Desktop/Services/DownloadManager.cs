@@ -747,8 +747,20 @@ public partial class DownloadManager : IDownloadManager
     /// <summary>The message a failed row shows. An expired link that the app could not refresh by itself
     /// gets wording that names the real problem and points at the fix (paste a fresh link in Details, #6)
     /// instead of a bare "Network error: 403".</summary>
-    private static string DescribeFailure(Exception ex) =>
-        LooksLikeExpiredLinkError(ex) ? Localizer.Instance["Error_LinkExpiredRefresh"] : Describe(ex);
+    private static string DescribeFailure(Exception ex) => DescribeFailure(ex, item: null);
+
+    /// <summary>As above, but knowing which download failed. A download the browser extension handed over
+    /// while its OWN copy kept running must not be described as an expired link the user has to replace:
+    /// the user has not lost anything, the browser is still fetching it. Naming the wrong problem sends
+    /// people hunting for a fresh link they never needed (issue #9).</summary>
+    private static string DescribeFailure(Exception ex, DownloadItem item)
+    {
+        if (!LooksLikeExpiredLinkError(ex))
+            return Describe(ex);
+        return item?.FromBrowserDownload == true
+            ? Localizer.Instance["Error_BrowserHandoffRefused"]
+            : Localizer.Instance["Error_LinkExpiredRefresh"];
+    }
 
     private static string Describe(Exception ex)
     {
@@ -802,6 +814,13 @@ public partial class DownloadManager : IDownloadManager
         }
     }
 
+    /// <summary>Pure helper (testable): may a download with NO bytes yet still be worth one automatic link
+    /// refresh? Normally no — a link that never delivered a byte is a bad link, not an expired one. The
+    /// exception is a download the browser extension took over: the browser was fetching that link moments
+    /// earlier, so the usual cause of an immediate 401/403/410 is a single-use address the browser already
+    /// spent, and re-resolving the original link mints a fresh one (issue #9, Softpedia "Secure Download").</summary>
+    public static bool WorthRefreshingFromZeroBytes(DownloadItem item) => item?.FromBrowserDownload == true;
+
     /// <summary>
     /// An expired signed link is usually reachable again by re-resolving the ORIGINAL url the user pasted:
     /// it redirects to a freshly signed target. <see cref="Start"/> always re-resolves from
@@ -814,7 +833,7 @@ public partial class DownloadManager : IDownloadManager
     {
         if (!LooksLikeExpiredLinkError(error))
             return false;
-        if (vm.GetItem().Downloaded <= 0)
+        if (!WorthRefreshingFromZeroBytes(vm.GetItem()) && vm.GetItem().Downloaded <= 0)
             return false;
         if (vm.LinkRefreshAttempts >= MaxAutoLinkRefreshAttempts)
             return false;
@@ -845,7 +864,7 @@ public partial class DownloadManager : IDownloadManager
         if (TryAutoRefreshLink(vm, error))
             return true;
 
-        vm.ErrorMessage = error != null ? DescribeFailure(error) : fallbackMessage;
+        vm.ErrorMessage = error != null ? DescribeFailure(error, vm.GetItem()) : fallbackMessage;
         vm.Status = DownloadStatus.Failed;
         AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
         if (NotifyFailedEnabled)

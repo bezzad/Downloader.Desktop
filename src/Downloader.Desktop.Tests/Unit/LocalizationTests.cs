@@ -37,6 +37,10 @@ public class LocalizationTests
             // Round-15 keys must resolve in every shipped language (new ones are full packs).
             Assert.NotEqual("Action_StopAll", Localizer.Instance["Action_StopAll"]);
             Assert.NotEqual("Set_ShutdownOnComplete", Localizer.Instance["Set_ShutdownOnComplete"]);
+            // The message shown when the app could not take over a download the browser is still
+            // fetching (issue #9) — a pack missing it would tell the user to paste a fresh link in
+            // English, for a file they have not lost.
+            Assert.NotEqual("Error_BrowserHandoffRefused", Localizer.Instance["Error_BrowserHandoffRefused"]);
         }
         finally
         {

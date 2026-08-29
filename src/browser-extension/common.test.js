@@ -10,7 +10,7 @@ const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
-  candidatePorts, discoverAppPort, APP_PORT_RANGE,
+  candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
@@ -838,4 +838,61 @@ test("reading response headers needs no permission the extension did not already
     assert.deepEqual(m.permissions, expected.permissions, `${file} permissions changed`);
     assert.ok(m.host_permissions.includes("<all_urls>"), `${file} must already read every host`);
   }
+});
+
+// ---- The hand-off sends a link the app can resolve again (issue #9, Softpedia) ----
+
+/** Capture what handOffToApp POSTs, with the app answering as v2.5.0+ does. */
+async function captureHandOff(url, context) {
+  const posted = [];
+  global.fetch = async (u, opts) => {
+    if (String(u).endsWith("/ping")) return { ok: true, status: 200 };
+    posted.push(JSON.parse(opts.body));
+    return { ok: true, status: 201, json: async () => ({ id: "1", cookies: 0, headers: 1, referer: true }) };
+  };
+  const result = await handOffToApp(url, "file.zip", context);
+  return { result, body: posted[0] };
+}
+
+test("a redirected download hands over the clicked link, with the signed one as a mirror", async () => {
+  const clicked = "https://www.softpedia.example/dyn-postdownload.php?p=999&t=abc";
+  const signed = "https://cdn.softpedia.example/blob/6f2c1a?sig=one-shot";
+  const { body } = await captureHandOff(clicked, { mirrors: [signed] });
+  assert.equal(body.url, clicked, "the primary link must be the one that can be resolved again");
+  assert.deepEqual(body.mirrors, [signed]);
+});
+
+test("a download that never redirected carries no mirrors", async () => {
+  const url = "https://files.example.com/app.zip";
+  const { body } = await captureHandOff(url, { mirrors: null });
+  assert.equal(body.url, url);
+  assert.equal(body.mirrors, undefined);
+});
+
+test("a mirror identical to the primary link is not sent twice", async () => {
+  const url = "https://files.example.com/app.zip";
+  const { body } = await captureHandOff(url, { mirrors: [url] });
+  assert.equal(body.mirrors, undefined);
+});
+
+test("cookies are captured for the link actually being handed over", async () => {
+  const asked = [];
+  global.chrome.cookies.getAll = (details, cb) => { asked.push(details.url); cb([]); };
+  const clicked = "https://www.softpedia.example/dyn-postdownload.php?p=999";
+  await captureHandOff(clicked, { mirrors: ["https://cdn.example.com/blob/x"] });
+  assert.ok(asked.includes(clicked), `cookies must be read for ${clicked}, asked for ${asked}`);
+});
+
+test("an intercepted hand-off tells the app the browser had already started it", async () => {
+  const { body } = await captureHandOff("https://files.example.com/app.zip", {});
+  assert.equal(body.fromBrowser, true);
+});
+
+test("the app-not-found message names the ports actually probed", () => {
+  const msg = appNotFoundMessage();
+  assert.match(msg, /15151/);
+  assert.match(msg, new RegExp(String(APP_PORT_RANGE[APP_PORT_RANGE.length - 1])));
+  assert.match(msg, /Downloader was not found/);
+  // It must point at something the user can check, not just state a failure.
+  assert.match(msg, /Browser integration/);
 });

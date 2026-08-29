@@ -299,6 +299,7 @@
   "Donate_Star": "Estrella en GitHub",
   "State_RefreshingLink": "El enlace caducó: obteniendo uno nuevo…",
   "Error_LinkExpiredRefresh": "Este enlace ya no es válido: caducó o fue retirado. Abre Detalles y pega un enlace nuevo para continuar sin perder lo ya descargado.",
+  "Error_BrowserHandoffRefused": "Downloader no pudo obtener este enlace, así que tu navegador sigue descargándolo: el archivo no se ha perdido. Normalmente significa que el enlace del sitio solo funciona una vez.",
   "Det_RefreshLink": "Actualizar enlace",
   "Det_RefreshHint": "¿El enlace caducó? Pega uno nuevo arriba y pulsa Actualizar enlace: la descarga continúa donde se detuvo.",
   "Det_RefreshChecking": "Comprobando el nuevo enlace…",

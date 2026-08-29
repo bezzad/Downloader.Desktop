@@ -299,6 +299,7 @@
   "Donate_Star": "Steli en GitHub",
   "State_RefreshingLink": "Ligilo eksvalidiĝis — akiras freŝan…",
   "Error_LinkExpiredRefresh": "Ĉi tiu ligilo ne plu validas — ĝi eksvalidiĝis aŭ estis forigita. Malfermu Detalojn kaj algluu freŝan ligilon por daŭrigi sen perdi la jam elŝutitan parton.",
+  "Error_BrowserHandoffRefused": "Downloader ne povis preni ĉi tiun ligilon, do via retumilo ankoraŭ elŝutas ĝin — la dosiero ne perdiĝis. Kutime tio signifas ke la ligilo de la retejo funkcias nur unufoje.",
   "Det_RefreshLink": "Aktualigi ligilon",
   "Det_RefreshHint": "Ĉu la ligilo eksvalidiĝis? Algluu freŝan supre kaj premu Aktualigi ligilon — la elŝuto daŭras de kie ĝi haltis.",
   "Det_RefreshChecking": "Kontrolas la novan ligilon…",

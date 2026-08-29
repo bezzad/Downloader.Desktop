@@ -299,6 +299,7 @@
   "Donate_Star": "GitHub-da ulduzla",
   "State_RefreshingLink": "Keçid vaxtı bitdi — yenisi alınır…",
   "Error_LinkExpiredRefresh": "Bu keçid artıq etibarlı deyil — vaxtı bitib və ya geri götürülüb. Təfərrüatları açıb yeni keçid yapışdırın; yüklənmiş hissə itmədən davam edir.",
+  "Error_BrowserHandoffRefused": "Downloader bu keçidi ala bilmədi, ona görə brauzeriniz onu yükləməyə davam edir — fayl itməyib. Bu adətən saytın keçidinin yalnız bir dəfə işlədiyini bildirir.",
   "Det_RefreshLink": "Keçidi yenilə",
   "Det_RefreshHint": "Keçidin vaxtı bitib? Yuxarıya yenisini yapışdırıb Keçidi yenilə düyməsini basın — yükləmə dayandığı yerdən davam edir.",
   "Det_RefreshChecking": "Yeni keçid yoxlanılır…",

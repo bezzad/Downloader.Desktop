@@ -117,6 +117,12 @@ public class DownloadItem
     /// action (e.g. "Add to Ollama") can be offered on the completed item — even after a restart.</summary>
     public string ResolverPluginId { get; set; }
 
+    /// <summary>True when the browser extension handed this download over from a download the browser had
+    /// already started. Persisted (it is not a secret) and read by the expired-link recovery: such a link was
+    /// demonstrably fetchable moments earlier, so a failure on the app's FIRST request usually means a
+    /// single-use address the browser already spent — worth re-resolving once — rather than a bad link.</summary>
+    public bool FromBrowserDownload { get; set; }
+
     /// <summary>The resolver variant the user chose in the Add window (e.g. "720", "audio",
     /// "gemma3:12b"), persisted so a retry/restart re-resolves the SAME variant. Null = default pick.</summary>
     public string VariantId { get; set; }

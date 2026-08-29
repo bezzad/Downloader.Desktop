@@ -139,6 +139,20 @@ async function downloadState(context, filenameIncludes) {
   return null;
 }
 
+/** Record the notifications the extension raises, so "the user was told" can be asserted. */
+async function recordNotifications(context) {
+  const [sw] = context.serviceWorkers();
+  await sw.evaluate(() => {
+    globalThis.__seenNotifications = [];
+    const real = chrome.notifications.create.bind(chrome.notifications);
+    chrome.notifications.create = (opts, cb) => {
+      globalThis.__seenNotifications.push({ title: opts?.title || "", message: opts?.message || "" });
+      return real(opts, cb);
+    };
+  });
+  return () => sw.evaluate(() => globalThis.__seenNotifications);
+}
+
 test.describe("download interception", () => {
   let app;
 
@@ -165,6 +179,9 @@ test.describe("download interception", () => {
     expect(add.body).not.toBeNull();
     expect(add.body.url).toContain("sample.zip");
     expect(add.body.referer).toContain("127.0.0.1");
+    // The app is told the browser had already started this, which is what lets it read a first-request
+    // failure as a spent single-use link rather than a bad one (issue #9, Softpedia).
+    expect(add.body.fromBrowser).toBe(true);
 
     // And only then was the browser's own download cancelled.
     const state = await downloadState(context, "sample.zip");
@@ -235,12 +252,13 @@ test.describe("download interception", () => {
     expect(state.state).not.toBe("interrupted");
   });
 
-  test("an add the app reports as failed leaves the browser's download alone", async ({ context }) => {
+  test("an add the app reports as failed leaves the browser's download alone, and says so", async ({ context }) => {
     app = await startStubApp("failing");
     test.skip(!app, "no free port in the app range for the stub");
     await setCachedPort(context, app.port);
 
     await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+    const notifications = await recordNotifications(context);
 
     const page = await context.newPage();
     await page.goto("/empty.html");
@@ -250,6 +268,12 @@ test.describe("download interception", () => {
     const state = await downloadState(context, "sample.zip");
     expect(state).not.toBeNull();
     expect(state.state).not.toBe("interrupted");
+
+    // Keeping the file is not enough on its own: a download the app visibly refused, with no word
+    // about it, reads as the extension having done nothing at all.
+    const seen = await notifications();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(`${seen[0].title} ${seen[0].message}`.toLowerCase()).toContain("browser is still downloading");
   });
 
   // The regression the whole follow-up is about. Every other test here downloads `/sample.zip`, so

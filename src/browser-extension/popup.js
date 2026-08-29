@@ -7,6 +7,7 @@ const otherSectionEl = document.getElementById("otherSection");
 const otherSummaryEl = document.getElementById("otherSummary");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
+const appMissingEl = document.getElementById("appMissing");
 
 let rawItems = []; // { url, type, group, capturedAt, main }
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
@@ -219,7 +220,14 @@ async function refreshStatus() {
   const { ok } = await send("ping", {});
   statusEl.className = "status " + (ok ? "on" : "off");
   statusEl.title = ok ? "Desktop app connected" : "Desktop app not reachable — start it and enable browser integration";
+  // The dot alone only says something is wrong once you hover it. Say what was actually tried, so a
+  // report can be answered with a screenshot instead of a guess.
+  if (appMissingEl) {
+    appMissingEl.textContent = ok ? "" : appNotFoundMessage();
+    appMissingEl.style.display = ok ? "none" : "block";
+  }
 }
+
 
 // Renders immediately with whatever's known, then upgrades in place once probes resolve — a slow
 // or blocked probe never delays first paint (design.md Decision 6).

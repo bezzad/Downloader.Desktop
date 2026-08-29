@@ -415,6 +415,7 @@ public static class LocalApiService
             FileName = string.IsNullOrWhiteSpace(req.Filename) ? null : req.Filename.Trim(),
             SaveFolder = string.IsNullOrWhiteSpace(req.Path) ? config.Settings.DefaultSavePath : req.Path.Trim(),
             QueueId = queue?.Id ?? config.DefaultQueue?.Id,
+            FromBrowserDownload = req.FromBrowser,
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
@@ -598,6 +599,11 @@ public sealed class ApiAddRequest
     /// <summary>Optional per-download referer, overriding the global setting for this download only.</summary>
     public string Referer { get; set; }
 
+    /// <summary>True when the browser extension took this download over from the browser itself. Such a link
+    /// was demonstrably fetchable a second ago, which changes how a first-request failure is read — see
+    /// <see cref="DownloadItem.FromBrowserDownload"/>.</summary>
+    public bool FromBrowser { get; set; }
+
     /// <summary>Human-readable validation error, or null when the request is usable.</summary>
     public string Error { get; set; }
 
@@ -615,6 +621,9 @@ public sealed class ApiAddRequest
                 Queue = GetString(root, "queue"),
                 Referer = GetString(root, "referer")
             };
+            if (root.TryGetProperty("fromBrowser", out var fromBrowser) &&
+                fromBrowser.ValueKind is JsonValueKind.False or JsonValueKind.True)
+                req.FromBrowser = fromBrowser.GetBoolean();
             if (root.TryGetProperty("start", out var start) &&
                 start.ValueKind is JsonValueKind.False or JsonValueKind.True)
                 req.Start = start.GetBoolean();
@@ -650,6 +659,8 @@ public sealed class ApiAddRequest
             Queue = LocalApiService.QueryParam(requestUri, "queue"),
             Referer = LocalApiService.QueryParam(requestUri, "referer")
         };
+        if (LocalApiService.QueryParam(requestUri, "fromBrowser") is { } fromBrowser)
+            req.FromBrowser = !fromBrowser.Equals("false", StringComparison.OrdinalIgnoreCase) && fromBrowser != "0";
         if (LocalApiService.QueryParam(requestUri, "start") is { } start)
             req.Start = !start.Equals("false", StringComparison.OrdinalIgnoreCase) && start != "0";
 
