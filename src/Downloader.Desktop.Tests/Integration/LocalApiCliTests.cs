@@ -212,7 +212,11 @@ public class LocalApiEndToEndTests
     /// marshal onto the UI thread) can complete without deadlocking the test thread.</summary>
     private static T Pump<T>(Task<T> task)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(15);
+        // Generous on purpose: a small, loaded CI runner can starve the listener's accept task while this
+        // thread (which IS the UI thread under the headless runtime) spins RunJobs, and the request then
+        // times out against a service that is perfectly healthy. This has been the windows-latest/Debug
+        // leg's most common intermittent failure.
+        var deadline = DateTime.UtcNow.AddSeconds(40);
         while (!task.IsCompleted)
         {
             Dispatcher.UIThread.RunJobs();
@@ -226,7 +230,7 @@ public class LocalApiEndToEndTests
     private static Task<HttpResponseMessage> Get(HttpClient client, string pathAndQuery) =>
         Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.EffectivePort}{pathAndQuery}"));
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void Api_add_list_control_and_legacy_endpoints_work()
     {
         var manager = new DownloadManager();
@@ -241,7 +245,7 @@ public class LocalApiEndToEndTests
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) }; // see Pump: a starved runner, not a hung service
 
             // Legacy endpoints unchanged: /ping is 200 + CORS, /add without url is 400.
             var ping = Pump(Get(client, "/ping"));
@@ -288,7 +292,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void Api_add_reports_how_much_request_context_it_accepted()
     {
         var manager = new DownloadManager();
@@ -303,7 +307,7 @@ public class LocalApiEndToEndTests
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) }; // see Pump: a starved runner, not a hung service
 
             // A GET add carrying a context in the wire shapes: Cookie-header string + `Name: value` block.
             var add = Pump(Get(client,
@@ -351,7 +355,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void Start_falls_back_to_next_port_when_preferred_is_taken()
     {
         // Occupy the preferred port so the service must fall back. If 15151 is ALREADY taken (e.g. a real
@@ -527,7 +531,7 @@ public class LocalApiEndToEndTests
 
     // AvaloniaFact, not Fact: the primary delivers forwarded messages via Dispatcher.UIThread.Post,
     // which needs the headless dispatcher (and the Pump below) to actually run the handler.
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void A_real_second_instance_is_still_detected_and_bows_out()
     {
         // The other half of the guard: a genuine primary (which answers the handshake) must still make a
@@ -554,7 +558,7 @@ public class LocalApiEndToEndTests
         }
     }
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void Start_prefers_the_persisted_effective_port()
     {
         // A config that remembers a non-default port from a previous run should bind that one first.

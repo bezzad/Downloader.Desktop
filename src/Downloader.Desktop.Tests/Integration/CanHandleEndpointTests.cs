@@ -21,7 +21,7 @@ namespace Downloader.Desktop.Tests.Integration;
 /// </summary>
 public class CanHandleEndpointTests
 {
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void The_app_reports_whether_a_plugin_claims_a_page_and_which_one()
     {
         LocalApiService.Stop(); // a leak from another test would answer on the wrong port
@@ -42,7 +42,7 @@ public class CanHandleEndpointTests
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
             var claimed = Json(client, "/api/can-handle?url=" + Uri.EscapeDataString("https://videos.example/watch?v=abc"));
             Assert.True(claimed.GetProperty("handled").GetBoolean());
@@ -69,7 +69,7 @@ public class CanHandleEndpointTests
         }
     }
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void With_no_plugin_system_the_answer_is_a_plain_no_not_an_error()
     {
         LocalApiService.Stop();
@@ -86,7 +86,7 @@ public class CanHandleEndpointTests
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var answer = Json(client, "/api/can-handle?url=" + Uri.EscapeDataString("https://videos.example/watch?v=abc"));
             Assert.False(answer.GetProperty("handled").GetBoolean());
         }
@@ -103,7 +103,9 @@ public class CanHandleEndpointTests
     private static HttpResponseMessage Send(HttpClient client, string pathAndQuery)
     {
         var task = Task.Run(() => client.GetAsync($"http://127.0.0.1:{LocalApiService.EffectivePort}{pathAndQuery}"));
-        var deadline = DateTime.UtcNow.AddSeconds(15);
+        // Same margin as LocalApiEndToEndTests.Pump — on a loaded runner the accept task can be starved
+        // while this thread spins the dispatcher, which is a slow answer, not a broken one.
+        var deadline = DateTime.UtcNow.AddSeconds(40);
         while (!task.IsCompleted)
         {
             Dispatcher.UIThread.RunJobs();
