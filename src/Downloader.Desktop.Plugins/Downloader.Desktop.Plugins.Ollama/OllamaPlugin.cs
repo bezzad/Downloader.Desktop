@@ -3,19 +3,26 @@ using Microsoft.Extensions.Logging;
 namespace Downloader.Desktop.Plugins.Ollama;
 
 /// <summary>
-/// Bundled plugin: paste an Ollama model name (<c>gemma3:12b</c>) or an
-/// <c>ollama.com/library/…</c> link → the resolver turns it into the model blob's direct download URL
-/// (the app's engine downloads it multipart like any file); after completion the "Add to Ollama"
-/// post-download action verifies the checksum and installs it into the local Ollama store.
+/// Bundled plugin: paste an Ollama model name (<c>gemma3:12b</c>), an <c>ollama.com/library/…</c> link,
+/// or a <c>huggingface.co/&lt;owner&gt;/&lt;repo&gt;</c> model repository → the resolver turns it into a
+/// direct download URL (the app's engine downloads it multipart like any file); after completion the
+/// "Add to Ollama" post-download action verifies the checksum and installs it into the local Ollama store.
+/// <para>
+/// HuggingFace lives here rather than in a plugin of its own because the destination is identical: a GGUF
+/// is only useful once it is in the local store, and that machinery is all here. The two resolvers claim
+/// disjoint inputs (a bare model reference or ollama.com vs. a huggingface.co repository), as do the two
+/// post-download actions, so neither can shadow the other.
+/// </para>
 /// </summary>
 public sealed class OllamaPlugin : IDownloaderPlugin
 {
     public string Id => "com.bezzad.ollama-models";
     public string Name => "Ollama Models";
-    public string Version => "1.1.0";
+    public string Version => "1.2.0";
     public string Author => "bezzad";
     public string Description =>
-        "Download Ollama models by name (e.g. gemma3:12b) or ollama.com link, then add them to Ollama in one click.";
+        "Download Ollama models by name (e.g. gemma3:12b), by ollama.com link, or from a HuggingFace model "
+        + "repository (choose which GGUF quantisation), then add them to Ollama in one click.";
 
     public void Initialize(IPluginContext context)
     {
@@ -23,6 +30,10 @@ public sealed class OllamaPlugin : IDownloaderPlugin
         var registry = new HttpOllamaRegistry();
         context.RegisterResolver(new OllamaResolver(registry));
         context.RegisterPostDownloadAction(new AddToOllamaAction(registry));
+
+        var huggingFace = new HttpHuggingFaceApi();
+        context.RegisterResolver(new HuggingFaceResolver(huggingFace));
+        context.RegisterPostDownloadAction(new AddHuggingFaceToOllamaAction(huggingFace));
     }
 }
 

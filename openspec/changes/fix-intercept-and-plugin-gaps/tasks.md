@@ -52,15 +52,15 @@
 - [x] 5.1 Reproduce the missing "Add to Ollama" offer with a failing test first, driving a completed Ollama-resolved row through each of the three completion routes (`DownloadManager.cs:1359`, `Plans.cs:104`, `Transfers.cs:60`) and asserting `PostDownloadActionLabel` is non-null and the offer notification fires; record which route breaks and why before changing code.
 - [x] 5.2 Fix the identified cause and keep all three route tests green, plus a test that the offer survives a save/load restart cycle (`ResolverPluginId` and the source URL persisted).
 - [x] 5.3 Add a headless UI test that a completed model row actually shows the action button — the offer must be visible, not merely computable.
-- [ ] 5.4 Claim HuggingFace model repo URLs (`https://huggingface.co/<owner>/<repo>`, revision and `resolve/...` file forms) with no network I/O in the claim check; unit-test the reporter's link `https://huggingface.co/empero-ai/Qwen3.8-2B-Distill-GGUF` is claimed and that datasets/spaces/profile pages are not.
-- [ ] 5.5 List a repo's GGUF files from the HuggingFace API behind a test seam and offer them as variants with quantisation + size; unit-test multi-file (variants offered), single-file (no prompt), no-model-file and missing/private repo failures — all network-free.
-- [ ] 5.6 Install a downloaded HuggingFace GGUF into the local Ollama store under `hf.co/<owner>/<repo>:<quant>`, verifying against what the repo publishes for the file, never moving the user's download; unit-test success against a temp store root, checksum mismatch writes nothing, and missing Ollama fails with the "where it looked" message.
-- [ ] 5.7 State the sharded-GGUF limitation as an explicit, tested failure message rather than a partial download.
-- [ ] 5.8 Bump `Downloader.Desktop.Plugins.Ollama.csproj` `<Version>` (standing rule — the catalog compares versions) and verify the new version appears in Settings → Plugins.
+- [x] 5.4 Claim HuggingFace model repo URLs (`https://huggingface.co/<owner>/<repo>`, revision and `resolve/...` file forms) with no network I/O in the claim check; unit-test the reporter's link `https://huggingface.co/empero-ai/Qwen3.8-2B-Distill-GGUF` is claimed and that datasets/spaces/profile pages are not.
+- [x] 5.5 List a repo's GGUF files from the HuggingFace API behind a test seam and offer them as variants with quantisation + size; unit-test multi-file (variants offered), single-file (no prompt), no-model-file and missing/private repo failures — all network-free.
+- [x] 5.6 Install a downloaded HuggingFace GGUF into the local Ollama store under `hf.co/<owner>/<repo>:<quant>`, verifying against what the repo publishes for the file, never moving the user's download; unit-test success against a temp store root, checksum mismatch writes nothing, and missing Ollama fails with the "where it looked" message.
+- [x] 5.7 State the sharded-GGUF limitation as an explicit, tested failure message rather than a partial download.
+- [x] 5.8 Bump `Downloader.Desktop.Plugins.Ollama.csproj` `<Version>` (standing rule — the catalog compares versions) and verify the new version appears in Settings → Plugins.
 
 ## 6. Close-out
 
-- [ ] 6.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four, per CLAUDE.md's standing apply-session step.
+- [x] 6.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four, per CLAUDE.md's standing apply-session step.
 - [ ] 6.2 Refresh `docs/screenshots/` if any view changed (`DLDESKTOP_CAPTURE=1 dotnet test --filter FullyQualifiedName~CaptureScreenshots`) and **view the PNGs** before committing them.
 - [ ] 6.3 Update `CLAUDE.md` and `docs/codebase-index.md` for the new plugin and the interception changes, and append any non-obvious gotcha found here to `.claude/skills/downloader-desktop/SKILL.md`.
 - [ ] 6.4 Draft the issue #9 reply (what was fixed, what needs the reporter's confirmation on Softpedia's secure mirror) and **wait for the author's explicit OK before posting** — state the request and the current state only, never our proposed approach.
