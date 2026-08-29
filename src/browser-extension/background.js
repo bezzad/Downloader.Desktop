@@ -111,10 +111,15 @@ async function refererFor(item) {
 async function onDownloadCreated(item) {
   try {
     const settings = await getInterceptSettings();
+    // What the response for this download actually said. `downloads.onCreated` leaves `filename`
+    // empty on Chromium and often reports a generic MIME, so for a signed CDN link this header is
+    // frequently the only thing that names the file (issue #9).
+    const seen = recallResponseHeaders(item?.finalUrl) || recallResponseHeaders(item?.url);
     const decision = shouldIntercept({
       url: item?.finalUrl || item?.url,
       filename: item?.filename,
-      mime: item?.mime,
+      contentDisposition: seen?.contentDisposition,
+      mime: item?.mime || seen?.contentType,
       size: item?.fileSize ?? item?.totalBytes,
       referrer: item?.referrer
     }, settings);
@@ -228,8 +233,15 @@ registerInterception();
 // ---------------- Media sniffing ----------------
 api.webRequest.onHeadersReceived.addListener(
   details => {
-    const ct = (details.responseHeaders || [])
-      .find(h => h.name.toLowerCase() === "content-type")?.value;
+    const header = name => (details.responseHeaders || [])
+      .find(h => h.name.toLowerCase() === name)?.value;
+    const ct = header("content-type");
+    // Record what the response said about the file BEFORE the tab check: a download can be started
+    // from a request with no tab of its own, and interception needs this answer either way.
+    rememberResponseHeaders(details.url, {
+      contentDisposition: header("content-disposition"),
+      contentType: ct
+    });
     if (details.tabId < 0) return;
     if (looksLikeMedia(details.url) || isMediaContentType(ct)) {
       addMedia(details.tabId, details.url, ct);

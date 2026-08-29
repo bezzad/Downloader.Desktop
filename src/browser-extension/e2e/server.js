@@ -41,6 +41,31 @@ function start() {
       return;
     }
 
+    // An APKPure-shaped response: the path's last segment is a PACKAGE NAME (whose trailing dotted
+    // run used to be mistaken for the file type), the content type identifies nothing, and the real
+    // name — an .xapk, which no MIME type names — appears only in the response header (issue #9).
+    if (urlPath.startsWith("/b/XAPK/")) {
+      const blob = path.join(ROOT, "sample.zip");
+      const size = fs.statSync(blob).size;
+      res.writeHead(200, {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": size,
+        "Content-Disposition": 'attachment; filename="Example_v3.0.0.xapk"'
+      });
+      const stream = fs.createReadStream(blob, { highWaterMark: 8 * 1024 });
+      if (/[?&]slow=1/.test(req.url)) {
+        stream.on("data", chunk => {
+          stream.pause();
+          res.write(chunk);
+          setTimeout(() => stream.resume(), 120);
+        });
+        stream.on("end", () => res.end());
+        return;
+      }
+      stream.pipe(res);
+      return;
+    }
+
     const filePath = path.join(ROOT, urlPath);
     if (!filePath.startsWith(ROOT)) { res.writeHead(403).end(); return; }
     fs.stat(filePath, (err, stat) => {

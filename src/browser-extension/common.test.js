@@ -15,6 +15,9 @@ const {
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
   filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
+  candidateExts, isPlausiblePathExt,
+  rememberResponseHeaders, recallResponseHeaders,
+  RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp
 } = require("./common.js");
 
@@ -451,6 +454,82 @@ test("an APKPure-shaped signed link with the name only in the query is intercept
   assert.equal(d.intercept, true);
 });
 
+// Issue #9 follow-up: the reporter's APKPure downloads were never intercepted. The URL's last path
+// segment is a PACKAGE NAME (`com.instagram.android`), whose trailing dotted run was read as the file
+// type — a value that is both wrong and non-empty, so it masked every later source, including a
+// perfectly correct MIME type.
+test("an APKPure package-name path does not masquerade as a file type", () => {
+  for (const url of [
+    "https://d.apkpure.com/b/XAPK/com.instagram.android?version=latest",
+    "https://d.apkpure.com/b/APK/com.whatsapp?version=latest",
+    "https://d.cdnpure.com/b/XAPK/com.foo.bar?versionCode=123"
+  ]) {
+    const d = shouldIntercept({ url, filename: "", mime: "", size: 9e6 }, ON);
+    assert.equal(d.reason, "type-unknown",
+      `${url} names no type, so the reason must say so rather than inventing one`);
+  }
+});
+
+test("an APKPure APK is intercepted on its MIME type, which the path must not mask", () => {
+  const d = shouldIntercept({
+    url: "https://d.apkpure.com/b/APK/com.whatsapp?version=latest",
+    filename: "",
+    mime: "application/vnd.android.package-archive",
+    size: 9e6
+  }, ON);
+  assert.equal(d.intercept, true);
+});
+
+test("an APKPure XAPK is intercepted on the response's content-disposition", () => {
+  // No MIME identifies .xapk, and the path is a package name — the response header is the only source.
+  const d = shouldIntercept({
+    url: "https://d.apkpure.com/b/XAPK/com.instagram.android?version=latest",
+    filename: "",
+    contentDisposition: 'attachment; filename="Instagram_v390.0.0.xapk"',
+    mime: "application/octet-stream",
+    size: 9e6
+  }, ON);
+  assert.equal(d.intercept, true);
+});
+
+test("a path extension is trusted when it is a type anything here recognises", () => {
+  for (const ext of ["msi", "appimage", "zst", "iso", "mp4", "pdf"])
+    assert.equal(isPlausiblePathExt(ext), true, `${ext} is a real extension`);
+  for (const token of ["android", "whatsapp", "bar", "co", "com", "instagram", ""])
+    assert.equal(isPlausiblePathExt(token), false, `${token} is not an extension`);
+});
+
+test("a type the user added by hand is trusted in a URL path", () => {
+  const custom = { ...ON, fileTypes: { mode: "allow", list: ["mycustom"] } };
+  const d = shouldIntercept({ url: "https://e.com/thing.mycustom", size: 9e6 }, custom);
+  assert.equal(d.intercept, true);
+});
+
+test("candidateExts lists every source's answer, most trustworthy first, deduped", () => {
+  const exts = candidateExts({
+    url: "https://cdn.example.com/blob/xyz.zip?rscd=attachment%3Bfilename%3Dreal.7z",
+    filename: "browser-said.exe",
+    contentDisposition: 'attachment; filename="server-said.msi"',
+    mime: "application/zip"
+  });
+  assert.deepEqual(exts, ["exe", "msi", "7z", "zip"]);
+});
+
+test("one source being wrong cannot veto a source that is right", () => {
+  // The path says .zip (allowed) but the server names an .exe: both are candidates, and in deny
+  // mode either one matching is enough to leave the download alone.
+  const deny = { ...ON, fileTypes: { mode: "deny", list: ["exe"] } };
+  const item = {
+    url: "https://cdn.example.com/pkg.zip",
+    contentDisposition: 'attachment; filename="setup.exe"',
+    size: 9e6
+  };
+  assert.equal(shouldIntercept(item, deny).reason, "type-denied");
+  // ...and in allow mode, a single matching candidate is enough to take it.
+  const allowExe = { ...ON, fileTypes: { mode: "allow", list: ["exe"] } };
+  assert.equal(shouldIntercept(item, allowExe).intercept, true);
+});
+
 test("a deny list intercepts everything except the listed types", () => {
   const deny = { ...ON, fileTypes: { mode: "deny", list: ["pdf"] } };
   assert.equal(shouldIntercept({ url: "https://e.com/a.pdf" }, deny).reason, "type-denied");
@@ -699,4 +778,64 @@ test("sendToAppSilently now carries a referer even when there are no cookies", a
   assert.equal(result, "ok");
   assert.equal(seen.opts.method, "POST");
   assert.equal(JSON.parse(seen.opts.body).referer, "https://e.com/page");
+});
+
+// ---- Response-header cache (issue #9: the only place an .xapk is ever named) ----
+
+test("a response's content-disposition is recorded and read back", () => {
+  const url = "https://d.apkpure.example/b/XAPK/com.example.app?v=1";
+  rememberResponseHeaders(url, { contentDisposition: 'attachment; filename="App_v3.xapk"' });
+  const seen = recallResponseHeaders(url);
+  assert.equal(filenameFromContentDisposition(seen.contentDisposition), "App_v3.xapk");
+  // ...and it makes the download interceptable, which is the whole point.
+  const d = shouldIntercept({ url, contentDisposition: seen.contentDisposition, size: 9e6 }, ON);
+  assert.equal(d.intercept, true);
+});
+
+test("a response that names nothing is not remembered", () => {
+  const url = "https://example.com/page";
+  rememberResponseHeaders(url, { contentType: "text/html; charset=utf-8" });
+  assert.equal(recallResponseHeaders(url), null);
+});
+
+test("an identifying content type alone is worth remembering", () => {
+  const url = "https://example.com/blob/opaque-id";
+  rememberResponseHeaders(url, { contentType: "application/vnd.android.package-archive" });
+  assert.equal(recallResponseHeaders(url).contentType, "application/vnd.android.package-archive");
+});
+
+test("the cache is bounded, dropping the least recently recorded", () => {
+  for (let i = 0; i < RESPONSE_HEADER_CACHE_MAX + 25; i++)
+    rememberResponseHeaders(`https://e.com/f${i}`, { contentDisposition: `attachment; filename=f${i}.zip` });
+  assert.equal(recallResponseHeaders("https://e.com/f0"), null, "the oldest entry is gone");
+  assert.ok(recallResponseHeaders(`https://e.com/f${RESPONSE_HEADER_CACHE_MAX + 24}`), "the newest is kept");
+});
+
+test("a stale entry is dropped rather than returned — a wrong name is worse than none", () => {
+  const url = "https://e.com/old";
+  rememberResponseHeaders(url, { contentDisposition: "attachment; filename=old.zip" }, 1000);
+  assert.ok(recallResponseHeaders(url, 1000 + RESPONSE_HEADER_TTL_MS));
+  assert.equal(recallResponseHeaders(url, 1001 + RESPONSE_HEADER_TTL_MS), null);
+});
+
+test("a cache miss is harmless — the decision falls back to the other sources", () => {
+  assert.equal(recallResponseHeaders("https://never.seen/this"), null);
+  const d = shouldIntercept({ url: "https://never.seen/thing.zip", size: 9e6 }, ON);
+  assert.equal(d.intercept, true);
+});
+
+// The header cache exists so that reading the response never costs a new permission — a permission
+// change would send the extension back through a full store review.
+test("reading response headers needs no permission the extension did not already have", () => {
+  const fs = require("node:fs");
+  const expected = {
+    permissions: ["contextMenus", "webRequest", "tabs", "scripting", "notifications", "storage",
+      "cookies", "downloads"],
+    hostPermissions: ["<all_urls>"]
+  };
+  for (const file of ["manifest.json", "manifest.firefox.json"]) {
+    const m = JSON.parse(fs.readFileSync(`${__dirname}/${file}`, "utf8"));
+    assert.deepEqual(m.permissions, expected.permissions, `${file} permissions changed`);
+    assert.ok(m.host_permissions.includes("<all_urls>"), `${file} must already read every host`);
+  }
 });

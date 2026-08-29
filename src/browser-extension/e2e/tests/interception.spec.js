@@ -173,6 +173,45 @@ test.describe("download interception", () => {
     expect(state.error).toBe("USER_CANCELED");
   });
 
+  // The APKPure regression (issue #9 follow-up). Nothing about this URL names the file: the path's
+  // last segment is a package name, the content type is generic, and Chromium reports no suggested
+  // filename at `downloads.onCreated`. The only source is the response's own Content-Disposition,
+  // which the extension records as the response goes past.
+  test("a download named only by its response header is intercepted", async ({ context }) => {
+    app = await startStubApp("accept");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+
+    // Only .xapk is allowed, so interception can only happen if the header was actually read.
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["xapk"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    const url = "http://127.0.0.1:8991/b/XAPK/com.example.app?version=latest&slow=1";
+
+    // Fetch it from the page first, so the response passes through `webRequest` and its header is
+    // recorded. In real use that happens by itself: a click navigates, the server answers with the
+    // Content-Disposition, and only THEN does the browser turn it into a download. This test has to
+    // arrange it explicitly because `chrome.downloads.download()` — the only way to start a download
+    // Playwright does not intercept (see startBrowserDownload) — is not observed by `webRequest` at
+    // all, so on its own it would test the fallback, not the header path.
+    await page.evaluate(u => fetch(u).then(r => r.body?.cancel()), url);
+    await expect.poll(async () => {
+      const [sw] = context.serviceWorkers();
+      return sw.evaluate(u => !!recallResponseHeaders(u), url);
+    }, { timeout: 10000 }).toBe(true);
+
+    await startBrowserDownload(context, url);
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+    expect(app.adds[0].body.url).toContain("com.example.app");
+
+    const state = await downloadState(context, "com.example.app");
+    expect(state).not.toBeNull();
+    expect(state.state).toBe("interrupted");
+    expect(state.error).toBe("USER_CANCELED");
+  });
+
   // The data-loss regression (issue #9, Softpedia "Secure Download"). The app ACCEPTS the add — a 201
   // means the item was queued, not that the link is fetchable — and then never gets anywhere. The
   // browser's own download must survive that, or the user is left with no file at all.

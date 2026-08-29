@@ -732,11 +732,105 @@ function extFromMime(mime) {
  * user does not want this type".
  */
 function resolveDownloadExt(item) {
+  return candidateExts(item)[0] || "";
+}
+
+// Trailing dotted runs that are NOT file extensions. A URL path's last segment is often a package
+// name (`com.instagram.android`), a host-like token or a version — `extOf` cannot tell those from a
+// real extension, and a wrong-but-non-empty answer is worse than none: it fails the user's type list
+// AND hides every later source (issue #9, APKPure).
+//
+// Only the URL PATH is filtered. A name a server actually stated — the browser's suggestion or a
+// content-disposition — is taken at its word however unusual its extension, because there the server
+// is telling us what the file is called rather than us guessing from an address.
+// Guessing which dotted runs are "not extensions" cannot be done by shape — `whatsapp` and `appimage`
+// are the same shape. So the path is trusted only when it names a type something here RECOGNISES:
+// a type the user listed, a type a MIME maps to, or a media extension. A path ending in an
+// unrecognised token names nothing, which is the honest answer and the one that lets a later source
+// (the response's content-disposition, the MIME) speak.
+// ---- What the response itself said about the file ----
+// `downloads.onCreated` gives Chromium no filename and often only a generic MIME, but the response
+// that started the download DID carry a content-disposition — and for an .xapk that is the only
+// source there is (no MIME identifies one). The extension already watches every response for media
+// sniffing, so the answer is recorded there and looked up here (issue #9, APKPure).
+//
+// Bounded on purpose: this sees every response the browser makes. Entries are small, capped, and
+// expire, so a long browsing session cannot grow it without limit.
+const RESPONSE_HEADER_CACHE_MAX = 200;
+const RESPONSE_HEADER_TTL_MS = 120000; // a download starts within seconds of its response
+
+const responseHeaderCache = new Map(); // url -> { contentDisposition, contentType, atMs }
+
+function rememberResponseHeaders(url, headers, now = Date.now()) {
+  if (!isHttp(url)) return;
+  const contentDisposition = String(headers?.contentDisposition || "");
+  const contentType = String(headers?.contentType || "");
+  // Nothing worth keeping: no name, and a content type that identifies nothing.
+  if (!contentDisposition && !extFromMime(contentType)) return;
+  responseHeaderCache.delete(url); // re-insert so Map iteration order is least-recently-set first
+  responseHeaderCache.set(url, { contentDisposition, contentType, atMs: now });
+  while (responseHeaderCache.size > RESPONSE_HEADER_CACHE_MAX)
+    responseHeaderCache.delete(responseHeaderCache.keys().next().value);
+}
+
+// What the response for this URL said, or null. An entry past its TTL is dropped rather than
+// returned: a stale name is worse than no name.
+function recallResponseHeaders(url, now = Date.now()) {
+  const hit = responseHeaderCache.get(url);
+  if (!hit) return null;
+  if (now - hit.atMs > RESPONSE_HEADER_TTL_MS) {
+    responseHeaderCache.delete(url);
+    return null;
+  }
+  return hit;
+}
+
+// Ordinary file types beyond the ones already listed elsewhere. They are NOT interception candidates
+// by default (that is `INTERCEPT_FILE_TYPES`' job) — they are here so that a path naming one is
+// reported as "a type you did not ask for" rather than "unidentifiable", which is the difference
+// between a useful decision reason and a misleading one.
+const COMMON_FILE_EXTS = [
+  "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "rtf", "txt", "csv", "json",
+  "xml", "epub", "mobi", "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico", "psd", "ttf",
+  "otf", "woff", "woff2", "torrent", "cab", "msu", "vhd", "ova", "sig", "asc", "sha256"
+];
+
+const KNOWN_PATH_EXTS = new Set([
+  ...INTERCEPT_FILE_TYPES,
+  ...MEDIA_EXTENSIONS,
+  ...Object.values(MIME_EXTENSIONS),
+  ...COMMON_FILE_EXTS
+]);
+
+function isPlausiblePathExt(ext, known = KNOWN_PATH_EXTS) {
+  const e = String(ext || "").toLowerCase();
+  if (!/^[a-z0-9]{1,8}$/.test(e)) return false;
+  return known.has(e);
+}
+
+/**
+ * EVERY file type this download's sources name, most trustworthy first, deduped.
+ *
+ * A set, not a single answer, because any one source can be confidently wrong: a signed CDN link's
+ * path names a package, a generic MIME names nothing, and the browser has no suggestion yet at
+ * `downloads.onCreated`. Deciding on the first non-empty source lets the wrong one veto the right
+ * one — which is exactly the bug this replaced (issue #9).
+ *
+ * Order: the browser's suggested filename (what the file WILL be called) → the content-disposition
+ * the response actually carried → the same, carried in the URL's query as signed CDN links do → the
+ * URL path (filtered, see above) → the MIME type, last because the common value identifies nothing.
+ */
+function candidateExts(item, knownPathExts) {
   const url = item?.url || "";
-  return extOfName(item?.filename)
-    || extOfName(filenameFromUrlQuery(url))
-    || extOf(url)
-    || extFromMime(item?.mime);
+  const pathExt = extOf(url);
+  const found = [
+    extOfName(item?.filename),
+    extOfName(filenameFromContentDisposition(item?.contentDisposition)),
+    extOfName(filenameFromUrlQuery(url)),
+    isPlausiblePathExt(pathExt, knownPathExts) ? pathExt : "",
+    extFromMime(item?.mime)
+  ];
+  return [...new Set(found.filter(Boolean))];
 }
 
 // Does `host` match a site-list entry? An entry covers the host itself and its subdomains, so
@@ -799,11 +893,22 @@ function shouldIntercept(item, settings) {
     return { intercept: false, reason: "excluded-site" };
 
   // Not the URL path alone: a signed CDN link (GitHub releases, APKPure, Softpedia) has an opaque
-  // path and names the file elsewhere. See `resolveDownloadExt` for the source order.
-  const ext = resolveDownloadExt({ url, filename: item?.filename, mime: item?.mime });
-  const listed = !!ext && s.fileTypes.list.includes(ext);
+  // path and names the file elsewhere. Every candidate is considered, not just the first — see
+  // `candidateExts` for why that matters and for the source order.
+  // The user's own list joins the recognised path extensions, so a type they added by hand is
+  // trusted in a URL path exactly like a built-in one.
+  const known = new Set([...KNOWN_PATH_EXTS, ...s.fileTypes.list]);
+  const exts = candidateExts({
+    url,
+    filename: item?.filename,
+    contentDisposition: item?.contentDisposition,
+    mime: item?.mime
+  }, known);
+  const listed = exts.some(e => s.fileTypes.list.includes(e));
   if (s.fileTypes.mode === "allow" && !listed)
-    return { intercept: false, reason: ext ? "type-not-allowed" : "type-unknown" };
+    return { intercept: false, reason: exts.length ? "type-not-allowed" : "type-unknown" };
+  // Deny mode declines as soon as ANY candidate is listed: with several possible names, the safe
+  // reading of "don't intercept this type" is that one match is enough to leave it alone.
   if (s.fileTypes.mode === "deny" && listed)
     return { intercept: false, reason: "type-denied" };
 
@@ -857,6 +962,9 @@ if (typeof module !== "undefined") {
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
     confirmAppFetching, browserUserAgent, appBase,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
+    candidateExts, isPlausiblePathExt,
+    rememberResponseHeaders, recallResponseHeaders,
+    RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
     filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
     MIME_EXTENSIONS,
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
