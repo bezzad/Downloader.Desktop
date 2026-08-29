@@ -25,6 +25,15 @@ public static class PluginCatalogService
     private const string Repo = "Downloader.Desktop";
     private const string CatalogAssetName = "plugins-catalog.json";
 
+    /// <summary>
+    /// Test seam: the release endpoint the catalog is read from. Everything after the fetch — which
+    /// assets exist, whether the catalog manifest is among them, which entries are usable — is ordinary
+    /// logic that decides what the user is offered under "More plugins", and none of it could be
+    /// exercised while the URL was hard-coded at GitHub. Pointed at a loopback server by tests; the app
+    /// never sets it.
+    /// </summary>
+    internal static string ReleasesUrlOverride { get; set; }
+
     private static readonly HttpClient Http = CreateClient();
 
     private static HttpClient CreateClient()
@@ -44,7 +53,7 @@ public static class PluginCatalogService
     {
         try
         {
-            var url = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
+            var url = ReleasesUrlOverride ?? $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
             using var resp = await Http.GetAsync(url, ct).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode)
                 return Array.Empty<CatalogPluginInfo>();
