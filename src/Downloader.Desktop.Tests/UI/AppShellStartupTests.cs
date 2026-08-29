@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reactive.Concurrency;
-using System.Reactive.Disposables;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -40,12 +39,9 @@ public class AppShellStartupTests : IDisposable
 
     public AppShellStartupTests()
     {
-        // The shell schedules its initialisation onto the main-thread scheduler, and the app assigns the
-        // window AFTER construction — so init must run on a LATER dispatcher turn or it finds no window
-        // and skips wiring the shell entirely. In the app that ordering is free (nothing pumps the
-        // dispatcher during startup); under the headless runtime the test thread IS the UI thread, so
-        // the default scheduler runs it inline and the ordering silently inverts. This restores it.
-        RxApp.MainThreadScheduler = new PostingScheduler();
+        // See DeferringScheduler: without it the shell's init runs inline, before the window is
+        // assigned, and the whole shell wiring is silently skipped.
+        RxApp.MainThreadScheduler = new DeferringScheduler();
         // The shell loads plugins from the user's own plugins folder — point it somewhere empty so a
         // developer's installed plugins can't change what these tests see.
         Directory.CreateDirectory(_pluginsRoot);
@@ -69,25 +65,6 @@ public class AppShellStartupTests : IDisposable
             LocalApiService.Stop();
         NotificationService.Enabled = _notificationsWereEnabled;
         NotchService.Stop();
-    }
-
-    /// <summary>Always defers onto the dispatcher, the way the running app's scheduler does at startup.</summary>
-    private sealed class PostingScheduler : IScheduler
-    {
-        public DateTimeOffset Now => DateTimeOffset.Now;
-
-        public IDisposable Schedule<TState>(TState state, Func<IScheduler, TState, IDisposable> action)
-        {
-            var sub = new SingleAssignmentDisposable();
-            Dispatcher.UIThread.Post(() => { if (!sub.IsDisposed) sub.Disposable = action(this, state); });
-            return sub;
-        }
-
-        public IDisposable Schedule<TState>(TState state, TimeSpan dueTime,
-            Func<IScheduler, TState, IDisposable> action) => Schedule(state, action);
-
-        public IDisposable Schedule<TState>(TState state, DateTimeOffset dueTime,
-            Func<IScheduler, TState, IDisposable> action) => Schedule(state, action);
     }
 
     private sealed class StubFileService(Config config) : IFileService
