@@ -59,17 +59,6 @@ public class UpdatePromptViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(_releaseUrl))
             return;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = _releaseUrl,
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
-            // best-effort
-        }
+        ShellLauncher.Open(_releaseUrl);
     }
 }

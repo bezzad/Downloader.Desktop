@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Windows.Input;
 using Downloader.Desktop.Services;
 using ReactiveUI;
@@ -50,15 +49,5 @@ public class AboutViewModel : ViewModelBase
     /// <summary>The clean 3-part version shown under the title (same value the update check uses).</summary>
     public string VersionText => string.Format(Localizer.Instance["About_Version"], UpdateService.CurrentVersion);
 
-    private static void Open(string url)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
-        }
-        catch
-        {
-            // best-effort: nothing actionable if no handler is registered
-        }
-    }
+    private static void Open(string url) => ShellLauncher.Open(url);
 }

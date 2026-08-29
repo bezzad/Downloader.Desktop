@@ -534,58 +534,26 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Opens the containing folder with the file selected/highlighted, cross-platform.</summary>
     private static void RevealInFolder(string path)
     {
-        try
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                var psi = new System.Diagnostics.ProcessStartInfo("open") { UseShellExecute = false };
-                psi.ArgumentList.Add("-R");
-                psi.ArgumentList.Add(path);
-                System.Diagnostics.Process.Start(psi);
-            }
-            else
-            {
+        var revealed = OperatingSystem.IsWindows()
+            ? Services.ShellLauncher.Run("explorer.exe", $"/select,\"{path}\"")
+            : OperatingSystem.IsMacOS()
+                ? Services.ShellLauncher.Run("open", "-R", path)
                 // Linux: the FileManager1 D-Bus interface selects the item in Nautilus/Dolphin/etc.
-                var psi = new System.Diagnostics.ProcessStartInfo("dbus-send") { UseShellExecute = false };
-                psi.ArgumentList.Add("--session");
-                psi.ArgumentList.Add("--dest=org.freedesktop.FileManager1");
-                psi.ArgumentList.Add("--type=method_call");
-                psi.ArgumentList.Add("/org/freedesktop/FileManager1");
-                psi.ArgumentList.Add("org.freedesktop.FileManager1.ShowItems");
-                psi.ArgumentList.Add("array:string:file://" + path);
-                psi.ArgumentList.Add("string:");
-                System.Diagnostics.Process.Start(psi);
-            }
-        }
-        catch
-        {
+                : Services.ShellLauncher.Run("dbus-send",
+                    "--session",
+                    "--dest=org.freedesktop.FileManager1",
+                    "--type=method_call",
+                    "/org/freedesktop/FileManager1",
+                    "org.freedesktop.FileManager1.ShowItems",
+                    "array:string:file://" + path,
+                    "string:");
+
+        if (!revealed)
             // Fall back to just opening the folder if the reveal mechanism isn't available.
             ShellOpen(Path.GetDirectoryName(path));
-        }
     }
 
-    private static void ShellOpen(string target)
-    {
-        if (string.IsNullOrWhiteSpace(target))
-            return;
-
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = target,
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
-            // Opening is best-effort; ignore platform/shell failures.
-        }
-    }
+    private static void ShellOpen(string target) => Services.ShellLauncher.Open(target);
 
     /// <summary>Human-readable byte size (e.g. "12.5 MB"). Public so other VMs (Queues) can reuse it.</summary>
     public static string FormatBytes(long bytes)

@@ -49,19 +49,5 @@ public class DonateViewModel : ViewModelBase
     public ICommand OpenRepoCommand { get; }
     public ICommand CopyUsdtCommand { get; }
 
-    private static void Open(string url)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
-            // best-effort
-        }
-    }
+    private static void Open(string url) => Services.ShellLauncher.Open(url);
 }
