@@ -745,6 +745,16 @@ while they exist** — a re-run REPLACES the artifact, so the `Sequence_*.xml` (
 are the in-flight tests) and the hang dumps from the failing attempt are gone once you re-run it. Download
 first, re-run second.
 
+**It also fires LOCALLY, not just on CI (2026-08-29).** A full local run stopped after **1063** of
+~1232 tests and named
+`Integration.PlanRowFlowTests.A_multi_part_plan_runs_to_completion_and_leaves_the_row_finished`; that
+whole class then passed in **487 ms** on its own, and a re-run of the full suite was green. So the
+named test is again just where the shared dispatcher went unresponsive. Reach for this explanation
+only AFTER running the named class in isolation — that one command separates "known hang" from "you
+broke it", and takes seconds. The `Sequence_*.xml` is worth reading: parse it for
+`Completed="False"` (`re.findall(r'<Test Name="([^"]+)"[^>]*Completed="(\w+)"', xml)`) and you get
+both the culprit and the exact count of tests that did run.
+
 **Never conditionally restore `LocalApiService`.** Three tests used the "remember whether it was running,
 only stop it if it wasn't" pattern, which PRESERVES another test's leak instead of clearing it — one leak
 then reached `AppShellStartupTests.Starting_up_builds_the_pages_and_re_applies_the_saved_choices`
