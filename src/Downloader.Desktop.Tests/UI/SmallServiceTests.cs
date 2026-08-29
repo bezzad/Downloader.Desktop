@@ -284,6 +284,29 @@ public class SmallServiceTests : IDisposable
         Assert.Equal("https://host/f", Assert.Single(plan.Parts).Url);
     }
 
+    /// <summary>
+    /// A desktop with no notification daemon (a stripped container, a blocked toast API) must not take
+    /// the download completion path down with it — the notification is the LAST thing a finished
+    /// download does, and an exception there would surface as a failed download that actually finished.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_desktop_that_cannot_show_a_notification_does_not_break_the_caller()
+    {
+        var wasEnabled = NotificationService.Enabled;
+        NotificationService.Enabled = true;
+        ShellLauncher.RunOverride = (_, _) => throw new InvalidOperationException("no notification daemon");
+        try
+        {
+            Assert.Null(Record.Exception(() => NotificationService.NotifyCompleted("film.mp4")));
+            Assert.Null(Record.Exception(() => NotificationService.Inform("Plugin installed", "HLS", false)));
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+            NotificationService.Enabled = wasEnabled;
+        }
+    }
+
     // ---- the engine's log levels, as they land in our file -----------------
 
     /// <summary>
