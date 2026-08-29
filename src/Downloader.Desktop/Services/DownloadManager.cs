@@ -427,7 +427,11 @@ public partial class DownloadManager : IDownloadManager
                 var transferProvider = _plugins?.FindTransferProvider(urls[0]);
                 if (transferProvider != null)
                 {
-                    item.ResolverPluginId ??= _plugins.FindResolverPluginId(urls[0]);
+                    // The OWNING plugin, which on this route is the one whose transfer provider claimed
+                    // the link — it has no resolver to be found by. Without this the finished row never
+                    // offers that plugin's post-download action.
+                    item.ResolverPluginId ??= _plugins.FindTransferProviderPluginId(urls[0])
+                                              ?? _plugins.FindResolverPluginId(urls[0]);
                     await RunTransferAsync(vm, transferProvider, urls[0], folder).ConfigureAwait(false);
                     return;
                 }

@@ -49,9 +49,9 @@
 
 ## 5. Ollama plugin: HuggingFace models and the lost install offer
 
-- [ ] 5.1 Reproduce the missing "Add to Ollama" offer with a failing test first, driving a completed Ollama-resolved row through each of the three completion routes (`DownloadManager.cs:1359`, `Plans.cs:104`, `Transfers.cs:60`) and asserting `PostDownloadActionLabel` is non-null and the offer notification fires; record which route breaks and why before changing code.
-- [ ] 5.2 Fix the identified cause and keep all three route tests green, plus a test that the offer survives a save/load restart cycle (`ResolverPluginId` and the source URL persisted).
-- [ ] 5.3 Add a headless UI test that a completed model row actually shows the action button — the offer must be visible, not merely computable.
+- [x] 5.1 Reproduce the missing "Add to Ollama" offer with a failing test first, driving a completed Ollama-resolved row through each of the three completion routes (`DownloadManager.cs:1359`, `Plans.cs:104`, `Transfers.cs:60`) and asserting `PostDownloadActionLabel` is non-null and the offer notification fires; record which route breaks and why before changing code.
+- [x] 5.2 Fix the identified cause and keep all three route tests green, plus a test that the offer survives a save/load restart cycle (`ResolverPluginId` and the source URL persisted).
+- [x] 5.3 Add a headless UI test that a completed model row actually shows the action button — the offer must be visible, not merely computable.
 - [ ] 5.4 Claim HuggingFace model repo URLs (`https://huggingface.co/<owner>/<repo>`, revision and `resolve/...` file forms) with no network I/O in the claim check; unit-test the reporter's link `https://huggingface.co/empero-ai/Qwen3.8-2B-Distill-GGUF` is claimed and that datasets/spaces/profile pages are not.
 - [ ] 5.5 List a repo's GGUF files from the HuggingFace API behind a test seam and offer them as variants with quantisation + size; unit-test multi-file (variants offered), single-file (no prompt), no-model-file and missing/private repo failures — all network-free.
 - [ ] 5.6 Install a downloaded HuggingFace GGUF into the local Ollama store under `hf.co/<owner>/<repo>:<quant>`, verifying against what the repo publishes for the file, never moving the user's download; unit-test success against a temp store root, checksum mismatch writes nothing, and missing Ollama fails with the "where it looked" message.
