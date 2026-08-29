@@ -114,7 +114,13 @@ public static class UpdateService
             string.IsNullOrWhiteSpace(rid) || rid.StartsWith("unknown") ? fallback : rid;
     }
 
-    private static (string url, string name) FindAsset(JsonElement root)
+    /// <summary>
+    /// Picks this platform's archive out of a GitHub release payload. Internal rather than private so
+    /// the asset-matching can be tested against a real release JSON shape without a network call —
+    /// picking the wrong asset (or none) is what silently downgrades an update to "just open the
+    /// release page".
+    /// </summary>
+    internal static (string url, string name) FindAsset(JsonElement root)
     {
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return (null, null);
@@ -177,21 +183,29 @@ public static class UpdateService
     private static string WriteUnixScript(string archive, string appDir, string exe, int pid)
     {
         var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.sh");
+        File.WriteAllText(script, BuildUnixScript(archive, appDir, exe, pid));
+        return script;
+    }
+
+    /// <summary>The Linux swap script body. Split out from the file write (like
+    /// <see cref="BuildWindowsScript"/>) so the parts that have actually broken before are testable:
+    /// the archive-type branch, and the detached relaunch.</summary>
+    internal static string BuildUnixScript(string archive, string appDir, string exe, int pid)
+    {
         var extract = archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
             ? $"unzip -o \"{archive}\" -d \"{appDir}\""
             : $"tar -xzf \"{archive}\" -C \"{appDir}\"";
         // trap '' HUP keeps the swapper alive past the parent's exit; relaunch via setsid (fallback
         // nohup) so the NEW app runs in its own session and isn't torn down with the old process group —
         // that detachment is what makes "restart to update" actually relaunch.
-        File.WriteAllText(script,
+        return
             "#!/bin/bash\n" +
             "trap '' HUP\n" +
             $"while kill -0 {pid} 2>/dev/null; do sleep 0.5; done\n" +
             $"{extract}\n" +
             $"chmod +x \"{exe}\" 2>/dev/null\n" +
             $"rm -f \"{archive}\"\n" +
-            $"if command -v setsid >/dev/null 2>&1; then setsid \"{exe}\" >/dev/null 2>&1 & else nohup \"{exe}\" >/dev/null 2>&1 & fi\n");
-        return script;
+            $"if command -v setsid >/dev/null 2>&1; then setsid \"{exe}\" >/dev/null 2>&1 & else nohup \"{exe}\" >/dev/null 2>&1 & fi\n";
     }
 
     /// <summary>macOS: replace the whole <c>.app</c> bundle (the archive contains <c>Downloader.app</c>),
@@ -199,9 +213,18 @@ public static class UpdateService
     private static string WriteMacScript(string archive, string bundle, int pid)
     {
         var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.sh");
+        File.WriteAllText(script, BuildMacScript(archive, bundle, pid));
+        return script;
+    }
+
+    /// <summary>The macOS swap script body. Split out from the file write so the bundle replacement is
+    /// testable: extracting INTO <c>Contents/MacOS</c> instead of replacing the whole <c>.app</c> is
+    /// what caused the "restart reopens the old version, re-downloads, loops" bug.</summary>
+    internal static string BuildMacScript(string archive, string bundle, int pid)
+    {
         var tmp = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}");
         var parent = Path.GetDirectoryName(bundle); // e.g. /Applications
-        File.WriteAllText(script,
+        return
             "#!/bin/bash\n" +
             "trap '' HUP\n" +
             $"while kill -0 {pid} 2>/dev/null; do sleep 0.5; done\n" +
@@ -213,8 +236,7 @@ public static class UpdateService
             $"  xattr -dr com.apple.quarantine \"{bundle}\" 2>/dev/null\n" +
             "fi\n" +
             $"rm -rf \"{tmp}\" \"{archive}\"\n" +
-            $"open \"{bundle}\"\n");
-        return script;
+            $"open \"{bundle}\"\n";
     }
 
     private static string WriteWindowsScript(string archive, string appDir, string exe, int pid)

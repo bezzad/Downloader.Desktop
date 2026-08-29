@@ -42,7 +42,7 @@
          reads Major.Minor.Build); the 4th component (a unique, increasing revision = half-seconds since
          midnight UTC) only differentiates builds in FileVersion. Keep VersionPrefix three-part. -->
     <PropertyGroup Label="Versioning">
-        <VersionPrefix>2.6.1</VersionPrefix>
+        <VersionPrefix>2.7.0</VersionPrefix>
         <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
         <Version>$(VersionPrefix).$(_RevisionNumber)</Version>
         <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>

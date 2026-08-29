@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Coverage settings for the XPlat Code Coverage collector.
+
+  Purpose: keep the denominator to code we actually author. Before this file, ~2100 of the ~13300
+  measured lines were Roslyn source-generator output — chiefly a 1958-line RegexGenerator DFA in the
+  Website plugin — which is emitted, not written, and cannot be meaningfully unit-tested. Leaving it
+  in cost roughly ten percentage points and hid the real picture (51.5% raw vs 61.2% for real code).
+
+  It also narrows the measurement to code the test suite can actually guard on the CI box. Two
+  categories are excluded by file, by the author's decision:
+
+    1. Views/** — view code-behind and compiled XAML. The pointer-driven parts (the drag ghost, the
+       manual resize grips, window chrome) need real pixel hit-testing against a live window server,
+       which the headless runtime cannot reproduce. Note the views are STILL tested: UI/ViewLoadTests
+       instantiates every window and page and asserts it loads and binds, which is what catches the
+       runtime XAML failures that matter. Only the metric's scope changed, not the coverage.
+
+    2. Platform OS integration that needs a specific OS or a live desktop session — the Windows and
+       macOS notifiers, the Windows shortcut COM path, run-at-startup, the tray and the taskbar
+       progress. These cannot execute on the Linux CI runner at all, and run-at-startup would mutate
+       the developer's real "launch at login" setting just by running the suite.
+
+  Deliberately NOT excluded, so this stays a scope decision rather than a way to flatter the number:
+  SingleInstanceService (loopback IPC, genuinely testable and tested), Program.cs/App.axaml.cs, and
+  every network-bound service (UpdateFlow/UpdateService/PluginCatalogService/DialogHelper/CliRunner) —
+  those are ordinary app code that simply needs seams to reach, not code the suite is barred from.
+
+  Use it with:  dotnet test … (see CONTRIBUTING) with: settings coverlet.runsettings
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- Generated code carries [GeneratedCode]; hand-written code marked
+               [ExcludeFromCodeCoverage] is opted out deliberately. -->
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <!-- Belt and braces: the regex generator's output lives under obj/ and is *.g.cs. Source
+               generators do not always stamp every emitted member with [GeneratedCode]. -->
+          <ExcludeByFile>**/obj/**/*.g.cs,**/*.g.cs,**/*.Designer.cs,**/Views/**,**/Services/WindowsNotifier.cs,**/Services/MacNotifier.cs,**/Services/StartMenuShortcut.cs,**/Services/StartupService.cs,**/Services/TrayService.cs,**/Services/TaskbarProgressService.cs</ExcludeByFile>
+          <!-- The test project itself is not the subject under measurement. -->
+          <Exclude>[Downloader.Desktop.Tests]*,[xunit.*]*</Exclude>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+          <SkipAutoProps>true</SkipAutoProps>
+          <DeterministicReport>false</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

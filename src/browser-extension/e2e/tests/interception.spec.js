@@ -35,13 +35,30 @@ async function setCachedPort(context, port) {
   await sw.evaluate(async p => { await chrome.storage.local.set({ appPort: p }); }, port);
 }
 
-/** Stub of the app's local API. `behavior` decides how it answers an add. */
+/**
+ * Stub of the app's local API. `behavior` decides how it answers an add:
+ *   "accept"  — 201, and /api/list then reports bytes arriving (the app really is fetching)
+ *   "reject"  — 500 on the add
+ *   "stalled" — 201, but /api/list never reports progress. This is the Softpedia shape: the app
+ *               queued the download and its own request never got anywhere. The browser's copy must
+ *               survive it.
+ *   "failing" — 201, then /api/list reports the download Failed.
+ */
 function startStubApp(behavior = "accept") {
   const adds = [];
+  const ADD_ID = "11111111-1111-1111-1111-111111111111";
   const server = http.createServer((req, res) => {
     if (req.url.startsWith("/ping")) {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       res.end("{}");
+      return;
+    }
+    if (req.url.startsWith("/api/list")) {
+      const row = { id: ADD_ID, name: "sample.zip", status: "Running", size: 0, downloaded: 0 };
+      if (behavior === "accept") { row.size = 200120; row.downloaded = 8192; }
+      if (behavior === "failing") { row.status = "Failed"; }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(adds.length ? [row] : []));
       return;
     }
     if (req.url.startsWith("/api/add")) {
@@ -58,7 +75,7 @@ function startStubApp(behavior = "accept") {
         }
         res.writeHead(201, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
-          id: "11111111-1111-1111-1111-111111111111",
+          id: ADD_ID,
           name: "sample.zip",
           status: "Running",
           cookies: parsed?.cookies?.length ?? 0,
@@ -151,6 +168,76 @@ test.describe("download interception", () => {
 
     // And only then was the browser's own download cancelled.
     const state = await downloadState(context, "sample.zip");
+    expect(state).not.toBeNull();
+    expect(state.state).toBe("interrupted");
+    expect(state.error).toBe("USER_CANCELED");
+  });
+
+  // The data-loss regression (issue #9, Softpedia "Secure Download"). The app ACCEPTS the add — a 201
+  // means the item was queued, not that the link is fetchable — and then never gets anywhere. The
+  // browser's own download must survive that, or the user is left with no file at all.
+  test("an add the app accepts but never fetches leaves the browser's download alone", async ({ context }) => {
+    app = await startStubApp("stalled");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    await startBrowserDownload(context, "http://127.0.0.1:8991/sample.zip?attach=1&slow=1");
+
+    // The hand-off is attempted...
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+
+    // ...but with no confirmation that the app is really fetching, the browser keeps the file.
+    const state = await downloadState(context, "sample.zip");
+    expect(state).not.toBeNull();
+    expect(state.state).not.toBe("interrupted");
+  });
+
+  test("an add the app reports as failed leaves the browser's download alone", async ({ context }) => {
+    app = await startStubApp("failing");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    await startBrowserDownload(context, "http://127.0.0.1:8991/sample.zip?attach=1&slow=1");
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+    const state = await downloadState(context, "sample.zip");
+    expect(state).not.toBeNull();
+    expect(state.state).not.toBe("interrupted");
+  });
+
+  // The regression the whole follow-up is about. Every other test here downloads `/sample.zip`, so
+  // the extension was always visible in the URL path — which is exactly why this shipped broken.
+  // Here the path has no extension at all and only Content-Disposition names the file, the shape
+  // GitHub releases / APKPure / Softpedia serve.
+  test("a signed link with no extension in its path is still intercepted by type", async ({ context }) => {
+    app = await startStubApp("accept");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    // The name is in the QUERY, as GitHub's `rscd` / `response-content-disposition` puts it — that is
+    // what the decision can actually see. A name carried only in the response *header* is invisible
+    // at `onCreated` in Chromium and is the documented residual gap.
+    await startBrowserDownload(
+      context,
+      "http://127.0.0.1:8991/signed-blob/9f3c1a?sig=abc"
+        + "&slow=1&rscd=attachment%3B+filename%3Dsigned-sample.zip");
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+    expect(app.adds[0].body.url).toContain("/signed-blob/");
+
+    const state = await downloadState(context, "signed-blob");
     expect(state).not.toBeNull();
     expect(state.state).toBe("interrupted");
     expect(state.error).toBe("USER_CANCELED");

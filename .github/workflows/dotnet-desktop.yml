@@ -53,7 +53,9 @@ jobs:
       run: dotnet build "${{ env.Solution_Name }}" --configuration ${{ matrix.configuration }} --no-restore
 
     - name: Test
-      run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --collect:"XPlat Code Coverage"
+      # --settings enables the coverage collector AND keeps generated source-generator output
+      # (regex DFAs, compiled XAML) out of the denominator, so codecov reports authored code.
+      run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --settings src/coverlet.runsettings
 
     - name: Upload test results
       if: always()

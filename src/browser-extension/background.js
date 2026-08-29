@@ -77,9 +77,10 @@ function notify(title, message) {
 // fetch means the user has lost the file with nothing to show for it. Every failure path below
 // therefore does nothing at all, which leaves the browser downloading exactly as it would have.
 //
-// Chromium fires `onDeterminingFilename` (which knows the suggested filename); Firefox has no such
-// event, so both browsers are driven from `onCreated` and the filename is taken from the item.
-// `downloads.onCreated` fires once the browser has committed to downloading rather than navigating.
+// Both browsers are driven from `downloads.onCreated`, which fires once the browser has committed to
+// downloading rather than navigating. Chromium leaves `filename` empty there, so the file type is
+// recovered from the URL and MIME instead — see `resolveDownloadExt`, and `registerInterception` for
+// why the Chromium-only `onDeterminingFilename` is not used.
 
 const interceptedIds = new Set(); // download ids we cancelled, so onChanged doesn't re-report them
 let takeoverCount = 0;
@@ -127,6 +128,21 @@ async function onDownloadCreated(item) {
     // The app didn't take it. Say nothing and change nothing: the browser download is still running,
     // which is the outcome the user already had.
     if (!result.ok) return;
+
+    // Accepting is NOT fetching. `/api/add` answers 201 as soon as the item is queued, before the app
+    // has contacted the server at all, so cancelling here used to lose the file whenever the app then
+    // could not fetch the link — a spent single-use token, or a server refusing the app's request
+    // (issue #9, Softpedia "Secure Download"). Wait for proof that bytes are actually coming.
+    const confirmed = await confirmAppFetching(appBase(result.port), result.id);
+    if (!confirmed.ok) {
+      // The browser's own download is still running and must stay that way — the user keeps the file.
+      notify(
+        "Downloader could not take this over",
+        confirmed.reason === "failed"
+          ? "The app could not fetch this link, so your browser is still downloading it."
+          : "The app didn't start fetching in time, so your browser is still downloading it.");
+      return;
+    }
 
     // Only now is cancelling safe.
     const cancelled = await cancelBrowserDownload(item.id);
@@ -180,12 +196,26 @@ function updateTakeoverBadge() {
   } catch { /* badge is optional */ }
 }
 
-// Chromium and Firefox are driven from the SAME event on purpose. `downloads.onCreated` and
-// `downloads.cancel` exist in both; `onDeterminingFilename` is Chromium-only and is deliberately NOT
-// used, because a path that exists on one browser and not the other is how a shared code path ends up
-// quietly half-working. Everything this needs — url, filename, referrer, size — is on the created
-// item in both. `downloadsApi()` still capability-checks, so a browser without the API (or with the
-// permission declined) simply never intercepts instead of throwing on load.
+// Chromium and Firefox are driven from the SAME event, `downloads.onCreated`, which exists on both.
+//
+// `onDeterminingFilename` is Chromium-only and, unlike `onCreated`, is the one event that knows the
+// browser's suggested filename — `DownloadItem.filename` is still empty at `onCreated` in Chromium
+// (verified directly). It is nonetheless NOT used, for two reasons found the hard way:
+//
+//   1. Chromium permits only ONE `onDeterminingFilename` listener per extension ("Too many
+//      listeners" otherwise), making it a scarce, un-shareable slot.
+//   2. It does not fire at all when something else has set the browser's download behaviour over
+//      CDP — which is exactly what an automated browser does — so the path is untestable in our
+//      e2e suite and would ship unverified.
+//
+// It is not needed: `resolveDownloadExt` recovers the file type from the URL's content-disposition
+// parameters and the MIME type, which is where the name actually lives for the signed CDN links this
+// was failing on (issue #9 follow-up). The residual gap is a download named ONLY by the browser's
+// suggestion — no extension in the path, no content-disposition, an unidentifiable MIME — which is
+// left to the browser as before.
+//
+// `downloadsApi()` capability-checks, so a browser without the API (or with the permission declined)
+// simply never intercepts instead of throwing on load.
 function registerInterception() {
   const downloads = downloadsApi();
   if (!downloads) return false;

@@ -280,6 +280,63 @@ async function sendToApp(url, filename, context) {
  *
  * Returns `{ ok, reason, accepted, contextSent, id }`.
  */
+/**
+ * Wait until the app's transfer has demonstrably REACHED THE SERVER, so the browser's own download
+ * can be cancelled without risking the file.
+ *
+ * A 201 from /api/add is not that proof: the app answers it straight after queueing the item, before
+ * a single packet leaves the machine. Cancelling on it is what made a link the app could not fetch
+ * (a spent single-use token, a server refusing the app's request) lose the user's file outright.
+ *
+ * Confirmation is `downloaded > 0` or `size > 0` — the engine only learns a total size from a real
+ * response, so either one means the link was fetchable. `status: "Running"` is deliberately NOT
+ * enough: the app sets it synchronously before any network work, so it carries the same weakness as
+ * the 201.
+ *
+ * Resolves `{ ok, reason }` and never throws. `reason` is one of:
+ *   "confirmed" — bytes or a size arrived; the caller may cancel the browser's copy
+ *   "failed"    — the app reported the download failed; keep the browser's copy
+ *   "timeout"   — nothing was confirmed in time; keep the browser's copy
+ */
+async function confirmAppFetching(base, id, opts) {
+  const timeoutMs = opts?.timeoutMs ?? 12000;
+  const intervalMs = opts?.intervalMs ?? 400;
+  const now = opts?.now || (() => Date.now());
+  const sleep = opts?.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+  if (!id) return { ok: false, reason: "timeout" };
+
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    let rows = null;
+    try {
+      const res = await fetch(`${base}/api/list`);
+      if (res?.ok) rows = await res.json?.();
+    } catch { /* the app went away mid-wait — treated as "not confirmed" below */ }
+
+    const row = Array.isArray(rows) ? rows.find(r => String(r?.id) === String(id)) : null;
+    if (row) {
+      const downloaded = Number(row.downloaded) || 0;
+      const size = Number(row.size) || 0;
+      if (downloaded > 0 || size > 0) return { ok: true, reason: "confirmed" };
+      // A failure is final: there is nothing left to wait for.
+      if (String(row.status).toLowerCase() === "failed") return { ok: false, reason: "failed" };
+    }
+
+    if (now() >= deadline) return { ok: false, reason: "timeout" };
+    await sleep(intervalMs);
+  }
+}
+
+// The browser's own User-Agent. `navigator` exists in an MV3 service worker and in a Firefox
+// background script, but not in the plain-Node test context, so this must never assume it.
+function browserUserAgent() {
+  try {
+    return typeof navigator !== "undefined" && navigator.userAgent ? String(navigator.userAgent) : "";
+  } catch {
+    return "";
+  }
+}
+
 async function handOffToApp(url, filename, context) {
   if (!isHttp(url)) return { ok: false, reason: "not-http", accepted: null, contextSent: null };
 
@@ -289,7 +346,14 @@ async function handOffToApp(url, filename, context) {
   // Best-effort throughout: a context we couldn't gather is worth less than the download itself.
   const cookies = await captureCookies(url);
   const referer = context?.referer || "";
-  const headers = context?.headers && Object.keys(context.headers).length ? context.headers : null;
+
+  // The app's request should resemble the request the browser was about to make, or a server that
+  // checks the client identity refuses it — a candidate cause of the Softpedia "Secure Download"
+  // failures on issue #9. The app maps `user-agent` onto its request configuration already.
+  const merged = { ...(context?.headers || {}) };
+  const ua = browserUserAgent();
+  if (ua && !Object.keys(merged).some(k => k.toLowerCase() === "user-agent")) merged["User-Agent"] = ua;
+  const headers = Object.keys(merged).length ? merged : null;
   const contextSent = { cookies: cookies.length, headers: headers ? Object.keys(headers).length : 0, referer: !!referer };
 
   const body = { url };
@@ -324,7 +388,12 @@ async function handOffToApp(url, filename, context) {
   // The add succeeded either way — the file is being fetched, so the caller may cancel the browser's
   // copy. `context-dropped` is reported so a gated download that will now fail is explainable
   // instead of mysterious.
-  return { ok: true, reason: lost ? "context-dropped" : "ok", accepted, contextSent, id: j.id || null };
+  // `port` is returned so the caller can confirm the transfer actually reached the server before
+  // cancelling the browser's copy — see `confirmAppFetching`.
+  return {
+    ok: true, reason: lost ? "context-dropped" : "ok",
+    accepted, contextSent, id: j.id || null, port
+  };
 }
 
 // Is the desktop app reachable on any port in the declared range?
@@ -534,8 +603,8 @@ function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
 // are taken over. Users who want more add to it on the options page, which is why that control is
 // the most prominent one there.
 const INTERCEPT_FILE_TYPES = [
-  "7z", "apk", "appimage", "bin", "bz2", "deb", "dmg", "exe", "gz", "img", "iso", "jar",
-  "msi", "pkg", "rar", "rpm", "run", "tar", "tgz", "txz", "xz", "zip", "zst"
+  "7z", "apk", "apks", "appimage", "bin", "bz2", "deb", "dmg", "exe", "gz", "img", "iso", "jar",
+  "msi", "obb", "pkg", "rar", "rpm", "run", "tar", "tgz", "txz", "xapk", "xz", "zip", "zst"
 ];
 
 // One versioned object rather than scattered keys, so adding a rule later doesn't need a migration
@@ -558,6 +627,116 @@ function extOfName(name) {
   const base = n.slice(Math.max(n.lastIndexOf("/"), n.lastIndexOf("\\")) + 1);
   const dot = base.lastIndexOf(".");
   return dot > 0 ? base.slice(dot + 1) : "";
+}
+
+// The filename a content-disposition value names, or "". Handles the two shapes that actually turn
+// up: `attachment; filename=thing.zip` (optionally quoted) and RFC 5987's
+// `filename*=UTF-8''thing.zip`. `filename*` wins when both are present, since that is the encoded
+// one the spec says to prefer.
+//
+// Hostile input is the norm here — this parses whatever a CDN put in a URL — so it must never throw.
+// An unparseable value returns "" and the caller falls through to the next source.
+function filenameFromContentDisposition(value) {
+  let v = String(value || "");
+  if (!v) return "";
+  try {
+    // Read through a value that is still wholly percent-encoded (`attachment%3B%20filename%3Dx.zip`).
+    // `searchParams.get` decodes for us, so this only matters for a raw value, but decoding here
+    // costs nothing and means the parser doesn't depend on how it was handed over.
+    if (!/filename\s*\*?\s*=/i.test(v) && /%[0-9a-f]{2}/i.test(v)) {
+      try { v = decodeURIComponent(v); } catch { /* keep the original; the tests below just fail */ }
+    }
+    const star = /filename\*\s*=\s*(?:UTF-8|ISO-8859-1)?''([^;]+)/i.exec(v);
+    if (star) {
+      const name = decodeURIComponent(star[1].trim());
+      if (name) return baseNameOf(name);
+    }
+    const plain = /filename\s*=\s*("([^"]*)"|[^;]+)/i.exec(v);
+    if (plain) {
+      // Group 2 is the quoted body; group 1 is the raw run when unquoted.
+      let name = (plain[2] !== undefined ? plain[2] : plain[1]).trim();
+      // A value that reached us through a query string may still be percent-encoded.
+      try { name = decodeURIComponent(name); } catch { /* already decoded, or invalid escapes */ }
+      if (name) return baseNameOf(name);
+    }
+  } catch { /* fall through — an unreadable value simply names nothing */ }
+  return "";
+}
+
+// Strip any directory part a name arrived with. A content-disposition filename is supposed to be a
+// bare name, but nothing stops a server sending a path, and only the last segment is the file.
+function baseNameOf(name) {
+  const n = String(name || "").trim();
+  const cut = Math.max(n.lastIndexOf("/"), n.lastIndexOf("\\"));
+  return cut >= 0 ? n.slice(cut + 1) : n;
+}
+
+// A signed CDN link carries the real filename in its query string rather than its path — GitHub's
+// release assets use both `response-content-disposition` and the short `rscd`. Without this, such a
+// URL looks typeless and is never intercepted (issue #9).
+const CONTENT_DISPOSITION_PARAMS = ["response-content-disposition", "rscd"];
+
+function filenameFromUrlQuery(url) {
+  try {
+    const params = new URL(url).searchParams;
+    for (const key of CONTENT_DISPOSITION_PARAMS) {
+      const name = filenameFromContentDisposition(params.get(key));
+      if (name) return name;
+    }
+  } catch { /* unparseable URL — nothing to read */ }
+  return "";
+}
+
+// MIME types that identify a file unambiguously. Deliberately small: it exists to catch a download
+// nothing else names, not to classify the web. Generic containers are absent ON PURPOSE —
+// `application/octet-stream` is what GitHub serves for every asset, so honouring it would intercept
+// by MIME alone and take over files the user never asked for.
+const MIME_EXTENSIONS = {
+  "application/vnd.android.package-archive": "apk",
+  "application/x-msdownload": "exe",
+  "application/x-msi": "msi",
+  "application/x-ms-installer": "msi",
+  "application/zip": "zip",
+  "application/x-zip-compressed": "zip",
+  "application/x-7z-compressed": "7z",
+  "application/x-rar-compressed": "rar",
+  "application/vnd.rar": "rar",
+  "application/x-tar": "tar",
+  "application/gzip": "gz",
+  "application/x-gzip": "gz",
+  "application/x-bzip2": "bz2",
+  "application/x-xz": "xz",
+  "application/x-iso9660-image": "iso",
+  "application/x-apple-diskimage": "dmg",
+  "application/vnd.debian.binary-package": "deb",
+  "application/x-debian-package": "deb",
+  "application/x-redhat-package-manager": "rpm",
+  "application/x-rpm": "rpm",
+  "application/java-archive": "jar"
+};
+
+function extFromMime(mime) {
+  const m = String(mime || "").toLowerCase().split(";")[0].trim();
+  return MIME_EXTENSIONS[m] || "";
+}
+
+/**
+ * The file type of a download, from the most trustworthy source that can name it.
+ *
+ * Order matters. The browser's suggested filename is what the file WILL be called, so it wins.
+ * Content-disposition is the same answer straight from the server and beats the URL path, which is
+ * frequently a signed opaque blob id. MIME comes last because the common value identifies nothing —
+ * it must never override a real name.
+ *
+ * Returns "" only when no source identified a type, which the caller reports distinctly from "the
+ * user does not want this type".
+ */
+function resolveDownloadExt(item) {
+  const url = item?.url || "";
+  return extOfName(item?.filename)
+    || extOfName(filenameFromUrlQuery(url))
+    || extOf(url)
+    || extFromMime(item?.mime);
 }
 
 // Does `host` match a site-list entry? An entry covers the host itself and its subdomains, so
@@ -619,9 +798,9 @@ function shouldIntercept(item, settings) {
   if (refHost && s.excludedSites.some(entry => hostMatchesSite(refHost, entry)))
     return { intercept: false, reason: "excluded-site" };
 
-  // The browser's suggested filename is the better source (it reflects Content-Disposition); fall
-  // back to the URL path for a link the browser hasn't named yet.
-  const ext = extOfName(item?.filename) || extOf(url);
+  // Not the URL path alone: a signed CDN link (GitHub releases, APKPure, Softpedia) has an opaque
+  // path and names the file elsewhere. See `resolveDownloadExt` for the source order.
+  const ext = resolveDownloadExt({ url, filename: item?.filename, mime: item?.mime });
   const listed = !!ext && s.fileTypes.list.includes(ext);
   if (s.fileTypes.mode === "allow" && !listed)
     return { intercept: false, reason: ext ? "type-not-allowed" : "type-unknown" };
@@ -676,7 +855,10 @@ if (typeof module !== "undefined") {
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
+    confirmAppFetching, browserUserAgent, appBase,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
+    filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
+    MIME_EXTENSIONS,
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
     getInterceptSettings, setInterceptSettings,
     postAdd, handOffToApp

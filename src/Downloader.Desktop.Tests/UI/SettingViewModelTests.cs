@@ -1,0 +1,456 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia.Headless.XUnit;
+using Avalonia.Styling;
+using Downloader.Desktop.Models;
+using Downloader.Desktop.Services;
+using Downloader.Desktop.ViewModels;
+using Xunit;
+
+namespace Downloader.Desktop.Tests.UI;
+
+/// <summary>
+/// The Settings page. Two kinds of property matter here and they fail differently:
+///
+/// 1. Setters that must "bite" — <see cref="SettingViewModel.MaxConcurrentDownloads"/> and
+///    <see cref="SettingViewModel.MaxSpeedKbPerSecond"/> also have to reach the download manager.
+///    MaxConcurrentDownloads historically only *seeded* new queues, so the user's "max 2" never
+///    limited anything and ten downloads ran at once (SKILL.md). A regression there is invisible in
+///    the UI: the number shows the right value while doing nothing.
+/// 2. Plain pass-throughs onto <see cref="DownloadSettings"/>. Individually dull, but a setter wired
+///    to the wrong backing field silently discards a user's choice, so they are checked by round-trip.
+///
+/// AvaloniaFact throughout: the view model reads Localizer and ThemeService, which need the headless
+/// runtime (SKILL.md — a plain Fact gets raw keys back and is order-dependent).
+/// </summary>
+public class SettingViewModelTests
+{
+    private static (SettingViewModel vm, Config config, DownloadManager manager) Build()
+    {
+        Localizer.Instance.Load("en");
+        var config = Config.New();
+        var manager = new DownloadManager();
+        manager.Initialize(config);
+        return (new SettingViewModel(config, manager), config, manager);
+    }
+
+    // ---- the setters that must reach the manager ---------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Max_concurrent_downloads_writes_through_to_the_default_queue()
+    {
+        var (vm, config, _) = Build();
+
+        vm.MaxConcurrentDownloads = 3;
+
+        Assert.Equal(3, vm.MaxConcurrentDownloads);
+        Assert.Equal(3, config.Settings.MaxConcurrentDownloads);
+
+        // The cap the pump actually enforces lives on the queue. If these drift, the Settings number
+        // is decorative and the limit never applies.
+        Assert.Equal(3, config.DefaultQueue.MaxConcurrent);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Max_concurrent_downloads_is_clamped_to_at_least_one()
+    {
+        var (vm, config, _) = Build();
+
+        vm.MaxConcurrentDownloads = 0;
+        Assert.Equal(1, vm.MaxConcurrentDownloads);
+        Assert.Equal(1, config.DefaultQueue.MaxConcurrent);
+
+        vm.MaxConcurrentDownloads = -5;
+        Assert.Equal(1, vm.MaxConcurrentDownloads);
+
+        // A zero cap would stall the queue forever — nothing would ever start.
+        Assert.True(config.DefaultQueue.MaxConcurrent >= 1);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Speed_limit_is_kilobytes_in_the_ui_and_bytes_in_the_engine_settings()
+    {
+        var (vm, config, _) = Build();
+
+        vm.MaxSpeedKbPerSecond = 512;
+
+        Assert.Equal(512, vm.MaxSpeedKbPerSecond);
+        Assert.Equal(512L * 1024, config.Settings.MaximumBytesPerSecond);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Zero_or_negative_speed_limit_means_unlimited()
+    {
+        var (vm, config, _) = Build();
+
+        vm.MaxSpeedKbPerSecond = 256;
+        vm.MaxSpeedKbPerSecond = 0;
+
+        Assert.Equal(0, vm.MaxSpeedKbPerSecond);
+        Assert.Equal(0, config.Settings.MaximumBytesPerSecond);
+
+        vm.MaxSpeedKbPerSecond = -1;
+        Assert.Equal(0, vm.MaxSpeedKbPerSecond);
+        Assert.Equal(0, config.Settings.MaximumBytesPerSecond);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Settings_work_without_a_manager()
+    {
+        // The page is constructible with no manager (design-time / early startup); the "bite" calls
+        // are null-conditional and must not throw.
+        Localizer.Instance.Load("en");
+        var config = Config.New();
+        var vm = new SettingViewModel(config);
+
+        vm.MaxConcurrentDownloads = 4;
+        vm.MaxSpeedKbPerSecond = 128;
+
+        Assert.Equal(4, config.Settings.MaxConcurrentDownloads);
+        Assert.Equal(128L * 1024, config.Settings.MaximumBytesPerSecond);
+    }
+
+    // ---- language, theme, accent ------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Selecting_a_language_persists_the_code_and_switches_the_localizer()
+    {
+        var (vm, config, _) = Build();
+        try
+        {
+            var french = vm.Languages.First(l => l.Code == "fr");
+            vm.SelectedLanguage = french;
+
+            Assert.Equal("fr", config.Settings.Language);
+            Assert.Equal("fr", vm.SelectedLanguage.Code);
+            Assert.Equal("fr", Localizer.Instance.Current);
+        }
+        finally
+        {
+            Localizer.Instance.Load("en"); // don't leak a language into later tests
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Selecting_a_null_language_or_accent_is_ignored()
+    {
+        var (vm, config, _) = Build();
+        var language = config.Settings.Language;
+        var accent = config.Settings.AccentColor;
+
+        vm.SelectedLanguage = null;
+        vm.SelectedAccent = null;
+
+        Assert.Equal(language, config.Settings.Language);
+        Assert.Equal(accent, config.Settings.AccentColor);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_unknown_saved_language_falls_back_to_the_first_one()
+    {
+        Localizer.Instance.Load("en");
+        var config = Config.New();
+        config.Settings.Language = "kl"; // a language this build doesn't ship
+        var vm = new SettingViewModel(config);
+
+        Assert.NotNull(vm.SelectedLanguage);
+        Assert.Equal(Localizer.Languages[0].Code, vm.SelectedLanguage.Code);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Selecting_an_accent_persists_the_key()
+    {
+        var (vm, config, _) = Build();
+
+        vm.SelectedAccent = ThemeService.Accents.First(a => a.Key == "Amber");
+
+        Assert.Equal("Amber", config.Settings.AccentColor);
+        Assert.Equal("Amber", vm.SelectedAccent.Key);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Dark_theme_toggle_round_trips_through_the_config()
+    {
+        var (vm, config, _) = Build();
+
+        vm.IsDarkTheme = true;
+        Assert.True(vm.IsDarkTheme);
+        Assert.Equal(ThemeVariant.Dark, config.ThemeMode);
+
+        vm.IsDarkTheme = false;
+        Assert.False(vm.IsDarkTheme);
+        Assert.Equal(ThemeVariant.Light, config.ThemeMode);
+
+        vm.SwitchThemeCommand.Execute(null); // applies the variant to the running app
+    }
+
+    // ---- update button -----------------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Update_button_reads_check_for_updates_when_idle()
+    {
+        UpdateFlow.ResetForTests();
+        var (vm, _, _) = Build();
+
+        Assert.False(vm.IsUpdateDownloading);
+        Assert.Equal(0, vm.UpdateProgress);
+        Assert.Equal("0%", vm.UpdateProgressText);
+        Assert.False(vm.HasAvailableVersion);
+        Assert.Equal(string.Empty, vm.AvailableVersionText);
+
+        Assert.False(string.IsNullOrWhiteSpace(vm.UpdateButtonText));
+        Assert.DoesNotContain("Btn_", vm.UpdateButtonText); // localized, not a raw key
+    }
+
+    // ---- pass-through settings --------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Numeric_engine_settings_round_trip_onto_the_settings_model()
+    {
+        var (vm, config, _) = Build();
+        var s = config.Settings;
+
+        vm.ChunkCount = 6;
+        vm.ParallelCount = 5;
+        vm.BufferBlockSize = 4096;
+        vm.MaxTryAgainOnFailure = 7;
+        vm.BlockTimeout = 9000;
+        vm.HttpClientTimeout = 120;
+        vm.MinimumSizeOfChunking = 2048;
+        vm.MinimumChunkSize = 1024;
+        vm.MaxMemoryBufferMb = 512;
+        vm.MaximumAutomaticRedirections = 12;
+        vm.ConnectTimeout = 30;
+
+        Assert.Equal(6, s.ChunkCount);
+        Assert.Equal(5, s.ParallelCount);
+        Assert.Equal(4096, s.BufferBlockSize);
+        Assert.Equal(7, s.MaxTryAgainOnFailure);
+        Assert.Equal(9000, s.BlockTimeout);
+        Assert.Equal(120, s.HttpClientTimeout);
+        Assert.Equal(2048, s.MinimumSizeOfChunking);
+        Assert.Equal(1024, s.MinimumChunkSize);
+        Assert.Equal(512, vm.MaxMemoryBufferMb);
+        Assert.Equal(12, s.MaximumAutomaticRedirections);
+        Assert.Equal(30, s.ConnectTimeout);
+
+        // Read back through the view model too, so a getter bound to the wrong field is caught.
+        Assert.Equal(6, vm.ChunkCount);
+        Assert.Equal(5, vm.ParallelCount);
+        Assert.Equal(4096, vm.BufferBlockSize);
+        Assert.Equal(7, vm.MaxTryAgainOnFailure);
+        Assert.Equal(9000, vm.BlockTimeout);
+        Assert.Equal(120, vm.HttpClientTimeout);
+        Assert.Equal(2048, vm.MinimumSizeOfChunking);
+        Assert.Equal(1024, vm.MinimumChunkSize);
+        Assert.Equal(12, vm.MaximumAutomaticRedirections);
+        Assert.Equal(30, vm.ConnectTimeout);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Boolean_engine_settings_round_trip_onto_the_settings_model()
+    {
+        var (vm, config, _) = Build();
+        var s = config.Settings;
+
+        foreach (var value in new[] { true, false })
+        {
+            vm.ParallelDownload = value;
+            vm.CheckDiskSizeBeforeDownload = value;
+            vm.EnableAutoResumeDownload = value;
+            vm.ClearPackageOnCompletionWithFailure = value;
+            vm.AllowAutoRedirect = value;
+            vm.KeepAlive = value;
+            vm.RememberLastSavePath = value;
+
+            Assert.Equal(value, s.ParallelDownload);
+            Assert.Equal(value, s.CheckDiskSizeBeforeDownload);
+            Assert.Equal(value, s.EnableAutoResumeDownload);
+            Assert.Equal(value, s.ClearPackageOnCompletionWithFailure);
+            Assert.Equal(value, s.AllowAutoRedirect);
+            Assert.Equal(value, s.KeepAlive);
+            Assert.Equal(value, s.RememberLastSavePath);
+
+            Assert.Equal(value, vm.ParallelDownload);
+            Assert.Equal(value, vm.CheckDiskSizeBeforeDownload);
+            Assert.Equal(value, vm.EnableAutoResumeDownload);
+            Assert.Equal(value, vm.ClearPackageOnCompletionWithFailure);
+            Assert.Equal(value, vm.AllowAutoRedirect);
+            Assert.Equal(value, vm.KeepAlive);
+            Assert.Equal(value, vm.RememberLastSavePath);
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Request_string_settings_round_trip_onto_the_settings_model()
+    {
+        var (vm, config, _) = Build();
+        var s = config.Settings;
+
+        vm.DefaultSavePath = "/tmp/downloads";
+        vm.DownloadFileExtension = ".part";
+        vm.UserAgent = "Downloader/test";
+        vm.Referer = "https://example.invalid/";
+        vm.Accept = "*/*";
+        vm.ProxyAddress = "http://127.0.0.1:8080";
+
+        Assert.Equal("/tmp/downloads", s.DefaultSavePath);
+        Assert.Equal(".part", s.DownloadFileExtension);
+        Assert.Equal("Downloader/test", s.UserAgent);
+        Assert.Equal("https://example.invalid/", s.Referer);
+        Assert.Equal("*/*", s.Accept);
+        Assert.Equal("http://127.0.0.1:8080", s.ProxyAddress);
+
+        Assert.Equal("/tmp/downloads", vm.DefaultSavePath);
+        Assert.Equal(".part", vm.DownloadFileExtension);
+        Assert.Equal("Downloader/test", vm.UserAgent);
+        Assert.Equal("https://example.invalid/", vm.Referer);
+        Assert.Equal("*/*", vm.Accept);
+        Assert.Equal("http://127.0.0.1:8080", vm.ProxyAddress);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Setting_a_property_notifies_so_the_debounced_save_fires()
+    {
+        var (vm, _, _) = Build();
+        var changed = new List<string>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        vm.ChunkCount = 9;
+        vm.UserAgent = "x";
+        vm.IsDarkTheme = true;
+
+        // MainViewModel hangs its SaveSoon() debounce off this event — a silent setter means the
+        // change is never persisted.
+        Assert.Contains(nameof(vm.ChunkCount), changed);
+        Assert.Contains(nameof(vm.UserAgent), changed);
+        Assert.Contains(nameof(vm.IsDarkTheme), changed);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_settings_page_exposes_its_commands_and_plugin_section()
+    {
+        var (vm, _, _) = Build();
+
+        Assert.NotNull(vm.Plugins);
+        Assert.NotNull(vm.SelectSavePathCommand);
+        Assert.NotNull(vm.SwitchThemeCommand);
+        Assert.NotNull(vm.OpenLogsFolderCommand);
+        Assert.NotNull(vm.ExportLogsCommand);
+        Assert.NotNull(vm.EmailLogsCommand);
+        Assert.NotNull(vm.ResetDefaultsCommand);
+        Assert.NotNull(vm.CheckUpdateCommand);
+        Assert.NotNull(vm.CancelUpdateDownloadCommand);
+        Assert.NotEmpty(vm.Languages);
+        Assert.NotEmpty(vm.Accents);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_null_config_is_rejected_rather_than_failing_later()
+    {
+        Assert.Throws<ArgumentNullException>(() => new SettingViewModel(null));
+    }
+
+    // ---- app behaviour toggles --------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Toggling_notifications_drives_the_notification_service()
+    {
+        var wasEnabled = NotificationService.Enabled;
+        try
+        {
+            var (vm, config, _) = Build();
+            vm.EnableNotifications = false;
+
+            Assert.False(config.Settings.EnableNotifications);
+            Assert.False(NotificationService.Enabled);
+
+            // Turning it back on would fire a sample notification, which shells out to notify-send on
+            // this box; the off direction is the one that must be honoured, and it is asserted above.
+            Assert.False(vm.EnableNotifications);
+        }
+        finally
+        {
+            NotificationService.Enabled = wasEnabled;
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_per_event_notification_toggles_round_trip()
+    {
+        var (vm, config, _) = Build();
+
+        foreach (var value in new[] { false, true })
+        {
+            vm.NotifyOnComplete = value;
+            vm.NotifyOnFailed = value;
+            vm.NotifyOnAllComplete = value;
+            vm.NotifyOnShutdown = value;
+
+            Assert.Equal(value, config.Settings.NotifyOnComplete);
+            Assert.Equal(value, config.Settings.NotifyOnFailed);
+            Assert.Equal(value, config.Settings.NotifyOnAllComplete);
+            Assert.Equal(value, config.Settings.NotifyOnShutdown);
+
+            Assert.Equal(value, vm.NotifyOnComplete);
+            Assert.Equal(value, vm.NotifyOnFailed);
+            Assert.Equal(value, vm.NotifyOnAllComplete);
+            Assert.Equal(value, vm.NotifyOnShutdown);
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Shutdown_on_completion_round_trips()
+    {
+        var (vm, config, _) = Build();
+
+        vm.ShutdownOnCompletion = true;
+        Assert.True(config.Settings.ShutdownOnCompletion);
+
+        vm.ShutdownOnCompletion = false;
+        Assert.False(config.Settings.ShutdownOnCompletion);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Toggling_logging_drives_the_app_log()
+    {
+        var (vm, config, _) = Build();
+        var was = config.Settings.EnableLogging;
+        try
+        {
+            vm.EnableLogging = true;
+            Assert.True(config.Settings.EnableLogging);
+
+            vm.EnableLogging = false;
+            Assert.False(config.Settings.EnableLogging);
+        }
+        finally
+        {
+            vm.EnableLogging = was;
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_local_api_row_reports_an_address_and_a_status()
+    {
+        var (vm, _, _) = Build();
+
+        // Always shows an address — the preferred port when nothing is bound yet — so the row never
+        // renders blank while the listener is still starting.
+        Assert.StartsWith("127.0.0.1:", vm.LocalApiAddress);
+        Assert.NotNull(vm.LocalApiStatusBrush);
+        Assert.False(string.IsNullOrWhiteSpace(vm.LocalApiStatusText));
+        Assert.DoesNotContain("Set_LocalApi", vm.LocalApiStatusText); // localized
+        Assert.Equal(LocalApiService.IsRunning, vm.IsLocalApiRunning);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_about_card_version_matches_the_update_check()
+    {
+        var (vm, _, _) = Build();
+
+        // If these ever drift, every patch release looks "newer forever" (#update-false-alarm).
+        Assert.Equal(UpdateService.CurrentVersion.ToString(), vm.AppVersion);
+    }
+}

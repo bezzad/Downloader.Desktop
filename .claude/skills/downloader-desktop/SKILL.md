@@ -597,3 +597,57 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
 - `TreatWarningsAsErrors` was deliberately NOT enabled: the Windows/macOS CI legs can surface
   platform-specific analyzer warnings that can't be reproduced here, and turning them into hard errors would
   break releases from a machine that cannot verify the fix. The rule is enforced by discipline + this note.
+
+## Coverage: what the number means here (raise-test-coverage, 2026-08-26)
+- **Measure with `--settings src/coverlet.runsettings`** (CI does). Without it ~2100 of ~13300 measured
+  lines are Roslyn source-generator output — chiefly a **1958-line `RegexGenerator.g.cs` in the Website
+  plugin** — plus compiled XAML. That alone cost ~10 points and made codecov's 55% look far worse than the
+  code is. The runsettings excludes generated/compiler-emitted code and the test assembly.
+- **XML comments in a .runsettings cannot contain `--`** (not even inside a word like `--collect`), or
+  vstest fails with *"Settings file provided does not conform to required format"* before running anything.
+- **Coverlet DROPS whole PLUGIN assemblies' hits, and it is the ALC tests that cause it.** Symptom: the
+  Hls/Website/Ollama assemblies report 0% on one run and 84–95% on the next, no code change; one full run
+  came out at 59.8% instead of ~77%. Cause: `PluginLoadTests`/`PluginReloadTests` load the SAME plugin
+  DLLs into collectible `AssemblyLoadContext`s that then unload, and coverlet's per-module hit flushing
+  loses the data when that happens — only plugin assemblies are ever affected. Filtering just those two
+  classes out of a coverage run gives a stable 77.6–77.9% vs 59.8–78% with them. CI keeps running them
+  (correctness beats a tidy number), so **expect the reported figure to wobble a point or two**.
+  Coverlet only ever LOSES hits, never invents them, so when you need an accurate figure, run the suite
+  2–3 times into the same `--results-directory` and max-merge per line — that is the closest to truth.
+  A surprising 0% on well-tested code is a re-run, not a bisect. (Cost a session once — don't repeat it.)
+- **Scope (author's decision, 2026-08-27): `Views/**` and the platform-integration files are EXCLUDED**
+  from the measurement (Windows/macOS notifiers, StartMenuShortcut, StartupService, TrayService,
+  TaskbarProgressService) — they need a specific OS or a live desktop session, and StartupService would
+  mutate the developer's real "launch at login" just by running the suite. The views are still TESTED by
+  `UI/ViewLoadTests`; only the metric's scope changed. Kept deliberately in scope: `SingleInstanceService`
+  (loopback IPC, genuinely tested), `Program.cs`/`App.axaml.cs`, and every network-bound service.
+  With that scope the number is **~78.5%**, and **82.7%** across the code the suite can guard.
+  **Don't quietly widen the exclusions to make a number.** Getting past ~80% needs either another explicit
+  scope call (excluding `UpdateFlow`/`UpdateService`/`PluginCatalogService`/`DialogHelper`/`CliRunner`,
+  ~636 lines at 40%, which would report ~82%) or real seams for their HTTP/config paths.
+- **A "passing" test can be testing nothing.** `ShutdownVerificationTests` is gated behind
+  `DLDESKTOP_VERIFY=1` and `return`s immediately otherwise — it passed for months while `ShutdownService`
+  sat at 0%. Before writing new tests for a file, check whether an existing suite is env-gated.
+- **Verify a target is REALLY uncovered before writing tests for it.** 37 new `WebsiteResolver` tests moved
+  coverage by 0 lines: the pure claim helpers were already covered elsewhere and the actual gap was the
+  live `GetVariantsAsync` probe. Read the per-file uncovered count first.
+- **Per-method coverage analysis lies for async-heavy files**: every async method's state machine is named
+  `MoveNext`, so merging by method name collapses them. Trust the per-FILE line numbers.
+
+### Test-writing gotchas found while doing this
+- **Never use a `.invalid` HOSTNAME in a test URL** — DNS resolution stalls and the whole suite hangs until
+  the outer `timeout` kills it (900 s wasted). Use the repo's unreachable IP `10.255.255.1`.
+- `Config.New()` leaves **`DisabledPlugins` null** (the VM null-coalesces it). Seed it in tests.
+- **Only the `IsDefault` link variant is pre-checked** in the Add dialog, not all of them.
+- A scheduled window's END calls **`PauseQueue`, not `StopQueue`** (the partial keeps its progress).
+- `DownloadItem.Url`'s setter **ignores blank values**, so clearing the details URL box cannot erase a
+  download's link.
+- `FormatDuration(0)` is `"0s"` (a real estimate); only negative/NaN/infinite give `"—"`.
+- A queue card's `TotalSpeedText` is **null** until stats refresh.
+- `FileExistPolicy` has **`IgnoreDownload`/`Delete`** — there is no `Overwrite`/`Resume`/`Skip`.
+- Constructor argument order differs per page VM: `QueuesViewModel(Config, IDownloadManager)` and
+  `SchedulerViewModel(Config, IDownloadManager)` but `DownloadsViewModel(IDownloadManager)`.
+- `SchedulerViewModel`'s command is **`NewScheduleCommand`**; its row times are `TimeSpan?`, not strings.
+- `QueueRowViewModel` exposes **`Queue`** (the `DownloadQueue`), not an `Id`.
+- Tests that show real windows are fine headlessly, but a **stale `testhost` from another worktree** makes
+  an instrumented run look hung. Kill it **by PID** — `pkill -f` matches your own shell and kills it (exit 144).
