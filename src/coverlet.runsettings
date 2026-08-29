@@ -39,7 +39,7 @@
           <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
           <!-- Belt and braces: the regex generator's output lives under obj/ and is *.g.cs. Source
                generators do not always stamp every emitted member with [GeneratedCode]. -->
-          <ExcludeByFile>**/obj/**/*.g.cs,**/*.g.cs,**/*.Designer.cs,**/Views/**,**/Services/WindowsNotifier.cs,**/Services/MacNotifier.cs,**/Services/StartMenuShortcut.cs,**/Services/StartupService.cs,**/Services/TrayService.cs,**/Services/TaskbarProgressService.cs</ExcludeByFile>
+          <ExcludeByFile>**/obj/**/*.g.cs,**/*.g.cs,**/*.Designer.cs,**/Views/**,**/Services/WindowsNotifier.cs,**/Services/MacNotifier.cs,**/Services/StartMenuShortcut.cs,**/Services/StartupService.cs,**/Services/TrayService.cs,**/Services/TaskbarProgressService.cs,**/Program.cs</ExcludeByFile>
           <!-- The test project itself is not the subject under measurement. -->
           <Exclude>[Downloader.Desktop.Tests]*,[xunit.*]*</Exclude>
           <IncludeTestAssembly>false</IncludeTestAssembly>

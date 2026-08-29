@@ -191,9 +191,26 @@ public static class DialogHelper
         view.Activate();
     }
 
+    /// <summary>
+    /// Test seams for the three platform pickers. A picker can only ever be cancelled in a test — the
+    /// platform has no one to ask — so everything a caller does with a CHOSEN path (install this plugin
+    /// DLL, export the log here, save downloads there) was unreachable. These let a test answer the
+    /// picker; the app never sets them.
+    /// </summary>
+    internal static Func<Uri> OpenFilePickerOverride { get; set; }
+
+    /// <inheritdoc cref="OpenFilePickerOverride"/>
+    internal static Func<Uri> SaveFilePickerOverride { get; set; }
+
+    /// <inheritdoc cref="OpenFilePickerOverride"/>
+    internal static Func<Uri> OpenFolderPickerOverride { get; set; }
+
     /// <summary>Asks the user to pick an existing file (filtered by extension); returns its path or null.</summary>
     public static async Task<Uri> OpenFilePicker(string title, string filterName, string extension)
     {
+        if (OpenFilePickerOverride is { } picked)
+            return picked();
+
         var owner = ActiveWindow;
         if (owner == null)
             return null;
@@ -214,6 +231,9 @@ public static class DialogHelper
     /// <summary>Asks the user where to save a file; returns the chosen path or null.</summary>
     public static async Task<Uri> SaveFilePicker(string title, string suggestedName)
     {
+        if (SaveFilePickerOverride is { } picked)
+            return picked();
+
         if (MainWindow == null)
             return null;
 
@@ -228,6 +248,9 @@ public static class DialogHelper
 
     public static async Task<Uri> OpenFolderPicker(string title, Window owner = null)
     {
+        if (OpenFolderPickerOverride is { } picked)
+            return picked();
+
         // Parent the picker to the active window (e.g. the Add dialog) so it stays on top,
         // falling back to the main window.
         var parent = owner ?? MainWindow;

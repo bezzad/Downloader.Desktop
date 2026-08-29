@@ -283,4 +283,135 @@ public class SmallServiceTests : IDisposable
         var plan = await resolver.ResolveAsync("https://host/f", null, System.Threading.CancellationToken.None);
         Assert.Equal("https://host/f", Assert.Single(plan.Parts).Url);
     }
+
+    /// <summary>
+    /// A desktop with no notification daemon (a stripped container, a blocked toast API) must not take
+    /// the download completion path down with it — the notification is the LAST thing a finished
+    /// download does, and an exception there would surface as a failed download that actually finished.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_desktop_that_cannot_show_a_notification_does_not_break_the_caller()
+    {
+        var wasEnabled = NotificationService.Enabled;
+        NotificationService.Enabled = true;
+        ShellLauncher.RunOverride = (_, _) => throw new InvalidOperationException("no notification daemon");
+        try
+        {
+            Assert.Null(Record.Exception(() => NotificationService.NotifyCompleted("film.mp4")));
+            Assert.Null(Record.Exception(() => NotificationService.Inform("Plugin installed", "HLS", false)));
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+            NotificationService.Enabled = wasEnabled;
+        }
+    }
+
+    // ---- the engine's log levels, as they land in our file -----------------
+
+    /// <summary>
+    /// The engine and every package that takes an <see cref="ILogger"/> write through this bridge, so
+    /// its level mapping is what a user actually reads when they send logs in. Anything above Warning
+    /// has to be findable as ERROR — a Critical filed under "INFO" is a diagnosis missed.
+    ///
+    /// Note Trace/Debug are not asserted: the shared factory is built with the default minimum level
+    /// (Information), so those never reach the provider at all. That is the factory's filter, not this
+    /// bridge's mapping, and raising it would turn verbose engine logging on for every user.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Every_engine_log_level_maps_onto_a_readable_tag()
+    {
+        AppLog.SetEnabled(true);
+        var marker = Guid.NewGuid().ToString("N");
+        var logger = AppLog.Factory.CreateLogger("Downloader.Engine.ChunkDownloader");
+
+        logger.LogInformation("info-" + marker);
+        logger.LogWarning("warn-" + marker);
+        logger.LogCritical("critical-" + marker);
+
+        var lines = File.ReadAllLines(AppLog.CurrentLogFile)
+            .Where(l => l.Contains(marker))
+            .ToList();
+
+        Assert.Contains(lines, l => l.Contains("[INFO]") && l.Contains("info-" + marker));
+        Assert.Contains(lines, l => l.Contains("[WARN]") && l.Contains("warn-" + marker));
+        Assert.Contains(lines, l => l.Contains("[ERROR]") && l.Contains("critical-" + marker));
+
+        // The category is shortened to its last segment so a line stays readable.
+        Assert.Contains(lines, l => l.Contains("[ChunkDownloader]"));
+    }
+
+    /// <summary>An exception passed to the bridge must survive into the file — the formatter alone drops it.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_exception_logged_through_the_bridge_keeps_its_type_and_message()
+    {
+        AppLog.SetEnabled(true);
+        var marker = Guid.NewGuid().ToString("N");
+
+        AppLog.Factory.CreateLogger("test")
+            .LogError(new TimeoutException("timed-out-" + marker), "download failed " + marker);
+
+        var text = File.ReadAllText(AppLog.CurrentLogFile);
+        Assert.Contains("TimeoutException", text);
+        Assert.Contains("timed-out-" + marker, text);
+    }
+
+    /// <summary>Levels are still gated by the user's toggle — the bridge must honour it too.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_bridge_writes_nothing_while_logging_is_off()
+    {
+        AppLog.SetEnabled(false);
+        var logger = AppLog.Factory.CreateLogger("test");
+
+        Assert.False(logger.IsEnabled(LogLevel.Error));
+        Assert.False(logger.IsEnabled(LogLevel.None));
+
+        var before = File.Exists(AppLog.CurrentLogFile) ? new FileInfo(AppLog.CurrentLogFile).Length : 0;
+        logger.LogError("must not appear");
+        var after = File.Exists(AppLog.CurrentLogFile) ? new FileInfo(AppLog.CurrentLogFile).Length : 0;
+
+        Assert.Equal(before, after);
+    }
+
+    // ---- resolution when the server gives nothing back ---------------------
+
+    /// <summary>
+    /// Resolution runs at download start, so a URL the app cannot even parse must come straight back
+    /// out unchanged rather than becoming null and blanking the download's link.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_non_http_link_is_returned_untouched_instead_of_being_probed()
+    {
+        Assert.Equal("magnet:?xt=urn:btih:abc", await UrlResolver.ResolveAsync("magnet:?xt=urn:btih:abc"));
+        Assert.Equal("websitezip:https://host/", await UrlResolver.ResolveAsync("websitezip:https://host/"));
+        Assert.Equal("not a url", await UrlResolver.ResolveAsync("not a url"));
+
+        // Same for the info probe: nothing to ask, so nothing is returned.
+        Assert.Null(await UrlResolver.ResolveFileInfoAsync("magnet:?xt=urn:btih:abc"));
+    }
+
+    /// <summary>The cheap path: a URL that already carries a name never touches the network.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_url_that_already_names_the_file_is_not_probed_at_all()
+    {
+        // 10.255.255.1 is the repo's unreachable address — if this probed the server the test would
+        // sit here until the 8s timeout instead of returning at once.
+        Assert.Equal("archive.tar.gz",
+            await UrlResolver.ResolveFileNameAsync("http://10.255.255.1/downloads/archive.tar.gz"));
+    }
+
+    /// <summary>
+    /// A URL with no extension has to be asked about. When the server refuses to say (a 404, a server
+    /// that hides Content-Disposition), the last resort is the URL's own path segment — returning null
+    /// there is what used to leave a queued row stuck showing "Fetching name…".
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_server_that_reveals_no_name_falls_back_to_the_url_path_segment()
+    {
+        using var server = new Plugins.Hls.LoopbackServer();
+
+        var name = await UrlResolver.ResolveFileNameAsync(server.Url("some-release"));
+
+        Assert.Equal("some-release", name);
+    }
 }

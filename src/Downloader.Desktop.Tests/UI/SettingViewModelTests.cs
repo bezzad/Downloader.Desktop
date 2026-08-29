@@ -604,4 +604,93 @@ public class SettingViewModelTests
         // If these ever drift, every patch release looks "newer forever" (#update-false-alarm).
         Assert.Equal(UpdateService.CurrentVersion.ToString(), vm.AppVersion);
     }
+
+    /// <summary>
+    /// One button carries the whole update flow — "Check for updates" becomes "Download update" and
+    /// then "Restart to update". The label is driven off a static coordinator via an event, so if the
+    /// page fails to re-read it the user is left pressing a button that still says "Check for updates"
+    /// while an update sits there waiting.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async System.Threading.Tasks.Task The_update_button_follows_the_flow_it_is_driving()
+    {
+        var notificationsWereEnabled = NotificationService.Enabled;
+        NotificationService.Enabled = false;
+        UpdateFlow.ResetForTests();
+        try
+        {
+            var (vm, _, _) = Build();
+            var changed = new List<string>();
+            vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? "");
+
+            Assert.Equal(Localizer.Instance["Btn_CheckUpdate"], vm.UpdateButtonText);
+            Assert.False(vm.HasAvailableVersion);
+            Assert.Empty(vm.AvailableVersionText);
+            Assert.False(vm.IsUpdateDownloading);
+            Assert.Equal("0%", vm.UpdateProgressText);
+
+            UpdateFlow.PromptUpdate = _ => { };
+            UpdateFlow.CheckOverride = () => System.Threading.Tasks.Task.FromResult(new UpdateInfo
+            {
+                Version = "99.0.0",
+                Tag = "v99.0.0",
+                AssetUrl = "https://host/Downloader.tar.gz",
+                AssetName = "Downloader.tar.gz",
+                ReleaseUrl = "https://host/releases/v99.0.0"
+            });
+
+            await UpdateFlow.CheckAsync(manual: true);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(Localizer.Instance["Update_DownloadBtn"], vm.UpdateButtonText);
+            Assert.True(vm.HasAvailableVersion);
+            Assert.Contains("v99.0.0", vm.AvailableVersionText);
+            Assert.Contains(nameof(vm.UpdateButtonText), changed);
+            Assert.Contains(nameof(vm.AvailableVersionText), changed);
+        }
+        finally
+        {
+            UpdateFlow.ResetForTests();
+            NotificationService.Enabled = notificationsWereEnabled;
+        }
+    }
+
+    /// <summary>
+    /// Turning notifications on fires a sample immediately — without it the user has no way to tell
+    /// whether their desktop actually delivers them, which is the whole reason the sample exists.
+    /// Turning it back on when it was already on must NOT fire a second one.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Turning_notifications_on_sends_one_sample_so_the_user_can_see_it_work()
+    {
+        var notificationsWereEnabled = NotificationService.Enabled;
+        var sent = new List<string[]>();
+        ShellLauncher.RunOverride = (_, args) => { sent.Add(args); return true; };
+        try
+        {
+            var (vm, config, _) = Build();
+            vm.EnableNotifications = false;
+            sent.Clear();
+
+            vm.EnableNotifications = true;
+
+            Assert.True(config.Settings.EnableNotifications);
+            Assert.True(NotificationService.Enabled);
+            var sample = Assert.Single(sent);
+            Assert.Contains(sample, a => a.Contains("Notifications enabled"));
+
+            // Already on — no second sample.
+            vm.EnableNotifications = true;
+            Assert.Single(sent);
+
+            vm.EnableNotifications = false;
+            Assert.False(NotificationService.Enabled);
+            Assert.Single(sent);
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+            NotificationService.Enabled = notificationsWereEnabled;
+        }
+    }
 }

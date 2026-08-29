@@ -198,7 +198,13 @@ public static class SingleInstanceService
         }
     }
 
-    private static void Dispatch(string msg)
+    /// <summary>
+    /// Delivers a forwarded message to the app's handler. Internal rather than private so a test can
+    /// exercise what the running instance DOES with a forwarded link without standing up a second
+    /// process and a real socket — the handler is the part that decides between "add it silently" and
+    /// "surface the window with the Add dialog".
+    /// </summary>
+    internal static void Dispatch(string msg)
     {
         if (_onMessage != null)
             // AcceptLoop runs on a background thread; the handler touches the window (Show/Activate),

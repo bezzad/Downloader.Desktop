@@ -208,6 +208,67 @@ public class WebsiteCrawlTests
         }
     }
 
+    /// <summary>
+    /// Saving the same site twice must not silently overwrite the first copy — the zip is named after
+    /// the host, so a second save of the same site collides by construction.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Saving_the_same_site_twice_keeps_both_copies()
+    {
+        using var site = BuildSite();
+        var target = TempDir();
+        try
+        {
+            var first = await new WebsiteTransfer(WebsiteResolver.Scheme + site.Url, target)
+                .StartAsync(TestContext.Current.CancellationToken);
+            var second = await new WebsiteTransfer(WebsiteResolver.Scheme + site.Url, target)
+                .StartAsync(TestContext.Current.CancellationToken);
+
+            Assert.NotEqual(first, second);
+            Assert.True(File.Exists(first), "the first copy must survive the second save");
+            Assert.True(File.Exists(second));
+            Assert.EndsWith(" (2).zip", second);
+        }
+        finally
+        {
+            Directory.Delete(target, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The provider is what the app asks "is this yours?" before handing the whole download over, and
+    /// what it then asks for the transfer itself. A link it does not claim must never reach the crawler.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_provider_claims_only_its_own_scheme_and_builds_the_transfer_for_it()
+    {
+        var provider = new WebsiteTransferProvider();
+        var target = TempDir();
+        try
+        {
+            Assert.True(provider.CanHandle(WebsiteResolver.Scheme + "https://host/"));
+            Assert.False(provider.CanHandle("https://host/file.zip"));
+
+            var transfer = provider.Create(WebsiteResolver.Scheme + "https://host/", target);
+            Assert.NotNull(transfer);
+
+            // Pause/Resume before anything started must be harmless — the toolbar buttons are live
+            // from the moment the row exists.
+            transfer.Pause();
+            transfer.Resume();
+
+            // A transfer handed something that is not a web page refuses it rather than crawling.
+            var notAPage = new WebsiteTransfer(WebsiteResolver.Scheme + "ftp://host/dir", target);
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => notAPage.StartAsync(TestContext.Current.CancellationToken));
+            Assert.Contains("Not a web page link", ex.Message);
+        }
+        finally
+        {
+            Directory.Delete(target, recursive: true);
+        }
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Pause_suspends_fetching_and_resume_continues()
     {

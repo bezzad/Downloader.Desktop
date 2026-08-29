@@ -11,6 +11,7 @@ internal sealed class LoopbackServer : IDisposable
 {
     private readonly HttpListener _listener = new();
     private readonly Dictionary<string, (byte[] body, string type)> _routes = new();
+    private readonly Dictionary<string, int> _status = new();
     private readonly CancellationTokenSource _cts = new();
 
     public string BaseUrl { get; }
@@ -36,6 +37,14 @@ internal sealed class LoopbackServer : IDisposable
         return this;
     }
 
+    /// <summary>Answers this path with a bare status code — for the "server is up but unhappy" cases
+    /// (a 500, a 403) that an unmapped path's 404 cannot stand in for.</summary>
+    public LoopbackServer MapStatus(string path, int statusCode)
+    {
+        _status[Normalize(path)] = statusCode;
+        return this;
+    }
+
     public string Url(string path) => BaseUrl + path.TrimStart('/');
 
     private async Task LoopAsync()
@@ -49,7 +58,11 @@ internal sealed class LoopbackServer : IDisposable
             var key = Normalize(ctx.Request.Url!.AbsolutePath);
             try
             {
-                if (ctx.Request.HttpMethod == "HEAD" && _routes.TryGetValue(key, out var h))
+                if (_status.TryGetValue(key, out var code))
+                {
+                    ctx.Response.StatusCode = code;
+                }
+                else if (ctx.Request.HttpMethod == "HEAD" && _routes.TryGetValue(key, out var h))
                 {
                     ctx.Response.ContentType = h.type;
                     ctx.Response.StatusCode = 200;

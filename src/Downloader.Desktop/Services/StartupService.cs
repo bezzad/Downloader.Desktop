@@ -24,8 +24,23 @@ public static class StartupService
     /// <summary>The path to the running executable (apphost), used as the autostart command.</summary>
     private static string ExePath => Environment.ProcessPath;
 
+    /// <summary>
+    /// Test seam. Applying this for real writes (or deletes) the user's own autostart entry — the HKCU
+    /// Run key, an XDG .desktop, a LaunchAgent — so a test that let it through would silently turn the
+    /// developer's "launch at login" on or off just by running the suite. That is the single reason the
+    /// app-shell startup path went untested; with this the caller can be exercised without touching the
+    /// machine. Never set by the app.
+    /// </summary>
+    internal static Action<bool> ApplyOverride { get; set; }
+
     public static void Apply(bool enabled)
     {
+        if (ApplyOverride is { } handler)
+        {
+            handler(enabled);
+            return;
+        }
+
         try
         {
             if (enabled) Enable();
