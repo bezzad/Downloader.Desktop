@@ -552,11 +552,7 @@ public class SettingViewModel : ViewModelBase
         try
         {
             System.IO.Directory.CreateDirectory(AppLog.LogFolder);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = AppLog.LogFolder,
-                UseShellExecute = true
-            });
+            ShellLauncher.Open(AppLog.LogFolder);
         }
         catch
         {
@@ -636,22 +632,7 @@ public class SettingViewModel : ViewModelBase
     }
 
     /// <summary>Opens a URL/path with the OS default handler. Returns false if it couldn't start.</summary>
-    private static bool OpenInShell(string target)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = target,
-                UseShellExecute = true
-            });
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    private static bool OpenInShell(string target) => ShellLauncher.TryOpen(target);
 
     private static async Task ExportLogs()
     {

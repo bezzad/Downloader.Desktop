@@ -234,21 +234,5 @@ public static class UpdateFlow
         catch (Exception ex) { AppLog.Error("Failed to stage update on exit", ex); }
     }
 
-    private static void OpenUrl(string url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-            return;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
-            // best-effort
-        }
-    }
+    private static void OpenUrl(string url) => ShellLauncher.Open(url);
 }

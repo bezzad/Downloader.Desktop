@@ -76,11 +76,5 @@ public static class NotificationService
         }
     }
 
-    private static void Run(string file, string[] args)
-    {
-        var psi = new ProcessStartInfo { FileName = file, UseShellExecute = false, CreateNoWindow = true };
-        foreach (var a in args)
-            psi.ArgumentList.Add(a);
-        Process.Start(psi);
-    }
+    private static void Run(string file, string[] args) => ShellLauncher.Run(file, args);
 }

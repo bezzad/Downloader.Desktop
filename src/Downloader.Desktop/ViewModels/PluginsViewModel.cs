@@ -234,15 +234,11 @@ public class PluginsViewModel : ViewModelBase
         try
         {
             Directory.CreateDirectory(PluginManager.PluginsRoot);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = PluginManager.PluginsRoot,
-                UseShellExecute = true
-            });
+            ShellLauncher.Open(PluginManager.PluginsRoot);
         }
         catch
         {
-            // best-effort
+            // best-effort — the folder could not even be created
         }
     }
 
