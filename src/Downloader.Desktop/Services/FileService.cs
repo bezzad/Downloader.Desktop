@@ -14,8 +14,17 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public class FileService : IFileService
 {
-    private static readonly string ConfigFileName =
+    private static readonly string DefaultConfigFile =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Downloader", "config.json");
+
+    /// <summary>
+    /// Test seam. The real path is resolved from the user's own %AppData%/~/.config, so exercising the
+    /// save path would overwrite the developer's live config.json — which is why none of this was ever
+    /// covered. Tests point it at a temp file; the app never sets it.
+    /// </summary>
+    internal static string ConfigFileOverride { get; set; }
+
+    private static string ConfigFileName => ConfigFileOverride ?? DefaultConfigFile;
 
     private static readonly SemaphoreSlim WriteGate = new(1, 1);
 

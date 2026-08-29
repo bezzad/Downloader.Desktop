@@ -49,8 +49,15 @@ public sealed class PluginDescriptor
 /// </summary>
 public sealed class PluginManager
 {
+    /// <summary>
+    /// Test seam for <see cref="PluginsRoot"/>. Installing into the real folder would leave a plugin
+    /// on the developer's machine, so the install/update/remove flows could not be tested at all.
+    /// Tests point this at a temp directory; the app never sets it.
+    /// </summary>
+    internal static string PluginsRootOverride { get; set; }
+
     /// <summary>Where external plugins live (Linux: ~/.config/Downloader/plugins).</summary>
-    public static string PluginsRoot => Path.Combine(
+    public static string PluginsRoot => PluginsRootOverride ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Downloader", "plugins");
 
     /// <summary>Where the plugins bundled with the app live (copied next to the executable at build/publish).</summary>

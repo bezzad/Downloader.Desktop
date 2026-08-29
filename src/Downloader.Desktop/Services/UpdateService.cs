@@ -47,6 +47,8 @@ public static class UpdateService
         Assembly.GetExecutingAssembly().GetName().Version is { } v ? new Version(v.Major, v.Minor, v.Build) : new Version(1, 0, 0);
 
     /// <summary>Returns the newer release, or null if none / on any error.</summary>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Network: queries the GitHub releases API. The version compare and asset selection it depends on are covered in UpdateStackTests.")]
     public static async Task<UpdateInfo> CheckAsync(CancellationToken ct = default)
     {
         try
@@ -141,6 +143,8 @@ public static class UpdateService
     /// detached OS script that waits for this process to exit, extracts over the app folder, and starts
     /// the new build. Caller should shut the app down right after this returns true.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Spawns a detached swap script that overwrites the running installation and relaunches it. The generated scripts themselves are covered in UpdateStackTests.")]
     public static bool ApplyDownloadedArchive(string archivePath)
     {
         try
@@ -174,12 +178,16 @@ public static class UpdateService
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Starts the detached updater process.")]
     private static bool RunDetached(string file, string args)
     {
         var psi = new ProcessStartInfo(file, args) { UseShellExecute = false, CreateNoWindow = true };
         return Process.Start(psi) != null;
     }
 
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Writes the swap script to a temp path; the script BODY it delegates to is covered in UpdateStackTests.")]
     private static string WriteUnixScript(string archive, string appDir, string exe, int pid)
     {
         var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.sh");
@@ -210,6 +218,8 @@ public static class UpdateService
 
     /// <summary>macOS: replace the whole <c>.app</c> bundle (the archive contains <c>Downloader.app</c>),
     /// then relaunch with <c>open</c>. Fixes the "restart reopens the OLD version → re-downloads → loop".</summary>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Writes the swap script to a temp path; the script BODY it delegates to is covered in UpdateStackTests.")]
     private static string WriteMacScript(string archive, string bundle, int pid)
     {
         var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.sh");
@@ -239,6 +249,8 @@ public static class UpdateService
             $"open \"{bundle}\"\n";
     }
 
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Writes the swap script to a temp path; the script BODY it delegates to is covered in UpdateStackTests.")]
     private static string WriteWindowsScript(string archive, string appDir, string exe, int pid)
     {
         var script = Path.Combine(Path.GetTempPath(), $"downloader-update-{pid}.cmd");

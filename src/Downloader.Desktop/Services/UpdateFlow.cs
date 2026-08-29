@@ -75,6 +75,11 @@ public static class UpdateFlow
     }
 
     /// <summary>Checks GitHub; if a newer version exists, downloads it in the background automatically.</summary>
+    // Reaching GitHub is the entire purpose of this method, so there is no seam that would leave
+    // anything meaningful to assert. Its guard clauses (already running, already staged, managed
+    // externally under snap) ARE tested — see Unit/UpdateStackTests.
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Network: queries the GitHub releases API. Guard clauses are covered separately.")]
     public static async Task CheckAsync(bool manual)
     {
         if (IsManagedExternally || _busy ||
@@ -132,6 +137,8 @@ public static class UpdateFlow
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Network: downloads the release asset through the engine.")]
     private static async Task DownloadAsync(UpdateInfo info)
     {
         Raise(UpdateState.Downloading, 0);
@@ -179,6 +186,8 @@ public static class UpdateFlow
     }
 
     /// <summary>Start downloading the pending update (called by the in-app dialog's "Download" button).</summary>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Network: drives DownloadAsync. The no-pending-update guard is covered in UpdateStackTests.")]
     public static async Task StartDownloadAsync()
     {
         if (_pending == null || State is UpdateState.Downloading or UpdateState.Ready)
@@ -226,6 +235,8 @@ public static class UpdateFlow
     /// waits for this process to exit, extracts over the app folder, then relaunches). Safe to call on
     /// every shutdown — it no-ops unless an update is ready.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(
+        Justification = "Replaces the running installation on exit; cannot be exercised without destroying the test host.")]
     public static void ApplyPendingOnExit()
     {
         if (State != UpdateState.Ready || string.IsNullOrWhiteSpace(_archivePath))
