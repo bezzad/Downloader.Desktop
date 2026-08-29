@@ -446,6 +446,110 @@ public class SettingViewModelTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_notch_overlay_toggle_starts_and_stops_the_overlay()
+    {
+        var (vm, config, _) = Build();
+        try
+        {
+            vm.EnableNotch = true;
+            Assert.True(config.Settings.EnableNotch);
+            Assert.True(vm.EnableNotch);
+
+            vm.EnableNotch = false;
+            Assert.False(config.Settings.EnableNotch);
+            Assert.False(NotchService.IsActive);
+
+            // Setting the same value again is a no-op (it must not restart the overlay).
+            vm.EnableNotch = false;
+            Assert.False(NotchService.IsActive);
+        }
+        finally
+        {
+            NotchService.Stop();
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_browser_integration_toggle_starts_and_stops_the_local_api()
+    {
+        var (vm, config, _) = Build();
+        var wasRunning = LocalApiService.IsRunning;
+        try
+        {
+            vm.EnableBrowserIntegration = true;
+            Assert.True(config.Settings.EnableBrowserIntegration);
+            // Whether the listener actually binds depends on the machine's free ports, but the row
+            // must always describe the current state rather than going stale.
+            Assert.StartsWith("127.0.0.1:", vm.LocalApiAddress);
+            Assert.Equal(LocalApiService.IsRunning, vm.IsLocalApiRunning);
+
+            vm.EnableBrowserIntegration = false;
+            Assert.False(config.Settings.EnableBrowserIntegration);
+            Assert.False(LocalApiService.IsRunning);
+            Assert.False(vm.IsLocalApiRunning);
+
+            vm.EnableBrowserIntegration = false; // no-op
+            Assert.False(LocalApiService.IsRunning);
+        }
+        finally
+        {
+            if (!wasRunning)
+                LocalApiService.Stop();
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_remaining_simple_settings_round_trip()
+    {
+        var (vm, config, _) = Build();
+
+        vm.AutoUpdate = false;
+        Assert.False(config.Settings.AutoUpdate);
+        vm.AutoUpdate = true;
+        Assert.True(config.Settings.AutoUpdate);
+
+        vm.SelectedFileExistPolicy = FileExistPolicy.Delete;
+        Assert.Equal(FileExistPolicy.Delete, config.Settings.FileExistPolicy);
+        vm.SelectedFileExistPolicy = FileExistPolicy.IgnoreDownload;
+        Assert.Equal(FileExistPolicy.IgnoreDownload, vm.SelectedFileExistPolicy);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Reset_to_defaults_restores_every_setting_and_the_theme()
+    {
+        var (vm, config, _) = Build();
+
+        // Guard the developer's real machine state: ResetDefaults re-applies run-at-startup, which
+        // writes (or deletes) a real autostart entry. Put back whatever was there.
+        var startupWasEnabled = StartupService.IsEnabled();
+        var apiWasRunning = LocalApiService.IsRunning;
+        var notificationsWereEnabled = NotificationService.Enabled;
+        try
+        {
+            vm.ChunkCount = 15;
+            vm.UserAgent = "changed";
+            vm.MaxConcurrentDownloads = 9;
+            vm.IsDarkTheme = true;
+
+            vm.ResetDefaultsCommand.Execute(null);
+
+            var defaults = DownloadSettings.New();
+            Assert.Equal(defaults.ChunkCount, config.Settings.ChunkCount);
+            Assert.Equal(defaults.UserAgent, config.Settings.UserAgent);
+            Assert.Equal(defaults.MaxConcurrentDownloads, config.Settings.MaxConcurrentDownloads);
+            Assert.Equal(ThemeVariant.Light, config.ThemeMode);
+        }
+        finally
+        {
+            StartupService.Apply(startupWasEnabled);
+            if (!apiWasRunning)
+                LocalApiService.Stop();
+            NotificationService.Enabled = notificationsWereEnabled;
+            NotchService.Stop();
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void The_about_card_version_matches_the_update_check()
     {
         var (vm, _, _) = Build();

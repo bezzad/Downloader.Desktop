@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Headless.XUnit;
@@ -6,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
+using Downloader.Desktop.ViewModels;
 using Xunit;
 
 namespace Downloader.Desktop.Tests.UI;
@@ -88,6 +90,74 @@ public class ShutdownAndThemeTests : IDisposable
         }
 
         Assert.False(poweredOff);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async System.Threading.Tasks.Task The_countdown_reaching_zero_powers_the_machine_off()
+    {
+        Localizer.Instance.Load("en");
+        var elapsed = 0;
+        var closed = 0;
+
+        // One second so the real DispatcherTimer tick is observable without a long wait.
+        var vm = new ShutdownViewModel(1, onElapsed: () => elapsed++, onCancel: () => { });
+        vm.CloseRequested += () => closed++;
+
+        var deadline = Environment.TickCount64 + 10_000;
+        while (Environment.TickCount64 < deadline && elapsed == 0)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            await System.Threading.Tasks.Task.Delay(50);
+        }
+
+        // This is the whole point of the feature: left alone, the countdown must actually fire.
+        Assert.Equal(1, elapsed);
+        Assert.Equal(1, closed);
+        Assert.Contains("0", vm.CountdownText);
+
+        // …and exactly once — the timer is stopped, so it cannot fire again.
+        await System.Threading.Tasks.Task.Delay(1500);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, elapsed);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async System.Threading.Tasks.Task The_countdown_issues_this_platforms_power_off_command()
+    {
+        Localizer.Instance.Load("en");
+        var commands = new List<(string File, string[] Args)>();
+        ShellLauncher.RunOverride = (file, args) => { commands.Add((file, args)); return true; };
+        try
+        {
+            // Deliberately NO PowerOffOverride: this exercises the real platform dispatch, which is
+            // otherwise never executed. A wrong command here means the machine simply never shuts
+            // down, with nothing reported.
+            ShutdownService.PowerOffOverride = null;
+
+            ShutdownService.PowerOff();
+            await System.Threading.Tasks.Task.CompletedTask;
+
+            var (file, args) = Assert.Single(commands);
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.Equal("shutdown", file);
+                Assert.Equal(new[] { "/s", "/t", "0" }, args);
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                Assert.Equal("osascript", file);
+                Assert.Contains(args, a => a.Contains("shut down"));
+            }
+            else
+            {
+                Assert.Equal("systemctl", file);
+                Assert.Equal(new[] { "poweroff" }, args);
+            }
+        }
+        finally
+        {
+            ShellLauncher.RunOverride = null;
+        }
     }
 
     // ---- ThemeService ------------------------------------------------------

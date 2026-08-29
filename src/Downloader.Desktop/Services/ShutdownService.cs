@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using Avalonia.Threading;
 using Downloader.Desktop.ViewModels;
 using Downloader.Desktop.Views;
@@ -90,7 +89,13 @@ public static class ShutdownService
         try { dlg?.Close(); } catch { /* already closed */ }
     }
 
-    private static void PowerOff()
+    /// <summary>
+    /// Internal rather than private so a test can exercise the platform dispatch below WITHOUT
+    /// setting <see cref="PowerOffOverride"/> — that override short-circuits the very code that
+    /// decides which command each OS gets, and a wrong command there means the machine simply never
+    /// shuts down, with nothing reported to anyone.
+    /// </summary>
+    internal static void PowerOff()
     {
         Close();
 
@@ -115,11 +120,5 @@ public static class ShutdownService
         }
     }
 
-    private static void Run(string file, params string[] args)
-    {
-        var psi = new ProcessStartInfo { FileName = file, UseShellExecute = false, CreateNoWindow = true };
-        foreach (var a in args)
-            psi.ArgumentList.Add(a);
-        Process.Start(psi);
-    }
+    private static void Run(string file, params string[] args) => ShellLauncher.Run(file, args);
 }

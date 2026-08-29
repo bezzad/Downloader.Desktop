@@ -292,6 +292,59 @@ public class MainViewModelTests
         Assert.Equal(DownloadStatus.Completed, done.Status); // never resurrect a finished download
     }
 
+    // ---- finishing everything ---------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Finishing_the_last_download_arms_a_shutdown_only_when_asked()
+    {
+        var wasEnabled = NotificationService.Enabled;
+        try
+        {
+            NotificationService.Enabled = false; // don't shell out to notify-send
+            ShutdownService.Cancel();
+
+            var (_, manager) = Build();
+            var row = Add(manager, "a.bin", DownloadStatus.Running);
+            row.Status = DownloadStatus.Completed;
+
+            // Shutdown-on-completion is off by default, so draining the list must NOT arm anything.
+            manager.RaiseCompletedForTest(row);
+
+            Assert.False(ShutdownService.IsScheduled);
+        }
+        finally
+        {
+            ShutdownService.Cancel();
+            NotificationService.Enabled = wasEnabled;
+        }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Stopping_everything_never_arms_a_shutdown()
+    {
+        var wasEnabled = NotificationService.Enabled;
+        try
+        {
+            NotificationService.Enabled = false;
+            ShutdownService.Cancel();
+
+            var (_, manager) = Build();
+            var row = Add(manager, "a.bin", DownloadStatus.Running);
+            row.Status = DownloadStatus.Stopped;
+
+            // The trigger must only fire when something actually COMPLETED. Otherwise "Stop All"
+            // would arm a shutdown whenever a finished item happened to be sitting in the list.
+            manager.RaiseStoppedForTest(row);
+
+            Assert.False(ShutdownService.IsScheduled);
+        }
+        finally
+        {
+            ShutdownService.Cancel();
+            NotificationService.Enabled = wasEnabled;
+        }
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Update_button_is_hidden_until_an_update_is_staged()
     {
