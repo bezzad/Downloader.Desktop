@@ -759,3 +759,9 @@ stays free — the service then binds it and `Assert.False(IsRunning)` fails, re
 there. The test now probes each port it failed to block with a raw `TcpListener` (`PortIsFree`) and leaves
 without asserting when the "everything is taken" precondition cannot be met, plus `Stop()`s first so a
 leaked listener isn't mistaken for a successful bind.
+
+**A test must never really spawn the desktop.** `PluginsViewModelCatalogTests.Reloading_rereads_the_plugins_folder`
+executed `OpenFolderCommand` with no seam, so on CI it actually ran `xdg-open` — its stderr
+(*"file '/tmp/dldesktop-plugins-vm-…' does not exist"*) ended up quoted as the test host's crash reason,
+which is a great way to spend an hour blaming the wrong thing. Set `ShellLauncher.OpenOverride` (or
+`RunOverride`) and assert the target instead; both are `internal` seams visible to the test project.
