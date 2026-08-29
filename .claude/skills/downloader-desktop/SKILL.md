@@ -651,3 +651,53 @@ See `CLAUDE.md` at the repo root for product vision, locked decisions, and the f
 - `QueueRowViewModel` exposes **`Queue`** (the `DownloadQueue`), not an `Id`.
 - Tests that show real windows are fine headlessly, but a **stale `testhost` from another worktree** makes
   an instrumented run look hung. Kill it **by PID** — `pkill -f` matches your own shell and kills it (exit 144).
+
+## Coverage round 2 — how to reach the parts that "cannot be tested" (2026-08-29, 92.6%)
+
+Read this before concluding a file is untestable. Three of the four biggest "impossible" areas turned
+out to be reachable, and two suites were passing **without executing the code they name**.
+
+- **`TestSupport/DesktopLifetimeScope` gives the headless app a real main window.** Every
+  `DialogHelper` entry point begins with "if `MainWindow` is null, do nothing", and headless has no
+  lifetime — so the file read as covered while none of it ran (28%). The scope sets
+  `Application._applicationLifetime` (the public setter refuses after init) to a
+  `ClassicDesktopStyleApplicationLifetime` with a shown `Window`, and restores it on dispose. With it,
+  `ShowDialog`/`Confirm`/`ShowAbout`/`ShowDetails`/the pickers all really run → 88%.
+  **Finding a dialog in a test: use `scope.MainWindow.OwnedWindows`**, NOT `AppLifetime.Windows` — a
+  hand-made lifetime never populates its own window list, but `ShowDialog(owner)` does set ownership.
+  The pickers work headlessly and simply return null (cancelled).
+- **`TestSupport/DeferringScheduler` restores the app's real startup ordering.** `MainViewModel`
+  schedules `InitMainViewModelAsync` onto `RxApp.MainThreadScheduler` from its ctor, and the app assigns
+  `vm.View` AFTER constructing it. In the app the init defers (nothing pumps the dispatcher yet); under
+  `[AvaloniaFact]` the test thread IS the UI thread, so the default scheduler runs init INLINE, before
+  `View` is set — `SetupAppShell` then hits `if (View is not Window) return` and silently wires nothing.
+  Install `RxApp.MainThreadScheduler = new DeferringScheduler()` (restore it in Dispose) and the whole
+  shell path runs: tray, close-to-tray, run-at-startup, local API, single-instance handler, update check.
+- **A passing test can be testing nothing — check the per-file uncovered count before writing more.**
+  Two shapes seen here: (a) an env-gated suite that returns immediately (`ShutdownVerificationTests`);
+  (b) a fixture that swallows its own setup failure — `CliRunnerTests`' `RangeStub` bound all five API
+  ports to ONE `HttpListener`, which fails to `Start()` wholesale if any one port is taken, so
+  `BoundCount==0` and every test hit its "nothing to assert against" early return. **Something on this
+  box holds 15151** (invisible to `ss`), so it failed here and passed on CI. Fixed with one listener
+  per port + `PersistPort(stub.FirstBoundPort)` (the CLI tries the persisted port first, via
+  `FileService.ConfigFileOverride`).
+- **Seams added this round** (all `internal`, never set by the app):
+  `StartupService.ApplyOverride` (applying run-at-startup for real would flip the developer's own
+  launch-at-login — this is what had blocked the entire shell path), `UpdateFlow.CheckOverride` (only
+  the GitHub lookup is network; every decision after it is ordinary logic),
+  `PluginCatalogService.ReleasesUrlOverride`, `DialogHelper.{OpenFilePicker,SaveFilePicker,
+  OpenFolderPicker}Override` (a picker can only ever be *cancelled* in a test, so everything a caller
+  does with a chosen path was unreachable), and `SingleInstanceService.Dispatch` private→internal.
+- **Plugin binaries are testable without downloading anything**: `FfmpegBinary(dataDir, HttpClient)`
+  takes the client, so an `HttpMessageHandler` stub can serve a `.tar.xz` you build with the system tar
+  containing a stand-in `ffmpeg` (a shell script padded past `BinaryFile.MinUsableBytes` = 1 MB, with
+  the executable bit). **Scrubbing PATH to force the download path also hides `tar` — and `tar -cJf`
+  execs `xz`** — so symlink both into the stub PATH dir.
+- **What is genuinely still out of reach** (verified, not assumed): `App.axaml.cs`'s shutdown hook (ends
+  in `desktop.Shutdown()`, which would shut the test host down), `CliRunner`'s `add` verb (spawns
+  `Process.Start(Environment.ProcessPath)`, i.e. a real GUI — and forwarding instead would post a
+  download into the developer's *running* app), and `NotificationService`'s macOS/Windows branches
+  (cannot execute on Linux). `Program.cs` is excluded from the metric outright.
+- **`RxApp.MainThreadScheduler`, `Application._applicationLifetime`, `PluginManager.PluginsRootOverride`,
+  `FileService.ConfigFileOverride` are process-wide.** Always restore them in `Dispose` — collection
+  parallelisation is off, so leaking one silently changes a LATER test rather than the current one.

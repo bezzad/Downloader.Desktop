@@ -3,8 +3,9 @@
 Baseline (develop, 525 tests green): raw **51.5%**, real C# code **61.2%**.
 After task 1 (generated code excluded from the denominator): **65.0%** (5849/9000), same 525 tests.
 After the author's scope decision (views + platform files excluded, 2026-08-27): **78.5%**.
-**Final: 951 tests green, 82.7%** (6643/8036) after the per-file pass — with files under 80% down
-from 34 to 20. See "Per-file pass" for what remains and what blocks each file.
+After the first per-file pass: 951 tests green, 82.7% of the code the suite could guard.
+**Final: 1230 tests green, 92.6%** (7313/7901) after round 2 — files under 85% down from 24 to 3.
+See "Per-file pass, round 2" for what remains and what blocks each file.
 
 ## 1. Make the measurement honest
 
@@ -25,18 +26,21 @@ from 34 to 20. See "Per-file pass" for what remains and what blocks each file.
 
 ## 3. Services at or near 0%
 
-- [ ] 3.1 `FileService` — **not done, deliberately.** Its config path is a private static resolved at
-      type-init from the real `%AppData%`/`~/.config`, so exercising the save path would overwrite the
-      developer's own `config.json`. Not worth a redirection seam in production code for 31 lines.
+- [x] 3.1 `FileService` — done via `ConfigFileOverride`. (Originally declined: its config path is
+      resolved from the real `%AppData%`/`~/.config`, so exercising the save path would overwrite the
+      developer's own `config.json`. The redirection seam turned out to pay for itself several times
+      over — the CLI's port lookup and the app bootstrap both read that file too.)
 - [x] 3.2 `ShutdownService` — schedule/cancel via the `PowerOffOverride` seam. Was reported 0% because
       `ShutdownVerificationTests` is gated behind `DLDESKTOP_VERIFY=1` and silently returns in a normal
       run — it passed without executing anything. The new tests are ungated.
 - [x] 3.3 `CliRunner` — the HTTP verbs against a stub bound across the API port range. The `add` verb is
       left alone: with no instance holding the lock it calls `Process.Start(Environment.ProcessPath)`,
       i.e. it would launch a real GUI from the test run.
-- [ ] 3.4 `StartupService` — **read path only.** `Apply(true/false)` writes a real autostart entry
-      (`~/.config/autostart`, the HKCU Run key, a LaunchAgent); a test must not turn a developer's
-      "launch at login" setting on or off behind their back.
+- [x] 3.4 `StartupService` — read path directly; the write path stays deliberately unexercised
+      (`Apply(true/false)` writes a real autostart entry — `~/.config/autostart`, the HKCU Run key, a
+      LaunchAgent — and a test must not turn a developer's "launch at login" on or off behind their
+      back). `ApplyOverride` lets its CALLER (the app-shell startup path) be tested instead, which is
+      where the behaviour that matters lives. The file itself is out of the measurement's scope.
 - [x] 3.5 `ThemeService` — accent lookup/fallback, the six Fluent shade overrides, the row-selection tint.
 
 ## 4. Update stack
@@ -72,8 +76,8 @@ from 34 to 20. See "Per-file pass" for what remains and what blocks each file.
       86% → 93%.
 - [x] 7.2 `DownloadManager.Plans` — already had 16 tests; left as is.
 - [x] 7.3 `PluginCatalogService` — `ParseCatalog` strictness and the version/min-app-version rules.
-- [ ] 7.4 `DialogHelper` — **partially.** The modal-tracking seam was already covered; the rest is
-      `ShowDialog` against real windows.
+- [x] 7.4 `DialogHelper` — done in round 2. `ShowDialog` against real windows became reachable once
+      `DesktopLifetimeScope` gave the headless app a classic desktop lifetime. 28% → 88%.
 
 ## 8. Close out
 
@@ -81,6 +85,67 @@ from 34 to 20. See "Per-file pass" for what remains and what blocks each file.
 - [x] 8.2 Full suite green, bounded run.
 - [x] 8.3 Browser-extension unit suite green (untouched by this change).
 - [x] 8.4 Final coverage measured and reported; SKILL.md updated.
+
+## Per-file pass, round 2 (author: "every file above 85%", 2026-08-29)
+
+**1230 tests green. 92.6% overall; files under 85% went 24 -> 3.** Measured with
+`--settings src/coverlet.runsettings` (see that file for what is in scope and why).
+
+Where it moved, and what was actually wrong:
+
+- **The dialogs had never opened.** Every `DialogHelper` entry point starts with "if there is no main
+  window, do nothing", and the headless runtime has no desktop lifetime — so the whole file took its
+  early return and read as covered while none of it ran. `TestSupport/DesktopLifetimeScope` installs a
+  classic desktop lifetime with a real window for the duration of a test. 28% -> 88%.
+- **The CLI tests were passing without executing a line of `CliRunner`.** Their stub bound all five API
+  ports to ONE `HttpListener`, which fails to start wholesale if any single port is taken; `BoundCount`
+  then stayed 0 and the "nothing to assert against" guard returned early from every test. One listener
+  per port, plus steering the CLI's persisted-port lookup at a port the stub owns. 15% -> 54%.
+- **The app shell's startup wiring** (tray, close-to-tray, run-at-startup, local API, single-instance
+  hand-off, update checks) had never run: applying run-at-startup writes the developer's own autostart
+  entry, so no test could be allowed near it. `StartupService.ApplyOverride` removes that.
+  `MainViewModel` 57% -> 88%, `App.axaml.cs` 32% -> 49%.
+- **The update check was written off as "network"** when only the GitHub lookup is; everything after it
+  decides what the user sees. `UpdateFlow.CheckOverride` puts the lookup behind a hook. 70% -> 92%.
+- Plugin catalog fetch + install (`PluginCatalogService.ReleasesUrlOverride`, a loopback release serving
+  a real plugin zip into a temp plugins root), the plan runner's row-facing half driven end to end,
+  ffmpeg provisioning against a stub archive, the Ollama registry's unhappy answers and the local model
+  store's refusals, and the offline-copy transfer.
+
+### New seams added (all `internal`, never set by the app)
+
+| seam | unlocks |
+|---|---|
+| `StartupService.ApplyOverride` | the whole app-shell startup path, without writing the developer's autostart entry |
+| `UpdateFlow.CheckOverride` | every branch of the update check after the GitHub lookup |
+| `PluginCatalogService.ReleasesUrlOverride` | the catalog fetch, against a loopback release |
+| `DialogHelper.{OpenFilePicker,SaveFilePicker,OpenFolderPicker}Override` | what a caller does with a CHOSEN path (install this plugin, export the log here) |
+| `SingleInstanceService.Dispatch` (private -> internal) | delivering a forwarded link without a second process |
+| `TestSupport/DesktopLifetimeScope` | the dialogs, by giving the headless app a real main window |
+| `TestSupport/DeferringScheduler` | the shell's init running AFTER the window is assigned, as it does in the app |
+
+### The 3 files still under 85%, and why each is out of reach
+
+| file | cov | blocker (verified, not assumed) |
+|---|---|---|
+| `App.axaml.cs` | 49% | The remaining 30 lines are the shutdown hook. It ends in `desktop.Shutdown()`; driving it would shut the test host down. The bootstrap half (services resolve, window built, view model attached) IS now covered. |
+| `CliRunner` | 54% | The `add` verb. With no instance holding the lock it calls `Process.Start(Environment.ProcessPath)` — it would launch a real GUI; and forwarding instead would post a download into the developer's *running* app. Every other verb is covered. |
+| `NotificationService` | 72% | 9 lines are the macOS and Windows notifier branches. They cannot execute on the Linux runner; the same two notifier FILES are already excluded from the metric for that reason. |
+
+`Program.cs` is now excluded from the measurement outright, on the author's instruction — every line of
+it is `Environment.Exit`, claiming the single-instance lock, or handing control to Avalonia's main loop.
+
+### Two things worth not re-deriving
+
+- **A headless `[AvaloniaFact]` runs on the UI thread, so `RxApp.MainThreadScheduler` executes inline.**
+  `MainViewModel` schedules its init from its constructor and the app assigns `View` afterwards — so
+  under the default scheduler the init runs BEFORE the window is assigned and `SetupAppShell` silently
+  skips everything. Install `DeferringScheduler` to get the app's real ordering.
+- **A test can pass while testing nothing.** Two separate cases here: an env-gated suite that returns
+  immediately (`ShutdownVerificationTests`, found last round) and a fixture guard that swallows its own
+  setup failure (`CliRunnerTests`' port stub, found this round). Before writing new tests for a file,
+  check whether an existing suite only *looks* like it covers it — the per-file uncovered count is the
+  tell.
 
 ## Per-file pass (author: "each code must above 80")
 
