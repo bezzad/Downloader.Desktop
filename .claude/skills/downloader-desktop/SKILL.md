@@ -734,3 +734,11 @@ re-run of the same commit was green, and the exact CI command (coverage collecto
 CI's test step now carries `--blame-hang --blame-hang-timeout 180s --blame-crash` so the next occurrence
 kills the host and NAMES the test instead of leaving a silent 30-minute gap. To find what did not run, diff
 `--list-tests` against the job log's `Passed …` lines (`LC_ALL=C sort` both — plain `comm` mis-sorts these).
+
+**Never conditionally restore `LocalApiService`.** Three tests used the "remember whether it was running,
+only stop it if it wasn't" pattern, which PRESERVES another test's leak instead of clearing it — one leak
+then reached `AppShellStartupTests.Starting_up_builds_the_pages_and_re_applies_the_saved_choices`
+(`Assert.False(LocalApiService.IsRunning)`) and failed a test that had done nothing wrong. Note
+`ResetDefaultsCommand` re-applies the shipped defaults, and `EnableBrowserIntegration` defaults to ON, so
+the Settings reset test BINDS the listener. Always `Stop()` unconditionally in `finally`, and stop it once
+more to establish a baseline in any test that asserts on `IsRunning`.

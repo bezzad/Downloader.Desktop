@@ -569,7 +569,6 @@ public class SettingViewModelTests
         // Guard the developer's real machine state: ResetDefaults re-applies run-at-startup, which
         // writes (or deletes) a real autostart entry. Put back whatever was there.
         var startupWasEnabled = StartupService.IsEnabled();
-        var apiWasRunning = LocalApiService.IsRunning;
         var notificationsWereEnabled = NotificationService.Enabled;
         try
         {
@@ -589,8 +588,9 @@ public class SettingViewModelTests
         finally
         {
             StartupService.Apply(startupWasEnabled);
-            if (!apiWasRunning)
-                LocalApiService.Stop();
+            // Reset re-applies the shipped defaults, which turn browser integration ON and bind the
+            // listener — stop it unconditionally, or the next test reads it as its own doing.
+            LocalApiService.Stop();
             NotificationService.Enabled = notificationsWereEnabled;
             NotchService.Stop();
         }
