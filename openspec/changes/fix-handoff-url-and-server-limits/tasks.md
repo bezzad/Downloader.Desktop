@@ -32,6 +32,10 @@
 - [x] 3.3 Test that the retry is not repeated when the single-connection attempt is also refused, and that a normal 403 on a single-connection download is unaffected.
 - [x] 3.4 Add the distinct failure message (a server refusing several connections, naming the setting to lower) to **all 16** `Assets/i18n/*.json` packs; test the message selection for all three cases — concurrency refusal, expired link, extension hand-off — and that no pack is missing the key.
 
+## 3b. The two happy paths that are NOT covered end to end (carried, not forgotten)
+
+- [ ] 3b.1 Prove end to end that a refused first address still downloads from the second, and that a server tolerating only one connection still produces the file. Both were written and both had to be removed: they measured the ENGINE's chunking and retry timing, not the app, and failed on CI and under `taskset -c 0,1` while passing on a developer machine. The traps are recorded in `Integration/UrlFailoverTests` and the skill file — the file must be big enough for the engine to split it, "refuse while busy" is not reproducible because chunk overlap depends on core count, the engine spreads chunks across every url it is given (so it sometimes fetches from the second address inside the FIRST attempt), and `MaxTryAgainOnFailure = 0` makes it issue no request at all. Everything else about both behaviours is covered; this is the positive outcome only.
+
 ## 4. Close-out
 
 - [x] 4.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four.

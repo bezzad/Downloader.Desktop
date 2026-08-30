@@ -840,3 +840,21 @@ Related, from the reporter's own measurements: a server can serve a file over 1�
 **403 from the 4th on**. `LooksLikeConcurrencyRefusal` (403 + more than one planned connection) triggers
 one single-connection retry, and a 403 that survives it is reported as `Error_ServerRefusedConnections`,
 never as an expired link — the global maximum is a ceiling, not a quota every server has agreed to.
+
+### Writing an end-to-end test around a real engine download: four traps (2026-08-31)
+Two happy-path tests had to be abandoned after passing locally and failing on CI. Reproduce that
+environment with **`taskset -c 0,1 dotnet test -c Release`** — it fails the same way, and is the only
+cheap way to tell "the app is broken" from "the runner is small". The traps, in the order they bit:
+- **`MaxTryAgainOnFailure = 0` makes the engine issue NO request at all** and never complete. Use 1 when a
+  test wants minimal retrying; zero is not "no retries", it is "nothing happens".
+- **The engine spreads a download's chunks across every url it is given**, so with two loopback addresses
+  it can fetch from the SECOND one inside the first attempt — the app's failover never runs and the test
+  proves nothing. Worse, when the lead 403s it can report **Completed having written no file at all**.
+  (That empty-completion is a real product hazard, recorded in the change's tasks.)
+- **Whether parallel chunks OVERLAP depends on core count**: a "refuse while another request is in flight"
+  fixture refuses nothing on a two-core runner. Model the server on request SHAPE (e.g. refuse ranged
+  requests, serve whole-file ones) instead.
+- **A file has to be big enough for the engine to split it** — 256 KB is downloaded as one chunk, 2 MB
+  splits into eight.
+Also: `Assert.True(cond, $"...")` builds that message BEFORE the wait, so a failure message that reads
+"status=Running, requests=[]" may just be describing the starting state. Pass a `Func<string>`.
