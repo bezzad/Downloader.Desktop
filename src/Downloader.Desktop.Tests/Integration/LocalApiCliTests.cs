@@ -561,6 +561,11 @@ public class LocalApiEndToEndTests
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void Start_prefers_the_persisted_effective_port()
     {
+        // Establish a known state first: the service is a process-wide singleton whose Start() NO-OPS when
+        // it is already listening, so a leak from any earlier test would leave this one measuring that
+        // test's port (it read 15151 on CI while asserting 15152) instead of the persisted preference.
+        LocalApiService.Stop();
+
         // A config that remembers a non-default port from a previous run should bind that one first.
         // Pick a remembered port that is actually FREE right now — a live Downloader instance on this
         // machine may hold any port in the range (it held 15153 during the author's session).

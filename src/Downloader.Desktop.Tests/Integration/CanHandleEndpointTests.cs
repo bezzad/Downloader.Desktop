@@ -37,11 +37,11 @@ public class CanHandleEndpointTests
         LocalApiService.Manager = manager;
         LocalApiService.Config = config;
         LocalApiService.Plugins = plugins;
-        LocalApiService.Start();
-        Assert.True(LocalApiService.IsRunning);
-
         try
         {
+            LocalApiService.Start();
+            Assert.True(LocalApiService.IsRunning);
+
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
             var claimed = Json(client, "/api/can-handle?url=" + Uri.EscapeDataString("https://videos.example/watch?v=abc"));
@@ -82,10 +82,10 @@ public class CanHandleEndpointTests
         LocalApiService.Manager = manager;
         LocalApiService.Config = config;
         LocalApiService.Plugins = null; // as during startup, before plugins are wired
-        LocalApiService.Start();
-
         try
         {
+            LocalApiService.Start();
+
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var answer = Json(client, "/api/can-handle?url=" + Uri.EscapeDataString("https://videos.example/watch?v=abc"));
             Assert.False(answer.GetProperty("handled").GetBoolean());
