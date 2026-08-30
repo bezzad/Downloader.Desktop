@@ -20,10 +20,10 @@
 
 ## 2. The hand-off leads with the address the browser actually fetched
 
-- [ ] 2.1 Move the choice out of the listener into a pure `handOffUrls(item)` in `common.js` returning `{url, mirrors}`, and unit-test it: `finalUrl` leads with the clicked link as the fallback; no `mirrors` when the two are equal; the clicked link is used alone when there is no `finalUrl`; a non-http `finalUrl` is ignored.
-- [ ] 2.2 Use it in `background.js`, and keep the record's fallback list in the order 2.1 defines. Verify by test that the app-side `/api/add` turns that body into `Urls` in exactly that order (extend the existing hand-off test rather than writing a parallel one).
-- [ ] 2.3 Playwright e2e: a download whose redirect chain ends somewhere the stub app can fetch is handed over and completes; the stub asserts which URL arrived first. This is the case the reporter has confirmed works in the real world.
-- [ ] 2.4 Re-check the expired-link recovery still holds with the new order: the clicked link is still on the record, and `TryAutoRefreshLink` still re-resolves it from zero bytes for an extension hand-off (the existing tests must stay green — if one needed changing, say why in the commit).
+- [x] 2.1 Move the choice out of the listener into a pure `handOffUrls(item)` in `common.js` returning `{url, mirrors}`, and unit-test it: `finalUrl` leads with the clicked link as the fallback; no `mirrors` when the two are equal; the clicked link is used alone when there is no `finalUrl`; a non-http `finalUrl` is ignored.
+- [x] 2.2 Use it in `background.js`, and keep the record's fallback list in the order 2.1 defines. Verify by test that the app-side `/api/add` turns that body into `Urls` in exactly that order (extend the existing hand-off test rather than writing a parallel one).
+- [x] 2.3 Playwright e2e: a download whose redirect chain ends somewhere the stub app can fetch is handed over and completes; the stub asserts which URL arrived first. This is the case the reporter has confirmed works in the real world.
+- [x] 2.4 Re-check the expired-link recovery still holds with the new order: the clicked link is still on the record, and `TryAutoRefreshLink` still re-resolves it from zero bytes for an extension hand-off (the existing tests must stay green — if one needed changing, say why in the commit).
 
 ## 3. A server that refuses concurrency
 

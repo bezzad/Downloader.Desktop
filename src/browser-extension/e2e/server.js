@@ -41,6 +41,15 @@ function start() {
       return;
     }
 
+    // A mirror-shaped response: the address the user clicks is a handler that redirects to wherever the
+    // file actually lives. This is the shape of Softpedia's mirrors and APKMirror, where the clicked
+    // link serves nothing on a second request and only the chain's end has the bytes (issue #9).
+    if (urlPath.startsWith("/mirror-handler")) {
+      res.writeHead(302, { Location: "/sample.zip?attach=1&slow=1" });
+      res.end();
+      return;
+    }
+
     // An APKPure-shaped response: the path's last segment is a PACKAGE NAME (whose trailing dotted
     // run used to be mistaken for the file type), the content type identifies nothing, and the real
     // name — an .xapk, which no MIME type names — appears only in the response header (issue #9).

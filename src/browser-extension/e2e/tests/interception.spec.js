@@ -280,6 +280,31 @@ test.describe("download interception", () => {
   // the extension was always visible in the URL path — which is exactly why this shipped broken.
   // Here the path has no extension at all and only Content-Disposition names the file, the shape
   // GitHub releases / APKPure / Softpedia serve.
+  // v2.8.0 led the hand-off with the link the user CLICKED and kept the end of the redirect chain as a
+  // "fallback" that nothing ever tried, which broke every site serving the file from a different address
+  // than the page (Softpedia's mirrors, APKMirror — issue #9). The chain's end leads again, and the
+  // clicked link travels with it so the app can fall back to it.
+  test("a redirected download hands over the chain's end first, with the clicked link as fallback",
+    async ({ context }) => {
+      app = await startStubApp("accept");
+      test.skip(!app, "no free port in the app range for the stub");
+      await setCachedPort(context, app.port);
+      await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+      const page = await context.newPage();
+      await page.goto("/empty.html");
+      const clicked = "http://127.0.0.1:8991/mirror-handler?p=999";
+      await startBrowserDownload(context, clicked);
+
+      await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+      const body = app.adds[0].body;
+
+      // The address the browser actually fetched the bytes from leads...
+      expect(body.url).toContain("/sample.zip");
+      // ...and the clicked link is handed over too, so the app can try it when the first one fails.
+      expect(body.mirrors).toEqual([clicked]);
+    });
+
   test("a signed link with no extension in its path is still intercepted by type", async ({ context }) => {
     app = await startStubApp("accept");
     test.skip(!app, "no free port in the app range for the stub");
