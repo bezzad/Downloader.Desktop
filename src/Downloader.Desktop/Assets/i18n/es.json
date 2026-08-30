@@ -309,5 +309,6 @@
   "Det_RefreshMismatchBody": "El nuevo enlace indica {0}, pero esta descarga es de {1}. Continuar descarta lo descargado y empieza de cero.",
   "Det_RefreshDone": "Enlace actualizado: continuando la descarga.",
   "Error_SiteNeedsBrowserSession": "Este sitio solo entrega el vídeo a una sesión con la sesión iniciada en el navegador. Envía la página desde la extensión de Downloader: así se envía tu sesión actual junto con el enlace.",
-  "Error_ServerRefusedConnections": "El servidor rechazó varias conexiones a la vez. Reduce «Conexiones máximas» en Ajustes (2 o 3 suele funcionar) e inténtalo de nuevo."
+  "Error_ServerRefusedConnections": "El servidor rechazó varias conexiones a la vez. Reduce «Conexiones máximas» en Ajustes (2 o 3 suele funcionar) e inténtalo de nuevo.",
+  "Error_NothingDownloaded": "La descarga terminó sin generar ningún archivo: el servidor aceptó la petición pero no envió datos. Inténtalo de nuevo o vuelve a añadir el enlace si se repite."
 }

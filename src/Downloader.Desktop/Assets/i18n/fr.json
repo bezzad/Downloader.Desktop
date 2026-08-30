@@ -309,5 +309,6 @@
   "Det_RefreshMismatchBody": "Le nouveau lien indique {0}, mais ce téléchargement fait {1}. Continuer supprime ce qui est déjà téléchargé et recommence.",
   "Det_RefreshDone": "Lien mis à jour — le téléchargement continue.",
   "Error_SiteNeedsBrowserSession": "Ce site ne fournit la vidéo qu’à une session connectée dans le navigateur. Envoyez la page depuis l’extension Downloader : elle transmet votre session actuelle avec le lien.",
-  "Error_ServerRefusedConnections": "Le serveur a refusé plusieurs connexions simultanées. Réduisez « Connexions maximales » dans les réglages (2 ou 3 suffit généralement) et réessayez."
+  "Error_ServerRefusedConnections": "Le serveur a refusé plusieurs connexions simultanées. Réduisez « Connexions maximales » dans les réglages (2 ou 3 suffit généralement) et réessayez.",
+  "Error_NothingDownloaded": "Le téléchargement s’est terminé sans produire de fichier : le serveur a accepté la requête mais n’a envoyé aucune donnée. Réessayez, ou rajoutez le lien si cela se reproduit."
 }

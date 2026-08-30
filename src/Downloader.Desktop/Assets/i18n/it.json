@@ -309,5 +309,6 @@
   "Det_RefreshMismatchBody": "Il nuovo link indica {0}, ma questo download è di {1}. Continuando si scarta quanto scaricato e si ricomincia.",
   "Det_RefreshDone": "Link aggiornato: download in corso.",
   "Error_SiteNeedsBrowserSession": "Questo sito fornisce il video solo a una sessione con accesso effettuato nel browser. Invia la pagina dall’estensione Downloader: trasmette la tua sessione attuale insieme al link.",
-  "Error_ServerRefusedConnections": "Il server ha rifiutato più connessioni contemporanee. Riduci «Connessioni massime» nelle impostazioni (di solito bastano 2 o 3) e riprova."
+  "Error_ServerRefusedConnections": "Il server ha rifiutato più connessioni contemporanee. Riduci «Connessioni massime» nelle impostazioni (di solito bastano 2 o 3) e riprova.",
+  "Error_NothingDownloaded": "Il download è terminato senza produrre alcun file: il server ha accettato la richiesta ma non ha inviato dati. Riprova, o aggiungi di nuovo il link se succede ancora."
 }

@@ -47,6 +47,9 @@ public class LocalizationTests
             // What a server refusing several connections at once is told to the user — the failure that
             // used to be reported as an expired link, sending people after a link they had not lost.
             Assert.NotEqual("Error_ServerRefusedConnections", Localizer.Instance["Error_ServerRefusedConnections"]);
+            // A download that finished without producing a file — a green row over an empty folder is the
+            // one outcome worse than an honest failure, so its wording must exist everywhere.
+            Assert.NotEqual("Error_NothingDownloaded", Localizer.Instance["Error_NothingDownloaded"]);
         }
         finally
         {

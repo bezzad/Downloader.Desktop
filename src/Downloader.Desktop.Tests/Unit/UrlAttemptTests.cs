@@ -17,13 +17,16 @@ namespace Downloader.Desktop.Tests.Unit;
 public class UrlAttemptTests
 {
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public void The_chosen_address_leads_and_the_others_keep_their_order()
+    public void An_attempt_uses_exactly_one_address()
     {
         var urls = new[] { "a", "b", "c" };
 
-        Assert.Equal(new[] { "a", "b", "c" }, DownloadManager.OrderUrlsForAttempt(urls, 0));
-        Assert.Equal(new[] { "b", "a", "c" }, DownloadManager.OrderUrlsForAttempt(urls, 1));
-        Assert.Equal(new[] { "c", "a", "b" }, DownloadManager.OrderUrlsForAttempt(urls, 2));
+        // One address per attempt. Handing the engine the whole list makes it spread the download's chunks
+        // across addresses that are not equivalent — "the link the user clicked" and "where the browser
+        // ended up" — so a dead one kept receiving chunks and downloads finished empty.
+        Assert.Equal(new[] { "a" }, DownloadManager.OrderUrlsForAttempt(urls, 0));
+        Assert.Equal(new[] { "b" }, DownloadManager.OrderUrlsForAttempt(urls, 1));
+        Assert.Equal(new[] { "c" }, DownloadManager.OrderUrlsForAttempt(urls, 2));
     }
 
     /// <summary>A stale or nonsensical index must never leave a download with no address to request —
@@ -35,15 +38,16 @@ public class UrlAttemptTests
     public void An_out_of_range_attempt_falls_back_to_the_first_address(int attempt)
     {
         var urls = new[] { "a", "b", "c" };
-        Assert.Equal(urls, DownloadManager.OrderUrlsForAttempt(urls, attempt));
+        Assert.Equal(new[] { "a" }, DownloadManager.OrderUrlsForAttempt(urls, attempt));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public void A_single_address_is_returned_untouched()
+    public void A_single_address_download_always_uses_that_address()
     {
         var urls = new[] { "only" };
-        Assert.Same(urls, DownloadManager.OrderUrlsForAttempt(urls, 0));
-        Assert.Same(urls, DownloadManager.OrderUrlsForAttempt(urls, 1));
+        Assert.Equal(urls, DownloadManager.OrderUrlsForAttempt(urls, 0));
+        Assert.Equal(urls, DownloadManager.OrderUrlsForAttempt(urls, 1));
+        Assert.Empty(DownloadManager.OrderUrlsForAttempt(Array.Empty<string>(), 0));
     }
 
     // ── Which failures another address could fix ─────────────────────────────────────────────────────
@@ -136,6 +140,56 @@ public class UrlAttemptTests
     {
         Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(null, 8));
         Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(new IOException("disk full"), 8));
+    }
+
+    // ── A "finished" download that produced nothing ──────────────────────────────────────────────────
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_missing_or_empty_file_means_the_download_produced_nothing()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "dldesktop-empty-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var missing = Path.Combine(dir, "never-written.bin");
+            Assert.True(DownloadManager.LooksEmptyAfterCompletion(missing));
+
+            var empty = Path.Combine(dir, "empty.bin");
+            File.WriteAllBytes(empty, Array.Empty<byte>());
+            Assert.True(DownloadManager.LooksEmptyAfterCompletion(empty));
+
+            var real = Path.Combine(dir, "real.bin");
+            File.WriteAllBytes(real, new byte[] { 1 });
+            Assert.False(DownloadManager.LooksEmptyAfterCompletion(real));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_unknown_path_is_never_judged_empty()
+    {
+        // The engine did not say where it wrote. Guessing "empty" there would fail healthy downloads.
+        Assert.False(DownloadManager.LooksEmptyAfterCompletion(null));
+        Assert.False(DownloadManager.LooksEmptyAfterCompletion(""));
+        Assert.False(DownloadManager.LooksEmptyAfterCompletion("   "));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_download_that_produced_nothing_is_worth_another_address()
+    {
+        // It travels the failure path so the next address is tried, but it is NOT an expired link and must
+        // not be described as one.
+        var empty = new EmptyDownloadException("finished with no file");
+        Assert.True(DownloadManager.CanRetryWithAnotherUrl(empty));
+        Assert.False(DownloadManager.LooksLikeExpiredLinkError(empty));
+        // Over SEVERAL connections, finishing with nothing is also what a server refusing ranged requests
+        // looks like — every chunk is refused and no single status survives to the completion.
+        Assert.True(DownloadManager.LooksLikeConcurrencyRefusal(empty, 8));
+        // Over one connection it is not about concurrency, and backing off further would be meaningless.
+        Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(empty, 1));
     }
 
     private static HttpRequestException Http(HttpStatusCode status) =>

@@ -858,3 +858,19 @@ cheap way to tell "the app is broken" from "the runner is small". The traps, in 
   splits into eight.
 Also: `Assert.True(cond, $"...")` builds that message BEFORE the wait, so a failure message that reads
 "status=Running, requests=[]" may just be describing the starting state. Pass a `Func<string>`.
+
+### Give the engine ONE address per attempt (2026-08-31)
+`DownloadManager.OrderUrlsForAttempt` now hands the engine a single url and lets `TryNextUrl` walk the
+list. Reason: the engine spreads chunks across every url it is given, and a download's addresses are NOT
+equivalent mirrors — they are "the link the user clicked" and "where the browser ended up". Handing it
+both let a dead address keep receiving chunks, so a download could **finish with an empty file and a green
+row**, and the retry inherited the same poison. Two guards came out of it, keep both:
+- `LooksEmptyAfterCompletion` — a "successful" completion whose file is missing or zero-length becomes an
+  `EmptyDownloadException`, which travels the normal failure path (so the next address is tried) but has
+  its own wording (`Error_NothingDownloaded`) instead of inheriting "this link expired".
+- Resolve the finished file's path with the first **non-blank** candidate, not the first non-null: the
+  engine's package routinely carries an EMPTY `FileName` for a download that produced nothing, and `??`
+  accepts `""` — which silently disabled the guard for the exact case it exists for.
+**Still open:** with every request refused, the engine sometimes emits no completion event at all and the
+row sits Running for ever. The app cannot see it; it needs a watchdog. That is why the backoff's
+happy-path test is missing (it hangs ~1 run in 3), not because the backoff is unproven.

@@ -33,6 +33,86 @@ namespace Downloader.Desktop.Tests.Integration;
 /// </summary>
 public class UrlFailoverTests
 {
+    // ── A server that refuses concurrency (issue #9, Softpedia's secure mirror) ───────────────────────
+
+    /// <summary>The regression, end to end: the address the download leads with serves nothing, and the
+    /// file has to arrive anyway.
+    /// <para>
+    /// This was removed once as unreproducible and is back because the cause was real. The engine spreads
+    /// a download's chunks across every url it is given, so a lead address that refuses everything could
+    /// leave it "finished" having written NOTHING — the row went green, the folder stayed empty, and a
+    /// test waiting for a file waited for ever. The app now calls that what it is (see
+    /// <c>LooksEmptyAfterCompletion</c>), which both fixes the user-visible bug and makes this test
+    /// settle the same way on any machine.
+    /// </para></summary>
+    [AvaloniaFact(Timeout = 300_000)] // a real download; small CI runners are an order of magnitude slower
+    public async Task A_download_whose_first_address_is_refused_succeeds_on_the_second()
+    {
+        using var server = new PickyServer();
+        server.Refuse("/page", HttpStatusCode.Forbidden);
+        server.Serve("/file", Bytes(4096));
+
+        var folder = TempDir();
+        var manager = NewManager();
+        manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { server.Url + "page", server.Url + "file" },
+            SaveFolder = folder,
+            FileName = "app.zip",
+        }, autoStart: true);
+        var vm = manager.Items[0];
+
+        var saved = Path.Combine(folder, "app.zip");
+        await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
+                            || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)),
+            () => $"never settled: status={vm.Status} attempt={vm.UrlAttempt} err={vm.ErrorMessage} "
+                  + $"saved={File.Exists(saved)} package={vm.Download?.Package?.FileName} "
+                  + $"folder=[{string.Join(",", Directory.GetFiles(folder).Select(Path.GetFileName))}] "
+                  + $"requests=[{string.Join(" ; ", server.Log)}]");
+
+        Assert.Equal(global::Downloader.DownloadStatus.Completed, vm.Status);
+        Assert.Equal(Bytes(4096), File.ReadAllBytes(saved));
+    }
+
+    // A test is missing here, deliberately, and it is the one that would prove the happy path of the
+    // connection backoff: "a server that only tolerates one connection still downloads". It passes on its
+    // own and hangs roughly one run in three when the rest of this file has run first — the engine
+    // sometimes emits NO completion event at all once every one of its ranged requests has been refused,
+    // so the row sits Running for ever. That is a real user-facing hazard (a download that neither
+    // finishes nor fails), it is not something the app can currently observe, and it wants a watchdog
+    // rather than a cleverer test. Tracked in the change's tasks.
+    //
+    // Covered without it: the decision (Unit/UrlAttemptTests, both signals and both directions), that the
+    // backoff is really spent and the partial discarded, and the honest failure message below.
+
+    /// <summary>A server that accepts the request and sends nothing must not leave a green row over an
+    /// empty file — the hazard the change above introduced for every intercepted download, since those now
+    /// carry two addresses.</summary>
+    [AvaloniaFact(Timeout = 300_000)]
+    public async Task A_download_that_produces_no_file_is_not_reported_as_finished()
+    {
+        Localizer.Instance.Load("en");
+        using var server = new PickyServer();
+        server.Serve("/empty", Array.Empty<byte>()); // 200 OK, Content-Length 0
+
+        var folder = TempDir();
+        var manager = NewManager();
+        manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { server.Url + "empty" },
+            SaveFolder = folder,
+            FileName = "nothing.bin",
+        }, autoStart: true);
+        var vm = manager.Items[0];
+
+        await WaitFor(() => vm.Status is global::Downloader.DownloadStatus.Failed
+                                      or global::Downloader.DownloadStatus.Completed,
+            () => $"never settled: status={vm.Status} err={vm.ErrorMessage}");
+
+        Assert.Equal(global::Downloader.DownloadStatus.Failed, vm.Status);
+        Assert.Equal(Localizer.Instance["Error_NothingDownloaded"], vm.ErrorMessage);
+    }
+
     /// <summary>The app's own promotion of the next address, with no engine timing involved: a refused
     /// attempt must re-queue the download against the NEXT url rather than fail it. This is the mechanism
     /// v2.8.0 assumed existed and did not.</summary>

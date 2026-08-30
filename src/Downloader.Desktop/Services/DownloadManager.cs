@@ -795,6 +795,9 @@ public partial class DownloadManager : IDownloadManager
         // is passed through verbatim — except for the one case that used to be worded misleadingly: a site
         // that wants a signed-in session. The people who see it ARE signed in; what is missing is the
         // session reaching the app, which is what sending the page from the extension does.
+        if (Unwrap(ex).Any(e => e is EmptyDownloadException))
+            return Localizer.Instance["Error_NothingDownloaded"];
+
         if (ex is PluginResolveException resolve)
             return LooksLikeNeedsBrowserSession(resolve.Message)
                 ? Localizer.Instance["Error_SiteNeedsBrowserSession"]
@@ -952,20 +955,24 @@ public partial class DownloadManager : IDownloadManager
         return false;
     }
 
-    /// <summary>The item's addresses with the one for this attempt in front, the rest following in their
-    /// original order. Pure and total: an out-of-range or negative attempt simply leads with the first
-    /// address, so a stale counter can never leave a download with nothing to request.</summary>
+    /// <summary>The ONE address this attempt uses.
+    /// <para>
+    /// The engine takes a list and spreads a download's chunks across all of it, which is load spreading
+    /// between equivalent mirrors — and the addresses a download actually carries are not equivalent. They
+    /// are "the link the user clicked" and "where the browser ended up", and handing both over meant a
+    /// dead or refusing address kept receiving chunks: downloads finished with an empty file and a green
+    /// row, and a retry inherited the same poison. One address per attempt, walked in order by
+    /// <see cref="TryNextUrl"/>, tries every address the download has while keeping each attempt's outcome
+    /// attributable to the address that produced it.
+    /// </para>
+    /// Pure and total: an out-of-range or negative attempt falls back to the first address, so a stale
+    /// counter can never leave a download with nothing to request.</summary>
     internal static string[] OrderUrlsForAttempt(string[] urls, int attempt)
     {
-        if (urls.Length <= 1 || attempt <= 0 || attempt >= urls.Length)
+        if (urls.Length == 0)
             return urls;
-        var ordered = new string[urls.Length];
-        ordered[0] = urls[attempt];
-        var next = 1;
-        for (var i = 0; i < urls.Length; i++)
-            if (i != attempt)
-                ordered[next++] = urls[i];
-        return ordered;
+        var index = attempt >= 0 && attempt < urls.Length ? attempt : 0;
+        return new[] { urls[index] };
     }
 
     /// <summary>Pure helper (testable): could a DIFFERENT address plausibly succeed where this failure
@@ -978,6 +985,9 @@ public partial class DownloadManager : IDownloadManager
             return false;
         foreach (var e in Unwrap(ex))
         {
+            // Finished with nothing to show for it: a different address is precisely what might help.
+            if (e is EmptyDownloadException)
+                return true;
             if (e is OperationCanceledException or IOException or UnauthorizedAccessException)
                 return false;
             if (e is System.Net.Http.HttpRequestException { StatusCode: { } status })
@@ -1054,8 +1064,16 @@ public partial class DownloadManager : IDownloadManager
         if (ex == null || connectionsInFlight <= 1)
             return false;
         foreach (var e in Unwrap(ex))
+        {
             if (e is System.Net.Http.HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden })
                 return true;
+            // Finishing with NOTHING over several connections says the same thing: a server that refuses
+            // ranged requests answers each chunk with a refusal, and what reaches here is an empty
+            // download rather than any one status. Over a single connection it means something else, and
+            // the guard above already excluded that.
+            if (e is EmptyDownloadException)
+                return true;
+        }
         return false;
     }
 
@@ -1585,6 +1603,17 @@ public partial class DownloadManager : IDownloadManager
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
+            else if (NothingWasDownloaded(vm, e, out var savedPath))
+            {
+                // The engine reported success but there is no file, or an empty one. This really happens:
+                // when a download carries several addresses the engine spreads its chunks across them, and
+                // a lead address that refuses every request can leave it "finished" having written nothing
+                // — a green row and an empty folder, which is worse than an honest failure. Route it
+                // through the normal failure path so the next address is tried (issue #9).
+                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
+                HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
+                    "Completed with no data");
+            }
             else if (IsExpiredOrInvalidLink(vm, e))
             {
                 // The engine "completed", but the payload is a small web page (HTML), not the requested
@@ -1628,6 +1657,49 @@ public partial class DownloadManager : IDownloadManager
     /// fine and never flagged (knownSizeBeforeAttempt is null). A healthy resume finishes at the full size.</summary>
     public static bool LooksCorruptedAfterResume(long? knownSizeBeforeAttempt, long finalBytes) =>
         knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value;
+
+    /// <summary>Pure helper (testable): did a "successful" download actually produce nothing? True when the
+    /// file the engine says it wrote is missing or empty. A file that is merely SMALLER than expected is
+    /// not judged here — a server may legitimately report a size it then serves differently, and the
+    /// resumed-download case has its own check.</summary>
+    public static bool LooksEmptyAfterCompletion(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false; // nothing to judge; the engine never told us where it wrote
+        try
+        {
+            var info = new FileInfo(path);
+            return !info.Exists || info.Length == 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false; // can't tell — never fail a download on a filesystem hiccup
+        }
+    }
+
+    /// <summary>Where the engine says the finished file is, from the completion event or the package.</summary>
+    private static bool NothingWasDownloaded(DownloadItemViewModel vm,
+        System.ComponentModel.AsyncCompletedEventArgs e, out string savedPath)
+    {
+        // First NON-BLANK, not first non-null: the engine's package routinely carries an EMPTY file name
+        // when the download produced nothing, and `??` happily accepts "" — which read as "no path to
+        // judge" and let the very case this guard exists for slip through as a success.
+        savedPath = FirstNonBlank(
+            (e.UserState as DownloadPackage)?.FileName,
+            vm.Download?.Package?.FileName,
+            vm.GetItem()?.FilePath);
+        // A download the engine SKIPPED because the file already exists is handled well before this
+        // (TryMarkAlreadyExists) and never reaches here, so an empty file at this point is a real miss.
+        return LooksEmptyAfterCompletion(savedPath);
+    }
+
+    private static string FirstNonBlank(params string[] candidates) =>
+        candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+
+    /// <summary>The failure a no-data completion is reported as: its own type, so the recovery path can
+    /// treat it like a refused address while the row still says what really happened.</summary>
+    private static Exception EmptyDownloadError() =>
+        new EmptyDownloadException("the download finished without producing a file");
 
     /// <summary>An expired/anti-bot link often returns a small HTML error page with HTTP 200 instead of the
     /// file. Above this size we trust it's real content (real media files dwarf an error page).</summary>
