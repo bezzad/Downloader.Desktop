@@ -402,6 +402,14 @@ public partial class DownloadManager : IDownloadManager
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+        // A server that refused several simultaneous requests gets exactly one, this attempt only. The
+        // configured maximum stays what it is: it is a ceiling for downloads that can use it, not a number
+        // every server must accept (issue #9).
+        if (vm.ForceSingleConnection)
+        {
+            configuration.ChunkCount = 1;
+            configuration.ParallelDownload = false;
+        }
         // A per-item speed cap set in the details dialog wins over the global limit and survives restarts.
         if (item.HasCustomSpeedLimit)
             configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
@@ -411,6 +419,9 @@ public partial class DownloadManager : IDownloadManager
         ApplyRequestContext(configuration, item.Request);
         EnsureCookieFile(item);
         vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
+        // Captured NOW: the engine mutates this configuration while it runs, so it cannot be asked
+        // afterwards how many connections the attempt actually planned to use.
+        vm.PlannedConnections = ConnectionsInFlight(configuration);
         var fileName = item.FileName;
 
         // Build + start entirely off the UI thread. Resolving redirects and the engine's synchronous
@@ -776,7 +787,9 @@ public partial class DownloadManager : IDownloadManager
     /// while its OWN copy kept running must not be described as an expired link the user has to replace:
     /// the user has not lost anything, the browser is still fetching it. Naming the wrong problem sends
     /// people hunting for a fresh link they never needed (issue #9).</summary>
-    private static string DescribeFailure(Exception ex, DownloadItem item)
+    /// <param name="refusedEvenAlone">The download had already been retried over a single connection and
+    /// was refused again — which changes what the failure means, and what the user should do about it.</param>
+    private static string DescribeFailure(Exception ex, DownloadItem item, bool refusedEvenAlone = false)
     {
         // A resolver's own explanation is already the clearest thing anyone can say about the link, so it
         // is passed through verbatim — except for the one case that used to be worded misleadingly: a site
@@ -786,6 +799,12 @@ public partial class DownloadManager : IDownloadManager
             return LooksLikeNeedsBrowserSession(resolve.Message)
                 ? Localizer.Instance["Error_SiteNeedsBrowserSession"]
                 : resolve.Message;
+
+        // A download that already spent its single-connection retry and still failed with a 403 was
+        // refused by the server, not by a dead link. Telling that user to find a fresh link sends them
+        // hunting for something they never lost — what they need is a lower connection count (issue #9).
+        if (refusedEvenAlone && LooksLikeConcurrencyRefusal(ex, connectionsInFlight: 2))
+            return Localizer.Instance["Error_ServerRefusedConnections"];
 
         if (!LooksLikeExpiredLinkError(ex))
             return Describe(ex);
@@ -910,10 +929,22 @@ public partial class DownloadManager : IDownloadManager
         // usually the one that works, while re-resolving a spent single-use address just spends it again.
         if (TryNextUrl(vm, error))
             return true;
+        // Then the same address over a single connection: a 403 raised while several chunks were in
+        // flight is often the server refusing the CONCURRENCY, not the address (issue #9 — the reporter
+        // measured one mirror serving happily at 1-3 connections and refusing at 4+).
+        if (TryReduceConnections(vm, error))
+            return true;
         if (TryAutoRefreshLink(vm, error))
             return true;
 
-        vm.ErrorMessage = error != null ? DescribeFailure(error, vm.GetItem()) : fallbackMessage;
+        // "The server refused the connections" is only the better explanation while nothing has suggested
+        // the link itself is gone. Once the app has re-resolved the address even once and still been
+        // refused, the link is the story — telling that user to lower a setting sends them after something
+        // that was never the problem.
+        var refusedEvenAlone = vm.ForceSingleConnection && vm.LinkRefreshAttempts == 0;
+        vm.ErrorMessage = error != null
+            ? DescribeFailure(error, vm.GetItem(), refusedEvenAlone)
+            : fallbackMessage;
         vm.Status = DownloadStatus.Failed;
         AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
         if (NotifyFailedEnabled)
@@ -989,6 +1020,83 @@ public partial class DownloadManager : IDownloadManager
         return true;
     }
 
+    /// <summary>Delete the in-progress file the engine writes (<c>&lt;name&gt;.download</c>), so the next
+    /// attempt builds a fresh package instead of resuming the old one's layout. Best-effort: a file that
+    /// cannot be deleted just means the retry resumes, which is what would have happened anyway.</summary>
+    private static void DiscardPartialFile(DownloadItemViewModel vm)
+    {
+        var path = vm?.GetItem()?.FilePath;
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+        foreach (var candidate in new[] { path + ".download", path })
+        {
+            try
+            {
+                if (File.Exists(candidate))
+                    File.Delete(candidate);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                AppLog.Warn($"Couldn't clear the partial file before retrying: {ex.Message}");
+            }
+        }
+        vm.Downloaded = 0;
+        vm.Progress = 0;
+    }
+
+    /// <summary>Pure helper (testable): does this failure look like the server refusing the number of
+    /// simultaneous connections rather than the address itself? Only a 403 qualifies — the status a server
+    /// uses to refuse a request it understood — and only when more than one connection was actually in
+    /// flight. A 401/404/410 is about the address, and a 403 to a lone request is a real refusal, so
+    /// neither is worth spending an attempt on.</summary>
+    public static bool LooksLikeConcurrencyRefusal(Exception ex, int connectionsInFlight)
+    {
+        if (ex == null || connectionsInFlight <= 1)
+            return false;
+        foreach (var e in Unwrap(ex))
+            if (e is System.Net.Http.HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden })
+                return true;
+        return false;
+    }
+
+    /// <summary>How many requests this attempt had in flight at once, from the configuration it ran with.</summary>
+    private static int ConnectionsInFlight(DownloadConfiguration configuration)
+    {
+        if (configuration == null || !configuration.ParallelDownload)
+            return 1;
+        return configuration.ParallelCount > 0 ? configuration.ParallelCount : Math.Max(1, configuration.ChunkCount);
+    }
+
+    /// <summary>Queue one more attempt over a single connection. Bounded to once per download: if a lone
+    /// request is refused too, the server means it.</summary>
+    /// <returns>True when another attempt was queued (the caller must then NOT mark the row Failed).</returns>
+    private bool TryReduceConnections(DownloadItemViewModel vm, Exception error)
+    {
+        if (vm.ForceSingleConnection) // already tried; a second refusal is the server's real answer
+            return false;
+        // Only on a download that has not yet been through the expired-link machinery. The two explanations
+        // for a 403 — "too many connections" and "this address is gone" — are indistinguishable in the
+        // response, so they are kept disjoint: the connection backoff gets the FIRST attempt, and once a
+        // link has been re-resolved even once, the link path owns the download's fate.
+        if (vm.LinkRefreshAttempts > 0)
+            return false;
+        if (!LooksLikeConcurrencyRefusal(error, vm.PlannedConnections))
+            return false;
+
+        vm.ForceSingleConnection = true;
+        vm.Speed = 0;
+        vm.Status = DownloadStatus.Created;
+        // The partial file has to go with it. A resumed download keeps the chunk layout its package was
+        // created with, so asking for one connection while a half-finished eight-chunk file is on disk
+        // changes nothing — the retry would re-open the same eight ranges and be refused again. What is
+        // discarded is whatever the refusing server let through, which is nothing anyone can use.
+        DiscardPartialFile(vm);
+        AppLog.Info("The server refused several connections at once; retrying with one");
+        ReleaseEngine(vm);
+        Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
+        return true;
+    }
+
     /// <summary>Re-queues an item for another attempt WITHOUT resetting its automatic-refresh counter (that
     /// reset is reserved for the user's own Retry/Resume), so a dead link can't retry forever.</summary>
     private void RequeueForRefresh(DownloadItemViewModel vm)
@@ -1027,6 +1135,7 @@ public partial class DownloadManager : IDownloadManager
         // was dead yesterday may well be fine today, and so may the address that was refused.
         vm.LinkRefreshAttempts = 0;
         vm.UrlAttempt = 0;
+        vm.ForceSingleConnection = false;
 
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
@@ -1083,6 +1192,7 @@ public partial class DownloadManager : IDownloadManager
             return;
         vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic budgets (#6)
         vm.UrlAttempt = 0;          // …including which address leads, so Retry starts from the first again
+        vm.ForceSingleConnection = false;
         // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
         // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
         // disk are reused only when the fresh plan's part paths match (same url → same part file).
@@ -1491,6 +1601,7 @@ public partial class DownloadManager : IDownloadManager
                 vm.Progress = 100;
                 vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
                 vm.UrlAttempt = 0;
+                vm.ForceSingleConnection = false;
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
                 if (NotifyCompleteEnabled)

@@ -308,5 +308,6 @@
   "Det_RefreshMismatchTitle": "Este link aponta para outro arquivo",
   "Det_RefreshMismatchBody": "O novo link informa {0}, mas este download é de {1}. Continuar descarta o que já foi baixado e recomeça.",
   "Det_RefreshDone": "Link atualizado — o download continua.",
-  "Error_SiteNeedsBrowserSession": "Este site só entrega o vídeo a uma sessão com login feito no navegador. Envie a página pela extensão do Downloader — ela leva a sua sessão atual junto com o link."
+  "Error_SiteNeedsBrowserSession": "Este site só entrega o vídeo a uma sessão com login feito no navegador. Envie a página pela extensão do Downloader — ela leva a sua sessão atual junto com o link.",
+  "Error_ServerRefusedConnections": "O servidor recusou várias ligações em simultâneo. Reduza “Ligações máximas” nas Definições (2 ou 3 costuma funcionar) e tente novamente."
 }

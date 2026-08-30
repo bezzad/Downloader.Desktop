@@ -308,5 +308,6 @@
   "Det_RefreshMismatchTitle": "This link points to a different file",
   "Det_RefreshMismatchBody": "The new link reports {0}, but this download is {1}. Continuing discards what has been downloaded and starts over.",
   "Det_RefreshDone": "Link updated — continuing the download.",
-  "Error_SiteNeedsBrowserSession": "This site only gives the video to a signed-in browser session. Send the page from the Downloader browser extension — it passes your existing session along with the link."
+  "Error_SiteNeedsBrowserSession": "This site only gives the video to a signed-in browser session. Send the page from the Downloader browser extension — it passes your existing session along with the link.",
+  "Error_ServerRefusedConnections": "The server refused several connections at once. Lower “Maximum connections” in Settings (2 or 3 usually works) and try again."
 }

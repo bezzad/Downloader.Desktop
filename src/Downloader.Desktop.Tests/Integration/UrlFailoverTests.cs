@@ -11,6 +11,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
+using Localizer = Downloader.Desktop.Services.Localizer;
 using Downloader.Desktop.ViewModels;
 using Xunit;
 
@@ -49,11 +50,11 @@ public class UrlFailoverTests
         manager.Add(item, autoStart: true);
         var vm = manager.Items[0];
 
-        await WaitFor(() => vm.Status is global::Downloader.DownloadStatus.Completed
-                                       or global::Downloader.DownloadStatus.Failed);
+        var saved = Path.Combine(folder, "app.zip");
+        await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
+                            || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)));
 
         Assert.Equal(global::Downloader.DownloadStatus.Completed, vm.Status);
-        var saved = Path.Combine(folder, "app.zip");
         Assert.True(File.Exists(saved), "the file the second address serves must be on disk");
         Assert.Equal(Bytes(4096), await File.ReadAllBytesAsync(saved, TestContext.Current.CancellationToken));
     }
@@ -130,15 +131,80 @@ public class UrlFailoverTests
         Assert.True(server.Hits("/only") >= 1);
     }
 
+    // ── A server that refuses concurrency (issue #9, Softpedia's secure mirror) ───────────────────────
+
+    /// <summary>The reporter measured a mirror that serves the file over one connection and answers 403
+    /// once several are open, and our app applied its configured maximum to every download and then called
+    /// the resulting 403 an expired link. Here the same server: refuses while another request is in
+    /// flight, serves a lone one.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async Task A_server_that_only_tolerates_one_connection_still_downloads()
+    {
+        using var server = new PickyServer { RefuseWhenBusy = true };
+        server.Serve("/file", Bytes(4 * 1024 * 1024));
+
+        var folder = TempDir();
+        var manager = NewManager(chunkCount: 8);
+        manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { server.Url + "file" },
+            SaveFolder = folder,
+            FileName = "picky.bin",
+        }, autoStart: true);
+        var vm = manager.Items[0];
+
+        var saved = Path.Combine(folder, "picky.bin");
+        await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
+                            || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)));
+
+        Assert.True(vm.Status == global::Downloader.DownloadStatus.Completed,
+            $"status={vm.Status}, err={vm.ErrorMessage}, requests=[{string.Join(" ; ", server.Log)}]");
+        // Proof it succeeded for the right reason: the ranged (multi-connection) requests were refused,
+        // and the file only arrived once the app asked for it over a single connection. The row's own
+        // flag is no help here — a successful download clears it, as it should.
+        Assert.Contains(server.Log, r => r.StartsWith("GET bytes=", StringComparison.Ordinal));
+        Assert.Contains(server.Log, r => r.StartsWith("GET -", StringComparison.Ordinal));
+        Assert.Equal(Bytes(4 * 1024 * 1024),
+            await File.ReadAllBytesAsync(saved, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>And when the single-connection retry is refused too, the server meant it: fail, once, and
+    /// say the right thing — a 403 the app has already backed off from is not evidence that a link expired.
+    /// The server answers the size probe (so the download really does start over several connections) and
+    /// then refuses every body.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async Task A_server_that_refuses_even_one_connection_fails_with_the_honest_message()
+    {
+        Localizer.Instance.Load("en");
+        using var server = new PickyServer { RefuseBodies = true };
+        server.Serve("/nope", Bytes(4 * 1024 * 1024));
+
+        var manager = NewManager(chunkCount: 8);
+        manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { server.Url + "nope" },
+            SaveFolder = TempDir(),
+            FileName = "d.bin",
+        }, autoStart: true);
+        var vm = manager.Items[0];
+
+        await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed);
+
+        Assert.True(vm.ForceSingleConnection, "the single-connection retry must have been spent");
+        Assert.Equal(Localizer.Instance["Error_ServerRefusedConnections"], vm.ErrorMessage);
+        Assert.DoesNotContain("expired", vm.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-    private static DownloadManager NewManager()
+    private static DownloadManager NewManager(int chunkCount = 1)
     {
         var manager = new DownloadManager();
         var config = Config.New();
-        // Keep the engine's own retrying out of the picture: this suite is about which ADDRESS is used.
+        // Keep the engine's own retrying out of the picture: this suite is about which ADDRESS is used
+        // and how many connections it is used over, not about the engine's per-chunk retries.
         config.Settings.MaxTryAgainOnFailure = 1;
-        config.Settings.ChunkCount = 1;
+        config.Settings.ChunkCount = chunkCount;
         manager.Initialize(config);
         return manager;
     }
@@ -177,7 +243,24 @@ public class UrlFailoverTests
         private readonly Dictionary<string, byte[]> _files = new();
         private readonly Dictionary<string, HttpStatusCode> _refusals = new();
         private readonly ConcurrentDictionary<string, int> _hits = new();
+        private int _inFlight;
+        private int _maxConcurrent;
         public string Url { get; }
+
+        /// <summary>Refuse overlapping RANGE requests — the shape of a server that serves a file happily
+        /// over one connection and answers 403 once a download opens several at once. A whole-file request
+        /// is always served, so a client that backs off to a single connection gets its file.</summary>
+        public bool RefuseWhenBusy { get; init; }
+
+        /// <summary>Hold each response open this long, so concurrent requests really do overlap.</summary>
+        public int HoldMs { get; init; }
+
+        /// <summary>Answer the size probe normally but refuse every body — a server the download can
+        /// measure and then not fetch, at any number of connections.</summary>
+        public bool RefuseBodies { get; init; }
+
+        /// <summary>The most requests this server ever had in flight at once.</summary>
+        public int MaxConcurrent => _maxConcurrent;
 
         public PickyServer()
         {
@@ -197,6 +280,10 @@ public class UrlFailoverTests
         public int Hits(string path) => _hits.TryGetValue(path, out var n) ? n : 0;
         public int TotalHits => _hits.Values.Sum();
 
+        /// <summary>Every request, as "METHOD range concurrent=N" — the ground truth when a test disagrees
+        /// with what the engine is believed to do.</summary>
+        public ConcurrentQueue<string> Log { get; } = new();
+
         private async Task LoopAsync()
         {
             while (_listener.IsListening)
@@ -214,6 +301,36 @@ public class UrlFailoverTests
             {
                 var path = ctx.Request.Url?.AbsolutePath ?? "/";
                 _hits.AddOrUpdate(path, 1, (_, n) => n + 1);
+
+                var rangeHeader = ctx.Request.Headers["Range"];
+                // A one-byte range is the engine's size probe, not a connection the file is fetched over.
+                var isProbe = ctx.Request.HttpMethod == "HEAD"
+                              || string.Equals(rangeHeader, "bytes=0-0", StringComparison.Ordinal);
+                var isBody = !isProbe && !string.IsNullOrEmpty(rangeHeader);
+                var open = isBody ? Interlocked.Increment(ref _inFlight) : 0;
+                var busy = isBody && open > 1;
+                Log.Enqueue($"{ctx.Request.HttpMethod} {ctx.Request.Headers["Range"] ?? "-"} open={open}");
+                try
+                {
+                    int seen;
+                    var current = Volatile.Read(ref _inFlight);
+                    while (current > (seen = _maxConcurrent) &&
+                           Interlocked.CompareExchange(ref _maxConcurrent, current, seen) != seen) { }
+
+                    if (RefuseWhenBusy && busy && isBody)
+                    {
+                        ctx.Response.StatusCode = 403;
+                        ctx.Response.Close();
+                        return;
+                    }
+                    if (RefuseBodies && ctx.Request.HttpMethod != "HEAD")
+                    {
+                        ctx.Response.StatusCode = 403;
+                        ctx.Response.Close();
+                        return;
+                    }
+                    if (HoldMs > 0 && isBody)
+                        Thread.Sleep(HoldMs);
 
                 if (_refusals.TryGetValue(path, out var status))
                 {
@@ -247,6 +364,11 @@ public class UrlFailoverTests
                 if (ctx.Request.HttpMethod != "HEAD")
                     ctx.Response.OutputStream.Write(body, start, length);
                 ctx.Response.Close();
+                }
+                finally
+                {
+                    if (isBody) Interlocked.Decrement(ref _inFlight);
+                }
             }
             catch
             {

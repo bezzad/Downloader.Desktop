@@ -305,6 +305,18 @@ public class DownloadItemViewModel : ViewModelBase
     /// waited on. Session-only, and reset whenever the user starts the download themselves.</summary>
     public int UrlAttempt { get; set; }
 
+    /// <summary>Whether this attempt must use a single connection. Some servers serve a file happily over
+    /// one or two connections and answer 403 to the fourth — the user's maximum is a ceiling the download
+    /// may use, not a number every server has agreed to. Set for one retry after a refusal that looks like
+    /// it was about concurrency, and session-only like the counters above.</summary>
+    public bool ForceSingleConnection { get; set; }
+
+    /// <summary>How many connections this attempt SET OUT to use. Read from the configuration before the
+    /// engine sees it, because the engine rewrites that object as it goes (a file whose size it cannot
+    /// learn is downloaded over one connection, and the count it was given is overwritten with 1) — so by
+    /// the time a failure is being interpreted, the configuration no longer says what was attempted.</summary>
+    public int PlannedConnections { get; set; } = 1;
+
     private bool _isRefreshingLink;
 
     /// <summary>True while the app is fetching a fresh link for this download after the old one expired

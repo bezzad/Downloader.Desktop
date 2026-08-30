@@ -44,6 +44,9 @@ public class LocalizationTests
             // What a site that only serves a signed-in session is told to do. A pack missing it would fall
             // back to English for the one message whose old wording ("sign in") was actively misleading.
             Assert.NotEqual("Error_SiteNeedsBrowserSession", Localizer.Instance["Error_SiteNeedsBrowserSession"]);
+            // What a server refusing several connections at once is told to the user — the failure that
+            // used to be reported as an expired link, sending people after a link they had not lost.
+            Assert.NotEqual("Error_ServerRefusedConnections", Localizer.Instance["Error_ServerRefusedConnections"]);
         }
         finally
         {

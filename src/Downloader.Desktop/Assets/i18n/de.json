@@ -308,5 +308,6 @@
   "Det_RefreshMismatchTitle": "Dieser Link zeigt auf eine andere Datei",
   "Det_RefreshMismatchBody": "Der neue Link meldet {0}, dieser Download ist aber {1}. Fortfahren verwirft das bereits Geladene und beginnt von vorn.",
   "Det_RefreshDone": "Link aktualisiert – der Download läuft weiter.",
-  "Error_SiteNeedsBrowserSession": "Diese Seite gibt das Video nur an eine im Browser angemeldete Sitzung heraus. Sende die Seite über die Downloader-Browsererweiterung – sie übergibt deine bestehende Sitzung mit dem Link."
+  "Error_SiteNeedsBrowserSession": "Diese Seite gibt das Video nur an eine im Browser angemeldete Sitzung heraus. Sende die Seite über die Downloader-Browsererweiterung – sie übergibt deine bestehende Sitzung mit dem Link.",
+  "Error_ServerRefusedConnections": "Der Server hat mehrere gleichzeitige Verbindungen abgelehnt. Verringere „Maximale Verbindungen“ in den Einstellungen (2 oder 3 genügt meist) und versuche es erneut."
 }

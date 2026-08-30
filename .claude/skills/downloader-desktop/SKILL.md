@@ -811,3 +811,32 @@ which is a great way to spend an hour blaming the wrong thing. Set `ShellLaunche
 - `python3 - <<'PY'` heredocs and C# raw strings (`"""`) fight each other; write those edits with the Edit
   tool. And a `cd X && python3 …` whose `cd` fails runs nothing — check the shell's cwd, which this
   session's tooling resets independently of `cd`.
+
+## Mirrors are LOAD SPREADING, not failover — and three engine facts found proving it (2026-08-30)
+This is the fact a shipped regression turned on (v2.8.0, issue #9): the extension was changed to hand the
+app the clicked link as a download's address with the redirect chain's end as a "mirror", believing the
+mirror would be tried if the first failed. **It never was.** `DownloadPackage.Urls` spreads a download's
+chunks; each chunk is pinned to one url and the file probe reads `Urls[0]` only. Every site that serves
+its file from a different address than the page broke. The failover now lives in the app
+(`DownloadManager.TryNextUrl` + `OrderUrlsForAttempt` + `vm.UrlAttempt`), so the hand-off ordering is no
+longer load-bearing — but **do not re-add an "it'll fall back" assumption anywhere else**, and if you
+change which address leads, the test that must fail first is `Integration/UrlFailoverTests`.
+
+Three engine behaviours that cost an hour each while writing those tests:
+- **The engine MUTATES the `DownloadConfiguration` you hand it.** After a failure it may read
+  `ChunkCount=1, ParallelDownload=false` even though the attempt was configured for 8 — it rewrites the
+  object when it cannot learn the file's size. Anything that needs to know what an attempt *intended* must
+  capture it at Start (`vm.PlannedConnections`), never read it back afterwards.
+- **A resumed download keeps the chunk layout its package was created with.** Retrying with `ChunkCount=1`
+  over an existing `<name>.download` re-opens the SAME eight ranges — the setting is ignored. Backing off
+  to one connection therefore has to discard the partial file (`DiscardPartialFile`), which is why the
+  concurrency retry does.
+- **The size probe is `GET bytes=0-0`, not HEAD** (a loopback fixture that counts "concurrent GETs" will
+  count probes and refuse requests no real server would). And `Completed` is raised on the UI thread
+  *before* the file is necessarily in place: a test that reads the bytes must wait for the FILE, not the
+  status, or it flakes with FileNotFoundException.
+
+Related, from the reporter's own measurements: a server can serve a file over 1–3 connections and answer
+**403 from the 4th on**. `LooksLikeConcurrencyRefusal` (403 + more than one planned connection) triggers
+one single-connection retry, and a 403 that survives it is reported as `Error_ServerRefusedConnections`,
+never as an expired link — the global maximum is a ceiling, not a quota every server has agreed to.

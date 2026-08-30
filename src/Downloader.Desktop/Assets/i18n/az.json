@@ -308,5 +308,6 @@
   "Det_RefreshMismatchTitle": "Bu keçid başqa fayla aparır",
   "Det_RefreshMismatchBody": "Yeni keçid {0} bildirir, lakin bu yükləmə {1}-dır. Davam etmək yüklənmiş hissəni silir və yenidən başlayır.",
   "Det_RefreshDone": "Keçid yeniləndi — yükləmə davam edir.",
-  "Error_SiteNeedsBrowserSession": "Bu sayt videonu yalnız brauzerdə giriş etmiş sessiyaya verir. Səhifəni Downloader brauzer əlavəsindən göndərin — o, mövcud sessiyanızı keçidlə birlikdə ötürür."
+  "Error_SiteNeedsBrowserSession": "Bu sayt videonu yalnız brauzerdə giriş etmiş sessiyaya verir. Səhifəni Downloader brauzer əlavəsindən göndərin — o, mövcud sessiyanızı keçidlə birlikdə ötürür.",
+  "Error_ServerRefusedConnections": "Server eyni anda bir neçə bağlantını rədd etdi. Parametrlərdə “Maksimum bağlantı” dəyərini azaldın (adətən 2 və ya 3 kifayətdir) və yenidən cəhd edin."
 }

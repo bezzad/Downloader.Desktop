@@ -27,15 +27,15 @@
 
 ## 3. A server that refuses concurrency
 
-- [ ] 3.1 Add `DownloadManager.LooksLikeConcurrencyRefusal(Exception, int chunksInFlight)` (pure, tested): true only for 403 with more than one chunk in flight; false for 403 on a single connection, and false for 401/404/410 at any count.
-- [ ] 3.2 Retry once with `ChunkCount = 1` when 3.1 approves, bounded per download so it cannot repeat. Test with a loopback server that 403s any request while another is in flight and serves a lone request: the download must complete.
-- [ ] 3.3 Test that the retry is not repeated when the single-connection attempt is also refused, and that a normal 403 on a single-connection download is unaffected.
-- [ ] 3.4 Add the distinct failure message (a server refusing several connections, naming the setting to lower) to **all 16** `Assets/i18n/*.json` packs; test the message selection for all three cases — concurrency refusal, expired link, extension hand-off — and that no pack is missing the key.
+- [x] 3.1 Add `DownloadManager.LooksLikeConcurrencyRefusal(Exception, int chunksInFlight)` (pure, tested): true only for 403 with more than one chunk in flight; false for 403 on a single connection, and false for 401/404/410 at any count.
+- [x] 3.2 Retry once with `ChunkCount = 1` when 3.1 approves, bounded per download so it cannot repeat. Test with a loopback server that 403s any request while another is in flight and serves a lone request: the download must complete.
+- [x] 3.3 Test that the retry is not repeated when the single-connection attempt is also refused, and that a normal 403 on a single-connection download is unaffected.
+- [x] 3.4 Add the distinct failure message (a server refusing several connections, naming the setting to lower) to **all 16** `Assets/i18n/*.json` packs; test the message selection for all three cases — concurrency refusal, expired link, extension hand-off — and that no pack is missing the key.
 
 ## 4. Close-out
 
-- [ ] 4.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four.
-- [ ] 4.2 Bump the extension version (the hand-off changed) and refresh its README where it describes which link is handed over.
-- [ ] 4.3 Update `CLAUDE.md` / `docs/codebase-index.md`, and append to `.claude/skills/downloader-desktop/SKILL.md` the fact this change exists to record: **mirrors are load spreading, not failover** — the app now provides the failover, and any future change to the hand-off ordering must not assume the engine does it.
+- [x] 4.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four.
+- [x] 4.2 Bump the extension version (the hand-off changed) and refresh its README where it describes which link is handed over.
+- [x] 4.3 Update `CLAUDE.md` / `docs/codebase-index.md`, and append to `.claude/skills/downloader-desktop/SKILL.md` the fact this change exists to record: **mirrors are load spreading, not failover** — the app now provides the failover, and any future change to the hand-off ordering must not assume the engine does it.
 - [ ] 4.4 Release as a patch version so the reporter can retest, and only then draft the issue #9 reply covering both the regression and the connection finding. **Show the text and wait for the author's explicit OK before posting** (standing rule).
 - [ ] 4.5 `/opsx:sync` the delta specs into `openspec/specs/`, then `/opsx:archive` this change.

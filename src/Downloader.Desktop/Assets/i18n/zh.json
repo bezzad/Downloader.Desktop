@@ -308,5 +308,6 @@
   "Det_RefreshMismatchTitle": "此链接指向另一个文件",
   "Det_RefreshMismatchBody": "新链接显示为 {0}，而此下载为 {1}。继续将丢弃已下载的部分并重新开始。",
   "Det_RefreshDone": "链接已更新 — 继续下载。",
-  "Error_SiteNeedsBrowserSession": "该网站只把视频提供给浏览器中已登录的会话。请通过 Downloader 浏览器扩展发送该页面——它会连同链接一起传递你当前的会话。"
+  "Error_SiteNeedsBrowserSession": "该网站只把视频提供给浏览器中已登录的会话。请通过 Downloader 浏览器扩展发送该页面——它会连同链接一起传递你当前的会话。",
+  "Error_ServerRefusedConnections": "服务器拒绝了多个同时连接。请在设置中调低“最大连接数”（通常 2 或 3 即可），然后重试。"
 }

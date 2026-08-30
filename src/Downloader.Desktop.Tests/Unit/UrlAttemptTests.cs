@@ -100,6 +100,44 @@ public class UrlAttemptTests
         Assert.True(DownloadManager.CanRetryWithAnotherUrl(buried));
     }
 
+    // ── Telling "too many connections" apart from "this address is gone" ─────────────────────────────
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_forbidden_response_while_several_connections_were_open_looks_like_concurrency()
+    {
+        // The reporter's measurement: one mirror serves the file over 1-3 connections and answers 403
+        // from the 4th on. Ours applied the configured maximum to every download and then called the
+        // result an expired link.
+        Assert.True(DownloadManager.LooksLikeConcurrencyRefusal(Http(HttpStatusCode.Forbidden), 4));
+        Assert.True(DownloadManager.LooksLikeConcurrencyRefusal(Http(HttpStatusCode.Forbidden), 2));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_forbidden_response_to_a_lone_request_is_the_servers_real_answer()
+    {
+        // Nothing to back off from — retrying with "fewer" connections would repeat the same request.
+        Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(Http(HttpStatusCode.Forbidden), 1));
+        Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(Http(HttpStatusCode.Forbidden), 0));
+    }
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Gone)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public void Only_a_forbidden_response_is_read_as_a_concurrency_refusal(HttpStatusCode status)
+    {
+        // These are about the ADDRESS (or the server's own trouble); no number of connections changes them.
+        Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(Http(status), 8));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_missing_error_is_never_a_concurrency_refusal()
+    {
+        Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(null, 8));
+        Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(new IOException("disk full"), 8));
+    }
+
     private static HttpRequestException Http(HttpStatusCode status) =>
         new("server said no", inner: null, statusCode: status);
 }
