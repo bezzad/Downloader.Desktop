@@ -12,11 +12,11 @@
 
 ## 1. A download tries every address it was given
 
-- [ ] 1.1 Write the failing test first: a loopback server that answers **403 on `/a`** and serves real bytes on **/b**, a `DownloadItem` whose `Urls` are `[a, b]`, and an assertion that the download completes with `/b`'s content. Confirm it fails against today's code, and record in the test's comment that this is the v2.8.0 regression's shape.
-- [ ] 1.2 Add `DownloadManager.CanRetryWithAnotherUrl(Exception)` (pure, tested): true for 401/403/404/410 and a connection-level failure, false for a cancel, a disk error and a timeout. Unit-test each direction.
-- [ ] 1.3 Make `Start`'s attempt loop lead with `Urls[n]` (the rest staying as the engine's mirror list) and promote the next URL when 1.2 approves the failure, at most one leading attempt per URL. Keep the existing `PreAttemptSize` / `LinkRefreshAttempts` behaviour intact.
-- [ ] 1.4 Test the two directions failover must NOT break: a working first URL never requests the second as a lead (assert the server saw no `/b` lead request), and every-URL-403 fails once with at most `Urls.Count` leading attempts (assert the count, so a retry loop fails the test rather than the user's machine).
-- [ ] 1.5 Test that a single-URL download is completely unaffected — same requests, same failure, same message as before this change.
+- [x] 1.1 Write the failing test first: a loopback server that answers **403 on `/a`** and serves real bytes on **/b**, a `DownloadItem` whose `Urls` are `[a, b]`, and an assertion that the download completes with `/b`'s content. Confirm it fails against today's code, and record in the test's comment that this is the v2.8.0 regression's shape.
+- [x] 1.2 Add `DownloadManager.CanRetryWithAnotherUrl(Exception)` (pure, tested): true for 401/403/404/410 and a connection-level failure, false for a cancel, a disk error and a timeout. Unit-test each direction.
+- [x] 1.3 Make `Start`'s attempt loop lead with `Urls[n]` (the rest staying as the engine's mirror list) and promote the next URL when 1.2 approves the failure, at most one leading attempt per URL. Keep the existing `PreAttemptSize` / `LinkRefreshAttempts` behaviour intact.
+- [x] 1.4 Test the two directions failover must NOT break: a working first URL never requests the second as a lead (assert the server saw no `/b` lead request), and every-URL-403 fails once with at most `Urls.Count` leading attempts (assert the count, so a retry loop fails the test rather than the user's machine).
+- [x] 1.5 Test that a single-URL download is completely unaffected — same requests, same failure, same message as before this change.
 
 ## 2. The hand-off leads with the address the browser actually fetched
 

@@ -380,6 +380,10 @@ public partial class DownloadManager : IDownloadManager
                    ?? Array.Empty<string>();
         if (urls.Length == 0)
             return;
+        // Which address leads THIS attempt. The engine pins each chunk to one of the urls it is given and
+        // probes the file with the first one only, so a refused lead is not something the extra urls can
+        // rescue — the app has to lead with a different one and try again (see TryNextUrl).
+        urls = OrderUrlsForAttempt(urls, vm.UrlAttempt);
 
         var folder = string.IsNullOrWhiteSpace(item.SaveFolder)
             ? _config?.Settings?.DefaultSavePath
@@ -479,8 +483,11 @@ public partial class DownloadManager : IDownloadManager
                     urls[0] = resolved;
                 }
 
-                // DownloadService (not the single-URL DownloadBuilder) so mirrors are real fallbacks
-                // and the engine's internal logs flow into our log file via the shared logger factory.
+                // DownloadService (not the single-URL DownloadBuilder) so the item's other addresses can
+                // spread a download's chunks, and the engine's internal logs flow into our log file via the
+                // shared logger factory. NOTE: those extra urls are load spreading, NOT failover — a chunk
+                // is pinned to one of them and the file probe uses the lead only. Falling back to another
+                // address is the app's job, above.
                 var download = new DownloadService(configuration, AppLog.Factory);
                 // Subscribe before starting so no early event is missed (handlers marshal to UI themselves).
                 Attach(vm, download);
@@ -898,6 +905,11 @@ public partial class DownloadManager : IDownloadManager
     /// another attempt); false when the row was marked Failed.</returns>
     private bool HandleFailure(DownloadItemViewModel vm, Exception error, string fallbackMessage, string logPrefix)
     {
+        // Another ADDRESS first, then a fresh signature for the current one: when a download carries both
+        // the end of the browser's redirect chain and the link that was clicked, the second address is
+        // usually the one that works, while re-resolving a spent single-use address just spends it again.
+        if (TryNextUrl(vm, error))
+            return true;
         if (TryAutoRefreshLink(vm, error))
             return true;
 
@@ -907,6 +919,74 @@ public partial class DownloadManager : IDownloadManager
         if (NotifyFailedEnabled)
             NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
         return false;
+    }
+
+    /// <summary>The item's addresses with the one for this attempt in front, the rest following in their
+    /// original order. Pure and total: an out-of-range or negative attempt simply leads with the first
+    /// address, so a stale counter can never leave a download with nothing to request.</summary>
+    internal static string[] OrderUrlsForAttempt(string[] urls, int attempt)
+    {
+        if (urls.Length <= 1 || attempt <= 0 || attempt >= urls.Length)
+            return urls;
+        var ordered = new string[urls.Length];
+        ordered[0] = urls[attempt];
+        var next = 1;
+        for (var i = 0; i < urls.Length; i++)
+            if (i != attempt)
+                ordered[next++] = urls[i];
+        return ordered;
+    }
+
+    /// <summary>Pure helper (testable): could a DIFFERENT address plausibly succeed where this failure
+    /// happened? A server that refused, lost or hid the address, or never answered at all, says nothing
+    /// about the other addresses the download carries. A cancel, a disk error or a timeout does — retrying
+    /// those against another address would just repeat the same problem more slowly.</summary>
+    public static bool CanRetryWithAnotherUrl(Exception ex)
+    {
+        if (ex == null)
+            return false;
+        foreach (var e in Unwrap(ex))
+        {
+            if (e is OperationCanceledException or IOException or UnauthorizedAccessException)
+                return false;
+            if (e is System.Net.Http.HttpRequestException { StatusCode: { } status })
+                return status is System.Net.HttpStatusCode.Unauthorized
+                    or System.Net.HttpStatusCode.Forbidden
+                    or System.Net.HttpStatusCode.NotFound
+                    or System.Net.HttpStatusCode.Gone;
+            // No status at all: the request never completed (connection refused, DNS, reset). Another
+            // address is exactly what might work.
+            if (e is System.Net.Http.HttpRequestException or System.Net.Sockets.SocketException)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Promote the next address and queue another attempt. This is the failover the engine does NOT do:
+    /// its extra urls spread a download's chunks, but a refused lead fails the whole download while a
+    /// perfectly good second address sits unused — which is how handing the app "a fallback" silently
+    /// achieved nothing (issue #9, v2.8.0).
+    /// </summary>
+    /// <returns>True when another attempt was queued (the caller must then NOT mark the row Failed).</returns>
+    private bool TryNextUrl(DownloadItemViewModel vm, Exception error)
+    {
+        var urls = vm.GetItem()?.Urls;
+        if (urls == null || urls.Count <= 1)
+            return false;
+        // One leading attempt per address, so a set of dead addresses fails once instead of looping.
+        if (vm.UrlAttempt + 1 >= urls.Count)
+            return false;
+        if (!CanRetryWithAnotherUrl(error))
+            return false;
+
+        vm.UrlAttempt++;
+        vm.Speed = 0;
+        vm.Status = DownloadStatus.Created; // queued, not failed: the app is still working on it
+        AppLog.Info($"Address {vm.UrlAttempt} of {urls.Count} was refused; trying the next one");
+        ReleaseEngine(vm);
+        Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
+        return true;
     }
 
     /// <summary>Re-queues an item for another attempt WITHOUT resetting its automatic-refresh counter (that
@@ -943,9 +1023,10 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
             return;
 
-        // The user asked for this attempt, so the automatic link-refresh budget starts over (issue #6):
-        // a link that was dead yesterday may well be fine today.
+        // The user asked for this attempt, so the automatic budgets start over (issue #6): a link that
+        // was dead yesterday may well be fine today, and so may the address that was refused.
         vm.LinkRefreshAttempts = 0;
+        vm.UrlAttempt = 0;
 
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
@@ -1000,7 +1081,8 @@ public partial class DownloadManager : IDownloadManager
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
-        vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic-refresh budget (#6)
+        vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic budgets (#6)
+        vm.UrlAttempt = 0;          // …including which address leads, so Retry starts from the first again
         // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
         // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
         // disk are reused only when the fresh plan's part paths match (same url → same part file).
@@ -1407,7 +1489,8 @@ public partial class DownloadManager : IDownloadManager
             else
             {
                 vm.Progress = 100;
-                vm.LinkRefreshAttempts = 0; // it worked — the refresh budget is spent only on live trouble
+                vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
+                vm.UrlAttempt = 0;
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
                 if (NotifyCompleteEnabled)

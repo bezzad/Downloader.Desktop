@@ -298,6 +298,13 @@ public class DownloadItemViewModel : ViewModelBase
     /// download completes or when the user starts/retries it.</summary>
     public int LinkRefreshAttempts { get; set; }
 
+    /// <summary>Which of the item's addresses is leading the current attempt (an index into
+    /// <see cref="DownloadItem.Urls"/>). A download is handed several addresses — the end of the browser's
+    /// redirect chain and the link the user clicked, or a set of mirrors — and only the leading one is
+    /// actually requested by the engine's file probe, so a refused lead has to be replaced rather than
+    /// waited on. Session-only, and reset whenever the user starts the download themselves.</summary>
+    public int UrlAttempt { get; set; }
+
     private bool _isRefreshingLink;
 
     /// <summary>True while the app is fetching a fresh link for this download after the old one expired
