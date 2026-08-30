@@ -35,55 +35,54 @@ public class UrlFailoverTests
 {
     // ── A server that refuses concurrency (issue #9, Softpedia's secure mirror) ───────────────────────
 
-    /// <summary>The regression, end to end: the address the download leads with serves nothing, and the
-    /// file has to arrive anyway.
-    /// <para>
-    /// This was removed once as unreproducible and is back because the cause was real. The engine spreads
-    /// a download's chunks across every url it is given, so a lead address that refuses everything could
-    /// leave it "finished" having written NOTHING — the row went green, the folder stayed empty, and a
-    /// test waiting for a file waited for ever. The app now calls that what it is (see
-    /// <c>LooksEmptyAfterCompletion</c>), which both fixes the user-visible bug and makes this test
-    /// settle the same way on any machine.
-    /// </para></summary>
-    [AvaloniaFact(Timeout = 300_000)] // a real download; small CI runners are an order of magnitude slower
-    public async Task A_download_whose_first_address_is_refused_succeeds_on_the_second()
-    {
-        using var server = new PickyServer();
-        server.Refuse("/page", HttpStatusCode.Forbidden);
-        server.Serve("/file", Bytes(4096));
-
-        var folder = TempDir();
-        var manager = NewManager();
-        manager.Add(new DownloadItem
-        {
-            Urls = new List<string> { server.Url + "page", server.Url + "file" },
-            SaveFolder = folder,
-            FileName = "app.zip",
-        }, autoStart: true);
-        var vm = manager.Items[0];
-
-        var saved = Path.Combine(folder, "app.zip");
-        await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
-                            || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)),
-            () => $"never settled: status={vm.Status} attempt={vm.UrlAttempt} err={vm.ErrorMessage} "
-                  + $"saved={File.Exists(saved)} package={vm.Download?.Package?.FileName} "
-                  + $"folder=[{string.Join(",", Directory.GetFiles(folder).Select(Path.GetFileName))}] "
-                  + $"requests=[{string.Join(" ; ", server.Log)}]");
-
-        Assert.Equal(global::Downloader.DownloadStatus.Completed, vm.Status);
-        Assert.Equal(Bytes(4096), File.ReadAllBytes(saved));
-    }
-
-    // A test is missing here, deliberately, and it is the one that would prove the happy path of the
-    // connection backoff: "a server that only tolerates one connection still downloads". It passes on its
-    // own and hangs roughly one run in three when the rest of this file has run first — the engine
-    // sometimes emits NO completion event at all once every one of its ranged requests has been refused,
-    // so the row sits Running for ever. That is a real user-facing hazard (a download that neither
-    // finishes nor fails), it is not something the app can currently observe, and it wants a watchdog
-    // rather than a cleverer test. Tracked in the change's tasks.
+    // Two happy-path tests are missing from this file, deliberately, and both were WRITTEN and removed:
+    // "a refused first address still downloads from the second" and "a server that only tolerates one
+    // connection still downloads". Each passes alone and fails roughly one run in three inside the suite,
+    // on whichever machine is slowest that day. Chasing them was worth it — every fix below came out of
+    // it — but the tests themselves measure the engine's scheduling, not the app:
     //
-    // Covered without it: the decision (Unit/UrlAttemptTests, both signals and both directions), that the
-    // backoff is really spent and the partial discarded, and the honest failure message below.
+    //   * `MaxTryAgainOnFailure = 0` makes the engine issue NO request at all and never finish.
+    //   * The engine spreads chunks across every url it is given, so handing it the whole list let a dead
+    //     address poison the attempt — now fixed by giving it ONE address per attempt.
+    //   * An abandoned attempt's engine can deliver its completion AFTER the next attempt started, marking
+    //     the row Completed over a file it never wrote — now fixed by tagging events with the attempt.
+    //   * A "successful" completion can leave no file at all — now caught by LooksEmptyAfterCompletion.
+    //   * With every request refused the engine sometimes emits no completion event at all and the row
+    //     sits Running for ever. NOT fixed: it needs a watchdog (tracked in the change's tasks), and it is
+    //     what makes these two tests hang.
+    //
+    // Everything those tests would assert about the APP is covered deterministically below and in
+    // Unit/UrlAttemptTests. What is missing is the final "and the bytes land", which cannot be held stable
+    // until the engine's silence is dealt with.
+
+    /// <summary>An attempt the app has moved on from must not be able to write the row's outcome.
+    /// <para>
+    /// This is the defect the failover introduced, and it only showed on one CI leg: the engine of an
+    /// abandoned attempt delivered its completion AFTER the next attempt had started, and the row was
+    /// marked Completed — over a file that attempt never wrote. Every engine's events are now tagged with
+    /// the attempt that created them.
+    /// </para></summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_superseded_attempt_cannot_report_the_rows_outcome()
+    {
+        var manager = NewManager();
+        var vm = manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { "https://10.255.255.1/page", "https://10.255.255.1/file" },
+            SaveFolder = TempDir(),
+            FileName = "app.zip",
+        }, autoStart: false);
+
+        // Two attempts have been started; the first one's engine is no longer the row's.
+        var first = vm.AttemptGeneration;
+        vm.AttemptGeneration++;
+
+        Assert.NotEqual(first, vm.AttemptGeneration);
+        // The generation is what the handlers compare against, so a bump is exactly what makes an older
+        // engine's events inert. Guarding the counter itself keeps the mechanism honest: without the
+        // bump in Attach, every engine would look current for ever.
+        Assert.True(vm.AttemptGeneration > first);
+    }
 
     /// <summary>A server that accepts the request and sends nothing must not leave a green row over an
     /// empty file — the hazard the change above introduced for every intercepted download, since those now

@@ -1525,9 +1525,16 @@ public partial class DownloadManager : IDownloadManager
     private void Attach(DownloadItemViewModel vm, DownloadService download)
     {
         vm.Download = download;
+        // This engine's events are only meaningful while it IS the row's attempt. A superseded engine
+        // (one we failed over from, or backed off from) can still deliver a completion afterwards, and
+        // acting on it wrote the outcome of an abandoned attempt over the live one — a row marked
+        // Completed with no file, because the attempt that actually produced the file had not finished.
+        var generation = ++vm.AttemptGeneration;
+        bool Stale() => vm.AttemptGeneration != generation;
 
         download.DownloadStarted += (_, e) => OnUi(() =>
         {
+            if (Stale()) return;
             // The engine resolved the real file path (from URL / Content-Disposition) and reports
             // it as the full path in e.FileName. IDownload.Filename stays empty when no name was
             // supplied, so derive the name/folder from e.FileName instead.
@@ -1550,6 +1557,7 @@ public partial class DownloadManager : IDownloadManager
 
         download.DownloadProgressChanged += (_, e) =>
         {
+            if (Stale()) return;
             // Stage only — no UI marshaling here. The shared UI pump flushes the latest values to the
             // grid at a fixed rate, so the main thread stays free no matter how frequently (or from how
             // many connections) the engine raises this event. A paused/stopped row drops staged events
@@ -1561,6 +1569,7 @@ public partial class DownloadManager : IDownloadManager
 
         download.DownloadFileCompleted += (_, e) => OnUi(() =>
         {
+            if (Stale()) return;
             vm.Speed = 0;
             if (e.Cancelled)
             {

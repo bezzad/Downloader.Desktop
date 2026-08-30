@@ -311,6 +311,12 @@ public class DownloadItemViewModel : ViewModelBase
     /// it was about concurrency, and session-only like the counters above.</summary>
     public bool ForceSingleConnection { get; set; }
 
+    /// <summary>Which attempt is the live one. Bumped every time the row starts a fresh engine, and
+    /// captured by that engine's event handlers: an engine we have moved on from can still deliver events
+    /// afterwards (its own completion arrives while the NEXT attempt is already running), and honouring
+    /// them let an abandoned attempt mark the row Completed over a file that was never written.</summary>
+    public int AttemptGeneration { get; set; }
+
     /// <summary>How many connections this attempt SET OUT to use. Read from the configuration before the
     /// engine sees it, because the engine rewrites that object as it goes (a file whose size it cannot
     /// learn is downloaded over one connection, and the count it was given is overwritten with 1) — so by

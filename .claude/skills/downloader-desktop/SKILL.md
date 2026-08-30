@@ -874,3 +874,11 @@ row**, and the retry inherited the same poison. Two guards came out of it, keep 
 **Still open:** with every request refused, the engine sometimes emits no completion event at all and the
 row sits Running for ever. The app cannot see it; it needs a watchdog. That is why the backoff's
 happy-path test is missing (it hangs ~1 run in 3), not because the backoff is unproven.
+
+### An abandoned attempt's engine can still write the row's outcome
+Every retry path (`TryNextUrl`, `TryReduceConnections`, `TryAutoRefreshLink`) releases the current engine
+and starts a new one — but the OLD engine can still deliver its completion afterwards. Acting on it marked
+rows Completed over files that attempt never wrote (seen only on macOS/Debug CI: `status=Completed`,
+`folder=[]`). `Attach` now stamps each engine's handlers with `vm.AttemptGeneration` and drops events from
+any engine that is no longer the row's. Any new retry path must go through the same `Attach`, and any new
+engine event handler must keep the `Stale()` check.
