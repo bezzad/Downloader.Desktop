@@ -136,6 +136,14 @@ public class SingleInstanceTests : IDisposable
     [Fact(Timeout = TestTimeouts.SlowMs)]
     public void Forwarding_to_nothing_reports_failure_rather_than_hanging()
     {
+        // Any listener this assembly left behind is ours to close; a REAL Downloader running on the
+        // developer's machine is not, and it answers the handshake exactly as it should — so the premise
+        // of this test simply does not hold then, and pretending otherwise would report a defect that is
+        // not there.
+        SingleInstanceService.Stop();
+        Assert.SkipWhen(SingleInstanceService.TryForwardAdd("{}"),
+            "a real Downloader is running on this machine and answers the handshake");
+
         // Nothing is listening, so the CLI must fall back to starting the app itself.
         Assert.False(SingleInstanceService.TryForwardAdd("{\"url\":\"https://example.invalid/f.zip\"}"));
     }

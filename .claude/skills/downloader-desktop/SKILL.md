@@ -958,3 +958,17 @@ log; `RunUiPumpTickOnce()` is the test seam, and `Unit/TimerTickSafetyTests` inj
 `StatsChanged`/`ListChanged` listener to pin it. Rule: **no DispatcherTimer handler may throw.**
 Diagnosis recipe: `gh api repos/<o>/<r>/actions/runs/<id>/artifacts`, download the leg's artifact,
 `grep 'Completed="False"' Sequence_*.xml`, then `dotnet-dump analyze <dmp> -c pstacks`.
+
+### The real fix for the dispatcher deaths: `Dispatcher.UIThread.UnhandledException`
+Avalonia 12 raises it (WPF-style, with `e.Handled`) for anything that throws on the UI thread — a posted
+job, a timer tick, an `async void` continuation. `App.Initialize()` now subscribes, logs and sets
+`Handled = true`, which is the floor under every one of the ~20 `Dispatcher.UIThread.Post` sites and the
+`OnUi` helper. Without it, ONE throwing job ends the thread: the app's window freezes silently, and the
+headless suite loses the dispatcher, after which no test runs or times out. Tests host the real `App`, so
+the suite is covered by the same hook. `Unit/TimerTickSafetyTests` pins it — verified by commenting the
+hook out and watching the test go red, which is worth repeating for any "safety net" test.
+
+### `SingleInstanceTests.Forwarding_to_nothing…` fails when YOUR Downloader is open
+The lock ports (15150/15156–15158) are process-wide, so a real app running on the dev machine answers the
+handshake and `TryForwardAdd` correctly returns true. Check with `ss -ltnp | grep 1515`. The test now
+`Assert.SkipWhen`s on it — don't "fix" the service for this.

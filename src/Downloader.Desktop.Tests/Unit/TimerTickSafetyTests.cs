@@ -43,4 +43,23 @@ public class TimerTickSafetyTests
         // EvaluateSchedules is what the scheduler timer calls; the same guard wraps it there.
         manager.EvaluateSchedules();
     }
+
+    /// <summary>
+    /// The floor: a job posted to the dispatcher that throws must not end the thread running it. Without
+    /// the app's safety net this killed the shared headless dispatcher, and every later test then waited
+    /// for a thread that no longer existed — no result, no timeout, just a three-minute CI abort.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_throwing_posted_job_does_not_end_the_dispatcher()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => throw new InvalidOperationException("boom"));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Still alive: a job queued after the failure runs.
+        var ran = false;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => ran = true);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(ran, "the dispatcher stopped running jobs after one of them threw");
+    }
 }
