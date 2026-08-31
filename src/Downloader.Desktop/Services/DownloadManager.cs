@@ -108,6 +108,8 @@ public partial class DownloadManager : IDownloadManager
 
         if (flushed)
             StatsChanged?.Invoke();
+
+        FailStalledDownloads();
         if (!active)
             _uiTimer.Stop();
     }
@@ -422,6 +424,7 @@ public partial class DownloadManager : IDownloadManager
         // Captured NOW: the engine mutates this configuration while it runs, so it cannot be asked
         // afterwards how many connections the attempt actually planned to use.
         vm.PlannedConnections = ConnectionsInFlight(configuration);
+        vm.LastProgressUtc = DateTime.UtcNow; // the watchdog measures silence from here
         var fileName = item.FileName;
 
         // Build + start entirely off the UI thread. Resolving redirects and the engine's synchronous
@@ -798,6 +801,9 @@ public partial class DownloadManager : IDownloadManager
         if (Unwrap(ex).Any(e => e is EmptyDownloadException))
             return Localizer.Instance["Error_NothingDownloaded"];
 
+        if (Unwrap(ex).Any(e => e is DownloadStalledException))
+            return Localizer.Instance["Error_DownloadStalled"];
+
         if (ex is PluginResolveException resolve)
             return LooksLikeNeedsBrowserSession(resolve.Message)
                 ? Localizer.Instance["Error_SiteNeedsBrowserSession"]
@@ -985,8 +991,9 @@ public partial class DownloadManager : IDownloadManager
             return false;
         foreach (var e in Unwrap(ex))
         {
-            // Finished with nothing to show for it: a different address is precisely what might help.
-            if (e is EmptyDownloadException)
+            // Finished with nothing to show for it, or stopped responding altogether: a different
+            // address is precisely what might help in both cases.
+            if (e is EmptyDownloadException or DownloadStalledException)
                 return true;
             if (e is OperationCanceledException or IOException or UnauthorizedAccessException)
                 return false;
@@ -1666,6 +1673,54 @@ public partial class DownloadManager : IDownloadManager
     /// fine and never flagged (knownSizeBeforeAttempt is null). A healthy resume finishes at the full size.</summary>
     public static bool LooksCorruptedAfterResume(long? knownSizeBeforeAttempt, long finalBytes) =>
         knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value;
+
+    /// <summary>How long a running download may show no sign of life before the app gives up on the
+    /// attempt. Generous on purpose: the engine has its own per-block and per-request timeouts, so this
+    /// only catches a download nothing else will ever end.</summary>
+    internal static TimeSpan StallTimeout { get; set; } = TimeSpan.FromMinutes(3);
+
+    /// <summary>Pure helper (testable): has this attempt gone silent for long enough to give up on?
+    /// <para>
+    /// Only a row that is Running with a live engine and no post-processing stage qualifies. Assembling a
+    /// multi-part download or running ffmpeg can take minutes without a single byte of progress, and a
+    /// paused or queued row is not running at all — failing either of those would be the watchdog causing
+    /// the problem it exists to catch.
+    /// </para></summary>
+    public static bool IsStalled(DownloadStatus status, bool hasLiveEngine, string planStage,
+        DateTime lastProgressUtc, DateTime nowUtc)
+    {
+        if (status != DownloadStatus.Running || !hasLiveEngine)
+            return false;
+        if (!string.IsNullOrEmpty(planStage))
+            return false; // post-processing: no bytes move, and that is normal
+        return nowUtc - lastProgressUtc >= StallTimeout;
+    }
+
+    /// <summary>
+    /// Ends attempts that have gone silent. The engine can finish without ever raising a completion —
+    /// against a server that refuses every request it sometimes emits nothing at all — leaving a row
+    /// Running for ever with no error, no file and nothing to retry. Nothing else in the app can observe
+    /// that, so the pump does: a silent attempt is failed through the normal path, which then tries the
+    /// next address or reports it honestly.
+    /// </summary>
+    private void FailStalledDownloads()
+    {
+        var now = DateTime.UtcNow;
+        // ToList: HandleFailure can re-queue an item and change the collection while we walk it.
+        foreach (var vm in Items.ToList())
+        {
+            if (!IsStalled(vm.Status, vm.Download != null, vm.PlanStage, vm.LastProgressUtc, now))
+                continue;
+
+            AppLog.Error($"No progress for {StallTimeout.TotalSeconds:0}s and no completion: {vm.FileName ?? vm.Url}");
+            vm.LastProgressUtc = now; // don't re-trigger while the failure is being handled
+            ReleaseEngine(vm);
+            HandleFailure(vm, new DownloadStalledException(
+                    $"the download stopped responding for {StallTimeout.TotalSeconds:0} seconds"),
+                Localizer.Instance["Error_DownloadStalled"], "Stalled");
+            NotifyList();
+        }
+    }
 
     /// <summary>Pure helper (testable): did a "successful" download actually produce nothing? True when the
     /// file the engine says it wrote is missing or empty. A file that is merely SMALLER than expected is

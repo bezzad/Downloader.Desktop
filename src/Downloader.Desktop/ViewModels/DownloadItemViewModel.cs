@@ -55,6 +55,9 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Records the latest engine progress without touching the UI (any thread).</summary>
     public void StageProgress(double progress, double speed, long downloaded, long size)
     {
+        // Any thread. This is the only heartbeat a running download has: the watchdog reads it to tell a
+        // slow transfer from one the engine has stopped reporting on entirely.
+        LastProgressUtc = DateTime.UtcNow;
         _pendingProgress = progress;
         _pendingSpeed = speed;
         _pendingDownloaded = downloaded;
@@ -316,6 +319,12 @@ public class DownloadItemViewModel : ViewModelBase
     /// afterwards (its own completion arrives while the NEXT attempt is already running), and honouring
     /// them let an abandoned attempt mark the row Completed over a file that was never written.</summary>
     public int AttemptGeneration { get; set; }
+
+    /// <summary>When this download last showed a sign of life. Set when an attempt starts and on every
+    /// progress event; the watchdog fails an attempt that has gone quiet, because a download the engine
+    /// has stopped reporting on is otherwise indistinguishable from one that is simply slow — and it
+    /// never ends on its own.</summary>
+    public DateTime LastProgressUtc { get; set; } = DateTime.UtcNow;
 
     /// <summary>How many connections this attempt SET OUT to use. Read from the configuration before the
     /// engine sees it, because the engine rewrites that object as it goes (a file whose size it cannot

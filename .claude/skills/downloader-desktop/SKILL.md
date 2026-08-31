@@ -882,3 +882,22 @@ rows Completed over files that attempt never wrote (seen only on macOS/Debug CI:
 `folder=[]`). `Attach` now stamps each engine's handlers with `vm.AttemptGeneration` and drops events from
 any engine that is no longer the row's. Any new retry path must go through the same `Attach`, and any new
 engine event handler must keep the `Stale()` check.
+
+### The engine could finish without reporting — fixed upstream, with an app-side watchdog
+`DownloadService.StartDownload`'s final `else` (an "unexpected terminal state") only logged and returned:
+**no `DownloadFileCompleted`, ever**. The awaited task finishes and the row stays Running for ever with no
+error, no file and nothing to retry. Reachable through the public API by pausing exactly as the chunks
+finish — which is also the real cause of the old "engine drops a part on the floor if it is paused on its
+finish line" note above. Fixed in `bezzad/Downloader` commit `632ccdc` (a pause after every byte arrived is
+now **Completed**; anything else is **Failed** with an `IncompleteDownloadException`), covered by
+`IntegrationTests/IssuesTest/CompletionSignalTest.cs`.
+- **Engine repo on this box**: it multi-targets up to `net11.0` and the installed SDK is 10.0.x, so
+  `dotnet test` fails outright. Use `-p:TargetFrameworks=net10.0 -f net10.0` — a plain `-f net10.0` is not
+  enough, the TFM list itself has to be overridden. Full suite is 533 tests, ~12 min.
+- **App-side backstop** (`DownloadManager.IsStalled` / `FailStalledDownloads`, on the UI pump): fails an
+  attempt with no progress and no completion for `StallTimeout` (3 min). It must ONLY watch a Running row
+  with a live engine and no `PlanStage` — assembling segments or running ffmpeg moves no bytes for minutes,
+  and a paused row is silent by design. `StallTimeout` is an internal settable seam for tests; it is
+  process-wide, so always restore it in a `finally`.
+- Two app tests that need the engine to report reliably are `Skip`-ped with the upstream commit named,
+  rather than deleted or left flaky. Re-enable them when the app moves to an engine release with the fix.

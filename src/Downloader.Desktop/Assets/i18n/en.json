@@ -310,5 +310,6 @@
   "Det_RefreshDone": "Link updated — continuing the download.",
   "Error_SiteNeedsBrowserSession": "This site only gives the video to a signed-in browser session. Send the page from the Downloader browser extension — it passes your existing session along with the link.",
   "Error_ServerRefusedConnections": "The server refused several connections at once. Lower “Maximum connections” in Settings (2 or 3 usually works) and try again.",
-  "Error_NothingDownloaded": "The download finished without producing a file — the server accepted the request but sent no data. Try again, or add the link again if it keeps happening."
+  "Error_NothingDownloaded": "The download finished without producing a file — the server accepted the request but sent no data. Try again, or add the link again if it keeps happening.",
+  "Error_DownloadStalled": "The download stopped responding — the server accepted the connection but sent nothing for minutes. It was stopped so you can try again."
 }

@@ -50,6 +50,8 @@ public class LocalizationTests
             // A download that finished without producing a file — a green row over an empty folder is the
             // one outcome worse than an honest failure, so its wording must exist everywhere.
             Assert.NotEqual("Error_NothingDownloaded", Localizer.Instance["Error_NothingDownloaded"]);
+            // And a download the app had to end itself because nothing was ever going to end it.
+            Assert.NotEqual("Error_DownloadStalled", Localizer.Instance["Error_DownloadStalled"]);
         }
         finally
         {

@@ -310,5 +310,6 @@
   "Det_RefreshDone": "链接已更新 — 继续下载。",
   "Error_SiteNeedsBrowserSession": "该网站只把视频提供给浏览器中已登录的会话。请通过 Downloader 浏览器扩展发送该页面——它会连同链接一起传递你当前的会话。",
   "Error_ServerRefusedConnections": "服务器拒绝了多个同时连接。请在设置中调低“最大连接数”（通常 2 或 3 即可），然后重试。",
-  "Error_NothingDownloaded": "下载结束时没有生成文件——服务器接受了请求却没有发送数据。请重试；如果反复出现，请重新添加该链接。"
+  "Error_NothingDownloaded": "下载结束时没有生成文件——服务器接受了请求却没有发送数据。请重试；如果反复出现，请重新添加该链接。",
+  "Error_DownloadStalled": "下载失去响应——服务器接受了连接，但数分钟没有发送任何数据。已将其停止，你可以重试。"
 }

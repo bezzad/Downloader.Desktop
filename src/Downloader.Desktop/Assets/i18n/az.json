@@ -310,5 +310,6 @@
   "Det_RefreshDone": "Keçid yeniləndi — yükləmə davam edir.",
   "Error_SiteNeedsBrowserSession": "Bu sayt videonu yalnız brauzerdə giriş etmiş sessiyaya verir. Səhifəni Downloader brauzer əlavəsindən göndərin — o, mövcud sessiyanızı keçidlə birlikdə ötürür.",
   "Error_ServerRefusedConnections": "Server eyni anda bir neçə bağlantını rədd etdi. Parametrlərdə “Maksimum bağlantı” dəyərini azaldın (adətən 2 və ya 3 kifayətdir) və yenidən cəhd edin.",
-  "Error_NothingDownloaded": "Yükləmə heç bir fayl yaratmadan bitdi — server sorğunu qəbul etdi, lakin məlumat göndərmədi. Yenidən cəhd edin; təkrarlanarsa keçidi yenidən əlavə edin."
+  "Error_NothingDownloaded": "Yükləmə heç bir fayl yaratmadan bitdi — server sorğunu qəbul etdi, lakin məlumat göndərmədi. Yenidən cəhd edin; təkrarlanarsa keçidi yenidən əlavə edin.",
+  "Error_DownloadStalled": "Yükləmə cavab verməyi dayandırdı — server bağlantını qəbul etdi, lakin dəqiqələrlə heç nə göndərmədi. Yenidən cəhd edə biləsiniz deyə dayandırıldı."
 }
