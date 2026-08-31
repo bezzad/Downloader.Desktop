@@ -901,3 +901,24 @@ now **Completed**; anything else is **Failed** with an `IncompleteDownloadExcept
   process-wide, so always restore it in a `finally`.
 - Two app tests that need the engine to report reliably are `Skip`-ped with the upstream commit named,
   rather than deleted or left flaky. Re-enable them when the app moves to an engine release with the fix.
+
+### A failed attempt can start two engines for one row (fixed 2026-08-31)
+`HandleFailure` re-queues the row (`Dispatcher.Post`) AND frees its queue slot. Freeing the slot pumps
+the queue, which starts the next address immediately; the posted re-queue then arrives and marks that
+already-running attempt `Created` again, so the pump starts a SECOND engine. Two engines write the same
+`<name>.download`, one deletes the other's file, and the row stays Running for ever with no error — it
+looks exactly like a server that never answers. Guard: `RequeueForRefresh` returns early for a row that is
+already Running/Completed, and `Start` marshals to the UI thread so its "already running" check cannot be
+raced from an engine callback thread. Symptom to recognise in a log: two `Starting: <same url>` lines and
+`AttemptGeneration` higher than the number of addresses.
+
+### An app-level test that only fails alongside its siblings is usually a dispatcher race
+`Integration/UrlFailoverTests` passed alone in 0.5 s and failed ~1/3 in a class run. Fastest way to the
+cause: enable `AppLog` inside the test and put the tail of the log (plus `vm.Download.Status`,
+`Package.ReceivedBytesSize/TotalFileSize`, `AttemptGeneration`) into the assertion message via a lazy
+`Func<string>` — the engine's own lines showed the duplicate start immediately.
+
+### The e2e specs share one fixed port range — run them with `workers: 1`
+MV3 host permissions are static, so every spec's stub app must listen on the same range the extension
+probes. Parallel spec files take each other's ports: an add lands on another file's stub, or
+`app-not-found` finds a stub and fails instead of skipping. Both pass when the file runs alone.
