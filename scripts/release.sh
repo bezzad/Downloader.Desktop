@@ -355,11 +355,17 @@ if [[ "$RESUME" != "yes" ]]; then
       # Probed in a SUBSHELL on purpose: gate_ci_green ends the script when it refuses, which inside a
       # condition would kill the release instead of letting the fallbacks below have their say.
       ok "CI green for $MAIN_BRANCH@${MAIN_SHA:0:7}"
-    elif git merge-base --is-ancestor "$MAIN_SHA" "$DEV_BRANCH"; then
-      warn "$MAIN_BRANCH@${MAIN_SHA:0:7} has a failed run, but $DEV_BRANCH contains it and is green"
-      ok "releasing $DEV_BRANCH's verified tree — that is what gets tagged"
+    elif [[ -z "$(git rev-list "origin/$MAIN_BRANCH" --not "$DEV_BRANCH" --no-merges 2>/dev/null)" ]]; then
+      # "develop has everything main does" — asked as: no NON-MERGE commit exists on main that develop
+      # lacks. Not `--is-ancestor`, which is false by construction here: releases merge develop into main
+      # with --no-ff, so main's head is a merge commit develop will never contain, and a correct release
+      # would have been refused every time.
+      warn "$MAIN_BRANCH@${MAIN_SHA:0:7} has a failed run — it is the PREVIOUS release, and this one is its fix"
+      ok "$DEV_BRANCH carries all of $MAIN_BRANCH's work and is green — that verified tree is what gets tagged"
     else
-      die "$MAIN_BRANCH@${MAIN_SHA:0:7} is red and $DEV_BRANCH does not contain it — reconcile the branches first"
+      warn "commits on $MAIN_BRANCH that $DEV_BRANCH does not have:"
+      git rev-list "origin/$MAIN_BRANCH" --not "$DEV_BRANCH" --no-merges --oneline | sed 's/^/      /'
+      die "$MAIN_BRANCH@${MAIN_SHA:0:7} is red and carries work $DEV_BRANCH lacks — reconcile the branches first"
     fi
   fi
 fi
