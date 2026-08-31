@@ -44,7 +44,7 @@ public class UrlFailoverTests
     /// live one, and a fully-refused download could emit no completion at all — the last one fixed in the
     /// engine itself, with the app's watchdog as a backstop for released engine versions.
     /// </para></summary>
-    [AvaloniaFact(Timeout = 300_000, Skip = "Blocked on the engine's silent-completion fix: engine 5.9.5 does not reliably report a terminal state for a refused download, so this alternates between passing and waiting for an event that never comes. Fixed upstream (Downloader CompletionSignalTest, commit 632ccdc) — re-enable when the app consumes an engine release containing it.")]
+    [AvaloniaFact(Timeout = 300_000)]
     public async Task A_download_whose_first_address_is_refused_succeeds_on_the_second()
     {
         using var server = new PickyServer();
@@ -65,29 +65,33 @@ public class UrlFailoverTests
         await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
                             || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)),
             () => $"never settled: status={vm.Status} attempt={vm.UrlAttempt} err={vm.ErrorMessage} "
+                  + $"gen={vm.AttemptGeneration} single={vm.ForceSingleConnection} engine={(vm.Download is null ? "none" : vm.Download.Status.ToString())} "
+                  + $"pkg={vm.Download?.Package?.ReceivedBytesSize}/{vm.Download?.Package?.TotalFileSize} stage={vm.PlanStage} "
                   + $"saved={File.Exists(saved)} folder=[{string.Join(",", Directory.GetFiles(folder).Select(Path.GetFileName))}] "
                   + $"requests=[{string.Join(" ; ", server.Log)}]");
 
         Assert.Equal(global::Downloader.DownloadStatus.Completed, vm.Status);
         Assert.Equal(Bytes(4096), File.ReadAllBytes(saved));
+
+        // ONE engine per attempt. Two of them raced here: the failure both re-queued the row and freed its
+        // queue slot, so the pump started the next address and the re-queue then marked that live attempt
+        // queued again — a second engine downloading the same file to the same .download path, one deleting
+        // the other's file, and a row left Running for ever with no error. AttemptGeneration counts engines
+        // attached to this row, so two addresses must produce at most two.
+        Assert.True(vm.AttemptGeneration <= 2,
+            $"{vm.AttemptGeneration} engines were started for a download with 2 addresses");
     }
 
-    /// <summary>The reporter's mirror — it serves the file over one connection and refuses once a
-    /// download opens several — must not leave the download hanging.
+    /// <summary>The reporter's mirror: it serves the file over one connection and refuses once a download
+    /// opens several. Modelled on request SHAPE (ranged vs whole-file) rather than on requests actually
+    /// overlapping, because whether chunks overlap depends on how many cores the machine has.
     /// <para>
-    /// This asserts what the app can guarantee with the CURRENTLY RELEASED engine, and the distinction
-    /// matters. The backoff works: the log below shows every ranged request refused and the retry made as
-    /// a single whole-file request, which the server serves. But engine 5.9.5 then never raises a
-    /// completion for it, so the row would sit Running for ever — that is the silent-exit bug, fixed in
-    /// the engine (Downloader `CompletionSignalTest`) and not yet in a release we consume. Until then the
-    /// app's watchdog is what ends the attempt, and THAT is what this test pins.
-    /// </para>
-    /// <para>
-    /// When the app moves to an engine with that fix, this test should assert the happy path instead:
-    /// status Completed and the 2 MB of bytes on disk. The rest of the test is already written for it.
+    /// This could only be asserted once the engine reported terminal states reliably (engine 5.9.6): with
+    /// 5.9.5 the single-connection retry was served and then never reported, so the row hung. The app's
+    /// watchdog remains the backstop, covered separately in <c>StalledDownloadTests</c>.
     /// </para></summary>
-    [AvaloniaFact(Timeout = 300_000, Skip = "Blocked on the engine's silent-completion fix: engine 5.9.5 does not reliably report a terminal state for a refused download, so this alternates between passing and waiting for an event that never comes. Fixed upstream (Downloader CompletionSignalTest, commit 632ccdc) — re-enable when the app consumes an engine release containing it.")]
-    public async Task A_server_that_only_tolerates_one_connection_is_never_left_hanging()
+    [AvaloniaFact(Timeout = 300_000)]
+    public async Task A_server_that_only_tolerates_one_connection_still_downloads()
     {
         Localizer.Instance.Load("en");
         var originalTimeout = DownloadManager.StallTimeout;
@@ -113,9 +117,10 @@ public class UrlFailoverTests
                 () => $"never settled: status={vm.Status} single={vm.ForceSingleConnection} "
                       + $"err={vm.ErrorMessage} requests=[{string.Join(" ; ", server.Log)}]");
 
-            // The backoff really happened: the ranged requests were refused and the retry asked for the
-            // whole file over one connection.
-            Assert.True(vm.ForceSingleConnection, "the download should have backed off to one connection");
+            // The shape that proves it: ranged requests were made and refused, and the file only arrived
+            // once something asked for it whole. WHICH layer backed off is not asserted — engine 5.9.6 has
+            // its own single-connection fallback and may get there before the app's does. Either is a
+            // correct outcome, and pinning one of them would fail the day the other wins the race.
             Assert.Contains(server.Log, r => r.StartsWith("GET /file bytes=", StringComparison.Ordinal)
                                              && !r.EndsWith("bytes=0-0", StringComparison.Ordinal));
             Assert.Contains(server.Log, r => r == "GET /file -");

@@ -371,6 +371,18 @@ public partial class DownloadManager : IDownloadManager
 
     public async void Start(DownloadItemViewModel vm)
     {
+        // Every start goes through the UI thread, so the guard below and the Running write that follows
+        // it cannot interleave with another start of the same row. They used to: a failed attempt both
+        // re-queues the row (posted to the UI thread) and frees its queue slot, and the slot is freed on
+        // the engine's callback thread — so the pump and the re-queue each called Start, each saw a row
+        // that was not yet Running, and TWO engines downloaded the same file to the same .download path.
+        // One of them then deleted the other's file, leaving the row Running for ever with no error.
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => Start(vm));
+            return;
+        }
+
         // Never (re)start something that's already running or finished. A completed file must not be
         // re-downloaded from 0%, and a double-start would spin up a second engine for the same row
         // (the second reports progress from 0 — the "100% then begins again from 0" bug).
@@ -1126,6 +1138,14 @@ public partial class DownloadManager : IDownloadManager
     /// reset is reserved for the user's own Retry/Resume), so a dead link can't retry forever.</summary>
     private void RequeueForRefresh(DownloadItemViewModel vm)
     {
+        // This runs one dispatcher hop after the failure that asked for it, and in that gap the freed
+        // queue slot can already have started the next attempt (the same failure frees the slot). Marking
+        // an attempt that is ALREADY RUNNING as queued again made the pump start a second engine for the
+        // same row: two downloads wrote the same .download file, one deleted the other's, and the row sat
+        // Running for ever with no error and no file — the failover hang behind issue #9.
+        if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
+            return;
+
         vm.GetItem().PlanJson = null;
         vm.Status = DownloadStatus.Created;
         EnsureQueueRunning(vm.GetItem().QueueId);
