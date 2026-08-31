@@ -22,6 +22,7 @@
 #   scripts/release.sh                # prompts for the version (suggests next patch)
 #   scripts/release.sh 1.3.2          # non-interactive version
 #   scripts/release.sh 1.3.2 --yes    # also skip the confirmation prompt
+#   scripts/release.sh 1.3.2 --ignore-ci  # LAST RESORT: publish despite red/unfinished CI
 #
 # Requirements: git, gh, and shasum or sha256sum. Missing requirements are DIAGNOSED and, where
 # possible, FIXED in place (e.g. `gh auth login` runs right here; a dirty tree offers to stash)
@@ -118,10 +119,11 @@ gcommit() { # gcommit <repo-dir> <message> — commit staged changes with the re
 
 # --- args ------------------------------------------------------------------
 # Usage: release.sh [VERSION] [--yes] [--notes-file PATH]
-VERSION=""; ASSUME_YES="no"; NOTES_FILE=""
+VERSION=""; ASSUME_YES="no"; NOTES_FILE=""; IGNORE_CI="no"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --yes|-y) ASSUME_YES="yes" ;;
+    --ignore-ci) IGNORE_CI="yes" ;;
     --notes-file) shift; NOTES_FILE="${1:-}" ;;
     -*) die "unknown flag: $1" ;;
     *) [[ -z "$VERSION" ]] && VERSION="$1" || die "unexpected argument: $1" ;;
@@ -165,6 +167,72 @@ finish() {
   fi
 }
 trap finish EXIT
+
+# Refuse to publish a commit GitHub has not proved green.
+#
+# A release is the one action that cannot be taken back — the tag, the assets and the store
+# listings all point at whatever was on main at that moment, and users start downloading it within
+# minutes. So the state of the code has to be KNOWN before we start, not assumed: a run still in
+# flight is not a pass (we simply do not know yet), and a failed or cancelled run is a reason to
+# stop and look, not to ship and hope. Waiting a few minutes here costs nothing next to shipping a
+# broken build to every channel and then racing to replace it.
+#
+# Usage: gate_ci_green <branch> <sha> ; honours --ignore-ci, waits up to CI_WAIT_MINUTES.
+CI_WAIT_MINUTES="${CI_WAIT_MINUTES:-40}"
+gate_ci_green() {
+  local branch="$1" sha="$2" deadline waited=0 rows pending failed total
+  deadline=$(( CI_WAIT_MINUTES * 60 ))
+
+  while :; do
+    # Only the runs for THIS commit. A green run on an older commit says nothing about this one.
+    rows="$(gh run list --repo "$REPO" --branch "$branch" --limit 40 \
+              --json headSha,status,conclusion,workflowName \
+              --jq ".[] | select(.headSha==\"$sha\") | \"\(.status)|\(.conclusion)|\(.workflowName)\"" \
+            2>/dev/null || true)"
+    total="$(printf '%s' "$rows" | grep -c . || true)"
+
+    if [[ "$total" -eq 0 ]]; then
+      # No run yet: GitHub may not have created it, or this branch has no workflow for this commit.
+      if [[ "$waited" -ge 120 ]]; then
+        warn "no workflow run found for $branch@${sha:0:7} after ${waited}s"
+        if [[ "$IGNORE_CI" == "yes" ]]; then
+          warn "--ignore-ci: continuing without a CI verdict for $branch"
+          return 0
+        fi
+        die "no CI run for $branch@${sha:0:7} — push it and let the workflows run, or re-run with --ignore-ci"
+      fi
+    else
+      pending="$(printf '%s\n' "$rows" | grep -cE '^(queued|in_progress|waiting|requested|pending)\|' || true)"
+      failed="$(printf '%s\n' "$rows" | grep -E '^completed\|' | grep -vE '\|success\|' || true)"
+
+      if [[ -n "$failed" ]]; then
+        warn "CI is not green for $branch@${sha:0:7}:"
+        printf '%s\n' "$failed" | sed 's/^/      /'
+        if [[ "$IGNORE_CI" == "yes" ]]; then
+          warn "--ignore-ci: publishing over a red CI, on your explicit instruction"
+          return 0
+        fi
+        die "fix $branch (or re-run the failed workflow) before releasing — nothing has been changed yet"
+      fi
+
+      if [[ "$pending" -eq 0 ]]; then
+        ok "CI green for $branch@${sha:0:7} ($total run(s))"
+        return 0
+      fi
+    fi
+
+    if [[ "$waited" -ge "$deadline" ]]; then
+      if [[ "$IGNORE_CI" == "yes" ]]; then
+        warn "--ignore-ci: CI for $branch@${sha:0:7} is still running after ${CI_WAIT_MINUTES}m; continuing anyway"
+        return 0
+      fi
+      die "CI for $branch@${sha:0:7} is still running after ${CI_WAIT_MINUTES}m — a run in flight is not a pass; re-run when it finishes"
+    fi
+    [[ "$waited" -eq 0 ]] && warn "waiting for CI on $branch@${sha:0:7} (up to ${CI_WAIT_MINUTES}m) — a run in flight is not a pass"
+    sleep 30
+    waited=$(( waited + 30 ))
+  done
+}
 
 # --- preflight (diagnose AND fix, don't just abort) -------------------------
 step "Preflight checks"
@@ -259,6 +327,46 @@ if [[ "$RESUME" != "yes" ]] && git rev-parse -q --verify "origin/$MAIN_BRANCH" >
     warn "$DEV_BRANCH has no commits beyond $MAIN_BRANCH — the version bump will be the release commit"
   else
     die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH and VersionPrefix is already $VERSION — nothing to release"
+  fi
+fi
+
+# --- CI gate: only a commit GitHub has proved green may be released --------
+# Skipped on a resume: the tag (and usually the release) already exists, so blocking here would
+# only stop the remaining channels from being finished.
+if [[ "$RESUME" != "yes" ]]; then
+  step "Checking CI"
+  gate_ci_green "$DEV_BRANCH" "$(git rev-parse "$DEV_BRANCH")"
+  # main matters too, but only in one direction. Never tag while a run on main is still in FLIGHT —
+  # that is a state nobody knows the answer to yet. A run that already FAILED on main is a different
+  # thing: main is the PREVIOUS release, and its failure is usually the very bug this release carries
+  # the fix for. Blocking on it would mean main can only be fixed by a release that main forbids.
+  # So a red main is accepted when develop is a descendant of main and green — because then the tree
+  # that gets tagged IS the tree CI just passed, and main's old verdict says nothing about it.
+  if git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
+    MAIN_SHA="$(git rev-parse "origin/$MAIN_BRANCH")"
+    if [[ -z "$(gh run list --repo "$REPO" --branch "$MAIN_BRANCH" --limit 40 --json headSha \
+                  --jq ".[] | select(.headSha==\"$MAIN_SHA\") | .headSha" 2>/dev/null || true)" ]]; then
+      ok "no separate CI run for $MAIN_BRANCH@${MAIN_SHA:0:7} — nothing to wait on"
+    elif [[ -n "$(gh run list --repo "$REPO" --branch "$MAIN_BRANCH" --limit 40 \
+                    --json headSha,status --jq ".[] | select(.headSha==\"$MAIN_SHA\") \
+                    | select(.status!=\"completed\") | .headSha" 2>/dev/null || true)" ]]; then
+      gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA"   # in flight: wait for the verdict
+    elif ( gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA" ) >/dev/null 2>&1; then
+      # Probed in a SUBSHELL on purpose: gate_ci_green ends the script when it refuses, which inside a
+      # condition would kill the release instead of letting the fallbacks below have their say.
+      ok "CI green for $MAIN_BRANCH@${MAIN_SHA:0:7}"
+    elif [[ -z "$(git rev-list "origin/$MAIN_BRANCH" --not "$DEV_BRANCH" --no-merges 2>/dev/null)" ]]; then
+      # "develop has everything main does" — asked as: no NON-MERGE commit exists on main that develop
+      # lacks. Not `--is-ancestor`, which is false by construction here: releases merge develop into main
+      # with --no-ff, so main's head is a merge commit develop will never contain, and a correct release
+      # would have been refused every time.
+      warn "$MAIN_BRANCH@${MAIN_SHA:0:7} has a failed run — it is the PREVIOUS release, and this one is its fix"
+      ok "$DEV_BRANCH carries all of $MAIN_BRANCH's work and is green — that verified tree is what gets tagged"
+    else
+      warn "commits on $MAIN_BRANCH that $DEV_BRANCH does not have:"
+      git rev-list "origin/$MAIN_BRANCH" --not "$DEV_BRANCH" --no-merges --oneline | sed 's/^/      /'
+      die "$MAIN_BRANCH@${MAIN_SHA:0:7} is red and carries work $DEV_BRANCH lacks — reconcile the branches first"
+    fi
   fi
 fi
 

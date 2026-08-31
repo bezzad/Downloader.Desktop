@@ -930,3 +930,54 @@ path) for BOTH Windows assets — so a coreutils-only parser read no digest and 
 refused to extract, breaking the SiteMedia plugin's Deno step on every Windows machine. `ParseSums` now
 reads either shape and still matches by name (the file name comes out of the `Path` value). Check a
 publisher's file with `curl` before assuming a format; yt-dlp's `SHA2-256SUMS` is coreutils everywhere.
+
+### Never marshal `Start` onto the UI thread (tried 2026-08-31, reverted)
+It looked like a tidy way to make the "already running" guard race-free, and it broke three CI legs:
+a start deferred by a dispatcher hop never runs in a test that is not pumping at that moment, so rows
+stayed Running and `MemoryReleaseTests`/`PlanRowFlowTests` failed or hung the test host. It also was NOT
+what fixed the double-start — the `RequeueForRefresh` guard was. Keep `Start` synchronous-entry.
+
+### A retry must wait for the previous attempt's task (`vm.Attempt`)
+The engine raises `DownloadFileCompleted` BEFORE the file is in place, and the row disposes the engine
+from inside that event — so a Retry/Resume that immediately builds a new engine races the old one's final
+flush over the same `<name>.download` path. Signature: the new engine reports
+`Package.ReceivedBytesSize == TotalFileSize` while the save folder is EMPTY, and the row never leaves
+Running. `Start` now stores its attempt task on the VM and the next attempt awaits it (bounded, 10 s).
+This was the 1-in-3 flake in `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`
+(present since 2026-07-17, reproducible locally only under `taskset -c 0,1 -c Release`).
+
+### A CI hang in an unrelated test = something killed the dispatcher thread (2026-08-31)
+The `--blame-hang` dump named `TransferPathTests.Transfer_failure_…`, but `Sequence_*.xml` showed it was the
+ONLY test in flight and `pstacks` showed **no thread anywhere executing app code and no dispatcher thread at
+all** — the xunit worker was simply parked in `AvaloniaTestCase.Run`. When the dispatcher is dead, the test
+can neither run nor time out (its `Timeout` needs the dispatcher), so the abort blames whichever test was
+next. This is the same signature as the 2026-07-17 parallel-collections hang, with parallelism already off.
+Cause this time: **an exception escaping a `DispatcherTimer` tick** takes the dispatcher's thread with it —
+in the app that is the UI thread, i.e. a frozen window. `OnUiPumpTick` and `OnSchedulerTick` now catch and
+log; `RunUiPumpTickOnce()` is the test seam, and `Unit/TimerTickSafetyTests` injects a throwing
+`StatsChanged`/`ListChanged` listener to pin it. Rule: **no DispatcherTimer handler may throw.**
+Diagnosis recipe: `gh api repos/<o>/<r>/actions/runs/<id>/artifacts`, download the leg's artifact,
+`grep 'Completed="False"' Sequence_*.xml`, then `dotnet-dump analyze <dmp> -c pstacks`.
+
+### The real fix for the dispatcher deaths: `Dispatcher.UIThread.UnhandledException`
+Avalonia 12 raises it (WPF-style, with `e.Handled`) for anything that throws on the UI thread — a posted
+job, a timer tick, an `async void` continuation. `App.Initialize()` now subscribes, logs and sets
+`Handled = true`, which is the floor under every one of the ~20 `Dispatcher.UIThread.Post` sites and the
+`OnUi` helper. Without it, ONE throwing job ends the thread: the app's window freezes silently, and the
+headless suite loses the dispatcher, after which no test runs or times out. Tests host the real `App`, so
+the suite is covered by the same hook. `Unit/TimerTickSafetyTests` pins it — verified by commenting the
+hook out and watching the test go red, which is worth repeating for any "safety net" test.
+
+### `SingleInstanceTests.Forwarding_to_nothing…` fails when YOUR Downloader is open
+The lock ports (15150/15156–15158) are process-wide, so a real app running on the dev machine answers the
+handshake and `TryForwardAdd` correctly returns true. Check with `ss -ltnp | grep 1515`. The test now
+`Assert.SkipWhen`s on it — don't "fix" the service for this.
+
+### The completion event fires BEFORE the file is in place — never judge the folder immediately
+The empty-completion guard (`NothingWasDownloaded`, issue #9) read the save folder inside
+`DownloadFileCompleted` and so failed successful downloads with "nothing was downloaded" whenever the
+engine's final move lagged — invisible on an idle box, reproducible on macOS CI. It now waits for the
+file (`DownloadManager.EmptyFileGrace`, 5 s, internal so tests can shorten it) and fails only if it never
+appears; the late-arrival path calls the SAME `MarkCompleted` + `FinishTerminal` as an immediate success,
+because a row left Running because the check was late is the bug this guard was written to prevent.
+`Integration/LateFileCompletionTests` covers both sides.

@@ -21,6 +21,30 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        InstallDispatcherSafetyNet();
+    }
+
+    /// <summary>
+    /// Keep the UI thread alive when something posted to it fails.
+    /// <para>
+    /// Every engine event, timer tick and <c>async void</c> continuation lands on the dispatcher, and an
+    /// exception escaping any of them ends the thread that runs it — the window stops responding, with the
+    /// download list frozen mid-progress and no message. The same failure in the headless test suite takes
+    /// the shared dispatcher down, after which no test can run OR time out (the timeout needs that thread),
+    /// which is what a CI hang blamed on an arbitrary unrelated test turned out to be.
+    /// </para>
+    /// <para>
+    /// A failed UI update is never worth the whole thread, so it is logged and marked handled. Individual
+    /// paths still guard themselves where they can say something better; this is the floor, not the plan.
+    /// </para>
+    /// </summary>
+    private static void InstallDispatcherSafetyNet()
+    {
+        Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            AppLog.Error("Unhandled exception on the UI thread", e.Exception);
+            e.Handled = true;
+        };
     }
 
     public override void OnFrameworkInitializationCompleted()

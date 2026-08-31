@@ -96,6 +96,26 @@ public partial class DownloadManager : IDownloadManager
 
     private void OnUiPumpTick(object sender, EventArgs e)
     {
+        // A tick MUST NOT throw. An unhandled exception in a DispatcherTimer handler tears down the
+        // thread running the dispatcher: in the app that is the UI thread (a frozen window), and in the
+        // headless test suite it takes the shared dispatcher with it — every later test then waits for a
+        // dispatcher that no longer exists, which is why a hang showed up in an unrelated test and even
+        // the per-test timeout could not fire (there was nothing left to run it).
+        try
+        {
+            PumpTick();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("The UI update pump tick failed", ex);
+        }
+    }
+
+    /// <summary>Test seam: run exactly one pump tick, the way the timer would.</summary>
+    internal void RunUiPumpTickOnce() => OnUiPumpTick(null, EventArgs.Empty);
+
+    private void PumpTick()
+    {
         var flushed = false;
         var active = false;
         foreach (var vm in Items)
@@ -190,7 +210,19 @@ public partial class DownloadManager : IDownloadManager
         _schedulerTimer.Start();
     }
 
-    private void OnSchedulerTick(object sender, EventArgs e) => EvaluateSchedules();
+    private void OnSchedulerTick(object sender, EventArgs e)
+    {
+        // See OnUiPumpTick: a throwing tick would take the dispatcher's thread down with it.
+        try
+        {
+            EvaluateSchedules();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("The scheduler tick failed", ex);
+        }
+    }
+
 
     /// <summary>
     /// Fires each enabled schedule's start/stop at most once per calendar day, tracked via
@@ -371,18 +403,6 @@ public partial class DownloadManager : IDownloadManager
 
     public async void Start(DownloadItemViewModel vm)
     {
-        // Every start goes through the UI thread, so the guard below and the Running write that follows
-        // it cannot interleave with another start of the same row. They used to: a failed attempt both
-        // re-queues the row (posted to the UI thread) and frees its queue slot, and the slot is freed on
-        // the engine's callback thread — so the pump and the re-queue each called Start, each saw a row
-        // that was not yet Running, and TWO engines downloaded the same file to the same .download path.
-        // One of them then deleted the other's file, leaving the row Running for ever with no error.
-        if (!Dispatcher.UIThread.CheckAccess())
-        {
-            Dispatcher.UIThread.Post(() => Start(vm));
-            return;
-        }
-
         // Never (re)start something that's already running or finished. A completed file must not be
         // re-downloaded from 0%, and a double-start would spin up a second engine for the same row
         // (the second reports progress from 0 — the "100% then begins again from 0" bug).
@@ -441,10 +461,23 @@ public partial class DownloadManager : IDownloadManager
 
         // Build + start entirely off the UI thread. Resolving redirects and the engine's synchronous
         // setup must not run on the dispatcher, or selecting many items and pressing Start freezes it.
+        // Whatever this row was doing before may not be finished with the file yet. The engine raises its
+        // completion BEFORE the downloaded file is in place, and the row disposes the engine from inside
+        // that event — so a Retry/Resume that builds a new engine straight away races the old one's final
+        // flush and cleanup over the SAME .download path, and the loser's bytes go nowhere: the new engine
+        // reports every byte received while the folder is empty and the row never leaves "downloading".
+        var previousAttempt = vm.Attempt;
         try
         {
-            await Task.Run(async () =>
+            var attempt = Task.Run(async () =>
             {
+                // Let the previous attempt actually finish before touching its file. Bounded, because a
+                // wedged attempt must not block this one for ever — resuming onto a file the old engine
+                // is still holding is no worse than what happened before this wait existed.
+                if (previousAttempt is { IsCompleted: false })
+                    await Task.WhenAny(previousAttempt, Task.Delay(TimeSpan.FromSeconds(10)))
+                        .ConfigureAwait(false);
+
                 // The user may stop/remove the row while this off-thread setup runs (Stop right after
                 // Add): Cancel then finds no engine handle to cancel and just marks the row Stopped —
                 // so never start an engine for a row that's no longer Running.
@@ -532,7 +565,9 @@ public partial class DownloadManager : IDownloadManager
                 else
                     await download.DownloadFileTaskAsync(urls, new DirectoryInfo(folder ?? "."))
                         .ConfigureAwait(false);
-            }).ConfigureAwait(false);
+            });
+            vm.Attempt = attempt; // the next attempt for this row waits on it
+            await attempt.ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -1646,9 +1681,11 @@ public partial class DownloadManager : IDownloadManager
                 // a lead address that refuses every request can leave it "finished" having written nothing
                 // — a green row and an empty folder, which is worse than an honest failure. Route it
                 // through the normal failure path so the next address is tried (issue #9).
-                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
-                HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
-                    "Completed with no data");
+                // But NOT yet: the engine raises this completion BEFORE it moves the finished file into
+                // place, so at this instant an absent file can simply be one that has not landed. Failing
+                // here outright turned successful downloads into "nothing was downloaded" on a loaded
+                // machine. Look again, off the UI thread, and only fail if it is STILL not there.
+                ConfirmNothingWasDownloadedThenFail(vm, savedPath);
             }
             else if (IsExpiredOrInvalidLink(vm, e))
             {
@@ -1663,15 +1700,7 @@ public partial class DownloadManager : IDownloadManager
             }
             else
             {
-                vm.Progress = 100;
-                vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
-                vm.UrlAttempt = 0;
-                vm.ForceSingleConnection = false;
-                vm.Status = DownloadStatus.Completed;
-                AppLog.Info($"Completed: {vm.FileName}");
-                if (NotifyCompleteEnabled)
-                    NotificationService.NotifyCompleted(vm.FileName);
-                OfferPostDownloadAction(vm);
+                MarkCompleted(vm);
             }
 
             FinishTerminal(vm);
@@ -1762,6 +1791,65 @@ public partial class DownloadManager : IDownloadManager
     }
 
     /// <summary>Where the engine says the finished file is, from the completion event or the package.</summary>
+    /// <summary>The success bookkeeping for a finished download. Shared, because a file that only shows
+    /// up during the grace period below is just as complete as one that was there immediately.</summary>
+    private void MarkCompleted(DownloadItemViewModel vm)
+    {
+        vm.Progress = 100;
+        vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
+        vm.UrlAttempt = 0;
+        vm.ForceSingleConnection = false;
+        vm.Status = DownloadStatus.Completed;
+        AppLog.Info($"Completed: {vm.FileName}");
+        if (NotifyCompleteEnabled)
+            NotificationService.NotifyCompleted(vm.FileName);
+        OfferPostDownloadAction(vm);
+    }
+
+    /// <summary>How long a finished download's file is given to appear before the row is failed for
+    /// having produced nothing. Internal so tests don't have to wait the real time.</summary>
+    internal static TimeSpan EmptyFileGrace { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Re-check an apparently empty result before failing it. The completion event fires ahead of the
+    /// file being put in its final place, and the gap is real on a busy machine — so this waits for the
+    /// file to appear and fails only if it never does. Runs off the UI thread, and gives up quietly if a
+    /// newer attempt has taken over the row in the meantime.
+    /// </summary>
+    private void ConfirmNothingWasDownloadedThenFail(DownloadItemViewModel vm, string savedPath)
+    {
+        var generation = vm.AttemptGeneration;
+        var deadline = DateTime.UtcNow + EmptyFileGrace;
+        _ = Task.Run(async () =>
+        {
+            while (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(100).ConfigureAwait(false);
+                if (!LooksEmptyAfterCompletion(savedPath))
+                {
+                    // It landed. Finish the row exactly as an immediate success would have — leaving it
+                    // Running because the check was late is the very failure this code exists to prevent.
+                    OnUi(() =>
+                    {
+                        if (vm.AttemptGeneration != generation || vm.Status == DownloadStatus.Completed)
+                            return;
+                        MarkCompleted(vm);
+                        FinishTerminal(vm);
+                    });
+                    return;
+                }
+            }
+            OnUi(() =>
+            {
+                if (vm.AttemptGeneration != generation)
+                    return; // another attempt owns this row now; its own outcome decides
+                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
+                HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
+                    "Completed with no data");
+            });
+        });
+    }
+
     private static bool NothingWasDownloaded(DownloadItemViewModel vm,
         System.ComponentModel.AsyncCompletedEventArgs e, out string savedPath)
     {

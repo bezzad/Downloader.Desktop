@@ -314,6 +314,11 @@ public class DownloadItemViewModel : ViewModelBase
     /// it was about concurrency, and session-only like the counters above.</summary>
     public bool ForceSingleConnection { get; set; }
 
+    /// <summary>This row's current (or last) attempt, as a task. The next attempt waits on it before
+    /// building an engine: the engine raises its completion BEFORE the file is in place and is disposed
+    /// from inside that event, so two engines over the same .download path lose each other's bytes.</summary>
+    public System.Threading.Tasks.Task Attempt { get; set; }
+
     /// <summary>Which attempt is the live one. Bumped every time the row starts a fresh engine, and
     /// captured by that engine's event handlers: an engine we have moved on from can still deliver events
     /// afterwards (its own completion arrives while the NEXT attempt is already running), and honouring
