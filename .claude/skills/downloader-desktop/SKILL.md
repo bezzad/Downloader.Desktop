@@ -972,3 +972,12 @@ hook out and watching the test go red, which is worth repeating for any "safety 
 The lock ports (15150/15156–15158) are process-wide, so a real app running on the dev machine answers the
 handshake and `TryForwardAdd` correctly returns true. Check with `ss -ltnp | grep 1515`. The test now
 `Assert.SkipWhen`s on it — don't "fix" the service for this.
+
+### The completion event fires BEFORE the file is in place — never judge the folder immediately
+The empty-completion guard (`NothingWasDownloaded`, issue #9) read the save folder inside
+`DownloadFileCompleted` and so failed successful downloads with "nothing was downloaded" whenever the
+engine's final move lagged — invisible on an idle box, reproducible on macOS CI. It now waits for the
+file (`DownloadManager.EmptyFileGrace`, 5 s, internal so tests can shorten it) and fails only if it never
+appears; the late-arrival path calls the SAME `MarkCompleted` + `FinishTerminal` as an immediate success,
+because a row left Running because the check was late is the bug this guard was written to prevent.
+`Integration/LateFileCompletionTests` covers both sides.

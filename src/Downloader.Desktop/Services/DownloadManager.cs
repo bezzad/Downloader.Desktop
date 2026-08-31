@@ -1681,9 +1681,11 @@ public partial class DownloadManager : IDownloadManager
                 // a lead address that refuses every request can leave it "finished" having written nothing
                 // — a green row and an empty folder, which is worse than an honest failure. Route it
                 // through the normal failure path so the next address is tried (issue #9).
-                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
-                HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
-                    "Completed with no data");
+                // But NOT yet: the engine raises this completion BEFORE it moves the finished file into
+                // place, so at this instant an absent file can simply be one that has not landed. Failing
+                // here outright turned successful downloads into "nothing was downloaded" on a loaded
+                // machine. Look again, off the UI thread, and only fail if it is STILL not there.
+                ConfirmNothingWasDownloadedThenFail(vm, savedPath);
             }
             else if (IsExpiredOrInvalidLink(vm, e))
             {
@@ -1698,15 +1700,7 @@ public partial class DownloadManager : IDownloadManager
             }
             else
             {
-                vm.Progress = 100;
-                vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
-                vm.UrlAttempt = 0;
-                vm.ForceSingleConnection = false;
-                vm.Status = DownloadStatus.Completed;
-                AppLog.Info($"Completed: {vm.FileName}");
-                if (NotifyCompleteEnabled)
-                    NotificationService.NotifyCompleted(vm.FileName);
-                OfferPostDownloadAction(vm);
+                MarkCompleted(vm);
             }
 
             FinishTerminal(vm);
@@ -1797,6 +1791,65 @@ public partial class DownloadManager : IDownloadManager
     }
 
     /// <summary>Where the engine says the finished file is, from the completion event or the package.</summary>
+    /// <summary>The success bookkeeping for a finished download. Shared, because a file that only shows
+    /// up during the grace period below is just as complete as one that was there immediately.</summary>
+    private void MarkCompleted(DownloadItemViewModel vm)
+    {
+        vm.Progress = 100;
+        vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
+        vm.UrlAttempt = 0;
+        vm.ForceSingleConnection = false;
+        vm.Status = DownloadStatus.Completed;
+        AppLog.Info($"Completed: {vm.FileName}");
+        if (NotifyCompleteEnabled)
+            NotificationService.NotifyCompleted(vm.FileName);
+        OfferPostDownloadAction(vm);
+    }
+
+    /// <summary>How long a finished download's file is given to appear before the row is failed for
+    /// having produced nothing. Internal so tests don't have to wait the real time.</summary>
+    internal static TimeSpan EmptyFileGrace { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Re-check an apparently empty result before failing it. The completion event fires ahead of the
+    /// file being put in its final place, and the gap is real on a busy machine — so this waits for the
+    /// file to appear and fails only if it never does. Runs off the UI thread, and gives up quietly if a
+    /// newer attempt has taken over the row in the meantime.
+    /// </summary>
+    private void ConfirmNothingWasDownloadedThenFail(DownloadItemViewModel vm, string savedPath)
+    {
+        var generation = vm.AttemptGeneration;
+        var deadline = DateTime.UtcNow + EmptyFileGrace;
+        _ = Task.Run(async () =>
+        {
+            while (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(100).ConfigureAwait(false);
+                if (!LooksEmptyAfterCompletion(savedPath))
+                {
+                    // It landed. Finish the row exactly as an immediate success would have — leaving it
+                    // Running because the check was late is the very failure this code exists to prevent.
+                    OnUi(() =>
+                    {
+                        if (vm.AttemptGeneration != generation || vm.Status == DownloadStatus.Completed)
+                            return;
+                        MarkCompleted(vm);
+                        FinishTerminal(vm);
+                    });
+                    return;
+                }
+            }
+            OnUi(() =>
+            {
+                if (vm.AttemptGeneration != generation)
+                    return; // another attempt owns this row now; its own outcome decides
+                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
+                HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
+                    "Completed with no data");
+            });
+        });
+    }
+
     private static bool NothingWasDownloaded(DownloadItemViewModel vm,
         System.ComponentModel.AsyncCompletedEventArgs e, out string savedPath)
     {
