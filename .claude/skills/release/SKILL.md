@@ -40,6 +40,24 @@ A release is only "done" when every channel in the checklist at the bottom is ve
 The script is **portable (Linux + macOS)** — it uses `sedi`/`b64_file`/sed-based version parsing
 instead of GNU-only `sed -i` / `base64 -w0` / `grep -P`. Keep it that way.
 
+## The CI gate (a release will refuse to start over red or unfinished CI)
+
+`release.sh` will not publish a commit GitHub has not proved green. After syncing `develop` it looks up
+the workflow runs **for that exact commit** (a green run on an older commit proves nothing about this one)
+and then checks `main`'s head the same way, because `main` is what gets tagged:
+
+- a run still `queued`/`in_progress` → it WAITS (default 40 min, `CI_WAIT_MINUTES` to change), because a
+  run in flight is not a pass;
+- any completed run that is not `success` (failed OR cancelled) → it stops, names the workflow, and
+  changes nothing;
+- no run at all for that commit after 2 min → it stops (push it and let the workflows run).
+
+Skipped on a resume: the tag already exists, so gating there would only block the remaining channels.
+
+Last resort: `--ignore-ci` publishes anyway and says so loudly in the log. Use it only when the author
+has explicitly decided that a specific failure is irrelevant to the build being shipped — never to get a
+release moving because waiting is inconvenient.
+
 ## Release notes — format rules (HIGH priority)
 
 Write them BEFORE running the script, save to a file, pass via `--notes-file`. Never plain text:

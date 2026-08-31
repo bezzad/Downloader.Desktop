@@ -251,6 +251,11 @@ non-interactively). The manual steps below are the fallback / what the script do
 1. Bump the version, merge `develop` → `main`, tag `vX.Y.Z`, and push the tag. `.github/workflows/release.yml`
    then builds win/linux/macOS×2 (`Downloader-<rid>.tar.gz`) and attaches them to the GitHub Release. Wait
    for that run to finish so the macOS assets exist.
+1b. **Never release over red or unfinished CI (guard rail, enforced by the script).** `release.sh` gates
+   on the workflow runs for `develop`'s exact HEAD commit and for `main`'s head: it WAITS while any run is
+   still in flight (a run in flight is not a pass), and REFUSES if any completed run is not `success` or if
+   no run exists for that commit. Do not work around it by tagging by hand; fix the branch, or — only on the
+   author's explicit decision about a specific irrelevant failure — pass `--ignore-ci`.
 2. **Release notes are MANDATORY (high priority) — never ship a noteless release.** Every version must say
    what changed for end users. `release.sh` captures a human "Highlights" block up front and, once the
    release exists, sets the body (highlights + GitHub's auto-generated "What's Changed") via
