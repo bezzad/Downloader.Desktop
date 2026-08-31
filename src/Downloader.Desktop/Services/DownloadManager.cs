@@ -96,6 +96,26 @@ public partial class DownloadManager : IDownloadManager
 
     private void OnUiPumpTick(object sender, EventArgs e)
     {
+        // A tick MUST NOT throw. An unhandled exception in a DispatcherTimer handler tears down the
+        // thread running the dispatcher: in the app that is the UI thread (a frozen window), and in the
+        // headless test suite it takes the shared dispatcher with it — every later test then waits for a
+        // dispatcher that no longer exists, which is why a hang showed up in an unrelated test and even
+        // the per-test timeout could not fire (there was nothing left to run it).
+        try
+        {
+            PumpTick();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("The UI update pump tick failed", ex);
+        }
+    }
+
+    /// <summary>Test seam: run exactly one pump tick, the way the timer would.</summary>
+    internal void RunUiPumpTickOnce() => OnUiPumpTick(null, EventArgs.Empty);
+
+    private void PumpTick()
+    {
         var flushed = false;
         var active = false;
         foreach (var vm in Items)
@@ -190,7 +210,19 @@ public partial class DownloadManager : IDownloadManager
         _schedulerTimer.Start();
     }
 
-    private void OnSchedulerTick(object sender, EventArgs e) => EvaluateSchedules();
+    private void OnSchedulerTick(object sender, EventArgs e)
+    {
+        // See OnUiPumpTick: a throwing tick would take the dispatcher's thread down with it.
+        try
+        {
+            EvaluateSchedules();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("The scheduler tick failed", ex);
+        }
+    }
+
 
     /// <summary>
     /// Fires each enabled schedule's start/stop at most once per calendar day, tracked via

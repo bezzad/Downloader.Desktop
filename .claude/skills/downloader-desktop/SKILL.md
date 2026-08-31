@@ -945,3 +945,16 @@ flush over the same `<name>.download` path. Signature: the new engine reports
 Running. `Start` now stores its attempt task on the VM and the next attempt awaits it (bounded, 10 s).
 This was the 1-in-3 flake in `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`
 (present since 2026-07-17, reproducible locally only under `taskset -c 0,1 -c Release`).
+
+### A CI hang in an unrelated test = something killed the dispatcher thread (2026-08-31)
+The `--blame-hang` dump named `TransferPathTests.Transfer_failure_…`, but `Sequence_*.xml` showed it was the
+ONLY test in flight and `pstacks` showed **no thread anywhere executing app code and no dispatcher thread at
+all** — the xunit worker was simply parked in `AvaloniaTestCase.Run`. When the dispatcher is dead, the test
+can neither run nor time out (its `Timeout` needs the dispatcher), so the abort blames whichever test was
+next. This is the same signature as the 2026-07-17 parallel-collections hang, with parallelism already off.
+Cause this time: **an exception escaping a `DispatcherTimer` tick** takes the dispatcher's thread with it —
+in the app that is the UI thread, i.e. a frozen window. `OnUiPumpTick` and `OnSchedulerTick` now catch and
+log; `RunUiPumpTickOnce()` is the test seam, and `Unit/TimerTickSafetyTests` injects a throwing
+`StatsChanged`/`ListChanged` listener to pin it. Rule: **no DispatcherTimer handler may throw.**
+Diagnosis recipe: `gh api repos/<o>/<r>/actions/runs/<id>/artifacts`, download the leg's artifact,
+`grep 'Completed="False"' Sequence_*.xml`, then `dotnet-dump analyze <dmp> -c pstacks`.
