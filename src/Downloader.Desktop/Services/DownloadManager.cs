@@ -371,18 +371,6 @@ public partial class DownloadManager : IDownloadManager
 
     public async void Start(DownloadItemViewModel vm)
     {
-        // Every start goes through the UI thread, so the guard below and the Running write that follows
-        // it cannot interleave with another start of the same row. They used to: a failed attempt both
-        // re-queues the row (posted to the UI thread) and frees its queue slot, and the slot is freed on
-        // the engine's callback thread — so the pump and the re-queue each called Start, each saw a row
-        // that was not yet Running, and TWO engines downloaded the same file to the same .download path.
-        // One of them then deleted the other's file, leaving the row Running for ever with no error.
-        if (!Dispatcher.UIThread.CheckAccess())
-        {
-            Dispatcher.UIThread.Post(() => Start(vm));
-            return;
-        }
-
         // Never (re)start something that's already running or finished. A completed file must not be
         // re-downloaded from 0%, and a double-start would spin up a second engine for the same row
         // (the second reports progress from 0 — the "100% then begins again from 0" bug).
@@ -441,10 +429,23 @@ public partial class DownloadManager : IDownloadManager
 
         // Build + start entirely off the UI thread. Resolving redirects and the engine's synchronous
         // setup must not run on the dispatcher, or selecting many items and pressing Start freezes it.
+        // Whatever this row was doing before may not be finished with the file yet. The engine raises its
+        // completion BEFORE the downloaded file is in place, and the row disposes the engine from inside
+        // that event — so a Retry/Resume that builds a new engine straight away races the old one's final
+        // flush and cleanup over the SAME .download path, and the loser's bytes go nowhere: the new engine
+        // reports every byte received while the folder is empty and the row never leaves "downloading".
+        var previousAttempt = vm.Attempt;
         try
         {
-            await Task.Run(async () =>
+            var attempt = Task.Run(async () =>
             {
+                // Let the previous attempt actually finish before touching its file. Bounded, because a
+                // wedged attempt must not block this one for ever — resuming onto a file the old engine
+                // is still holding is no worse than what happened before this wait existed.
+                if (previousAttempt is { IsCompleted: false })
+                    await Task.WhenAny(previousAttempt, Task.Delay(TimeSpan.FromSeconds(10)))
+                        .ConfigureAwait(false);
+
                 // The user may stop/remove the row while this off-thread setup runs (Stop right after
                 // Add): Cancel then finds no engine handle to cancel and just marks the row Stopped —
                 // so never start an engine for a row that's no longer Running.
@@ -532,7 +533,9 @@ public partial class DownloadManager : IDownloadManager
                 else
                     await download.DownloadFileTaskAsync(urls, new DirectoryInfo(folder ?? "."))
                         .ConfigureAwait(false);
-            }).ConfigureAwait(false);
+            });
+            vm.Attempt = attempt; // the next attempt for this row waits on it
+            await attempt.ConfigureAwait(false);
         }
         catch (Exception ex)
         {

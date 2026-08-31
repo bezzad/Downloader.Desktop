@@ -930,3 +930,18 @@ path) for BOTH Windows assets — so a coreutils-only parser read no digest and 
 refused to extract, breaking the SiteMedia plugin's Deno step on every Windows machine. `ParseSums` now
 reads either shape and still matches by name (the file name comes out of the `Path` value). Check a
 publisher's file with `curl` before assuming a format; yt-dlp's `SHA2-256SUMS` is coreutils everywhere.
+
+### Never marshal `Start` onto the UI thread (tried 2026-08-31, reverted)
+It looked like a tidy way to make the "already running" guard race-free, and it broke three CI legs:
+a start deferred by a dispatcher hop never runs in a test that is not pumping at that moment, so rows
+stayed Running and `MemoryReleaseTests`/`PlanRowFlowTests` failed or hung the test host. It also was NOT
+what fixed the double-start — the `RequeueForRefresh` guard was. Keep `Start` synchronous-entry.
+
+### A retry must wait for the previous attempt's task (`vm.Attempt`)
+The engine raises `DownloadFileCompleted` BEFORE the file is in place, and the row disposes the engine
+from inside that event — so a Retry/Resume that immediately builds a new engine races the old one's final
+flush over the same `<name>.download` path. Signature: the new engine reports
+`Package.ReceivedBytesSize == TotalFileSize` while the save folder is EMPTY, and the row never leaves
+Running. `Start` now stores its attempt task on the VM and the next attempt awaits it (bounded, 10 s).
+This was the 1-in-3 flake in `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`
+(present since 2026-07-17, reproducible locally only under `taskset -c 0,1 -c Release`).
