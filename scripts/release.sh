@@ -336,15 +336,28 @@ fi
 if [[ "$RESUME" != "yes" ]]; then
   step "Checking CI"
   gate_ci_green "$DEV_BRANCH" "$(git rev-parse "$DEV_BRANCH")"
-  # main is what actually gets tagged, so its current head has to be sound too. A brand-new
-  # branch point with no runs of its own is fine — that is what the develop check just covered.
+  # main matters too, but only in one direction. Never tag while a run on main is still in FLIGHT —
+  # that is a state nobody knows the answer to yet. A run that already FAILED on main is a different
+  # thing: main is the PREVIOUS release, and its failure is usually the very bug this release carries
+  # the fix for. Blocking on it would mean main can only be fixed by a release that main forbids.
+  # So a red main is accepted when develop is a descendant of main and green — because then the tree
+  # that gets tagged IS the tree CI just passed, and main's old verdict says nothing about it.
   if git rev-parse -q --verify "origin/$MAIN_BRANCH" >/dev/null; then
     MAIN_SHA="$(git rev-parse "origin/$MAIN_BRANCH")"
-    if [[ -n "$(gh run list --repo "$REPO" --branch "$MAIN_BRANCH" --limit 40 --json headSha \
+    if [[ -z "$(gh run list --repo "$REPO" --branch "$MAIN_BRANCH" --limit 40 --json headSha \
                   --jq ".[] | select(.headSha==\"$MAIN_SHA\") | .headSha" 2>/dev/null || true)" ]]; then
-      gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA"
-    else
       ok "no separate CI run for $MAIN_BRANCH@${MAIN_SHA:0:7} — nothing to wait on"
+    elif [[ -n "$(gh run list --repo "$REPO" --branch "$MAIN_BRANCH" --limit 40 \
+                    --json headSha,status --jq ".[] | select(.headSha==\"$MAIN_SHA\") \
+                    | select(.status!=\"completed\") | .headSha" 2>/dev/null || true)" ]]; then
+      gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA"   # in flight: wait for the verdict
+    elif gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA" 2>/dev/null; then
+      : # already reported green by the call itself
+    elif git merge-base --is-ancestor "$MAIN_SHA" "$DEV_BRANCH"; then
+      warn "$MAIN_BRANCH@${MAIN_SHA:0:7} has a failed run, but $DEV_BRANCH contains it and is green"
+      ok "releasing $DEV_BRANCH's verified tree — that is what gets tagged"
+    else
+      die "$MAIN_BRANCH@${MAIN_SHA:0:7} is red and $DEV_BRANCH does not contain it — reconcile the branches first"
     fi
   fi
 fi
