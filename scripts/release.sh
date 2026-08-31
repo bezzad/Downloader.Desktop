@@ -351,8 +351,10 @@ if [[ "$RESUME" != "yes" ]]; then
                     --json headSha,status --jq ".[] | select(.headSha==\"$MAIN_SHA\") \
                     | select(.status!=\"completed\") | .headSha" 2>/dev/null || true)" ]]; then
       gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA"   # in flight: wait for the verdict
-    elif gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA" 2>/dev/null; then
-      : # already reported green by the call itself
+    elif ( gate_ci_green "$MAIN_BRANCH" "$MAIN_SHA" ) >/dev/null 2>&1; then
+      # Probed in a SUBSHELL on purpose: gate_ci_green ends the script when it refuses, which inside a
+      # condition would kill the release instead of letting the fallbacks below have their say.
+      ok "CI green for $MAIN_BRANCH@${MAIN_SHA:0:7}"
     elif git merge-base --is-ancestor "$MAIN_SHA" "$DEV_BRANCH"; then
       warn "$MAIN_BRANCH@${MAIN_SHA:0:7} has a failed run, but $DEV_BRANCH contains it and is green"
       ok "releasing $DEV_BRANCH's verified tree — that is what gets tagged"
