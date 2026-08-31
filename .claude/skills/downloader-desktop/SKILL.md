@@ -811,3 +811,122 @@ which is a great way to spend an hour blaming the wrong thing. Set `ShellLaunche
 - `python3 - <<'PY'` heredocs and C# raw strings (`"""`) fight each other; write those edits with the Edit
   tool. And a `cd X && python3 …` whose `cd` fails runs nothing — check the shell's cwd, which this
   session's tooling resets independently of `cd`.
+
+## Mirrors are LOAD SPREADING, not failover — and three engine facts found proving it (2026-08-30)
+This is the fact a shipped regression turned on (v2.8.0, issue #9): the extension was changed to hand the
+app the clicked link as a download's address with the redirect chain's end as a "mirror", believing the
+mirror would be tried if the first failed. **It never was.** `DownloadPackage.Urls` spreads a download's
+chunks; each chunk is pinned to one url and the file probe reads `Urls[0]` only. Every site that serves
+its file from a different address than the page broke. The failover now lives in the app
+(`DownloadManager.TryNextUrl` + `OrderUrlsForAttempt` + `vm.UrlAttempt`), so the hand-off ordering is no
+longer load-bearing — but **do not re-add an "it'll fall back" assumption anywhere else**, and if you
+change which address leads, the test that must fail first is `Integration/UrlFailoverTests`.
+
+Three engine behaviours that cost an hour each while writing those tests:
+- **The engine MUTATES the `DownloadConfiguration` you hand it.** After a failure it may read
+  `ChunkCount=1, ParallelDownload=false` even though the attempt was configured for 8 — it rewrites the
+  object when it cannot learn the file's size. Anything that needs to know what an attempt *intended* must
+  capture it at Start (`vm.PlannedConnections`), never read it back afterwards.
+- **A resumed download keeps the chunk layout its package was created with.** Retrying with `ChunkCount=1`
+  over an existing `<name>.download` re-opens the SAME eight ranges — the setting is ignored. Backing off
+  to one connection therefore has to discard the partial file (`DiscardPartialFile`), which is why the
+  concurrency retry does.
+- **The size probe is `GET bytes=0-0`, not HEAD** (a loopback fixture that counts "concurrent GETs" will
+  count probes and refuse requests no real server would). And `Completed` is raised on the UI thread
+  *before* the file is necessarily in place: a test that reads the bytes must wait for the FILE, not the
+  status, or it flakes with FileNotFoundException.
+
+Related, from the reporter's own measurements: a server can serve a file over 1–3 connections and answer
+**403 from the 4th on**. `LooksLikeConcurrencyRefusal` (403 + more than one planned connection) triggers
+one single-connection retry, and a 403 that survives it is reported as `Error_ServerRefusedConnections`,
+never as an expired link — the global maximum is a ceiling, not a quota every server has agreed to.
+
+### Writing an end-to-end test around a real engine download: four traps (2026-08-31)
+Two happy-path tests had to be abandoned after passing locally and failing on CI. Reproduce that
+environment with **`taskset -c 0,1 dotnet test -c Release`** — it fails the same way, and is the only
+cheap way to tell "the app is broken" from "the runner is small". The traps, in the order they bit:
+- **`MaxTryAgainOnFailure = 0` makes the engine issue NO request at all** and never complete. Use 1 when a
+  test wants minimal retrying; zero is not "no retries", it is "nothing happens".
+- **The engine spreads a download's chunks across every url it is given**, so with two loopback addresses
+  it can fetch from the SECOND one inside the first attempt — the app's failover never runs and the test
+  proves nothing. Worse, when the lead 403s it can report **Completed having written no file at all**.
+  (That empty-completion is a real product hazard, recorded in the change's tasks.)
+- **Whether parallel chunks OVERLAP depends on core count**: a "refuse while another request is in flight"
+  fixture refuses nothing on a two-core runner. Model the server on request SHAPE (e.g. refuse ranged
+  requests, serve whole-file ones) instead.
+- **A file has to be big enough for the engine to split it** — 256 KB is downloaded as one chunk, 2 MB
+  splits into eight.
+Also: `Assert.True(cond, $"...")` builds that message BEFORE the wait, so a failure message that reads
+"status=Running, requests=[]" may just be describing the starting state. Pass a `Func<string>`.
+
+### Give the engine ONE address per attempt (2026-08-31)
+`DownloadManager.OrderUrlsForAttempt` now hands the engine a single url and lets `TryNextUrl` walk the
+list. Reason: the engine spreads chunks across every url it is given, and a download's addresses are NOT
+equivalent mirrors — they are "the link the user clicked" and "where the browser ended up". Handing it
+both let a dead address keep receiving chunks, so a download could **finish with an empty file and a green
+row**, and the retry inherited the same poison. Two guards came out of it, keep both:
+- `LooksEmptyAfterCompletion` — a "successful" completion whose file is missing or zero-length becomes an
+  `EmptyDownloadException`, which travels the normal failure path (so the next address is tried) but has
+  its own wording (`Error_NothingDownloaded`) instead of inheriting "this link expired".
+- Resolve the finished file's path with the first **non-blank** candidate, not the first non-null: the
+  engine's package routinely carries an EMPTY `FileName` for a download that produced nothing, and `??`
+  accepts `""` — which silently disabled the guard for the exact case it exists for.
+**Still open:** with every request refused, the engine sometimes emits no completion event at all and the
+row sits Running for ever. The app cannot see it; it needs a watchdog. That is why the backoff's
+happy-path test is missing (it hangs ~1 run in 3), not because the backoff is unproven.
+
+### An abandoned attempt's engine can still write the row's outcome
+Every retry path (`TryNextUrl`, `TryReduceConnections`, `TryAutoRefreshLink`) releases the current engine
+and starts a new one — but the OLD engine can still deliver its completion afterwards. Acting on it marked
+rows Completed over files that attempt never wrote (seen only on macOS/Debug CI: `status=Completed`,
+`folder=[]`). `Attach` now stamps each engine's handlers with `vm.AttemptGeneration` and drops events from
+any engine that is no longer the row's. Any new retry path must go through the same `Attach`, and any new
+engine event handler must keep the `Stale()` check.
+
+### The engine could finish without reporting — fixed upstream, with an app-side watchdog
+`DownloadService.StartDownload`'s final `else` (an "unexpected terminal state") only logged and returned:
+**no `DownloadFileCompleted`, ever**. The awaited task finishes and the row stays Running for ever with no
+error, no file and nothing to retry. Reachable through the public API by pausing exactly as the chunks
+finish — which is also the real cause of the old "engine drops a part on the floor if it is paused on its
+finish line" note above. Fixed in `bezzad/Downloader` commit `632ccdc` (a pause after every byte arrived is
+now **Completed**; anything else is **Failed** with an `IncompleteDownloadException`), covered by
+`IntegrationTests/IssuesTest/CompletionSignalTest.cs`.
+- **Engine repo on this box**: it multi-targets up to `net11.0` and the installed SDK is 10.0.x, so
+  `dotnet test` fails outright. Use `-p:TargetFrameworks=net10.0 -f net10.0` — a plain `-f net10.0` is not
+  enough, the TFM list itself has to be overridden. Full suite is 533 tests, ~12 min.
+- **App-side backstop** (`DownloadManager.IsStalled` / `FailStalledDownloads`, on the UI pump): fails an
+  attempt with no progress and no completion for `StallTimeout` (3 min). It must ONLY watch a Running row
+  with a live engine and no `PlanStage` — assembling segments or running ffmpeg moves no bytes for minutes,
+  and a paused row is silent by design. `StallTimeout` is an internal settable seam for tests; it is
+  process-wide, so always restore it in a `finally`.
+- Two app tests that need the engine to report reliably are `Skip`-ped with the upstream commit named,
+  rather than deleted or left flaky. Re-enable them when the app moves to an engine release with the fix.
+
+### A failed attempt can start two engines for one row (fixed 2026-08-31)
+`HandleFailure` re-queues the row (`Dispatcher.Post`) AND frees its queue slot. Freeing the slot pumps
+the queue, which starts the next address immediately; the posted re-queue then arrives and marks that
+already-running attempt `Created` again, so the pump starts a SECOND engine. Two engines write the same
+`<name>.download`, one deletes the other's file, and the row stays Running for ever with no error — it
+looks exactly like a server that never answers. Guard: `RequeueForRefresh` returns early for a row that is
+already Running/Completed, and `Start` marshals to the UI thread so its "already running" check cannot be
+raced from an engine callback thread. Symptom to recognise in a log: two `Starting: <same url>` lines and
+`AttemptGeneration` higher than the number of addresses.
+
+### An app-level test that only fails alongside its siblings is usually a dispatcher race
+`Integration/UrlFailoverTests` passed alone in 0.5 s and failed ~1/3 in a class run. Fastest way to the
+cause: enable `AppLog` inside the test and put the tail of the log (plus `vm.Download.Status`,
+`Package.ReceivedBytesSize/TotalFileSize`, `AttemptGeneration`) into the assertion message via a lazy
+`Func<string>` — the engine's own lines showed the duplicate start immediately.
+
+### The e2e specs share one fixed port range — run them with `workers: 1`
+MV3 host permissions are static, so every spec's stub app must listen on the same range the extension
+probes. Parallel spec files take each other's ports: an add lands on another file's stub, or
+`app-not-found` finds a stub and fails instead of skipping. Both pass when the file runs alone.
+
+### Deno publishes its WINDOWS digests as PowerShell `Get-FileHash`, not coreutils (issue #11)
+`https://github.com/denoland/deno/releases/latest/download/<asset>.sha256sum` is
+`<hex>  <name>` for linux/macOS but `Algorithm / Hash / Path` lines (uppercase digest, a `C:\…` build
+path) for BOTH Windows assets — so a coreutils-only parser read no digest and `ToolChecksum` correctly
+refused to extract, breaking the SiteMedia plugin's Deno step on every Windows machine. `ParseSums` now
+reads either shape and still matches by name (the file name comes out of the `Path` value). Check a
+publisher's file with `curl` before assuming a format; yt-dlp's `SHA2-256SUMS` is coreutils everywhere.

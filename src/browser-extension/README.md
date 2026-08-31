@@ -35,9 +35,10 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   The type is judged from *every* source that names the file — the browser's own file name, the
   server's `Content-Disposition`, the URL path and the MIME type — so a download whose path ends in
   something that only looks like an extension (`…/XAPK/com.instagram.android`) is still matched on
-  what the server actually called it. The clicked link is handed to the app as the download's primary
-  URL, with the redirect chain's signed end kept as a fallback mirror, so the app can re-walk the
-  chain and mint its own token instead of re-requesting a single-use address.
+  what the server actually called it. Both addresses the browser had are handed over — the one it was
+  actually fetching the file from leads, and the link you clicked follows as a fallback — and the app
+  tries them in turn, so a site that serves its file from a different address than the page still
+  downloads.
   The browser's own download is cancelled only *after* the app has accepted the hand-off, so a
   closed app, an unreachable app or a refused add all just leave the browser downloading as usual —
   interception can never cost you a file. Each takeover shows a notification and counts on the badge,

@@ -108,6 +108,8 @@ public partial class DownloadManager : IDownloadManager
 
         if (flushed)
             StatsChanged?.Invoke();
+
+        FailStalledDownloads();
         if (!active)
             _uiTimer.Stop();
     }
@@ -369,6 +371,18 @@ public partial class DownloadManager : IDownloadManager
 
     public async void Start(DownloadItemViewModel vm)
     {
+        // Every start goes through the UI thread, so the guard below and the Running write that follows
+        // it cannot interleave with another start of the same row. They used to: a failed attempt both
+        // re-queues the row (posted to the UI thread) and frees its queue slot, and the slot is freed on
+        // the engine's callback thread — so the pump and the re-queue each called Start, each saw a row
+        // that was not yet Running, and TWO engines downloaded the same file to the same .download path.
+        // One of them then deleted the other's file, leaving the row Running for ever with no error.
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => Start(vm));
+            return;
+        }
+
         // Never (re)start something that's already running or finished. A completed file must not be
         // re-downloaded from 0%, and a double-start would spin up a second engine for the same row
         // (the second reports progress from 0 — the "100% then begins again from 0" bug).
@@ -380,6 +394,10 @@ public partial class DownloadManager : IDownloadManager
                    ?? Array.Empty<string>();
         if (urls.Length == 0)
             return;
+        // Which address leads THIS attempt. The engine pins each chunk to one of the urls it is given and
+        // probes the file with the first one only, so a refused lead is not something the extra urls can
+        // rescue — the app has to lead with a different one and try again (see TryNextUrl).
+        urls = OrderUrlsForAttempt(urls, vm.UrlAttempt);
 
         var folder = string.IsNullOrWhiteSpace(item.SaveFolder)
             ? _config?.Settings?.DefaultSavePath
@@ -398,6 +416,14 @@ public partial class DownloadManager : IDownloadManager
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+        // A server that refused several simultaneous requests gets exactly one, this attempt only. The
+        // configured maximum stays what it is: it is a ceiling for downloads that can use it, not a number
+        // every server must accept (issue #9).
+        if (vm.ForceSingleConnection)
+        {
+            configuration.ChunkCount = 1;
+            configuration.ParallelDownload = false;
+        }
         // A per-item speed cap set in the details dialog wins over the global limit and survives restarts.
         if (item.HasCustomSpeedLimit)
             configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
@@ -407,6 +433,10 @@ public partial class DownloadManager : IDownloadManager
         ApplyRequestContext(configuration, item.Request);
         EnsureCookieFile(item);
         vm.Configuration = configuration; // keep a handle so the details dialog can tweak it live
+        // Captured NOW: the engine mutates this configuration while it runs, so it cannot be asked
+        // afterwards how many connections the attempt actually planned to use.
+        vm.PlannedConnections = ConnectionsInFlight(configuration);
+        vm.LastProgressUtc = DateTime.UtcNow; // the watchdog measures silence from here
         var fileName = item.FileName;
 
         // Build + start entirely off the UI thread. Resolving redirects and the engine's synchronous
@@ -479,8 +509,11 @@ public partial class DownloadManager : IDownloadManager
                     urls[0] = resolved;
                 }
 
-                // DownloadService (not the single-URL DownloadBuilder) so mirrors are real fallbacks
-                // and the engine's internal logs flow into our log file via the shared logger factory.
+                // DownloadService (not the single-URL DownloadBuilder) so the item's other addresses can
+                // spread a download's chunks, and the engine's internal logs flow into our log file via the
+                // shared logger factory. NOTE: those extra urls are load spreading, NOT failover — a chunk
+                // is pinned to one of them and the file probe uses the lead only. Falling back to another
+                // address is the app's job, above.
                 var download = new DownloadService(configuration, AppLog.Factory);
                 // Subscribe before starting so no early event is missed (handlers marshal to UI themselves).
                 Attach(vm, download);
@@ -769,16 +802,30 @@ public partial class DownloadManager : IDownloadManager
     /// while its OWN copy kept running must not be described as an expired link the user has to replace:
     /// the user has not lost anything, the browser is still fetching it. Naming the wrong problem sends
     /// people hunting for a fresh link they never needed (issue #9).</summary>
-    private static string DescribeFailure(Exception ex, DownloadItem item)
+    /// <param name="refusedEvenAlone">The download had already been retried over a single connection and
+    /// was refused again — which changes what the failure means, and what the user should do about it.</param>
+    private static string DescribeFailure(Exception ex, DownloadItem item, bool refusedEvenAlone = false)
     {
         // A resolver's own explanation is already the clearest thing anyone can say about the link, so it
         // is passed through verbatim — except for the one case that used to be worded misleadingly: a site
         // that wants a signed-in session. The people who see it ARE signed in; what is missing is the
         // session reaching the app, which is what sending the page from the extension does.
+        if (Unwrap(ex).Any(e => e is EmptyDownloadException))
+            return Localizer.Instance["Error_NothingDownloaded"];
+
+        if (Unwrap(ex).Any(e => e is DownloadStalledException))
+            return Localizer.Instance["Error_DownloadStalled"];
+
         if (ex is PluginResolveException resolve)
             return LooksLikeNeedsBrowserSession(resolve.Message)
                 ? Localizer.Instance["Error_SiteNeedsBrowserSession"]
                 : resolve.Message;
+
+        // A download that already spent its single-connection retry and still failed with a 403 was
+        // refused by the server, not by a dead link. Telling that user to find a fresh link sends them
+        // hunting for something they never lost — what they need is a lower connection count (issue #9).
+        if (refusedEvenAlone && LooksLikeConcurrencyRefusal(ex, connectionsInFlight: 2))
+            return Localizer.Instance["Error_ServerRefusedConnections"];
 
         if (!LooksLikeExpiredLinkError(ex))
             return Describe(ex);
@@ -898,10 +945,27 @@ public partial class DownloadManager : IDownloadManager
     /// another attempt); false when the row was marked Failed.</returns>
     private bool HandleFailure(DownloadItemViewModel vm, Exception error, string fallbackMessage, string logPrefix)
     {
+        // Another ADDRESS first, then a fresh signature for the current one: when a download carries both
+        // the end of the browser's redirect chain and the link that was clicked, the second address is
+        // usually the one that works, while re-resolving a spent single-use address just spends it again.
+        if (TryNextUrl(vm, error))
+            return true;
+        // Then the same address over a single connection: a 403 raised while several chunks were in
+        // flight is often the server refusing the CONCURRENCY, not the address (issue #9 — the reporter
+        // measured one mirror serving happily at 1-3 connections and refusing at 4+).
+        if (TryReduceConnections(vm, error))
+            return true;
         if (TryAutoRefreshLink(vm, error))
             return true;
 
-        vm.ErrorMessage = error != null ? DescribeFailure(error, vm.GetItem()) : fallbackMessage;
+        // "The server refused the connections" is only the better explanation while nothing has suggested
+        // the link itself is gone. Once the app has re-resolved the address even once and still been
+        // refused, the link is the story — telling that user to lower a setting sends them after something
+        // that was never the problem.
+        var refusedEvenAlone = vm.ForceSingleConnection && vm.LinkRefreshAttempts == 0;
+        vm.ErrorMessage = error != null
+            ? DescribeFailure(error, vm.GetItem(), refusedEvenAlone)
+            : fallbackMessage;
         vm.Status = DownloadStatus.Failed;
         AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
         if (NotifyFailedEnabled)
@@ -909,10 +973,179 @@ public partial class DownloadManager : IDownloadManager
         return false;
     }
 
+    /// <summary>The ONE address this attempt uses.
+    /// <para>
+    /// The engine takes a list and spreads a download's chunks across all of it, which is load spreading
+    /// between equivalent mirrors — and the addresses a download actually carries are not equivalent. They
+    /// are "the link the user clicked" and "where the browser ended up", and handing both over meant a
+    /// dead or refusing address kept receiving chunks: downloads finished with an empty file and a green
+    /// row, and a retry inherited the same poison. One address per attempt, walked in order by
+    /// <see cref="TryNextUrl"/>, tries every address the download has while keeping each attempt's outcome
+    /// attributable to the address that produced it.
+    /// </para>
+    /// Pure and total: an out-of-range or negative attempt falls back to the first address, so a stale
+    /// counter can never leave a download with nothing to request.</summary>
+    internal static string[] OrderUrlsForAttempt(string[] urls, int attempt)
+    {
+        if (urls.Length == 0)
+            return urls;
+        var index = attempt >= 0 && attempt < urls.Length ? attempt : 0;
+        return new[] { urls[index] };
+    }
+
+    /// <summary>Pure helper (testable): could a DIFFERENT address plausibly succeed where this failure
+    /// happened? A server that refused, lost or hid the address, or never answered at all, says nothing
+    /// about the other addresses the download carries. A cancel, a disk error or a timeout does — retrying
+    /// those against another address would just repeat the same problem more slowly.</summary>
+    public static bool CanRetryWithAnotherUrl(Exception ex)
+    {
+        if (ex == null)
+            return false;
+        foreach (var e in Unwrap(ex))
+        {
+            // Finished with nothing to show for it, or stopped responding altogether: a different
+            // address is precisely what might help in both cases.
+            if (e is EmptyDownloadException or DownloadStalledException)
+                return true;
+            if (e is OperationCanceledException or IOException or UnauthorizedAccessException)
+                return false;
+            if (e is System.Net.Http.HttpRequestException { StatusCode: { } status })
+                return status is System.Net.HttpStatusCode.Unauthorized
+                    or System.Net.HttpStatusCode.Forbidden
+                    or System.Net.HttpStatusCode.NotFound
+                    or System.Net.HttpStatusCode.Gone;
+            // No status at all: the request never completed (connection refused, DNS, reset). Another
+            // address is exactly what might work.
+            if (e is System.Net.Http.HttpRequestException or System.Net.Sockets.SocketException)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Promote the next address and queue another attempt. This is the failover the engine does NOT do:
+    /// its extra urls spread a download's chunks, but a refused lead fails the whole download while a
+    /// perfectly good second address sits unused — which is how handing the app "a fallback" silently
+    /// achieved nothing (issue #9, v2.8.0).
+    /// </summary>
+    /// <returns>True when another attempt was queued (the caller must then NOT mark the row Failed).</returns>
+    private bool TryNextUrl(DownloadItemViewModel vm, Exception error)
+    {
+        var urls = vm.GetItem()?.Urls;
+        if (urls == null || urls.Count <= 1)
+            return false;
+        // One leading attempt per address, so a set of dead addresses fails once instead of looping.
+        if (vm.UrlAttempt + 1 >= urls.Count)
+            return false;
+        if (!CanRetryWithAnotherUrl(error))
+            return false;
+
+        vm.UrlAttempt++;
+        vm.Speed = 0;
+        vm.Status = DownloadStatus.Created; // queued, not failed: the app is still working on it
+        AppLog.Info($"Address {vm.UrlAttempt} of {urls.Count} was refused; trying the next one");
+        ReleaseEngine(vm);
+        Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
+        return true;
+    }
+
+    /// <summary>Delete the in-progress file the engine writes (<c>&lt;name&gt;.download</c>), so the next
+    /// attempt builds a fresh package instead of resuming the old one's layout. Best-effort: a file that
+    /// cannot be deleted just means the retry resumes, which is what would have happened anyway.</summary>
+    private static void DiscardPartialFile(DownloadItemViewModel vm)
+    {
+        var path = vm?.GetItem()?.FilePath;
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+        foreach (var candidate in new[] { path + ".download", path })
+        {
+            try
+            {
+                if (File.Exists(candidate))
+                    File.Delete(candidate);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                AppLog.Warn($"Couldn't clear the partial file before retrying: {ex.Message}");
+            }
+        }
+        vm.Downloaded = 0;
+        vm.Progress = 0;
+    }
+
+    /// <summary>Pure helper (testable): does this failure look like the server refusing the number of
+    /// simultaneous connections rather than the address itself? Only a 403 qualifies — the status a server
+    /// uses to refuse a request it understood — and only when more than one connection was actually in
+    /// flight. A 401/404/410 is about the address, and a 403 to a lone request is a real refusal, so
+    /// neither is worth spending an attempt on.</summary>
+    public static bool LooksLikeConcurrencyRefusal(Exception ex, int connectionsInFlight)
+    {
+        if (ex == null || connectionsInFlight <= 1)
+            return false;
+        foreach (var e in Unwrap(ex))
+        {
+            if (e is System.Net.Http.HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden })
+                return true;
+            // Finishing with NOTHING over several connections says the same thing: a server that refuses
+            // ranged requests answers each chunk with a refusal, and what reaches here is an empty
+            // download rather than any one status. Over a single connection it means something else, and
+            // the guard above already excluded that.
+            if (e is EmptyDownloadException)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>How many requests this attempt had in flight at once, from the configuration it ran with.</summary>
+    private static int ConnectionsInFlight(DownloadConfiguration configuration)
+    {
+        if (configuration == null || !configuration.ParallelDownload)
+            return 1;
+        return configuration.ParallelCount > 0 ? configuration.ParallelCount : Math.Max(1, configuration.ChunkCount);
+    }
+
+    /// <summary>Queue one more attempt over a single connection. Bounded to once per download: if a lone
+    /// request is refused too, the server means it.</summary>
+    /// <returns>True when another attempt was queued (the caller must then NOT mark the row Failed).</returns>
+    private bool TryReduceConnections(DownloadItemViewModel vm, Exception error)
+    {
+        if (vm.ForceSingleConnection) // already tried; a second refusal is the server's real answer
+            return false;
+        // Only on a download that has not yet been through the expired-link machinery. The two explanations
+        // for a 403 — "too many connections" and "this address is gone" — are indistinguishable in the
+        // response, so they are kept disjoint: the connection backoff gets the FIRST attempt, and once a
+        // link has been re-resolved even once, the link path owns the download's fate.
+        if (vm.LinkRefreshAttempts > 0)
+            return false;
+        if (!LooksLikeConcurrencyRefusal(error, vm.PlannedConnections))
+            return false;
+
+        vm.ForceSingleConnection = true;
+        vm.Speed = 0;
+        vm.Status = DownloadStatus.Created;
+        // The partial file has to go with it. A resumed download keeps the chunk layout its package was
+        // created with, so asking for one connection while a half-finished eight-chunk file is on disk
+        // changes nothing — the retry would re-open the same eight ranges and be refused again. What is
+        // discarded is whatever the refusing server let through, which is nothing anyone can use.
+        DiscardPartialFile(vm);
+        AppLog.Info("The server refused several connections at once; retrying with one");
+        ReleaseEngine(vm);
+        Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
+        return true;
+    }
+
     /// <summary>Re-queues an item for another attempt WITHOUT resetting its automatic-refresh counter (that
     /// reset is reserved for the user's own Retry/Resume), so a dead link can't retry forever.</summary>
     private void RequeueForRefresh(DownloadItemViewModel vm)
     {
+        // This runs one dispatcher hop after the failure that asked for it, and in that gap the freed
+        // queue slot can already have started the next attempt (the same failure frees the slot). Marking
+        // an attempt that is ALREADY RUNNING as queued again made the pump start a second engine for the
+        // same row: two downloads wrote the same .download file, one deleted the other's, and the row sat
+        // Running for ever with no error and no file — the failover hang behind issue #9.
+        if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
+            return;
+
         vm.GetItem().PlanJson = null;
         vm.Status = DownloadStatus.Created;
         EnsureQueueRunning(vm.GetItem().QueueId);
@@ -943,9 +1176,11 @@ public partial class DownloadManager : IDownloadManager
         if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
             return;
 
-        // The user asked for this attempt, so the automatic link-refresh budget starts over (issue #6):
-        // a link that was dead yesterday may well be fine today.
+        // The user asked for this attempt, so the automatic budgets start over (issue #6): a link that
+        // was dead yesterday may well be fine today, and so may the address that was refused.
         vm.LinkRefreshAttempts = 0;
+        vm.UrlAttempt = 0;
+        vm.ForceSingleConnection = false;
 
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
@@ -1000,7 +1235,9 @@ public partial class DownloadManager : IDownloadManager
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
-        vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic-refresh budget (#6)
+        vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic budgets (#6)
+        vm.UrlAttempt = 0;          // …including which address leads, so Retry starts from the first again
+        vm.ForceSingleConnection = false;
         // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
         // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
         // disk are reused only when the fresh plan's part paths match (same url → same part file).
@@ -1315,9 +1552,16 @@ public partial class DownloadManager : IDownloadManager
     private void Attach(DownloadItemViewModel vm, DownloadService download)
     {
         vm.Download = download;
+        // This engine's events are only meaningful while it IS the row's attempt. A superseded engine
+        // (one we failed over from, or backed off from) can still deliver a completion afterwards, and
+        // acting on it wrote the outcome of an abandoned attempt over the live one — a row marked
+        // Completed with no file, because the attempt that actually produced the file had not finished.
+        var generation = ++vm.AttemptGeneration;
+        bool Stale() => vm.AttemptGeneration != generation;
 
         download.DownloadStarted += (_, e) => OnUi(() =>
         {
+            if (Stale()) return;
             // The engine resolved the real file path (from URL / Content-Disposition) and reports
             // it as the full path in e.FileName. IDownload.Filename stays empty when no name was
             // supplied, so derive the name/folder from e.FileName instead.
@@ -1340,6 +1584,7 @@ public partial class DownloadManager : IDownloadManager
 
         download.DownloadProgressChanged += (_, e) =>
         {
+            if (Stale()) return;
             // Stage only — no UI marshaling here. The shared UI pump flushes the latest values to the
             // grid at a fixed rate, so the main thread stays free no matter how frequently (or from how
             // many connections) the engine raises this event. A paused/stopped row drops staged events
@@ -1351,6 +1596,7 @@ public partial class DownloadManager : IDownloadManager
 
         download.DownloadFileCompleted += (_, e) => OnUi(() =>
         {
+            if (Stale()) return;
             vm.Speed = 0;
             if (e.Cancelled)
             {
@@ -1393,6 +1639,17 @@ public partial class DownloadManager : IDownloadManager
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
+            else if (NothingWasDownloaded(vm, e, out var savedPath))
+            {
+                // The engine reported success but there is no file, or an empty one. This really happens:
+                // when a download carries several addresses the engine spreads its chunks across them, and
+                // a lead address that refuses every request can leave it "finished" having written nothing
+                // — a green row and an empty folder, which is worse than an honest failure. Route it
+                // through the normal failure path so the next address is tried (issue #9).
+                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
+                HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
+                    "Completed with no data");
+            }
             else if (IsExpiredOrInvalidLink(vm, e))
             {
                 // The engine "completed", but the payload is a small web page (HTML), not the requested
@@ -1407,7 +1664,9 @@ public partial class DownloadManager : IDownloadManager
             else
             {
                 vm.Progress = 100;
-                vm.LinkRefreshAttempts = 0; // it worked — the refresh budget is spent only on live trouble
+                vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
+                vm.UrlAttempt = 0;
+                vm.ForceSingleConnection = false;
                 vm.Status = DownloadStatus.Completed;
                 AppLog.Info($"Completed: {vm.FileName}");
                 if (NotifyCompleteEnabled)
@@ -1434,6 +1693,97 @@ public partial class DownloadManager : IDownloadManager
     /// fine and never flagged (knownSizeBeforeAttempt is null). A healthy resume finishes at the full size.</summary>
     public static bool LooksCorruptedAfterResume(long? knownSizeBeforeAttempt, long finalBytes) =>
         knownSizeBeforeAttempt is > 0 && finalBytes > 0 && finalBytes < knownSizeBeforeAttempt.Value;
+
+    /// <summary>How long a running download may show no sign of life before the app gives up on the
+    /// attempt. Generous on purpose: the engine has its own per-block and per-request timeouts, so this
+    /// only catches a download nothing else will ever end.</summary>
+    internal static TimeSpan StallTimeout { get; set; } = TimeSpan.FromMinutes(3);
+
+    /// <summary>Pure helper (testable): has this attempt gone silent for long enough to give up on?
+    /// <para>
+    /// Only a row that is Running with a live engine and no post-processing stage qualifies. Assembling a
+    /// multi-part download or running ffmpeg can take minutes without a single byte of progress, and a
+    /// paused or queued row is not running at all — failing either of those would be the watchdog causing
+    /// the problem it exists to catch.
+    /// </para></summary>
+    public static bool IsStalled(DownloadStatus status, bool hasLiveEngine, string planStage,
+        DateTime lastProgressUtc, DateTime nowUtc)
+    {
+        if (status != DownloadStatus.Running || !hasLiveEngine)
+            return false;
+        if (!string.IsNullOrEmpty(planStage))
+            return false; // post-processing: no bytes move, and that is normal
+        return nowUtc - lastProgressUtc >= StallTimeout;
+    }
+
+    /// <summary>
+    /// Ends attempts that have gone silent. The engine can finish without ever raising a completion —
+    /// against a server that refuses every request it sometimes emits nothing at all — leaving a row
+    /// Running for ever with no error, no file and nothing to retry. Nothing else in the app can observe
+    /// that, so the pump does: a silent attempt is failed through the normal path, which then tries the
+    /// next address or reports it honestly.
+    /// </summary>
+    private void FailStalledDownloads()
+    {
+        var now = DateTime.UtcNow;
+        // ToList: HandleFailure can re-queue an item and change the collection while we walk it.
+        foreach (var vm in Items.ToList())
+        {
+            if (!IsStalled(vm.Status, vm.Download != null, vm.PlanStage, vm.LastProgressUtc, now))
+                continue;
+
+            AppLog.Error($"No progress for {StallTimeout.TotalSeconds:0}s and no completion: {vm.FileName ?? vm.Url}");
+            vm.LastProgressUtc = now; // don't re-trigger while the failure is being handled
+            ReleaseEngine(vm);
+            HandleFailure(vm, new DownloadStalledException(
+                    $"the download stopped responding for {StallTimeout.TotalSeconds:0} seconds"),
+                Localizer.Instance["Error_DownloadStalled"], "Stalled");
+            NotifyList();
+        }
+    }
+
+    /// <summary>Pure helper (testable): did a "successful" download actually produce nothing? True when the
+    /// file the engine says it wrote is missing or empty. A file that is merely SMALLER than expected is
+    /// not judged here — a server may legitimately report a size it then serves differently, and the
+    /// resumed-download case has its own check.</summary>
+    public static bool LooksEmptyAfterCompletion(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false; // nothing to judge; the engine never told us where it wrote
+        try
+        {
+            var info = new FileInfo(path);
+            return !info.Exists || info.Length == 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false; // can't tell — never fail a download on a filesystem hiccup
+        }
+    }
+
+    /// <summary>Where the engine says the finished file is, from the completion event or the package.</summary>
+    private static bool NothingWasDownloaded(DownloadItemViewModel vm,
+        System.ComponentModel.AsyncCompletedEventArgs e, out string savedPath)
+    {
+        // First NON-BLANK, not first non-null: the engine's package routinely carries an EMPTY file name
+        // when the download produced nothing, and `??` happily accepts "" — which read as "no path to
+        // judge" and let the very case this guard exists for slip through as a success.
+        savedPath = FirstNonBlank(
+            (e.UserState as DownloadPackage)?.FileName,
+            vm.Download?.Package?.FileName,
+            vm.GetItem()?.FilePath);
+        // A download the engine SKIPPED because the file already exists is handled well before this
+        // (TryMarkAlreadyExists) and never reaches here, so an empty file at this point is a real miss.
+        return LooksEmptyAfterCompletion(savedPath);
+    }
+
+    private static string FirstNonBlank(params string[] candidates) =>
+        candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+
+    /// <summary>The failure a no-data completion is reported as: its own type, so the recovery path can
+    /// treat it like a refused address while the row still says what really happened.</summary>
+    private static Exception EmptyDownloadError() =>
+        new EmptyDownloadException("the download finished without producing a file");
 
     /// <summary>An expired/anti-bot link often returns a small HTML error page with HTTP 200 instead of the
     /// file. Above this size we trust it's real content (real media files dwarf an error page).</summary>

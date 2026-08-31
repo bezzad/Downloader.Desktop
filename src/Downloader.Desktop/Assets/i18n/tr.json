@@ -308,5 +308,8 @@
   "Det_RefreshMismatchTitle": "Bu bağlantı farklı bir dosyaya işaret ediyor",
   "Det_RefreshMismatchBody": "Yeni bağlantı {0} bildiriyor, ancak bu indirme {1}. Devam etmek indirilenleri siler ve baştan başlar.",
   "Det_RefreshDone": "Bağlantı güncellendi — indirme sürüyor.",
-  "Error_SiteNeedsBrowserSession": "Bu site videoyu yalnızca tarayıcıda oturum açmış bir oturuma verir. Sayfayı Downloader tarayıcı eklentisinden gönderin; mevcut oturumunuzu bağlantıyla birlikte iletir."
+  "Error_SiteNeedsBrowserSession": "Bu site videoyu yalnızca tarayıcıda oturum açmış bir oturuma verir. Sayfayı Downloader tarayıcı eklentisinden gönderin; mevcut oturumunuzu bağlantıyla birlikte iletir.",
+  "Error_ServerRefusedConnections": "Sunucu aynı anda birden fazla bağlantıyı reddetti. Ayarlar'da “Maksimum bağlantı” değerini düşürün (genelde 2 veya 3 yeterli) ve yeniden deneyin.",
+  "Error_NothingDownloaded": "İndirme hiçbir dosya oluşturmadan bitti — sunucu isteği kabul etti ama veri göndermedi. Yeniden deneyin; tekrarlarsa bağlantıyı yeniden ekleyin.",
+  "Error_DownloadStalled": "İndirme yanıt vermeyi bıraktı — sunucu bağlantıyı kabul etti ama dakikalarca hiçbir veri göndermedi. Yeniden deneyebilmeniz için durduruldu."
 }

@@ -111,3 +111,15 @@ explicit go-ahead before anything is posted:
 
 Both are drafted; the change stays active (not archived, 6.5 open) until the author approves and they are
 posted. Everything they describe is already shipped on `develop`.
+
+## Released as v2.8.0 (2026-08-30)
+
+Tag `v2.8.0` on `main` (release commit `4220b0a`, version bump `c3b0b19` on develop). All channels
+verified: GitHub Release with curated notes and every asset (the four platform archives, the two
+extension zips, the `.deb`, and — the part this change needed — `plugins-catalog.json` plus
+`Downloader.Desktop.Plugins.SiteMedia.zip`, which is what makes the video-site plugin installable at
+all); Snap Store published by CI; Homebrew tap at 2.8.0 (`Casks/downloader.rb`); winget PR
+microsoft/winget-pkgs#426259 open, awaiting a moderator; AUR published by the `aur` job.
+
+The browser extension 1.6.0 zips are attached to the release, but the store submissions
+(Chrome/Edge/AMO) remain the author's to upload.

@@ -11,7 +11,7 @@ const {
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
-  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching,
+  captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
   filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
@@ -951,4 +951,47 @@ test("asking the app what it can handle survives an old app, an error and no app
   } finally {
     global.fetch = realFetch;
   }
+});
+
+
+// ── Which address an intercepted download hands over first ───────────────────────────────────────
+// v2.8.0 led with the clicked link and kept the chain's end as a "fallback" nothing tried, which broke
+// every site that serves the file from a different address than the page (issue #9). The app now tries
+// both; this pins which one leads and that the pair is never sent twice.
+
+test("the end of the redirect chain leads, with the clicked link as the fallback", () => {
+  const { url, mirrors } = handOffUrls({
+    url: "https://www.softpedia.example/dyn-postdownload.php?p=999",
+    finalUrl: "https://cdn.example.com/blob/setup.exe"
+  });
+  assert.equal(url, "https://cdn.example.com/blob/setup.exe");
+  assert.deepEqual(mirrors, ["https://www.softpedia.example/dyn-postdownload.php?p=999"]);
+});
+
+test("a download that was never redirected hands over one address", () => {
+  const direct = "https://files.example.com/app.zip";
+  const { url, mirrors } = handOffUrls({ url: direct, finalUrl: direct });
+  assert.equal(url, direct);
+  assert.equal(mirrors, null);
+});
+
+test("a missing or non-http chain end falls back to the clicked link alone", () => {
+  const clicked = "https://files.example.com/app.zip";
+  for (const finalUrl of [undefined, null, "", "blob:https://example.com/1234", "data:text/plain,hi"]) {
+    const { url, mirrors } = handOffUrls({ url: clicked, finalUrl });
+    assert.equal(url, clicked, `finalUrl=${finalUrl}`);
+    assert.equal(mirrors, null, `finalUrl=${finalUrl}`);
+  }
+});
+
+test("a non-http clicked link still lets the chain's end through", () => {
+  const { url, mirrors } = handOffUrls({ url: "blob:https://example.com/x", finalUrl: "https://cdn/f.bin" });
+  assert.equal(url, "https://cdn/f.bin");
+  assert.equal(mirrors, null); // nothing usable to fall back to
+});
+
+test("a download with no usable address at all hands over nothing", () => {
+  assert.deepEqual(handOffUrls({ url: "blob:x", finalUrl: null }), { url: null, mirrors: null });
+  assert.deepEqual(handOffUrls({}), { url: null, mirrors: null });
+  assert.deepEqual(handOffUrls(null), { url: null, mirrors: null });
 });

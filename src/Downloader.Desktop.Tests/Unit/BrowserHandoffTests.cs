@@ -27,18 +27,23 @@ public class BrowserHandoffTests
     public void Mirrors_become_fallback_links_after_the_primary_one()
     {
         var clicked = "https://www.softpedia.example/dyn-postdownload.php?p=999";
-        var signed = "https://cdn.softpedia.example/blob/6f2c1a?sig=one-shot";
+        var chainEnd = "https://cdn.softpedia.example/blob/6f2c1a";
+
+        // The body the extension sends: the end of the browser's redirect chain leads (it is the address
+        // that actually serves the file), the clicked link follows as the fallback. See handOffUrls in
+        // common.js — this test is the app half of that contract.
         var req = ApiAddRequest.FromJson(JsonSerializer.Serialize(new Dictionary<string, object>
         {
-            ["url"] = clicked,
-            ["mirrors"] = new[] { signed }
+            ["url"] = chainEnd,
+            ["mirrors"] = new[] { clicked }
         }));
 
         var item = LocalApiService.BuildItem(req, Config.New());
 
-        // Order is the contract: Start always re-resolves Urls[0], so the link that CAN be resolved again
-        // has to be first and the already-signed one only a fallback.
-        Assert.Equal(new[] { clicked, signed }, item.Urls.ToArray());
+        // Order is the contract in both directions: the app leads its first attempt with Urls[0] and
+        // falls back through the rest (DownloadManager.TryNextUrl), and re-resolves Urls[0] when a link
+        // looks expired. Whatever the extension puts first is what the app tries first.
+        Assert.Equal(new[] { chainEnd, clicked }, item.Urls.ToArray());
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

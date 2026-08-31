@@ -48,6 +48,44 @@ public class ExtractionToolTests
         Assert.Null(ToolChecksum.ParseSums(text, "deno-aarch64-apple-darwin.zip"));
     }
 
+    /// <summary>
+    /// Deno publishes its WINDOWS digests as PowerShell <c>Get-FileHash</c> output, not the coreutils
+    /// shape every other asset uses. Reading only coreutils meant every Windows install of this plugin
+    /// threw away a perfectly good Deno archive and told the user the published checksum could not be
+    /// read (issue #11) — with no way for them to fix it. This is the publisher's file verbatim.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_windows_digest_deno_actually_publishes_is_read()
+    {
+        var text = "\r\nAlgorithm : SHA256\r\n"
+                   + "Hash      : 15E5300B0BA3C3695A7621D90160A746EC9E710228CEE639AFA9D580F6E3CD11\r\n"
+                   + "Path      : C:\\a\\deno\\deno\\target\\release\\deno-x86_64-pc-windows-msvc.zip\r\n";
+
+        // Matched BY NAME out of the build machine's path, and lowercased so it compares to a computed sum.
+        Assert.Equal("15e5300b0ba3c3695a7621d90160a746ec9e710228cee639afa9d580f6e3cd11",
+            ToolChecksum.ParseSums(text, "deno-x86_64-pc-windows-msvc.zip"));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_get_file_hash_block_for_a_different_asset_is_not_accepted_as_this_one()
+    {
+        // The new shape must not become a way to accept the wrong asset's digest: matching stays by name.
+        var text = "Algorithm : SHA256\r\n"
+                   + "Hash      : " + new string('D', 64) + "\r\n"
+                   + "Path      : C:\\build\\deno-aarch64-pc-windows-msvc.zip\r\n";
+
+        Assert.Null(ToolChecksum.ParseSums(text, "deno-x86_64-pc-windows-msvc.zip"));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_get_file_hash_block_with_no_usable_digest_is_refused()
+    {
+        // Truncated/garbled output must read as "no digest", never as a pass.
+        var text = "Algorithm : SHA256\r\nHash      : nothex\r\nPath      : C:\\x\\deno.zip\r\n";
+
+        Assert.Null(ToolChecksum.ParseSums(text, "deno.zip", allowSingleEntry: true));
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task A_file_that_matches_its_digest_is_kept()
     {

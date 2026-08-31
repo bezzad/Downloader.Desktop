@@ -9,8 +9,11 @@ namespace Downloader.Desktop.Plugins.SiteMedia;
 /// the file and never reach <c>Process.Start</c>.
 /// <para>
 /// Both publishers ship the digests next to the asset: yt-dlp as one <c>SHA2-256SUMS</c> listing every
-/// asset, Deno as a per-asset <c>.sha256sum</c> file. Both use the coreutils shape
-/// <c>&lt;hex&gt;  &lt;name&gt;</c>, so one parser reads either.
+/// asset, Deno as a per-asset <c>.sha256sum</c> file. Most are the coreutils shape
+/// <c>&lt;hex&gt;  &lt;name&gt;</c> — but Deno's WINDOWS assets are published as PowerShell
+/// <c>Get-FileHash</c> output instead (<c>Algorithm/Hash/Path</c> lines, uppercase digest). Reading only
+/// the coreutils shape meant every Windows install of this plugin discarded a perfectly good Deno archive
+/// and reported that the published checksum could not be read (issue #11), so both shapes are parsed.
 /// </para>
 /// </summary>
 internal static class ToolChecksum
@@ -24,8 +27,22 @@ internal static class ToolChecksum
     {
         if (string.IsNullOrWhiteSpace(sumsFileContent)) return null;
 
+        var entries = ParseCoreutils(sumsFileContent);
+        if (entries.Count == 0)
+            entries = ParseGetFileHash(sumsFileContent);
+
+        if (entries.Count == 0) return null;
+        var match = entries.FirstOrDefault(e =>
+            string.Equals(e.Name, assetName, StringComparison.OrdinalIgnoreCase));
+        if (match.Hash is not null) return match.Hash;
+        return allowSingleEntry && entries.Count == 1 ? entries[0].Hash : null;
+    }
+
+    /// <summary>The coreutils shape: <c>&lt;hex&gt;  &lt;name&gt;</c>, one asset per line.</summary>
+    private static List<(string Hash, string Name)> ParseCoreutils(string content)
+    {
         var entries = new List<(string Hash, string Name)>();
-        foreach (var raw in sumsFileContent.Split('\n'))
+        foreach (var raw in content.Split('\n'))
         {
             var line = raw.Trim();
             if (line.Length == 0 || line.StartsWith('#')) continue;
@@ -37,12 +54,55 @@ internal static class ToolChecksum
             var name = parts[1].Trim().TrimStart('*');
             entries.Add((hash.ToLowerInvariant(), Path.GetFileName(name)));
         }
+        return entries;
+    }
 
-        if (entries.Count == 0) return null;
-        var match = entries.FirstOrDefault(e =>
-            string.Equals(e.Name, assetName, StringComparison.OrdinalIgnoreCase));
-        if (match.Hash is not null) return match.Hash;
-        return allowSingleEntry && entries.Count == 1 ? entries[0].Hash : null;
+    /// <summary>
+    /// PowerShell <c>Get-FileHash</c> output — what Deno publishes for its Windows assets:
+    /// <code>
+    /// Algorithm : SHA256
+    /// Hash      : 15E5300B0BA3C3695A7621D90160A746EC9E710228CEE639AFA9D580F6E3CD11
+    /// Path      : C:\a\deno\deno\target\release\deno-x86_64-pc-windows-msvc.zip
+    /// </code>
+    /// One record per blank-line-separated block. The Path is the publisher's own build machine, so only
+    /// its file name is of any use here — and it is what lets the digest still be matched BY NAME rather
+    /// than trusted because it was the only one in the file.
+    /// </summary>
+    private static List<(string Hash, string Name)> ParseGetFileHash(string content)
+    {
+        var entries = new List<(string Hash, string Name)>();
+        string? hash = null;
+        var name = string.Empty;
+
+        void Flush()
+        {
+            if (hash is not null)
+                entries.Add((hash.ToLowerInvariant(), name));
+            hash = null;
+            name = string.Empty;
+        }
+
+        foreach (var raw in content.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0)
+            {
+                Flush();
+                continue;
+            }
+            // Split on the FIRST colon only: a Windows path in the value has one of its own ("C:\...").
+            var colon = line.IndexOf(':');
+            if (colon <= 0) continue;
+            var key = line[..colon].Trim();
+            var value = line[(colon + 1)..].Trim();
+
+            if (key.Equals("Hash", StringComparison.OrdinalIgnoreCase) && IsHex64(value))
+                hash = value;
+            else if (key.Equals("Path", StringComparison.OrdinalIgnoreCase) && value.Length > 0)
+                name = Path.GetFileName(value.Replace('\\', '/'));
+        }
+        Flush();
+        return entries;
     }
 
     private static bool IsHex64(string s) =>

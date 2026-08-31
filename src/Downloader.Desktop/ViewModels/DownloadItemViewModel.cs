@@ -55,6 +55,9 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Records the latest engine progress without touching the UI (any thread).</summary>
     public void StageProgress(double progress, double speed, long downloaded, long size)
     {
+        // Any thread. This is the only heartbeat a running download has: the watchdog reads it to tell a
+        // slow transfer from one the engine has stopped reporting on entirely.
+        LastProgressUtc = DateTime.UtcNow;
         _pendingProgress = progress;
         _pendingSpeed = speed;
         _pendingDownloaded = downloaded;
@@ -297,6 +300,37 @@ public class DownloadItemViewModel : ViewModelBase
     /// expired-link failure (issue #6). Session-only: it bounds the automatic retries and is reset when the
     /// download completes or when the user starts/retries it.</summary>
     public int LinkRefreshAttempts { get; set; }
+
+    /// <summary>Which of the item's addresses is leading the current attempt (an index into
+    /// <see cref="DownloadItem.Urls"/>). A download is handed several addresses — the end of the browser's
+    /// redirect chain and the link the user clicked, or a set of mirrors — and only the leading one is
+    /// actually requested by the engine's file probe, so a refused lead has to be replaced rather than
+    /// waited on. Session-only, and reset whenever the user starts the download themselves.</summary>
+    public int UrlAttempt { get; set; }
+
+    /// <summary>Whether this attempt must use a single connection. Some servers serve a file happily over
+    /// one or two connections and answer 403 to the fourth — the user's maximum is a ceiling the download
+    /// may use, not a number every server has agreed to. Set for one retry after a refusal that looks like
+    /// it was about concurrency, and session-only like the counters above.</summary>
+    public bool ForceSingleConnection { get; set; }
+
+    /// <summary>Which attempt is the live one. Bumped every time the row starts a fresh engine, and
+    /// captured by that engine's event handlers: an engine we have moved on from can still deliver events
+    /// afterwards (its own completion arrives while the NEXT attempt is already running), and honouring
+    /// them let an abandoned attempt mark the row Completed over a file that was never written.</summary>
+    public int AttemptGeneration { get; set; }
+
+    /// <summary>When this download last showed a sign of life. Set when an attempt starts and on every
+    /// progress event; the watchdog fails an attempt that has gone quiet, because a download the engine
+    /// has stopped reporting on is otherwise indistinguishable from one that is simply slow — and it
+    /// never ends on its own.</summary>
+    public DateTime LastProgressUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>How many connections this attempt SET OUT to use. Read from the configuration before the
+    /// engine sees it, because the engine rewrites that object as it goes (a file whose size it cannot
+    /// learn is downloaded over one connection, and the count it was given is overwritten with 1) — so by
+    /// the time a failure is being interpreted, the configuration no longer says what was attempted.</summary>
+    public int PlannedConnections { get; set; } = 1;
 
     private bool _isRefreshingLink;
 

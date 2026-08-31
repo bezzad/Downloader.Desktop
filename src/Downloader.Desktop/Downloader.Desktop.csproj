@@ -42,7 +42,7 @@
          reads Major.Minor.Build); the 4th component (a unique, increasing revision = half-seconds since
          midnight UTC) only differentiates builds in FileVersion. Keep VersionPrefix three-part. -->
     <PropertyGroup Label="Versioning">
-        <VersionPrefix>2.8.0</VersionPrefix>
+        <VersionPrefix>2.8.1</VersionPrefix>
         <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
         <Version>$(VersionPrefix).$(_RevisionNumber)</Version>
         <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
@@ -89,7 +89,7 @@
         <PackageReference Include="Avalonia.ReactiveUI" Version="11.3.8" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.17" />
-        <PackageReference Include="Downloader" Version="5.9.5" />
+        <PackageReference Include="Downloader" Version="5.9.6" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
         <PackageReference Include="Dotnet.Bundle" Version="0.9.13" />

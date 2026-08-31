@@ -308,5 +308,8 @@
   "Det_RefreshMismatchTitle": "Ĉi tiu ligilo montras al alia dosiero",
   "Det_RefreshMismatchBody": "La nova ligilo raportas {0}, sed ĉi tiu elŝuto estas {1}. Daŭrigo forĵetas la jam elŝutitan parton kaj rekomencas.",
   "Det_RefreshDone": "Ligilo aktualigita — la elŝuto daŭras.",
-  "Error_SiteNeedsBrowserSession": "Ĉi tiu retejo donas la videon nur al ensalutinta retumila seanco. Sendu la paĝon per la Downloader-retumila kromprogramo — ĝi transdonas vian nunan seancon kun la ligilo."
+  "Error_SiteNeedsBrowserSession": "Ĉi tiu retejo donas la videon nur al ensalutinta retumila seanco. Sendu la paĝon per la Downloader-retumila kromprogramo — ĝi transdonas vian nunan seancon kun la ligilo.",
+  "Error_ServerRefusedConnections": "La servilo rifuzis plurajn samtempajn konektojn. Malaltigu «Maksimumaj konektoj» en Agordoj (2 aŭ 3 kutime sufiĉas) kaj reprovu.",
+  "Error_NothingDownloaded": "La elŝuto finiĝis sen krei dosieron — la servilo akceptis la peton sed sendis neniujn datumojn. Reprovu, aŭ aldonu la ligilon denove se tio ripetiĝas.",
+  "Error_DownloadStalled": "La elŝuto ĉesis respondi — la servilo akceptis la konekton sed sendis nenion dum minutoj. Ĝi estis haltigita por ke vi povu reprovi."
 }

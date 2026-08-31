@@ -52,6 +52,25 @@ async function pingPort(port) {
   }
 }
 
+// Which addresses an intercepted download hands to the app, in the order the app should try them.
+//
+// The end of the browser's redirect chain LEADS: that is the address the browser was actually fetching
+// the file from, and for every site checked so far (Softpedia's mirrors, APKMirror) it is the only one
+// that serves the file — the clicked link is a page or a handler that produces a fresh one each time.
+// The clicked link follows as a fallback, because a chain's end is sometimes a signed single-use address
+// the browser has already spent, and the clicked link can be resolved again into a new one.
+//
+// The order is no longer a bet: the app tries every address it is given (it did not always — see the
+// v2.8.0 regression in issue #9), so leading with the wrong one costs a request, not the download.
+function handOffUrls(item) {
+  const clicked = item && isHttp(item.url) ? item.url : null;
+  const final = item && isHttp(item.finalUrl) ? item.finalUrl : null;
+  const url = final || clicked;
+  if (!url) return { url: null, mirrors: null };
+  const fallback = url === final ? clicked : null;
+  return { url, mirrors: fallback && fallback !== url ? [fallback] : null };
+}
+
 // What to tell the user when the app answers on none of its ports. Names the ports actually probed —
 // the whole declared range, which is all the extension is allowed to reach (MV3 host_permissions are
 // static) — so "it didn't detect the app" can be diagnosed instead of guessed at (issue #9).
@@ -1021,7 +1040,7 @@ if (typeof module !== "undefined") {
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     computeMainGroups, MAIN_WINDOW_MS,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
-    captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor,
+    captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
     confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
     candidateExts, isPlausiblePathExt,
