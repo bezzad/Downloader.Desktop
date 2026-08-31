@@ -922,3 +922,11 @@ cause: enable `AppLog` inside the test and put the tail of the log (plus `vm.Dow
 MV3 host permissions are static, so every spec's stub app must listen on the same range the extension
 probes. Parallel spec files take each other's ports: an add lands on another file's stub, or
 `app-not-found` finds a stub and fails instead of skipping. Both pass when the file runs alone.
+
+### Deno publishes its WINDOWS digests as PowerShell `Get-FileHash`, not coreutils (issue #11)
+`https://github.com/denoland/deno/releases/latest/download/<asset>.sha256sum` is
+`<hex>  <name>` for linux/macOS but `Algorithm / Hash / Path` lines (uppercase digest, a `C:\…` build
+path) for BOTH Windows assets — so a coreutils-only parser read no digest and `ToolChecksum` correctly
+refused to extract, breaking the SiteMedia plugin's Deno step on every Windows machine. `ParseSums` now
+reads either shape and still matches by name (the file name comes out of the `Path` value). Check a
+publisher's file with `curl` before assuming a format; yt-dlp's `SHA2-256SUMS` is coreutils everywhere.
