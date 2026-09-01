@@ -10,14 +10,18 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 - **Popup** — paste a link, send the **detected media** for the current tab, or **scan the page**
   for downloadable links, then send one or all to the app.
 - **Media capture** — watches network responses and surfaces **video / audio / HLS (`.m3u8`)**
-  streams, with a badge count on the toolbar icon.
+  streams, with a badge count on the toolbar icon. DASH (`.mpd`) is **not** listed: it can be neither
+  size-probed nor read for a quality, so it could only ever be a row with nothing to say for itself.
+  The app still downloads DASH — paste the `.mpd` link into the popup's box, or add it in the app.
 - **Size, resolution and quality picker** — each detected item is probed for its file size, and an
   HLS master playlist expands into a quality dropdown (resolution or bitrate per option) instead of
   one opaque `.m3u8` row. Probing never blocks the popup: it renders immediately, then upgrades
   rows in place as results arrive.
-- **One list, ordered by type** — everything detected on the page is listed together, adaptive
-  manifests (`.m3u8`, `.mpd`) first, then `.mp4`, then other video, audio and anything else; within a
-  type the largest known file leads. There is no collapsed section and nothing to expand. (This
+- **One list, best copy first** — everything detected on the page is listed together: an HLS master
+  (`.m3u8`) leads, then the highest **quality** (`1080p` above `720p`), and where a link names no
+  quality the **largest file**. A row without a quality picker shows the quality it was ranked on, so
+  the order explains itself. There is no collapsed section and nothing to expand. Ordering by file
+  type was tried first and dropped: type cannot say which copy of a video is the good one. (This
   replaced a "Main media vs. Other detected" split that promoted a group only when a visibility hint
   happened to be fresh at the moment the popup opened — on a feed page whose player had finished
   autoplaying, e.g. x.com, it usually was not, so the video you were looking at ended up hidden.)

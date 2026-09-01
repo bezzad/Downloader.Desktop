@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -980,15 +980,21 @@ public partial class DownloadManager : IDownloadManager
     /// another attempt); false when the row was marked Failed.</returns>
     private bool HandleFailure(DownloadItemViewModel vm, Exception error, string fallbackMessage, string logPrefix)
     {
-        // Another ADDRESS first, then a fresh signature for the current one: when a download carries both
-        // the end of the browser's redirect chain and the link that was clicked, the second address is
-        // usually the one that works, while re-resolving a spent single-use address just spends it again.
-        if (TryNextUrl(vm, error))
-            return true;
-        // Then the same address over a single connection: a 403 raised while several chunks were in
-        // flight is often the server refusing the CONCURRENCY, not the address (issue #9 — the reporter
-        // measured one mirror serving happily at 1-3 connections and refusing at 4+).
+        // Fewer connections to the SAME address first. A 403 raised while several chunks were in flight
+        // is often the server refusing the CONCURRENCY, not the address (issue #9), and only the address
+        // that produced the refusal is known to answer at all — so it is the one worth asking again more
+        // politely. Trying the other addresses first spent them all at full concurrency and left the
+        // single-connection retry to whichever address happened to be LAST, which for a browser hand-off
+        // is the clicked page link rather than the mirror the file actually lives on: the reporter's
+        // download failed at 4+ connections while the very same link succeeded at 1 (v2.8.2).
+        // The backoff is bounded to once per address and needs more than one connection to have been in
+        // flight, so a 403 to a lone request falls straight through to the address walk below.
         if (TryReduceConnections(vm, error))
+            return true;
+        // Then another ADDRESS: when a download carries both the end of the browser's redirect chain and
+        // the link that was clicked, the second address is usually the one that works, while re-resolving
+        // a spent single-use address just spends it again.
+        if (TryNextUrl(vm, error))
             return true;
         if (TryAutoRefreshLink(vm, error))
             return true;
@@ -1076,6 +1082,12 @@ public partial class DownloadManager : IDownloadManager
             return false;
 
         vm.UrlAttempt++;
+        // A new address gets a clean slate, including its full share of connections. The one before it may
+        // have been refused down to a single connection, and inheriting that would quietly turn a perfectly
+        // capable mirror into a one-connection download — the usual browser hand-off is a spent signed link
+        // followed by a good one. Each address can still earn its own backoff (bounded: at most a full and
+        // a single-connection attempt per address).
+        vm.ForceSingleConnection = false;
         vm.Speed = 0;
         vm.Status = DownloadStatus.Created; // queued, not failed: the app is still working on it
         AppLog.Info($"Address {vm.UrlAttempt} of {urls.Count} was refused; trying the next one");
@@ -1139,8 +1151,10 @@ public partial class DownloadManager : IDownloadManager
         return configuration.ParallelCount > 0 ? configuration.ParallelCount : Math.Max(1, configuration.ChunkCount);
     }
 
-    /// <summary>Queue one more attempt over a single connection. Bounded to once per download: if a lone
-    /// request is refused too, the server means it.</summary>
+    /// <summary>Queue one more attempt over a single connection, against the SAME address. Bounded to
+    /// once per ADDRESS: if a lone request is refused too, that server means it, and the download moves on
+    /// to its next address — which starts fresh at full concurrency, because one refusing mirror says
+    /// nothing about the next one.</summary>
     /// <returns>True when another attempt was queued (the caller must then NOT mark the row Failed).</returns>
     private bool TryReduceConnections(DownloadItemViewModel vm, Exception error)
     {
@@ -1151,6 +1165,13 @@ public partial class DownloadManager : IDownloadManager
         // response, so they are kept disjoint: the connection backoff gets the FIRST attempt, and once a
         // link has been re-resolved even once, the link path owns the download's fate.
         if (vm.LinkRefreshAttempts > 0)
+            return false;
+        // And only on an attempt that started from nothing. A 403 on a download that was RESUMING real
+        // bytes is the expired-link shape, not the concurrency one — a server that refuses several
+        // connections refuses them from the first request, before anything has been transferred. It
+        // matters because this retry throws the partial file away (see below): spending it on a resume
+        // would delete a download that was nearly finished and that the refresh path could have saved.
+        if (vm.PreAttemptSize is not null)
             return false;
         if (!LooksLikeConcurrencyRefusal(error, vm.PlannedConnections))
             return false;

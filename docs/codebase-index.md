@@ -254,9 +254,9 @@ the extension runs on a page except while the popup is open.
 
 | File | Role |
 | --- | --- |
-| `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS/DASH sniffing, badge, forwarding to the app. A `.mpd` is reported as `kind: "dash"` and never size-probed (its own few KB would be discarded as implausibly small media). |
-| `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping, list ordering (`mediaTypePriority`/`sortDetectedGroups`), thumbnail mapping (`buildThumbnailIndex`/`pickThumbnail`), download folder (`getSavePath`/`fetchAppDefaultSavePath`). |
-| `popup.js/.html/.css` | The popup: ONE list of detected media ordered by type, a preview thumbnail per row, a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
+| `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS sniffing, badge, forwarding to the app. `.mpd` (DASH) is **not** sniffed at all since 1.7.0 — unprobeable and quality-less, so it could only be a row the popup's ordering rule can say nothing about; the app still takes a pasted `.mpd`. |
+| `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping, list ordering (`sortDetectedGroups` = HLS first, then `qualityHeight`, then size), thumbnail mapping (`buildThumbnailIndex`/`pickThumbnail`), download folder (`getSavePath`/`fetchAppDefaultSavePath`). |
+| `popup.js/.html/.css` | The popup: ONE list of detected media, best copy first (HLS → quality → size), a preview thumbnail per row, a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
 | `options.js/.html/.css` | Settings: the download folder (prefilled from the app's `/api/settings`) and the interception rules. |
 | `common.test.js` | `node --test` unit suite. |
 | `e2e/` | Playwright suite (own `package.json`) with a fixture server and real `.m3u8`/`.mp4` fixtures. |

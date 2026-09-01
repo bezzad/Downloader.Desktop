@@ -48,12 +48,10 @@ function qualityLabel(url) {
 // Collapses rawItems into one card per group (see common.js's groupKey / design.md Decision 4),
 // then layers in whatever probeMedia has resolved so far (sizes, and for HLS masters, the real
 // quality variants replacing the single placeholder option).
-// "hls"/"dash" are manifests the app expands; everything else is one directly downloadable file.
+// "hls" is a manifest the app expands into its own qualities; everything else is one directly
+// downloadable file. (DASH is not surfaced at all — see common.js's MEDIA_EXTENSIONS note.)
 function kindOf(url) {
-  const ext = extOf(url);
-  if (ext === "m3u8") return "hls";
-  if (ext === "mpd") return "dash";
-  return "direct";
+  return extOf(url) === "m3u8" ? "hls" : "direct";
 }
 
 function buildGroups() {
@@ -167,7 +165,12 @@ function buildCard(group) {
   const updateSize = () => {
     const opt = currentOption();
     const human = opt && formatBytes(opt.size);
-    sizeEl.textContent = human ? (opt.approx ? "~" : "") + human : "";
+    const size = human ? (opt.approx ? "~" : "") + human : "";
+    // Say the quality the row was ranked on — otherwise the order of the list is unexplainable from
+    // looking at it. Only when there is no picker: a picker already shows every quality.
+    const height = select ? -1 : groupQualityHeight(group);
+    const quality = height > 0 ? `${height}p` : "";
+    sizeEl.textContent = [quality, size].filter(Boolean).join(" · ");
   };
   if (select) select.onchange = updateSize;
   updateSize();

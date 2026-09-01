@@ -60,7 +60,7 @@ test("a row with no available preview still shows a fixed-size type placeholder"
   expect(box.width).toBeGreaterThan(50); // occupies the same slot a real preview would
 });
 
-test("the list is ordered by media type: a manifest above a direct mp4", async ({ context, extensionId }) => {
+test("an HLS master leads the list, above a direct mp4", async ({ context, extensionId }) => {
   const page = await context.newPage();
   await page.goto("/mixed-media.html");
   await page.waitForTimeout(1500);
@@ -74,4 +74,23 @@ test("the list is ordered by media type: a manifest above a direct mp4", async (
   expect(manifest).toBeGreaterThanOrEqual(0);
   expect(mp4).toBeGreaterThanOrEqual(0);
   expect(manifest).toBeLessThan(mp4); // detected second, listed first
+});
+
+test("after HLS the higher quality leads, even when the lower-quality file is bigger", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/quality-order.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000); // needs the size probes to have landed too
+
+  const names = await popup.locator("#list li .name").allTextContents();
+  const hi = names.findIndex(n => n.includes("beta_1080p"));
+  const lo = names.findIndex(n => n.includes("alpha_360p"));
+  expect(hi).toBeGreaterThanOrEqual(0);
+  expect(lo).toBeGreaterThanOrEqual(0);
+  expect(hi).toBeLessThan(lo);
+
+  // The row says what it was ranked on, so the order is explainable from looking at it.
+  await expect(popup.locator("#list li").first().locator(".size-line")).toContainText("1080p");
 });

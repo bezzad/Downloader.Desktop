@@ -988,10 +988,22 @@ because a row left Running because the check was late is the bug this guard was 
   needed the hint to be FRESH (≤3 s) at the exact moment the popup asked. On a feed page whose player has
   finished autoplaying — x.com, the site this is used on most — it routinely was not, so every group
   including the real video was demoted behind a collapsed `<details>`: the user had to expand "Other" to
-  find the video they were looking straight at. Replaced by `common.js`'s pure
-  `mediaTypePriority(url)`/`sortDetectedGroups(groups)`: order is (type, larger size first, title) with
-  m3u8 → mpd → mp4 → other video → audio → other. No clock, no page state, no hint. **Don't reintroduce a
-  relevance key** — a wrong guess would now reorder the list rather than merely mislabel a section.
+  find the video they were looking straight at. Replaced by `common.js`'s pure `sortDetectedGroups`.
+  **Ordering by file TYPE was the first attempt and the author rejected it as ambiguous** (it cannot say
+  why a 360p mp4 sits above a 1080p webm — type says nothing about which copy of a video is the good
+  one). The rule is now: **HLS master first, then quality (`qualityHeight`), then known size, then
+  title.** A quality is only used when the link or a picker label NAMES one — `1080p`, `1920x1080`,
+  `4K`; relative words (`hd`/`high`/`low`) are deliberately parsed as *unknown*, because inventing a
+  number for them orders the list on a fiction, and measured size is the more truthful fallback.
+  `qualityHeightFromUrl` scans the whole PATH (not just a trailing token — CDNs use `/1080p/v.mp4`) and
+  ignores the query string. No clock, no page state, no hint. **Don't reintroduce a relevance key** — a
+  wrong guess would now reorder the list rather than merely mislabel a section.
+- **DASH (`.mpd`) is NOT surfaced by the extension** (author's call, 1.7.0): removed from
+  `MEDIA_EXTENSIONS`, `MEDIA_CONTENT_TYPES` (`application/dash+xml`) and `MANIFEST_EXTENSIONS`, and the
+  `kind: "dash"` probe branch is gone from `background.js`. A manifest can be neither size-probed nor
+  read for a quality, so it could only ever be a row the ordering rule can say nothing about. **The
+  app's own DASH support is untouched** (`dash-streams`, the streaming plugin) — a `.mpd` still works
+  when pasted into the popup's link box (that path applies no media filter) or added in the app.
   Removed with it: `MAIN_WINDOW_MS`, the `main` flag on items, `background.js`'s `activeHint` +
   `activeMediaHint` branch, `content.js` and the `content_scripts` manifest entry (so nothing of the
   extension runs on a page unless the popup is open).

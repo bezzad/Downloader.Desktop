@@ -1,6 +1,7 @@
 // Background service worker / event page.
 // - Adds "Download with Downloader" context menus.
-// - Sniffs video/audio/HLS responses per tab and badges the toolbar icon.
+// - Sniffs video/audio/HLS responses per tab and badges the toolbar icon (DASH is not surfaced —
+//   see common.js's MEDIA_EXTENSIONS note).
 // - Forwards captured URLs to the desktop app's local listener.
 // Chrome loads shared helpers via importScripts (service worker); Firefox loads common.js first
 // through the manifest "scripts" array, so importScripts is absent there — guard it.
@@ -265,12 +266,6 @@ async function probeMediaForTab(tabId) {
   if (!map) return [];
   const items = [...map.values()];
   const tasks = items.map(item => async signal => {
-    if (extOf(item.url) === "mpd") {
-      // A DASH manifest is expanded by the app (which reads its representations and picks a quality),
-      // so there is nothing useful to probe here — and probing would report the manifest's own few
-      // kilobytes as the media size, which the popup would then discard as implausibly small.
-      return { url: item.url, kind: "dash", size: null };
-    }
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
       if (variants.length === 0)

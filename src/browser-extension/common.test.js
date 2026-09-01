@@ -10,7 +10,8 @@ const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
-  mediaTypePriority, sortDetectedGroups, groupTypeUrl, groupKnownSize,
+  sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+  qualityHeight, qualityHeightFromUrl,
   buildThumbnailIndex, pickThumbnail, shotImage,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
@@ -140,45 +141,91 @@ test("isPlausibleMediaSize passes unprobed items and rejects only confirmed-tiny
   assert.ok(!isPlausibleMediaSize(0));
 });
 
-// ---------------- One list, ordered by media type ----------------
-// Replaces the old "Main media vs Other detected" promotion tests: that rule needed a fresh
-// visibility hint at the exact moment the popup asked, which on x.com it routinely was not, so the
-// page's own video was demoted into a collapsed section. Type ordering has no clock in it.
+// ---------------- One list: HLS first, then quality, then size ----------------
+// Replaces the old "Main media vs Other detected" promotion tests (that rule needed a fresh
+// visibility hint at the exact moment the popup asked, which on x.com it routinely was not) AND a
+// first attempt at ordering purely by file type, which was ambiguous: type cannot say which copy of
+// a video is the good one. Quality can, and size stands in for it when the link names no quality.
 
 function group(key, opts) {
-  return { key, kind: isManifest(key) ? (key.endsWith(".mpd") ? "dash" : "hls") : "direct", title: key, options: opts ?? [{ url: key, size: null }] };
+  return { key, kind: isManifest(key) ? "hls" : "direct", title: key, options: opts ?? [{ url: key, size: null }] };
 }
 
-test("mediaTypePriority ranks manifests first, then mp4, then video, audio, and anything else", () => {
-  assert.ok(mediaTypePriority("https://c/x.m3u8") < mediaTypePriority("https://c/x.mpd"));
-  assert.ok(mediaTypePriority("https://c/x.mpd") < mediaTypePriority("https://c/x.mp4"));
-  assert.ok(mediaTypePriority("https://c/x.mp4") < mediaTypePriority("https://c/x.webm"));
-  assert.ok(mediaTypePriority("https://c/x.webm") < mediaTypePriority("https://c/x.mp3"));
-  assert.ok(mediaTypePriority("https://c/x.mp3") < mediaTypePriority("https://c/x.bin"));
-  assert.equal(mediaTypePriority("https://c/no-extension"), mediaTypePriority("https://c/x.bin"));
+test("qualityHeight reads the forms sites actually use", () => {
+  assert.equal(qualityHeight("1080p"), 1080);
+  assert.equal(qualityHeight("720P"), 720);
+  assert.equal(qualityHeight("1920x1080"), 1080);   // the HLS variant label form
+  assert.equal(qualityHeight("1280 × 720"), 720);
+  assert.equal(qualityHeight("4k"), 2160);
+  assert.equal(qualityHeight("2K"), 1440);
 });
 
-test("sortDetectedGroups puts an HLS manifest above a direct mp4", () => {
-  const sorted = sortDetectedGroups([group("https://c/clip.mp4"), group("https://c/master.m3u8")]);
-  assert.deepEqual(sorted.map(g => g.key), ["https://c/master.m3u8", "https://c/clip.mp4"]);
+test("qualityHeight invents nothing for a relative word or a bare number", () => {
+  // "hd"/"high"/"low" are relative to a stream we cannot see: ordering on a made-up number would be
+  // worse than ordering on size, which is at least measured.
+  for (const t of ["hd", "sd", "high", "low", "medium", "variant", "", null, undefined, 1080])
+    assert.equal(qualityHeight(t), null, `expected no quality from ${JSON.stringify(t)}`);
+  assert.equal(qualityHeight("2400 kbps"), null); // a bitrate is not a resolution
+  assert.equal(qualityHeight("99p"), null);       // below any real rendition
+  assert.equal(qualityHeight("9000p"), null);     // above any real rendition
 });
 
-test("sortDetectedGroups orders same-type items by known size, largest first", () => {
+test("a quality anywhere in the path counts, not just a trailing token", () => {
+  assert.equal(qualityHeightFromUrl("https://c/hls/1080p/video.mp4"), 1080);
+  assert.equal(qualityHeightFromUrl("https://c/v/1280x720/seg.ts"), 720);
+  assert.equal(qualityHeightFromUrl("https://c/clip_720p.mp4"), 720);
+  assert.equal(qualityHeightFromUrl("https://c/clip.mp4"), null);
+  // A query string is not the file's identity — only the path is read.
+  assert.equal(qualityHeightFromUrl("https://c/clip.mp4?label=1080p"), null);
+});
+
+test("an HLS master always leads the list", () => {
+  const hls = group("https://c/master.m3u8");
+  const big1080 = group("https://c/movie_1080p.mp4", [{ url: "https://c/movie_1080p.mp4", size: 900_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([big1080, hls]).map(g => g.key),
+    ["https://c/master.m3u8", "https://c/movie_1080p.mp4"]);
+});
+
+test("after HLS, higher quality wins — regardless of type or size", () => {
+  const webm1080 = group("https://c/a_1080p.webm", [{ url: "https://c/a_1080p.webm", size: 10_000_000 }]);
+  const mp4_360 = group("https://c/b_360p.mp4", [{ url: "https://c/b_360p.mp4", size: 800_000_000 }]);
+  // The 360p file is 80x bigger and an mp4; the 1080p webm is still the better copy.
+  assert.deepEqual(sortDetectedGroups([mp4_360, webm1080]).map(g => g.key),
+    ["https://c/a_1080p.webm", "https://c/b_360p.mp4"]);
+});
+
+test("with no quality to read, the bigger file wins", () => {
   const small = group("https://c/a.mp4", [{ url: "https://c/a.mp4", size: 2_000_000 }]);
-  const big = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 40_000_000 }]);
-  assert.deepEqual(sortDetectedGroups([small, big]).map(g => g.key), ["https://c/b.mp4", "https://c/a.mp4"]);
+  const big = group("https://c/b.mp3", [{ url: "https://c/b.mp3", size: 40_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([small, big]).map(g => g.key), ["https://c/b.mp3", "https://c/a.mp4"]);
 });
 
-test("sortDetectedGroups uses a group's LARGEST option size", () => {
+test("a known quality outranks an unknown one even when the unknown file is bigger", () => {
+  const known = group("https://c/a_720p.mp4", [{ url: "https://c/a_720p.mp4", size: 5_000_000 }]);
+  const unknown = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 500_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([unknown, known]).map(g => g.key), ["https://c/a_720p.mp4", "https://c/b.mp4"]);
+});
+
+test("a group is ranked by its BEST quality and its LARGEST size", () => {
   const grouped = group("https://c/v.mp4", [
     { url: "https://c/v_360p.mp4", size: 1_000_000 },
     { url: "https://c/v_1080p.mp4", size: 30_000_000 }
   ]);
-  const other = group("https://c/w.mp4", [{ url: "https://c/w.mp4", size: 20_000_000 }]);
-  assert.deepEqual(sortDetectedGroups([other, grouped]).map(g => g.key), ["https://c/v.mp4", "https://c/w.mp4"]);
+  const other = group("https://c/w_720p.mp4", [{ url: "https://c/w_720p.mp4", size: 900_000_000 }]);
+  assert.equal(groupQualityHeight(grouped), 1080);
+  assert.equal(groupKnownSize(grouped), 30_000_000);
+  assert.deepEqual(sortDetectedGroups([other, grouped]).map(g => g.key), ["https://c/v.mp4", "https://c/w_720p.mp4"]);
 });
 
-test("unprobed items sort after probed ones of the same type, deterministically by title", () => {
+test("an HLS variant label supplies the quality once the master has been probed", () => {
+  const probed = { key: "https://c/master.m3u8", kind: "hls", title: "master.m3u8", options: [
+    { url: "https://c/low/index.m3u8", label: "640x360", size: 5_000_000 },
+    { url: "https://c/high/index.m3u8", label: "1920x1080", size: 50_000_000 }
+  ]};
+  assert.equal(groupQualityHeight(probed), 1080);
+});
+
+test("unprobed, quality-less items come last, deterministically", () => {
   const probed = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 5_000_000 }]);
   const unprobedA = group("https://c/a.mp4");
   const unprobedC = group("https://c/c.mp4");
@@ -195,9 +242,11 @@ test("sortDetectedGroups never mutates its input", () => {
   assert.deepEqual(input.map(g => g.key), before);
 });
 
-test("groupTypeUrl reads a manifest from its key and a direct file from its first option", () => {
+test("leadsList/groupTypeUrl read a manifest from its key and a file from its first option", () => {
+  assert.ok(leadsList(group("https://c/master.m3u8")));
   assert.equal(groupTypeUrl(group("https://c/master.m3u8")), "https://c/master.m3u8");
   const g = { key: "https://c/v.mp4", kind: "direct", options: [{ url: "https://c/v_720p.mp4" }] };
+  assert.ok(!leadsList(g));
   assert.equal(groupTypeUrl(g), "https://c/v_720p.mp4");
   assert.equal(groupTypeUrl(null), "");
 });
@@ -379,24 +428,26 @@ test("sendToAppSilently keeps the URL-only GET path when no cookies are captured
   assert.notEqual(seen.opts && seen.opts.method, "POST");
 });
 
-test("a DASH manifest counts as media", () => {
-  assert.ok(MEDIA_EXTENSIONS.includes("mpd"));
-  assert.ok(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd"));
-  assert.ok(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd?token=abc"));
-  assert.ok(isMediaContentType("application/dash+xml"));
+test("a DASH manifest is deliberately never surfaced", () => {
+  // The app CAN download a .mpd (its streaming plugin handles DASH), but the popup cannot probe one
+  // for a size or read a quality off it, so it could only ever be a nameless, sizeless row that the
+  // ordering rule can say nothing about. It stays available by pasting the link.
+  assert.ok(!MEDIA_EXTENSIONS.includes("mpd"));
+  assert.equal(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd"), false);
+  assert.equal(isMediaContentType("application/dash+xml"), false);
+  assert.equal(isManifest("https://cdn.example.com/s/manifest.mpd"), false);
 });
 
-test("manifests are recognised as manifests, plain media is not", () => {
-  assert.ok(isManifest("https://cdn.example.com/s/manifest.mpd"));
+test("an HLS master is recognised as a manifest, plain media is not", () => {
   assert.ok(isManifest("https://cdn.example.com/s/master.m3u8"));
   assert.equal(isManifest("https://cdn.example.com/s/movie.mp4"), false);
 });
 
-test("groupKey treats every .mpd URL as its own group", () => {
-  // A DASH manifest's representations are expanded by the app, so quality-token grouping must never
-  // merge two manifests (or a manifest with a plain file) into one card.
-  const a = "https://cdn.example.com/stream/video_720p.mpd";
-  const b = "https://cdn.example.com/stream/video_1080p.mpd";
+test("groupKey treats every manifest URL as its own group", () => {
+  // A manifest's renditions are expanded by the app, so quality-token grouping must never merge two
+  // manifests (or a manifest with a plain file) into one card.
+  const a = "https://cdn.example.com/stream/video_720p.m3u8";
+  const b = "https://cdn.example.com/stream/video_1080p.m3u8";
   assert.equal(groupKey(a), a);
   assert.equal(groupKey(b), b);
   assert.notEqual(groupKey(a), groupKey(b));

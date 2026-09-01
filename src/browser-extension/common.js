@@ -85,26 +85,25 @@ function appBase(port) {
 
 // Media we can hand to the engine: direct HTTP(S) files + adaptive-streaming manifests. (YouTube and
 // other encrypted/DRM streaming sites are NOT supported — they don't expose a direct, fetchable URL.)
+// NOTE: `.mpd` (MPEG-DASH) is deliberately NOT here. The app can download one (the streaming plugin
+// handles DASH), but a DASH manifest cannot be size-probed and carries no quality the popup can read,
+// so it always listed as a nameless, sizeless row that the ordering rule below could say nothing
+// about — the ambiguity the author asked to remove. A `.mpd` link can still be pasted into the
+// popup's own box (which sends any URL) or added in the app directly.
 const MEDIA_EXTENSIONS = [
   "mp4", "mkv", "webm", "mov", "avi", "flv", "m4v", "mpg", "mpeg", "ts",
   "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma",
-  "m3u8", // HLS playlist
-  "mpd"   // MPEG-DASH manifest
+  "m3u8"  // HLS playlist
 ];
 const MEDIA_CONTENT_TYPES = [
   "video/", "audio/",
-  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl",
-  "application/dash+xml"
+  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl"
 ];
 
-// Split by kind, so the popup can order a list by what a thing IS rather than by a guess about which
-// one the user is looking at (see sortDetectedGroups).
-const VIDEO_EXTENSIONS = ["mp4", "mkv", "webm", "mov", "avi", "flv", "m4v", "mpg", "mpeg", "ts"];
-const AUDIO_EXTENSIONS = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma"];
-
 // A manifest describes a stream rather than being one downloadable file, so it is never grouped or
-// size-probed like a plain media URL — the app expands it after the link is sent over.
-const MANIFEST_EXTENSIONS = ["m3u8", "mpd"];
+// size-probed like a plain media URL — the app expands it after the link is sent over. Only HLS is
+// listed: see the MEDIA_EXTENSIONS note above for why `.mpd` is not surfaced.
+const MANIFEST_EXTENSIONS = ["m3u8"];
 
 function isManifest(url) {
   return MANIFEST_EXTENSIONS.includes(extOf(url));
@@ -666,36 +665,89 @@ function isPlausibleMediaSize(size) {
   return size == null || size >= MIN_MEDIA_BYTES;
 }
 
-// Which media type leads the popup's list. Replaces the old "Main media vs Other detected" split,
-// which promoted a group only when a visibility hint from a content script happened to be fresh at
-// the exact moment the popup asked — on a feed page whose player has finished autoplaying (x.com
-// being the site this is used on most) that hint is routinely stale, so the real video was demoted
-// and the list opened empty behind a collapsed section. Ordering by what a thing IS needs no clock,
-// no page state and no guess, so the same page always reads the same way.
+// How the popup orders its one list. Two rules, in this order:
 //
-// Manifests first because one of them IS the page's video whenever it exists; mp4 next because a
-// direct file is the next most likely thing a user came for; then other containers, then audio, then
-// anything else we sniffed.
-function mediaTypePriority(url) {
-  const ext = extOf(url);
-  if (ext === "m3u8") return 0;
-  if (ext === "mpd") return 1;
-  if (ext === "mp4") return 2;
-  if (VIDEO_EXTENSIONS.includes(ext)) return 3;
-  if (AUDIO_EXTENSIONS.includes(ext)) return 4;
-  return 5;
+//   1. an HLS master (`.m3u8`) leads — it is the page's actual stream and expands into every quality
+//      the site offers, so it is never something a user has to scroll past;
+//   2. everything else is ranked by QUALITY first (1080p above 720p) and, when no quality can be
+//      read from the link, by SIZE (the bigger file is the better copy).
+//
+// Ranking by file type alone (the first attempt at this) was ambiguous: it could not say why a tiny
+// 360p mp4 sat above a 1080p webm, since type says nothing about which copy of a video is the good
+// one. Quality does, and size stands in for it when the link doesn't name one.
+//
+// It replaced the "Main media vs Other detected" split, which promoted a group only when a visibility
+// hint from a content script happened to be fresh at the exact moment the popup asked — on a feed page
+// whose player has finished autoplaying (x.com being the site this is used on most) that hint is
+// routinely stale, so the real video was demoted into a collapsed section. Nothing here reads a clock,
+// playback state, or any guess about what the user is looking at.
+
+// Heights we accept as a real video quality. Below/above this a "quality" is noise, not a rendition.
+const MIN_QUALITY_HEIGHT = 144;
+const MAX_QUALITY_HEIGHT = 4320;
+
+// Named shorthands sites use instead of a height. Only unambiguous ones: `hd`, `high`, `low` and
+// friends are deliberately absent — they are relative to a stream we cannot see, and inventing a
+// number for them would order the list on a fiction.
+const QUALITY_WORDS = { "4k": 2160, "8k": 4320, "2k": 1440 };
+
+// The vertical resolution a piece of text names, or null. Reads "1080p", "1920x1080" and "4K".
+function qualityHeight(text) {
+  if (typeof text !== "string" || !text) return null;
+  const t = text.toLowerCase();
+  const word = QUALITY_WORDS[t.trim()];
+  if (word) return word;
+  const dims = t.match(/(\d{2,5})\s*[x×]\s*(\d{2,5})/); // "1920x1080" — the HLS variant label form
+  if (dims) {
+    const h = parseInt(dims[2], 10);
+    if (h >= MIN_QUALITY_HEIGHT && h <= MAX_QUALITY_HEIGHT) return h;
+  }
+  const p = t.match(/(?:^|[^\d])(\d{3,4})p(?:[^a-z]|$)/); // "1080p", "_720p."
+  if (p) {
+    const h = parseInt(p[1], 10);
+    if (h >= MIN_QUALITY_HEIGHT && h <= MAX_QUALITY_HEIGHT) return h;
+  }
+  for (const [wordKey, h] of Object.entries(QUALITY_WORDS))
+    if (new RegExp(`(?:^|[^a-z0-9])${wordKey}(?:[^a-z0-9]|$)`).test(t)) return h;
+  return null;
 }
 
-// The URL that decides a group's type: for a manifest the group key IS the manifest, otherwise the
-// group's first option (every option of a group shares its extension by construction — see groupKey).
+// The quality a media URL names anywhere in its path — not just in a trailing token, because plenty
+// of CDNs put the rendition in a directory (`/1080p/video.mp4`, `/hls/1280x720/seg.ts`).
+function qualityHeightFromUrl(url) {
+  try {
+    return qualityHeight(decodeURIComponent(new URL(url).pathname));
+  } catch {
+    return qualityHeight(typeof url === "string" ? url : "");
+  }
+}
+
+// The best quality known for a group: from an option's label (an HLS variant's "1920x1080", or a
+// direct file's "720p" picker entry) or from its URL. -1 when nothing names one, so a group of
+// unknown quality falls below every group whose quality was readable and is then ranked on size.
+function groupQualityHeight(group) {
+  let best = -1;
+  for (const opt of group?.options || []) {
+    const h = qualityHeight(opt?.label) ?? qualityHeightFromUrl(opt?.url);
+    if (typeof h === "number" && h > best) best = h;
+  }
+  return best;
+}
+
+// True for the one type that always leads: an HLS master playlist.
+function leadsList(group) {
+  return extOf(groupTypeUrl(group)) === "m3u8";
+}
+
+// The URL that identifies a group: for a manifest the group key IS the manifest, otherwise the
+// group's first option.
 function groupTypeUrl(group) {
   if (!group) return "";
-  if (group.kind === "hls" || group.kind === "dash") return group.key || "";
+  if (group.kind === "hls") return group.key || "";
   return group.options?.[0]?.url || group.key || "";
 }
 
-// Largest size known for a group, or -1 when nothing has been probed yet. Unprobed groups therefore
-// sort after probed ones of the same type instead of interleaving unpredictably.
+// Largest size known for a group, or -1 when nothing has been probed yet.
 function groupKnownSize(group) {
   let best = -1;
   for (const opt of group?.options || []) {
@@ -707,12 +759,14 @@ function groupKnownSize(group) {
   return best;
 }
 
-// Total order: type, then larger first, then title. Pure, so the whole ordering rule is testable
-// without a browser. Never mutates its input.
+// Total order: HLS first, then quality, then size, then title. Pure, so the whole ordering rule is
+// testable without a browser. Never mutates its input.
 function sortDetectedGroups(groups) {
   return [...(groups || [])].sort((a, b) => {
-    const byType = mediaTypePriority(groupTypeUrl(a)) - mediaTypePriority(groupTypeUrl(b));
-    if (byType !== 0) return byType;
+    const byLead = (leadsList(a) ? 0 : 1) - (leadsList(b) ? 0 : 1);
+    if (byLead !== 0) return byLead;
+    const byQuality = groupQualityHeight(b) - groupQualityHeight(a);
+    if (byQuality !== 0) return byQuality;
     const bySize = groupKnownSize(b) - groupKnownSize(a);
     if (bySize !== 0) return bySize;
     return String(a?.title || a?.key || "").localeCompare(String(b?.title || b?.key || ""));
@@ -1167,8 +1221,8 @@ if (typeof module !== "undefined") {
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
-    mediaTypePriority, sortDetectedGroups, groupTypeUrl, groupKnownSize,
-    VIDEO_EXTENSIONS, AUDIO_EXTENSIONS,
+    sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+    qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
     shotImage, buildThumbnailIndex, pickThumbnail,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
