@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Dossier de l'extension",
   "Ext_StepsTitle": "Ensuite, dans votre navigateur :",
   "Ext_Refresh": "Vérifier à nouveau",
-  "Ext_Cancel": "Annuler"
+  "Ext_Cancel": "Annuler",
+  "Err_OpenFolder": "Impossible d'ouvrir le dossier",
+  "Err_OpenFolder_NoPath": "Aucun dossier n'est enregistré pour ce téléchargement.",
+  "Err_OpenFolder_Detail": "Impossible d'ouvrir le dossier : {0}"
 }

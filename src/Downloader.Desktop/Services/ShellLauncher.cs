@@ -97,10 +97,15 @@ public static class ShellLauncher
     /// <c>--print-reply</c> and <see cref="RunChecked"/> are both required here: without them the app
     /// believes it revealed the file, skips the fallback, and does nothing at all.</para>
     /// </summary>
-    public static void RevealInFolder(string path)
+    /// <returns>
+    /// False when neither the reveal nor the folder could be opened. The caller is expected to TELL the
+    /// user: a click that silently does nothing is undiagnosable — for the user, who can only report
+    /// "nothing happens", and for us.
+    /// </returns>
+    public static bool RevealInFolder(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
-            return;
+            return false;
 
         var revealed = OperatingSystem.IsWindows()
             // explorer.exe is documented to return a non-zero exit code even on success, so its result
@@ -121,10 +126,10 @@ public static class ShellLauncher
                     "string:");
 
         if (revealed)
-            return;
+            return true;
 
         AppLog.Warn($"Could not reveal '{path}' — opening its folder instead");
-        OpenFolder(Path.GetDirectoryName(path));
+        return OpenFolder(Path.GetDirectoryName(path));
     }
 
     /// <summary>

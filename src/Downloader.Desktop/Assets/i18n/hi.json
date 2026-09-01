@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "एक्सटेंशन फ़ोल्डर",
   "Ext_StepsTitle": "फिर, अपने ब्राउज़र में:",
   "Ext_Refresh": "फिर जाँचें",
-  "Ext_Cancel": "रद्द करें"
+  "Ext_Cancel": "रद्द करें",
+  "Err_OpenFolder": "फ़ोल्डर नहीं खुल सका",
+  "Err_OpenFolder_NoPath": "इस डाउनलोड के लिए कोई फ़ोल्डर सहेजा नहीं गया है।",
+  "Err_OpenFolder_Detail": "फ़ोल्डर नहीं खुल सका: {0}"
 }

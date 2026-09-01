@@ -80,6 +80,24 @@ public class RevealInFolderTests : IDisposable
         Assert.Contains("array:string:file:///home/u/Downloads/file.zip", args);
     }
 
+    /// <summary>
+    /// A click that opens nothing must SAY so — that silence is why this bug survived so long: the only
+    /// report possible was "nothing happens", with no message and no log line to work from.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Revealing_reports_whether_anything_was_opened()
+    {
+        Arrange(revealSucceeds: false, openSucceeds: false);
+        Assert.False(ShellLauncher.RevealInFolder("/home/u/Downloads/file.zip"));
+        Assert.False(ShellLauncher.RevealInFolder(null));
+
+        Arrange(revealSucceeds: false, openSucceeds: true);   // reveal failed, folder opened — good enough
+        Assert.True(ShellLauncher.RevealInFolder("/home/u/Downloads/file.zip"));
+
+        Arrange(revealSucceeds: true);
+        Assert.True(ShellLauncher.RevealInFolder("/home/u/Downloads/file.zip"));
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Nothing_is_launched_for_an_empty_path()
     {

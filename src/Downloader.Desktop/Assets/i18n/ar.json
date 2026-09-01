@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "مجلد الإضافة",
   "Ext_StepsTitle": "ثم في متصفحك:",
   "Ext_Refresh": "تحقق مرة أخرى",
-  "Ext_Cancel": "إلغاء"
+  "Ext_Cancel": "إلغاء",
+  "Err_OpenFolder": "تعذّر فتح المجلد",
+  "Err_OpenFolder_NoPath": "لا يوجد مجلد محفوظ لهذا التنزيل.",
+  "Err_OpenFolder_Detail": "تعذّر فتح المجلد: {0}"
 }

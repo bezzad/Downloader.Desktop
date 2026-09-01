@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "拡張機能フォルダー",
   "Ext_StepsTitle": "次に、ブラウザーで:",
   "Ext_Refresh": "再確認",
-  "Ext_Cancel": "キャンセル"
+  "Ext_Cancel": "キャンセル",
+  "Err_OpenFolder": "フォルダーを開けませんでした",
+  "Err_OpenFolder_NoPath": "このダウンロードにはフォルダーが保存されていません。",
+  "Err_OpenFolder_Detail": "フォルダーを開けませんでした: {0}"
 }

@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Папка расширения",
   "Ext_StepsTitle": "Затем в браузере:",
   "Ext_Refresh": "Проверить снова",
-  "Ext_Cancel": "Отмена"
+  "Ext_Cancel": "Отмена",
+  "Err_OpenFolder": "Не удалось открыть папку",
+  "Err_OpenFolder_NoPath": "Для этой загрузки не сохранена папка.",
+  "Err_OpenFolder_Detail": "Не удалось открыть папку: {0}"
 }

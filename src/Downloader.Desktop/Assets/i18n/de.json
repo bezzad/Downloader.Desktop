@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Erweiterungsordner",
   "Ext_StepsTitle": "Dann in Ihrem Browser:",
   "Ext_Refresh": "Erneut prüfen",
-  "Ext_Cancel": "Abbrechen"
+  "Ext_Cancel": "Abbrechen",
+  "Err_OpenFolder": "Ordner konnte nicht geöffnet werden",
+  "Err_OpenFolder_NoPath": "Für diesen Download ist kein Ordner gespeichert.",
+  "Err_OpenFolder_Detail": "Ordner konnte nicht geöffnet werden: {0}"
 }

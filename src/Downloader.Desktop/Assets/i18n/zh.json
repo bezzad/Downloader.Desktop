@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "扩展文件夹",
   "Ext_StepsTitle": "然后，在您的浏览器中：",
   "Ext_Refresh": "重新检查",
-  "Ext_Cancel": "取消"
+  "Ext_Cancel": "取消",
+  "Err_OpenFolder": "无法打开文件夹",
+  "Err_OpenFolder_NoPath": "此下载没有保存文件夹。",
+  "Err_OpenFolder_Detail": "无法打开文件夹：{0}"
 }

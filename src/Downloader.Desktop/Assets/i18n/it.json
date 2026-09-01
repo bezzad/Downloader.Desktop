@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Cartella dell'estensione",
   "Ext_StepsTitle": "Poi, nel tuo browser:",
   "Ext_Refresh": "Controlla di nuovo",
-  "Ext_Cancel": "Annulla"
+  "Ext_Cancel": "Annulla",
+  "Err_OpenFolder": "Impossibile aprire la cartella",
+  "Err_OpenFolder_NoPath": "Questo download non ha una cartella salvata.",
+  "Err_OpenFolder_Detail": "Impossibile aprire la cartella: {0}"
 }

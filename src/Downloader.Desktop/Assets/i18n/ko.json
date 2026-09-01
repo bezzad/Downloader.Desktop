@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "확장 프로그램 폴더",
   "Ext_StepsTitle": "그다음, 브라우저에서:",
   "Ext_Refresh": "다시 확인",
-  "Ext_Cancel": "취소"
+  "Ext_Cancel": "취소",
+  "Err_OpenFolder": "폴더를 열 수 없습니다",
+  "Err_OpenFolder_NoPath": "이 다운로드에 저장된 폴더가 없습니다.",
+  "Err_OpenFolder_Detail": "폴더를 열 수 없습니다: {0}"
 }

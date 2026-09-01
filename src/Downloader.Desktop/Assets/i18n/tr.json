@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Eklenti klasörü",
   "Ext_StepsTitle": "Sonra tarayıcınızda:",
   "Ext_Refresh": "Yeniden denetle",
-  "Ext_Cancel": "İptal"
+  "Ext_Cancel": "İptal",
+  "Err_OpenFolder": "Klasör açılamadı",
+  "Err_OpenFolder_NoPath": "Bu indirme için kayıtlı bir klasör yok.",
+  "Err_OpenFolder_Detail": "Klasör açılamadı: {0}"
 }

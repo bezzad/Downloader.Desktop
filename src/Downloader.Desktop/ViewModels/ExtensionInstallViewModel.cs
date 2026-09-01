@@ -390,8 +390,12 @@ public class ExtensionInstallViewModel : ViewModelBase
 
     private void OpenFolder(ExtensionTargetRow target)
     {
-        if (!string.IsNullOrWhiteSpace(target?.InstalledPath))
-            ShellLauncher.OpenFolder(target.InstalledPath);
+        var path = target?.InstalledPath;
+        if (string.IsNullOrWhiteSpace(path) || !ShellLauncher.OpenFolder(path))
+            // The folder path is the one thing the user has to hand to their browser, so a button that
+            // silently fails to show it leaves them stuck with no idea why.
+            ErrorMessage = string.Format(Localizer.Instance["Err_OpenFolder_Detail"],
+                string.IsNullOrWhiteSpace(path) ? "?" : path);
     }
 
     /// <summary>

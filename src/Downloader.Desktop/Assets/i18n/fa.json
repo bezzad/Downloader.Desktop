@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "پوشه افزونه",
   "Ext_StepsTitle": "سپس در مرورگر خود:",
   "Ext_Refresh": "بررسی مجدد",
-  "Ext_Cancel": "لغو"
+  "Ext_Cancel": "لغو",
+  "Err_OpenFolder": "پوشه باز نشد",
+  "Err_OpenFolder_NoPath": "برای این دانلود پوشه‌ای ذخیره نشده است.",
+  "Err_OpenFolder_Detail": "پوشه باز نشد: {0}"
 }

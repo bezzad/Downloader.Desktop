@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Kromprograma dosierujo",
   "Ext_StepsTitle": "Poste, en via retumilo:",
   "Ext_Refresh": "Rekontroli",
-  "Ext_Cancel": "Nuligi"
+  "Ext_Cancel": "Nuligi",
+  "Err_OpenFolder": "Ne eblis malfermi la dosierujon",
+  "Err_OpenFolder_NoPath": "Ĉi tiu elŝuto havas neniun konservitan dosierujon.",
+  "Err_OpenFolder_Detail": "Ne eblis malfermi la dosierujon: {0}"
 }

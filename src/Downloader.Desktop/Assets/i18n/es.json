@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Carpeta de la extensión",
   "Ext_StepsTitle": "Después, en tu navegador:",
   "Ext_Refresh": "Comprobar de nuevo",
-  "Ext_Cancel": "Cancelar"
+  "Ext_Cancel": "Cancelar",
+  "Err_OpenFolder": "No se pudo abrir la carpeta",
+  "Err_OpenFolder_NoPath": "Esta descarga no tiene carpeta guardada.",
+  "Err_OpenFolder_Detail": "No se pudo abrir la carpeta: {0}"
 }

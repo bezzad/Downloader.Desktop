@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Uzantı qovluğu",
   "Ext_StepsTitle": "Sonra brauzerinizdə:",
   "Ext_Refresh": "Yenidən yoxla",
-  "Ext_Cancel": "Ləğv et"
+  "Ext_Cancel": "Ləğv et",
+  "Err_OpenFolder": "Qovluq açıla bilmədi",
+  "Err_OpenFolder_NoPath": "Bu yükləmə üçün saxlanmış qovluq yoxdur.",
+  "Err_OpenFolder_Detail": "Qovluq açıla bilmədi: {0}"
 }

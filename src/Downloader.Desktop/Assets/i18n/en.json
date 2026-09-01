@@ -340,5 +340,8 @@
   "Ext_FolderLabel": "Extension folder",
   "Ext_StepsTitle": "Then, in your browser:",
   "Ext_Refresh": "Check again",
-  "Ext_Cancel": "Cancel"
+  "Ext_Cancel": "Cancel",
+  "Err_OpenFolder": "Couldn't open the folder",
+  "Err_OpenFolder_NoPath": "This download has no folder saved.",
+  "Err_OpenFolder_Detail": "Couldn't open the folder: {0}"
 }
