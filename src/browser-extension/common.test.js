@@ -1222,3 +1222,40 @@ test("a download with no usable address at all hands over nothing", () => {
   assert.deepEqual(handOffUrls({}), { url: null, mirrors: null });
   assert.deepEqual(handOffUrls(null), { url: null, mirrors: null });
 });
+
+// ---------------------------------------------------------------------------
+// The two manifests must declare the same version.
+//
+// The code is shared — build-extension.sh packs the same common.js/popup.js into both zips — so a
+// one-sided bump does not change behaviour, it just publishes a Chrome/Edge zip that LIES about its
+// version. Nothing enforced this before: PUBLISHING.md asks for both, and the AMO workflow's bump guard
+// only watches the Firefox manifest. The extension catalog now reads each target's version from its own
+// manifest, which makes the agreement load-bearing.
+// ---------------------------------------------------------------------------
+const fs = require("node:fs");
+const path = require("node:path");
+
+function manifestVersion(file) {
+  const full = path.join(__dirname, file);
+  return { file, version: JSON.parse(fs.readFileSync(full, "utf8")).version };
+}
+
+test("both extension manifests declare the same version", () => {
+  const chrome = manifestVersion("manifest.json");
+  const firefox = manifestVersion("manifest.firefox.json");
+
+  // Deliberately not compared against a hard-coded number — this compares the files to each other, so it
+  // keeps working across every bump and only fails when they actually drift.
+  assert.equal(
+    chrome.version, firefox.version,
+    `extension manifests disagree: ${chrome.file}=${chrome.version} vs ${firefox.file}=${firefox.version}. `
+    + "Bump BOTH (see PUBLISHING.md) — the zips share their code, so a one-sided bump only mislabels one store's build."
+  );
+});
+
+test("both manifests declare a plain semver version", () => {
+  for (const file of ["manifest.json", "manifest.firefox.json"]) {
+    const { version } = manifestVersion(file);
+    assert.match(version, /^\d+\.\d+\.\d+$/, `${file} version "${version}" is not major.minor.patch`);
+  }
+});

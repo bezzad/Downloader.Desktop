@@ -3,6 +3,11 @@
 **All stores are a manual dashboard upload.** Bump `version` in **both** `manifest.json` and
 `manifest.firefox.json`, push to `develop`, and upload the zip from the release page.
 
+> A test enforces the "both manifests" part — `node --test src/browser-extension/common.test.js` fails when
+> the two versions disagree. The zips share their code, so a one-sided bump does not change behaviour; it
+> publishes one store's build under the wrong version, and `extension-catalog.json` reads each target's
+> version from its own manifest.
+
 - **Firefox (AMO)**: a manual upload at
   <https://addons.mozilla.org/en-US/developers/addon/downloader-browser-integration/versions>.
   The old `extension.yml` workflow (automated `web-ext sign` submission) was **removed on
