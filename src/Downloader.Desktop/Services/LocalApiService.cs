@@ -212,6 +212,9 @@ public static class LocalApiService
             try
             {
                 var path = ctx.Request.Url?.AbsolutePath ?? "/";
+                // Every route, /ping and the legacy endpoints included: the extension identifies itself on
+                // requests it already makes, so this is the one place it needs reading.
+                RecordExtensionIdentity(ctx.Request);
                 if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
                 {
                     await HandleApiAsync(ctx, path[5..].Trim('/').ToLowerInvariant()).ConfigureAwait(false);
@@ -487,6 +490,97 @@ public static class LocalApiService
         }
 
         return item;
+    }
+
+    // ---------------- Which extension is talking to us ----------------
+
+    /// <summary>An extension that has contacted this app, as it last identified itself.</summary>
+    public sealed record ExtensionIdentity(string Version, string Browser, DateTimeOffset At);
+
+    private static readonly object IdentityGate = new();
+    private static readonly Dictionary<string, ExtensionIdentity> SeenExtensions =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The extensions that have contacted this app since it started, keyed by browser label.
+    ///
+    /// <para><b>In memory only.</b> It is never written to the config file and never written to the log —
+    /// same discipline as the request URL, which is not logged because the GET form of <c>/api/add</c>
+    /// carries a live session (issue #7). This exists so the app can say "your Chrome extension is out of
+    /// date", which is worth exactly one dictionary and nothing more.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<string, ExtensionIdentity> LastSeenExtensions
+    {
+        get { lock (IdentityGate) return new Dictionary<string, ExtensionIdentity>(SeenExtensions, StringComparer.OrdinalIgnoreCase); }
+    }
+
+    /// <summary>What this browser's extension last reported, or null if it has never called.</summary>
+    public static ExtensionIdentity LastSeenExtension(string browser)
+    {
+        if (string.IsNullOrWhiteSpace(browser))
+            return null;
+        lock (IdentityGate)
+            return SeenExtensions.TryGetValue(browser, out var seen) ? seen : null;
+    }
+
+    /// <summary>Test seam: the recorder is process-wide, so a test that asserts on it must start clean.</summary>
+    internal static void ClearSeenExtensions()
+    {
+        lock (IdentityGate) SeenExtensions.Clear();
+    }
+
+    private static void RecordExtensionIdentity(HttpListenerRequest request)
+    {
+        try
+        {
+            var parsed = ParseExtensionIdentity(
+                QueryParam(request?.Url, "extv"),
+                QueryParam(request?.Url, "extb"),
+                request?.Headers?["X-Downloader-Extension"]);
+            if (parsed == null)
+                return; // an older extension, the CLI, or another tool — handled exactly as before
+            lock (IdentityGate)
+                SeenExtensions[parsed.Browser] = parsed;
+        }
+        catch
+        {
+            // Never let identity bookkeeping cost a request.
+        }
+    }
+
+    /// <summary>
+    /// Reads the reported identity from the query pair (<c>extv</c>/<c>extb</c>) or, failing that, the
+    /// <c>X-Downloader-Extension: &lt;version&gt;; &lt;browser&gt;</c> header. Pure, so the shapes are
+    /// tested without a listener. Returns null when nothing usable was reported — which must read as
+    /// "an older extension", never as an error.
+    /// </summary>
+    internal static ExtensionIdentity ParseExtensionIdentity(string queryVersion, string queryBrowser, string header)
+    {
+        var version = Clean(queryVersion);
+        var browser = Clean(queryBrowser);
+
+        if (version == null && !string.IsNullOrWhiteSpace(header))
+        {
+            var parts = header.Split(';', 2);
+            version = Clean(parts[0]);
+            browser ??= parts.Length > 1 ? Clean(parts[1]) : null;
+        }
+
+        if (version == null)
+            return null;
+        return new ExtensionIdentity(version, browser ?? "unknown", DateTimeOffset.Now);
+
+        // A reported value is untrusted text: keep it short and single-line so it cannot smuggle
+        // anything into whatever renders it.
+        static string Clean(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s))
+                return null;
+            var v = s.Trim();
+            if (v.Length > 40)
+                v = v[..40];
+            return v.Contains('\n') || v.Contains('\r') ? null : v;
+        }
     }
 
     // ---------------- Small pure helpers (unit-testable, no networking) ----------------
