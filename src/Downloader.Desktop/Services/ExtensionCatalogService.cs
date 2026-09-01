@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
@@ -151,4 +152,44 @@ public static class ExtensionCatalogService
     /// plugin-update checks.</summary>
     public static bool IsNewer(string catalogVersion, string installedVersion)
         => PluginCatalogService.IsNewer(catalogVersion, installedVersion);
+
+    /// <summary>The newest version any published build carries, or null when the catalog says nothing.</summary>
+    public static string NewestVersion(IEnumerable<ExtensionCatalogEntry> catalog)
+        => catalog?
+            .Select(e => e?.Version)
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .OrderByDescending(UpdateService.Normalize)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Whether to tell the user their extension is out of date, and with which two versions.
+    ///
+    /// <para>Pure on purpose — this is the decision the startup check exists to make, and a check like
+    /// this is only worth having if it never cries wolf. It says nothing when no extension has reported
+    /// (an extension that never called is not out of date, it is not installed), when the catalog is
+    /// empty or unreachable, or when everything reported is current or newer than the release.</para>
+    ///
+    /// <para><paramref name="reportedVersion"/> is the oldest version reported, so a user with two
+    /// browsers is told about the one that actually needs attention.</para>
+    /// </summary>
+    public static bool ShouldWarnAboutExtension(IEnumerable<string> reportedVersions,
+        IEnumerable<ExtensionCatalogEntry> catalog, out string reportedVersion, out string availableVersion)
+    {
+        reportedVersion = null;
+        var newest = NewestVersion(catalog);
+        availableVersion = newest;
+        if (string.IsNullOrWhiteSpace(newest) || reportedVersions == null)
+            return false;
+
+        // `newest` is a local because an out parameter cannot be captured by the lambda below.
+        var behind = reportedVersions
+            .Where(v => !string.IsNullOrWhiteSpace(v) && IsNewer(newest, v))
+            .OrderBy(UpdateService.Normalize)
+            .FirstOrDefault();
+        if (behind == null)
+            return false;
+
+        reportedVersion = behind;
+        return true;
+    }
 }

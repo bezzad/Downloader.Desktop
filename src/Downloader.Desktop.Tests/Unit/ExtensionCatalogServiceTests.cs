@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.Tests.Plugins.Hls;
 using Xunit;
@@ -172,4 +173,82 @@ public class ExtensionCatalogServiceTests : IDisposable
     [InlineData("", "1.7.0", false)]
     public void IsNewer_only_reports_a_strictly_newer_published_version(string published, string reported, bool expected)
         => Assert.Equal(expected, ExtensionCatalogService.IsNewer(published, reported));
+}
+
+/// <summary>
+/// The startup "your extension is out of date" decision.
+///
+/// Its job is to be quiet. A check like this only earns its place if it never cries wolf, so most of
+/// these tests are about the cases where it must say nothing.
+/// </summary>
+public class ExtensionUpdateWarningTests
+{
+    private static ExtensionCatalogEntry Build(string id, string version)
+        => new() { Id = id, Family = id, Version = version, AssetName = $"{id}.zip", AssetUrl = "u", Sha256 = "s" };
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_older_reported_version_is_warned_about()
+    {
+        var warn = ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.7.0" }, new[] { Build("chrome", "1.8.0") }, out var reported, out var available);
+
+        Assert.True(warn);
+        Assert.Equal("1.7.0", reported);
+        Assert.Equal("1.8.0", available);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Nothing_reported_is_never_warned_about()
+    {
+        // An extension that has never called is not out of date — it is not installed. Nagging here
+        // would be pure noise for someone who does not use the extension at all.
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            Array.Empty<string>(), new[] { Build("chrome", "1.8.0") }, out _, out _));
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            null, new[] { Build("chrome", "1.8.0") }, out _, out _));
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new string[] { null }, new[] { Build("chrome", "1.8.0") }, out _, out _));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_unreachable_or_empty_catalog_is_never_warned_about()
+    {
+        // Offline must be silent, not "you are out of date".
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.7.0" }, Array.Empty<ExtensionCatalogEntry>(), out _, out _));
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(new[] { "1.7.0" }, null, out _, out _));
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.7.0" }, new[] { Build("chrome", "") }, out _, out _));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_current_or_newer_extension_is_never_warned_about()
+    {
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.8.0" }, new[] { Build("chrome", "1.8.0") }, out _, out _));
+        // A developer running an unpacked build ahead of the release must not be nagged.
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.9.0" }, new[] { Build("chrome", "1.8.0") }, out _, out _));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void With_two_browsers_the_oldest_one_is_named()
+    {
+        // The point of naming a version is to tell the user which install needs attention.
+        var warn = ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.8.0", "1.6.0", "1.7.0" }, new[] { Build("chrome", "1.8.0") }, out var reported, out _);
+
+        Assert.True(warn);
+        Assert.Equal("1.6.0", reported);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_newest_published_build_is_the_one_compared_against()
+    {
+        Assert.Equal("2.0.0", ExtensionCatalogService.NewestVersion(
+            new[] { Build("chrome", "1.8.0"), Build("firefox", "2.0.0") }));
+        Assert.Null(ExtensionCatalogService.NewestVersion(Array.Empty<ExtensionCatalogEntry>()));
+        Assert.Null(ExtensionCatalogService.NewestVersion(null));
+        Assert.Null(ExtensionCatalogService.NewestVersion(new ExtensionCatalogEntry[] { null }));
+    }
 }

@@ -85,6 +85,17 @@ A cross-browser **Manifest V3** extension that hands download links and detected
    shown in the app's Settings. If the app answers on none of those ports, the popup says so and
    names the ports it probed, rather than showing an unexplained red dot.
 
+## Getting it installed
+
+The easiest route for a user is **inside the desktop app**: Settings → Browser extension & local API →
+**Get the files**. The app detects installed browsers, downloads the build for each from the matching
+GitHub Release, **verifies its sha256 before unpacking**, puts it in a stable folder under the app's own
+data directory, and shows the per-browser steps. It never writes to a browser profile, never touches
+browser policy, and never asks for elevation — see the `install-browser-extension` OpenSpec change for
+why installing into a browser programmatically is off the table.
+
+The manual route below is the same thing done by hand, and is what you want when developing.
+
 ## Load it for testing (unpacked)
 
 ### Chrome / Edge
