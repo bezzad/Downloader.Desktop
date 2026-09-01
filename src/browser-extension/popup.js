@@ -1,9 +1,10 @@
-// Popup UI: shows media detected on the active tab as ONE list ordered by media type (manifests
-// first — see common.js's sortDetectedGroups for why relevance-ranking was removed), each row with a
-// preview image, a size/quality upgrade pass, and a Download button.
+// Popup UI: shows media detected on the active tab as ONE list, best copy first (HLS master, then
+// quality, then size — see common.js's sortDetectedGroups for why relevance-ranking was removed),
+// each row with a preview image, a size/quality upgrade pass, and a Download button.
 const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
+const versionEl = document.getElementById("version");
 const appMissingEl = document.getElementById("appMissing");
 
 let rawItems = []; // { url, type, group, capturedAt }
@@ -375,6 +376,15 @@ document.getElementById("openOptions").onclick = () => {
   if (api.runtime?.openOptionsPage) api.runtime.openOptionsPage();
   else api.tabs?.create({ url: api.runtime.getURL("options.html") });
 };
+
+// Shows the installed extension's own version next to its name, so a report ("I'm on the latest
+// version but...") can be answered from a screenshot instead of asking the user to dig through
+// about:addons. `getManifest()` is synchronous and always available — no permission, no network.
+if (versionEl) {
+  const full = api.runtime.getManifest().version;
+  versionEl.textContent = `v${shortVersion(full)}`;
+  versionEl.title = `Downloader extension ${full}`;
+}
 
 refreshStatus();
 loadDetected();

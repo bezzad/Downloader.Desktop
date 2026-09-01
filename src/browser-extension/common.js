@@ -458,6 +458,14 @@ async function askAppCanHandlePage(url) {
   return await appCanHandlePage(url, port);
 }
 
+// The version badge in the popup header ("v1.7"). A trailing zero patch is dropped — extension
+// releases bump the patch far more often than the minor, and "v1.7.0" reads noisier for a badge
+// than "v1.7" while a real patch ("v1.7.1") still shows in full so it's never hidden.
+function shortVersion(version) {
+  if (typeof version !== "string" || !version) return "";
+  return version.replace(/\.0$/, "");
+}
+
 // ---------------- Media metadata probing (popup: size/resolution/quality) ----------------
 
 // "12345" -> "1.2 KB"/"3.4 MB"/etc. Returns null for a non-positive/unknown size.
@@ -1216,7 +1224,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
     isManifest, MANIFEST_EXTENSIONS,
-    formatBytes, probeSize, parseHlsMaster, estimateHlsSize,
+    formatBytes, shortVersion, probeSize, parseHlsMaster, estimateHlsSize,
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,

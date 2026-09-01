@@ -1,4 +1,24 @@
+const path = require("node:path");
 const { test, expect, openPopupFor } = require("../fixtures");
+
+test("the header shows the installed extension's own version", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/empty.html");
+  const popup = await openPopupFor(context, extensionId, page);
+
+  // eslint-disable-next-line global-require -- read directly, not through the extension, on purpose
+  const manifestVersion = require(path.join(__dirname, "../../manifest.json")).version;
+  const expected = `v${manifestVersion.replace(/\.0$/, "")}`;
+
+  await expect(popup.locator("#version")).toHaveText(expected);
+  // Tight against the title, not pushed to the far right where the status dot lives (screenshot
+  // request: "add ... version in right side of extension title", i.e. beside the name, not the edge).
+  const titleBox = await popup.locator(".title").boundingBox();
+  const versionBox = await popup.locator("#version").boundingBox();
+  const statusBox = await popup.locator("#status").boundingBox();
+  expect(versionBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+  expect(versionBox.x).toBeLessThan(statusBox.x - 20);
+});
 
 // The fix: there is no "Main media" / "Other detected" split any more. The old promotion rule needed
 // a visibility hint from a content script to be fresh at the exact moment the popup asked, which on a

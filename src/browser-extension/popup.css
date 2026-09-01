@@ -11,7 +11,14 @@ header {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px; border-bottom: 1px solid rgba(128,128,128,.25);
 }
-.title { font-weight: 600; font-size: 14px; flex: 1; }
+/* .title-group (not .title) carries the flex-grow, so the version badge sits tight against the
+   title while the status dot still gets pushed to the header's far right. */
+.title-group { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
+.title { font-weight: 600; font-size: 14px; }
+.version {
+  font-size: 10px; font-weight: 600; color: #888; letter-spacing: .2px;
+  background: rgba(128,128,128,.18); border-radius: 8px; padding: 1px 6px;
+}
 .status { font-size: 12px; }
 .status.on { color: #1FA971; }
 .status.off { color: #E5594F; }

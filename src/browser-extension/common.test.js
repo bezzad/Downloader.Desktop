@@ -8,7 +8,7 @@ const assert = require("node:assert/strict");
 global.chrome = { cookies: {} };
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
-  runProbesBounded, formatBytes, isKnownUnsupportedHost,
+  runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   qualityHeight, qualityHeightFromUrl,
@@ -114,6 +114,16 @@ test("runProbesBounded resolves in order and tolerates throws/timeouts", async (
   ];
   const results = await runProbesBounded(tasks, { concurrency: 2, timeoutMs: 30 });
   assert.deepEqual(results, [1, null, null]);
+});
+
+test("shortVersion drops a trailing zero patch but keeps a real one", () => {
+  assert.equal(shortVersion("1.7.0"), "1.7");
+  assert.equal(shortVersion("1.7.1"), "1.7.1");
+  assert.equal(shortVersion("2.0.0"), "2.0");   // only ONE trailing ".0" is stripped
+  assert.equal(shortVersion("10"), "10");
+  assert.equal(shortVersion(""), "");
+  assert.equal(shortVersion(null), "");
+  assert.equal(shortVersion(undefined), "");
 });
 
 test("formatBytes renders human-readable sizes and rejects non-positive input", () => {
