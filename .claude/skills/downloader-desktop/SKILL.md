@@ -1106,3 +1106,50 @@ Two traps worth keeping:
   `browser_specific_settings.gecko.data_collection_permissions` needs Firefox 140/Android 142) — a
   WARNING not the failing error, but bumped to `142.0` anyway so a real submission carries zero lint
   warnings too, not just zero errors.
+
+## In-app browser-extension install (install-browser-extension, 2026-09-01)
+- **No browser accepts a locally installed unsigned extension into a normal profile, and OS elevation does
+  not change that** — this question is settled, don't re-open it. Chromium's external-install registry key
+  and `External Extensions` JSON take only a Web-Store `update_url`; Firefox needs a Mozilla-signed xpi. The
+  ONLY thing admin rights buy is a browser-**policy** write (`ExtensionInstallForcelist` / `policies.json`),
+  which is the hijacker signature and is scored HIGHER for being elevated — i.e. strictly worse than the
+  unsigned-exe-spawns-powershell shape that already got this app quarantined (issue #4). So the app fetches,
+  verifies and unpacks the files; the browser is where the install happens. `NoShellSpawnTests` now bans the
+  policy hooks AND the profile-path fragments (`Login Data`, `Local State`, `Web Data`, `cookies.sqlite`,
+  `places.sqlite`, `profiles.ini`) outright.
+- **`BrowserDetector` reads existence + executable path ONLY.** A feature about browsers is exactly where
+  profile access gets added by accident. Windows = `Microsoft.Win32.Registry` (`StartMenuInternet` →
+  `shell\open\command`, then `App Paths`), never a spawned `reg.exe`; Linux = `PATH` + snap/flatpak export
+  dirs; macOS = known `.app` bundles. `DetectOverride` is the test seam (a test cannot install a browser).
+- **The unpack destination must NEVER move**: a browser derives a manually loaded extension's ID from its
+  absolute folder path, so a new path per install means a new identity and an empty settings store, and a
+  temp folder breaks the extension when the OS cleans temp. `<AppData>/Downloader/extension/<target>/`,
+  staged as `<target>.new` → swap so an interrupted install leaves the previous copy intact.
+- **A matching sha256 does NOT make a zip trusted** — it only proves it is the file the catalog named. Every
+  entry path is still checked for `..`, rooted and drive-qualified forms before extraction.
+- **`storeUrl` in `packaging/extension/targets.json` is the whole switch** between the manual "load unpacked"
+  path and opening that browser at its store listing. Publishing a listing is a data edit, not code.
+- **The extension identifies itself on requests it already makes** (`extv`/`extb` query params, JSON fields
+  on the POST form, `X-Downloader-Extension` header), read once in `LocalApiService`'s request loop so
+  `/ping` and the legacy routes carry it too. In memory only — never persisted, never logged (the GET form of
+  `/api/add` carries a live session; that's why the URL isn't logged either). An unreadable manifest yields
+  `{}` and the request goes out unchanged.
+- **"Connected" must come from the extension calling, never from having unpacked files.** The manual load
+  fails in ways the app cannot see (Developer mode disabled by policy, user closed the tab), so a tick
+  meaning "we unzipped something" is worse than no tick.
+
+## Two shared-checkout / flake traps (2026-09-01)
+- **`git commit` commits the INDEX, not what you just `git add`ed.** The existing note says "never
+  `git add -A`" — that is not enough. Another session's `git add` had already staged six of its files, so a
+  commit of two of my own swept all six in under my message. Nothing was pushed, so the repair was
+  `git reset --soft HEAD~1` + `git restore --staged <their paths>` + recommit (their working-tree content is
+  untouched by that; they only have to re-`add`). **Read `git diff --cached` before every commit here**, not
+  just `git status`.
+- **The Playwright `interception` spec can fail in a FULL run even with `--workers=1`** and pass 10/10 when
+  its own file runs alone (seen: "browser's copy is cancelled" got `in_progress` instead of `interrupted`).
+  That symptom looks exactly like the app rejecting the hand-off, so check the stub first — `startStubApp`
+  answers 201 regardless of body, so extra JSON fields/headers cannot cause it. Re-run the single spec
+  before believing a regression. The existing note said workers=1 made the suite green; it mostly does.
+- **A `Task.Delay` after a fire-and-forget `ICommand.Execute(null)` is a flake waiting for CI.** One such
+  assertion passed alone and failed in the 1490-test run. Type the command `ReactiveCommand<Unit, Unit>`
+  (still an `ICommand`, XAML unchanged) and `await cmd.Execute()` — needs `using System.Reactive.Linq;`.

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reactive;
 using System.Windows.Input;
 using Avalonia.Input.Platform;
 using Downloader.Desktop.Models;
@@ -199,7 +200,10 @@ public class ExtensionInstallViewModel : ViewModelBase
     public ObservableCollection<ExtensionBrowserRow> Browsers { get; } = new();
     public ObservableCollection<ExtensionTargetRow> Targets { get; } = new();
 
-    public ICommand InstallCommand { get; }
+    /// <summary>Typed rather than <see cref="ICommand"/> so a test can await the execution instead of
+    /// sleeping after a fire-and-forget <c>Execute</c> — a timing-based assertion here was flaky under
+    /// full-suite load. XAML binds it exactly the same way.</summary>
+    public ReactiveCommand<Unit, Unit> InstallCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand CopyPathCommand { get; }
     public ICommand OpenFolderCommand { get; }

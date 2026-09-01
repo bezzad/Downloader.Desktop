@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
@@ -302,10 +303,10 @@ public class ExtensionInstallViewModelTests
         Assert.Equal(1.0, vm.Progress);
 
         // And the command really is wired to that method — the dialog's button is the only way in.
+        // Awaited, not slept on: the sleep version of this failed under full-suite load.
         var viaCommand = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
         await viaCommand.LoadAsync();
-        viaCommand.InstallCommand.Execute(null);
-        await Task.Delay(200, TestContext.Current.CancellationToken);
+        await viaCommand.InstallCommand.Execute();
         Assert.True(Assert.Single(viaCommand.Targets).IsUnpacked);
     }
 
