@@ -556,7 +556,7 @@ public class SettingViewModel : ViewModelBase
         try
         {
             System.IO.Directory.CreateDirectory(AppLog.LogFolder);
-            ShellLauncher.Open(AppLog.LogFolder);
+            ShellLauncher.OpenFolder(AppLog.LogFolder);
         }
         catch
         {

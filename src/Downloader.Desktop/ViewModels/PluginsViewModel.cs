@@ -234,7 +234,7 @@ public class PluginsViewModel : ViewModelBase
         try
         {
             Directory.CreateDirectory(PluginManager.PluginsRoot);
-            ShellLauncher.Open(PluginManager.PluginsRoot);
+            ShellLauncher.OpenFolder(PluginManager.PluginsRoot);
         }
         catch
         {

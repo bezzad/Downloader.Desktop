@@ -1153,3 +1153,42 @@ Two traps worth keeping:
 - **A `Task.Delay` after a fire-and-forget `ICommand.Execute(null)` is a flake waiting for CI.** One such
   assertion passed alone and failed in the 1490-test run. Type the command `ReactiveCommand<Unit, Unit>`
   (still an `ICommand`, XAML unchanged) and `await cmd.Execute()` — needs `using System.Reactive.Linq;`.
+
+## "Open containing folder" does nothing on Linux — the snap/D-Bus trap (2026-09-01)
+- **Symptom**: clicking open/reveal-folder does nothing at all, for every download row, no error, no log
+  line. Reported on Linux; reproduced under the **snap**.
+- **Root cause, two defects compounding**: (1) the Linux reveal is a D-Bus call to
+  `org.freedesktop.FileManager1`, which **AppArmor DENIES to a snap-confined app**, but `dbus-send`
+  *without* `--print-reply` never waits for a reply and **exits 0 anyway**; (2) `ShellLauncher.Run`
+  reported whether the process STARTED, not whether it succeeded. So the app concluded the reveal worked
+  and never ran its "just open the folder" fallback.
+- **Verify it like this** (works on any machine with the snap installed):
+  `snap run --shell downloader -c 'dbus-send --session --print-reply --dest=org.freedesktop.FileManager1 --type=method_call /org/freedesktop/FileManager1 org.freedesktop.FileManager1.ShowItems "array:string:file:///home/<you>/Downloads/x" string:; echo $?'`
+  → **exit 1** (AccessDenied) confined, **exit 0** unconfined; drop `--print-reply` and it is 0 both ways.
+  `xdg-open` and `gio open` ARE allowed under snap, so the fallback is what makes it work.
+- **Fix**: `ShellLauncher.RunChecked(timeout, …)` (waits, checks the exit code, kills a hang) +
+  `--print-reply` + `ShellLauncher.OpenFolder` / `RevealInFolder` owning the fallback chain
+  (default handler → `gio open`) + `AppLog.Warn` at every failure. All four folder buttons (download row,
+  plugins, logs, extension dialog) now go through it.
+- **`explorer.exe` returns a NON-ZERO exit code even on success** — never route the Windows reveal through
+  `RunChecked`, and keep its `/select,"<path>"` argument quoted exactly as it is (the quotes are inside
+  the single argument; `ArgumentList` does the outer escaping).
+- **A snap's `/tmp` is a private tmpfs and `$HOME` is `~/snap/<name>/<rev>`** — a probe using `/tmp/...`
+  or `$HOME/...` inside `snap run --shell` tests nothing. Use a real absolute path under the user's home.
+
+## `System.Progress<T>` is asynchronous — never assert its value right after the await
+`new Progress<double>(p => X = p)` captures `SynchronizationContext.Current` and **posts** each callback
+(to the ThreadPool when there is none). So `await DoWork(new Progress<double>(...)); Assert.Equal(1.0, X);`
+is a race: it passed alone and failed in the full run once an `[AvaloniaFact]` had installed the dispatcher
+context. Keep `Progress<T>` in the VM — it is what stops a bound property being set from the engine's
+background thread — and assert the progress contract against the SERVICE, where reports are collected
+synchronously. Same family as the two other timing traps above; the tell is "passes alone, fails in the
+full run, passes on re-run".
+
+## Awaiting a `ReactiveCommand` from a plain `[Fact]` hangs
+`ReactiveCommand` delivers on `RxApp.MainThreadScheduler`, which in a plain `[Fact]` is whatever the last
+test left there and nothing pumps it — `await cmd.Execute()` then hangs to the per-test timeout. It failed
+with the class run ALONE and passed alongside `AppShellStartupTests`/`DialogFlowTests` (they install a
+`DeferringScheduler`), i.e. order-dependent in both directions. Pin it for the assertion
+(`RxApp.MainThreadScheduler = ImmediateScheduler.Instance`, restore in `finally` — it is process-wide) or
+await the underlying method directly.

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using Avalonia.Headless.XUnit;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.ViewModels;
+using ReactiveUI;
 using Xunit;
 
 namespace Downloader.Desktop.Tests.Unit;
@@ -300,14 +302,34 @@ public class ExtensionInstallViewModelTests
         Assert.Equal("/data/extension/chrome", Assert.Single(vm.Targets).InstalledPath);
         Assert.False(vm.IsBusy);
         Assert.False(vm.HasError);
-        Assert.Equal(1.0, vm.Progress);
+        // Deliberately NOT asserting vm.Progress here. The VM reports through System.Progress<double>,
+        // which POSTS its callback to the captured SynchronizationContext instead of running it inline —
+        // so the value may or may not have arrived by the time this line runs, which is exactly the race
+        // that made this test fail in a full run and pass on its own. Progress<T> is the right choice for
+        // the VM (it keeps the bound property update off the engine's background thread), so the contract
+        // is asserted where it is deterministic: ExtensionInstallServiceTests
+        // .Reporting_progress_reaches_one_hundred_percent, against the real service.
 
         // And the command really is wired to that method — the dialog's button is the only way in.
-        // Awaited, not slept on: the sleep version of this failed under full-suite load.
-        var viaCommand = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
-        await viaCommand.LoadAsync();
-        await viaCommand.InstallCommand.Execute();
-        Assert.True(Assert.Single(viaCommand.Targets).IsUnpacked);
+        //
+        // A ReactiveCommand delivers its result on RxApp.MainThreadScheduler, which in a plain [Fact] is
+        // whatever the last test left there: nothing pumps it, so awaiting Execute() hangs until the
+        // timeout. (Sleeping instead was worse — that failed under full-suite load.) Pin the scheduler for
+        // the duration so the execution is synchronous and the assertion is about wiring, not timing.
+        var previousScheduler = RxApp.MainThreadScheduler;
+        RxApp.MainThreadScheduler = ImmediateScheduler.Instance;
+        try
+        {
+            var viaCommand = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
+            await viaCommand.LoadAsync();
+            await viaCommand.InstallCommand.Execute();
+            Assert.True(Assert.Single(viaCommand.Targets).IsUnpacked);
+        }
+        finally
+        {
+            // Process-wide: leaking it silently changes a LATER test, not this one.
+            RxApp.MainThreadScheduler = previousScheduler;
+        }
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

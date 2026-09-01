@@ -570,29 +570,9 @@ public class DownloadItemViewModel : ViewModelBase
         ShellOpen(File.Exists(path) ? path : _item.FolderPath);
     }
 
-    /// <summary>Opens the containing folder with the file selected/highlighted, cross-platform.</summary>
-    private static void RevealInFolder(string path)
-    {
-        var revealed = OperatingSystem.IsWindows()
-            ? Services.ShellLauncher.Run("explorer.exe", $"/select,\"{path}\"")
-            : OperatingSystem.IsMacOS()
-                ? Services.ShellLauncher.Run("open", "-R", path)
-                // Linux: the FileManager1 D-Bus interface selects the item in Nautilus/Dolphin/etc.
-                : Services.ShellLauncher.Run("dbus-send",
-                    "--session",
-                    "--dest=org.freedesktop.FileManager1",
-                    "--type=method_call",
-                    "/org/freedesktop/FileManager1",
-                    "org.freedesktop.FileManager1.ShowItems",
-                    "array:string:file://" + path,
-                    "string:");
+    private static void RevealInFolder(string path) => Services.ShellLauncher.RevealInFolder(path);
 
-        if (!revealed)
-            // Fall back to just opening the folder if the reveal mechanism isn't available.
-            ShellOpen(Path.GetDirectoryName(path));
-    }
-
-    private static void ShellOpen(string target) => Services.ShellLauncher.Open(target);
+    private static void ShellOpen(string target) => Services.ShellLauncher.OpenFolder(target);
 
     /// <summary>Human-readable byte size (e.g. "12.5 MB"). Public so other VMs (Queues) can reuse it.</summary>
     public static string FormatBytes(long bytes)

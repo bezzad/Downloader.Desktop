@@ -391,7 +391,7 @@ public class ExtensionInstallViewModel : ViewModelBase
     private void OpenFolder(ExtensionTargetRow target)
     {
         if (!string.IsNullOrWhiteSpace(target?.InstalledPath))
-            ShellLauncher.Open(target.InstalledPath);
+            ShellLauncher.OpenFolder(target.InstalledPath);
     }
 
     /// <summary>
