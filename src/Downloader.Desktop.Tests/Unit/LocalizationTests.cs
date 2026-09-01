@@ -77,3 +77,94 @@ public class LocalizationTests
         Assert.Equal("__nope__", Localizer.Instance["__nope__"]);
     }
 }
+
+/// <summary>
+/// The install-extension dialog's strings, in every pack.
+///
+/// This dialog is the one place the app has to EXPLAIN something — the steps to add an extension to a
+/// browser, and what that way of adding it costs. A missing translation there does not degrade
+/// gracefully: it shows a user instructions they cannot read, or a raw key.
+/// </summary>
+public class ExtensionInstallLocalizationTests
+{
+    private static readonly string[] Languages =
+    {
+        "en", "fa", "es", "fr", "ar", "eo", "tr", "az", "de", "it", "pt", "ru", "hi", "zh", "ja", "ko",
+    };
+
+    private static readonly string[] Keys =
+    {
+        "Ext_Install_Button", "Ext_Install_Hint", "Ext_Install_Title", "Ext_Browsers",
+        "Ext_NotConnected", "Ext_Connected", "Ext_UpdateAvailable",
+        "Ext_Family_Chromium", "Ext_Family_Gecko",
+        "Ext_Steps_Chromium_1", "Ext_Steps_Chromium_2", "Ext_Steps_Chromium_3",
+        "Ext_Steps_Gecko_1", "Ext_Steps_Gecko_2", "Ext_Steps_Gecko_3",
+        "Ext_Limits_Chromium", "Ext_Limits_Gecko",
+        "Ext_NoBrowsers", "Ext_NoBuild", "Ext_PickABrowser", "Ext_NeedsNewerApp",
+        "Ext_Install", "Ext_OpenStore", "Ext_CopyPath", "Ext_OpenFolder", "Ext_FolderLabel",
+        "Ext_StepsTitle", "Ext_Refresh", "Ext_Cancel",
+    };
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Every_pack_carries_every_key()
+    {
+        var missing = new System.Collections.Generic.List<string>();
+        foreach (var lang in Languages)
+        {
+            Localizer.Instance.Load(lang);
+            foreach (var key in Keys)
+            {
+                var value = Localizer.Instance[key];
+                // A missing key falls back to itself, so the key coming back IS the failure signal.
+                if (string.IsNullOrWhiteSpace(value) || value == key)
+                    missing.Add($"{lang}:{key}");
+            }
+        }
+        Localizer.Instance.Load("en");
+
+        Assert.True(missing.Count == 0, "Untranslated install-extension strings: " + string.Join(", ", missing));
+    }
+
+    /// <summary>The two format strings are what tell the user which version they have and which is
+    /// available — a pack that drops a placeholder silently loses that.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_version_strings_keep_their_placeholders()
+    {
+        var broken = new System.Collections.Generic.List<string>();
+        foreach (var lang in Languages)
+        {
+            Localizer.Instance.Load(lang);
+            if (!Localizer.Instance["Ext_Connected"].Contains("{0}"))
+                broken.Add($"{lang}:Ext_Connected");
+            var update = Localizer.Instance["Ext_UpdateAvailable"];
+            if (!update.Contains("{0}") || !update.Contains("{1}"))
+                broken.Add($"{lang}:Ext_UpdateAvailable");
+        }
+        Localizer.Instance.Load("en");
+
+        Assert.True(broken.Count == 0, "Version strings missing a placeholder: " + string.Join(", ", broken));
+    }
+
+    /// <summary>
+    /// Every pack must actually name the browser page the user has to open — those are literal addresses,
+    /// so a translation that paraphrases them away leaves the steps unfollowable.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_steps_keep_the_literal_browser_addresses()
+    {
+        var broken = new System.Collections.Generic.List<string>();
+        foreach (var lang in Languages)
+        {
+            Localizer.Instance.Load(lang);
+            if (!Localizer.Instance["Ext_Steps_Chromium_1"].Contains("chrome://extensions"))
+                broken.Add($"{lang}:Ext_Steps_Chromium_1");
+            if (!Localizer.Instance["Ext_Steps_Gecko_1"].Contains("about:debugging"))
+                broken.Add($"{lang}:Ext_Steps_Gecko_1");
+            if (!Localizer.Instance["Ext_Steps_Gecko_3"].Contains("manifest.json"))
+                broken.Add($"{lang}:Ext_Steps_Gecko_3");
+        }
+        Localizer.Instance.Load("en");
+
+        Assert.True(broken.Count == 0, "Steps missing a literal address: " + string.Join(", ", broken));
+    }
+}

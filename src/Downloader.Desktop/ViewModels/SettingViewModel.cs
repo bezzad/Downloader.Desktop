@@ -41,6 +41,7 @@ public class SettingViewModel : ViewModelBase
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
+        InstallExtensionCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowExtensionInstall);
         // "Check for updates" while Idle → "Download update" once a version is available → "Restart to
         // update" once it's downloaded. The same button drives the whole flow from Settings.
         CheckUpdateCommand = ReactiveCommand.CreateFromTask(async () =>
@@ -291,6 +292,9 @@ public class SettingViewModel : ViewModelBase
     /// <summary>Green when reachable, gray when not — same palette as the download status dots.</summary>
     public Avalonia.Media.IBrush LocalApiStatusBrush =>
         new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(LocalApiService.IsRunning ? "#1FA971" : "#6B7A83"));
+
+    /// <summary>Opens the "Install browser extension" dialog — the entry point for the whole flow.</summary>
+    public ICommand InstallExtensionCommand { get; }
 
     private void RaiseLocalApiStatus()
     {

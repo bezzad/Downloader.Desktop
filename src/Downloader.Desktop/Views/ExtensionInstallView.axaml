@@ -1,0 +1,171 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        mc:Ignorable="d" d:DesignWidth="620" d:DesignHeight="680"
+        Width="620" Height="680"
+        CanResize="True" MinWidth="520" MinHeight="480"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Icon="/Assets/downloader.png"
+        x:Class="Downloader.Desktop.Views.ExtensionInstallView"
+        x:DataType="vm:ExtensionInstallViewModel"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="{i18n:Tr Ext_Install_Title}">
+
+    <Panel>
+    <!-- Same modal chrome as the other dialogs: a live-accent 1px border, and SystemRegionColor as the
+         background (ThemeBackgroundColor is undefined here and renders the window see-through). -->
+    <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True" Background="{DynamicResource SystemRegionColor}">
+    <Border CornerRadius="9" ClipToBounds="True">
+    <DockPanel>
+    <v:TitleBar DockPanel.Dock="Top" Title="{i18n:Tr Ext_Install_Title}" ShowMinMax="False" />
+
+    <Grid Margin="22 18 22 22" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+        <!-- What this dialog can and cannot do, said once at the top: the app fetches and checks the
+             files, the browser is where the install happens. -->
+        <TextBlock Grid.Row="0" Text="{i18n:Tr Ext_Install_Hint}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource SystemBaseMediumColor}" Margin="0 0 0 12" />
+
+        <!-- Notices (no browsers, nothing selected, no build) and errors are visually distinct: one is
+             information, the other is a failure the user may need to act on. -->
+        <Border Grid.Row="1" Classes="card" Margin="0 0 0 12" IsVisible="{Binding HasNotice}">
+            <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
+        </Border>
+        <Border Grid.Row="2" Classes="card" Margin="0 0 0 12" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemErrorTextColor}" />
+        </Border>
+
+        <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12" Margin="0 0 0 6">
+
+                <!-- The browsers we found. Detection reads only whether a browser exists and where its
+                     executable is — never a profile. -->
+                <Border Classes="card" IsVisible="{Binding HasBrowsers}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{i18n:Tr Ext_Browsers}"
+                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                        <ItemsControl ItemsSource="{Binding Browsers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ExtensionBrowserRow">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 3">
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"
+                                                  Content="{Binding Name}" VerticalAlignment="Center" />
+                                        <!-- Connected comes from the extension having actually called the
+                                             app; unpacking files never turns this on. -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
+                                                    VerticalAlignment="Center" Margin="14 0 0 0">
+                                            <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                                                     IsVisible="{Binding IsConnected}"
+                                                     Fill="{DynamicResource SystemAccentColor}" />
+                                            <TextBlock Text="{Binding StatusText}" FontSize="12"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="{i18n:Tr Ext_OpenStore}"
+                                                Command="{Binding OpenStoreCommand}" Padding="12 5" FontSize="12" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- One card per browser family: where the files are, the steps, and what this way of
+                     installing actually costs. -->
+                <ItemsControl ItemsSource="{Binding Targets}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ExtensionTargetRow">
+                            <Border Classes="card" Margin="0 0 0 10" IsVisible="{Binding HasBuild}">
+                                <StackPanel Spacing="9">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        <TextBlock Grid.Column="1" Text="{Binding AvailableVersion, StringFormat='v{0}'}"
+                                                   FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                    </Grid>
+
+                                    <!-- The folder is the thing the user has to hand to their browser, so
+                                         it is selectable and copyable, never just printed. -->
+                                    <StackPanel Spacing="6" IsVisible="{Binding IsUnpacked}">
+                                        <TextBlock Text="{i18n:Tr Ext_FolderLabel}" FontSize="12"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <SelectableTextBlock Grid.Column="0" Text="{Binding InstalledPath}"
+                                                                 FontFamily="monospace" FontSize="12"
+                                                                 VerticalAlignment="Center"
+                                                                 TextWrapping="Wrap" Margin="0 0 8 0" />
+                                            <Button Grid.Column="1" Content="{i18n:Tr Ext_CopyPath}" FontSize="12"
+                                                    Padding="10 5" Margin="0 0 6 0"
+                                                    Command="{Binding $parent[Window].((vm:ExtensionInstallViewModel)DataContext).CopyPathCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Grid.Column="2" Content="{i18n:Tr Ext_OpenFolder}" FontSize="12"
+                                                    Padding="10 5"
+                                                    Command="{Binding $parent[Window].((vm:ExtensionInstallViewModel)DataContext).OpenFolderCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Steps only matter for the manual path; a published listing makes
+                                         them unnecessary. -->
+                                    <StackPanel Spacing="4" IsVisible="{Binding !UseStore}">
+                                        <TextBlock Text="{i18n:Tr Ext_StepsTitle}" FontSize="12"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        <ItemsControl ItemsSource="{Binding Steps}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12"
+                                                               Margin="6 1 0 1" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- Said plainly, not hidden: the manual path has real drawbacks on
+                                         both families, and a user who is not told reports them as bugs. -->
+                                    <TextBlock Text="{Binding Limitations}" TextWrapping="Wrap" FontSize="12"
+                                               IsVisible="{Binding !UseStore}"
+                                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer: progress while working, then the actions. -->
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0 14 0 0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                        IsVisible="{Binding IsBusy}">
+                <ProgressBar Width="150" MinWidth="0" Height="6" Maximum="1"
+                             Value="{Binding Progress}" VerticalAlignment="Center" />
+                <Button Classes="icon" Command="{Binding CancelCommand}" ToolTip.Tip="{i18n:Tr Ext_Cancel}">
+                    <PathIcon Data="{DynamicResource DismissRegular}" />
+                </Button>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="{i18n:Tr Ext_Refresh}" Padding="14 7" Command="{Binding RefreshCommand}" />
+                <Button Content="{i18n:Tr Ext_Install}" Padding="18 7" Classes="accent"
+                        Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}" />
+                <Button Content="{i18n:Tr Btn_Close}" Padding="18 7" Click="OnCloseClick" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+    </DockPanel>
+    </Border>
+    </Border>
+    <v:ResizeGrips />
+    </Panel>
+</Window>
