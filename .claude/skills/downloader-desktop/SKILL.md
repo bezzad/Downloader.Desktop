@@ -1062,3 +1062,21 @@ Two traps worth keeping:
   with `vm.PlannedConnections` set by hand — no engine, no timing. End-to-end variants of the same thing
   are the ones that historically only passed on a fast machine (see the NOTE in that file before writing
   another one).
+
+## Two sessions in ONE worktree: never `git add -A` (learned the hard way, 2026-09-01)
+- The author sometimes runs a second session on the SAME checkout (e.g. one on the extension, one on
+  issue #9's retry order). `git add -A` then sweeps the OTHER session's uncommitted work into your
+  commit and pushes it under your message — it happened: `DownloadManager.cs` +
+  `Integration/UrlFailoverTests.cs` (143 lines of someone else's in-flight work) landed inside an
+  extension commit. **Stage explicit paths** (`git add src/browser-extension docs/... `) and read
+  `git status --short` BEFORE committing, treating any file outside your own change as someone else's.
+- **Do not "fix" it by rewriting history or reverting their files.** `develop` is shared (never
+  force-push), and a revert commit would delete edits another session is still holding in its working
+  tree. The honest repair is: verify the tree still builds and their tests pass, leave the content
+  alone, and TELL the author — the other session can carry on and commit the rest normally (its
+  `git status` will simply show those files as already committed).
+- **A concurrent `dotnet build` in the same tree produces phantom failures**: a run that overlapped the
+  other session's build reported `1 Error(s)` with no error line and exit code 0; re-running alone gave
+  `0 errors, 0 warnings`. Same family as the stale-`testhost` note above. Re-run alone before believing
+  a build/test failure, and prefer a filtered `--filter` run over the full suite while another session
+  is active.
