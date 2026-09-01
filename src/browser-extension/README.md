@@ -117,6 +117,15 @@ first) to rediscover it. These are served by `Services/LocalApiService.cs` in th
 `docs/local-api.md` in the main repo for the full API). No other ports, servers or accounts are
 involved.
 
+Every one of those requests also carries **which extension is asking** — `extv` (this extension's
+version) and `extb` (a coarse browser label: `chrome`, `edge` or `firefox`), plus an
+`X-Downloader-Extension: <version>; <browser>` header; the POST form of `/api/add` carries the same
+two as JSON fields. That is what lets the app tell you your extension is out of date instead of
+leaving you on a build that quietly stopped working. It needs no extra permission and adds no extra
+request, the app keeps it in memory only (never in its config file, never in its log), and a request
+without it is served exactly as before — so an older extension, the CLI and any other local tool are
+unaffected.
+
 ## Files
 
 | File | Role |

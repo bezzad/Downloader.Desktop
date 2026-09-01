@@ -16,6 +16,7 @@ const {
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
+  extensionIdentity, browserLabel, withIdentity, withIdentityHeaders,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
   filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
@@ -1268,4 +1269,139 @@ test("both manifests declare a plain semver version", () => {
     const { version } = manifestVersion(file);
     assert.match(version, /^\d+\.\d+\.\d+$/, `${file} version "${version}" is not major.minor.patch`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Telling the app which extension is talking to it.
+//
+// This rides on requests the extension already makes, so the rule that matters most is that it can never
+// break one: an identity we cannot read must degrade to sending nothing, exactly like captureCookies
+// returning [] rather than blocking a send.
+// ---------------------------------------------------------------------------
+
+// `api` is bound at load, so mutate the same object the module holds rather than reassigning global.chrome.
+function withRuntime(manifest, fn) {
+  const had = Object.prototype.hasOwnProperty.call(global.chrome, "runtime");
+  const previous = global.chrome.runtime;
+  const hadBrowser = Object.prototype.hasOwnProperty.call(globalThis, "browser");
+  const previousBrowser = globalThis.browser;
+  try {
+    global.chrome.runtime = manifest === undefined ? undefined : { getManifest: () => manifest };
+    delete globalThis.browser;
+    return fn();
+  } finally {
+    if (had) global.chrome.runtime = previous; else delete global.chrome.runtime;
+    if (hadBrowser) globalThis.browser = previousBrowser; else delete globalThis.browser;
+  }
+}
+
+test("the identity carries the manifest version and a coarse browser label", () => {
+  withRuntime({ version: "1.7.0" }, () => {
+    const id = extensionIdentity();
+    assert.equal(id.extVersion, "1.7.0");
+    assert.ok(["chrome", "edge", "firefox"].includes(id.browser), `unexpected label ${id.browser}`);
+    // A label, not a fingerprint — nothing beyond these two fields goes out.
+    assert.deepEqual(Object.keys(id).sort(), ["browser", "extVersion"]);
+  });
+});
+
+test("an unreadable manifest yields no identity instead of throwing", () => {
+  // Every one of these is a request that must still go out unchanged.
+  withRuntime(undefined, () => assert.deepEqual(extensionIdentity(), {}));
+  withRuntime({}, () => assert.deepEqual(extensionIdentity(), {}));
+  withRuntime({ version: "" }, () => assert.deepEqual(extensionIdentity(), {}));
+  withRuntime({ version: 17 }, () => assert.deepEqual(extensionIdentity(), {}));
+
+  const had = Object.prototype.hasOwnProperty.call(global.chrome, "runtime");
+  const previous = global.chrome.runtime;
+  try {
+    global.chrome.runtime = { getManifest() { throw new Error("evicted"); } };
+    assert.deepEqual(extensionIdentity(), {});
+  } finally {
+    if (had) global.chrome.runtime = previous; else delete global.chrome.runtime;
+  }
+});
+
+test("Firefox is labelled by its own browser namespace", () => {
+  const previous = globalThis.browser;
+  const had = Object.prototype.hasOwnProperty.call(globalThis, "browser");
+  try {
+    globalThis.browser = { runtime: {} };
+    assert.equal(browserLabel(), "firefox");
+  } finally {
+    if (had) globalThis.browser = previous; else delete globalThis.browser;
+  }
+});
+
+test("withIdentity appends to a URL with or without an existing query", () => {
+  withRuntime({ version: "1.7.0" }, () => {
+    assert.match(withIdentity("http://127.0.0.1:15151/ping"), /\/ping\?extv=1\.7\.0&extb=/);
+    assert.match(withIdentity("http://127.0.0.1:15151/api/add?url=x"), /\?url=x&extv=1\.7\.0&extb=/);
+  });
+});
+
+test("withIdentity leaves the URL alone when there is no identity", () => {
+  withRuntime(undefined, () => {
+    assert.equal(withIdentity("http://127.0.0.1:15151/ping"), "http://127.0.0.1:15151/ping");
+  });
+});
+
+test("withIdentityHeaders adds the header without disturbing existing ones", () => {
+  withRuntime({ version: "1.7.0" }, () => {
+    const init = withIdentityHeaders({ method: "POST", headers: { "Content-Type": "application/json" } });
+    assert.equal(init.method, "POST");
+    assert.equal(init.headers["Content-Type"], "application/json");
+    assert.match(init.headers["X-Downloader-Extension"], /^1\.7\.0; (chrome|edge|firefox)$/);
+  });
+});
+
+test("withIdentityHeaders returns the init untouched when there is no identity", () => {
+  withRuntime(undefined, () => {
+    const init = { method: "GET" };
+    assert.deepEqual(withIdentityHeaders(init), init);
+    assert.deepEqual(withIdentityHeaders(), {});
+  });
+});
+
+test("a silent add carries the identity in its JSON body when it has a context", async () => {
+  const seen = [];
+  const previousFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    seen.push({ url: String(url), init });
+    return { ok: true, status: 201, json: async () => ({ id: "1" }) };
+  };
+  try {
+    await withRuntime({ version: "1.7.0" }, () => sendToAppSilently(
+      "http://127.0.0.1:15151", "https://example.com/f.zip", "f.zip",
+      [{ domain: "example.com", name: "s", value: "1", path: "/" }], {}));
+  } finally {
+    global.fetch = previousFetch;
+  }
+
+  const body = JSON.parse(seen[0].init.body);
+  assert.equal(body.extVersion, "1.7.0");
+  assert.ok(body.browser);
+  // Still a POST to /api/add — the identity must not change which endpoint or form is used.
+  assert.equal(seen[0].url, "http://127.0.0.1:15151/api/add");
+  assert.equal(seen[0].init.method, "POST");
+});
+
+test("a plain silent add keeps its GET form and gains the identity in the query", async () => {
+  const seen = [];
+  const previousFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    seen.push({ url: String(url), init });
+    return { ok: true, status: 201 };
+  };
+  try {
+    await withRuntime({ version: "1.7.0" }, () => sendToAppSilently(
+      "http://127.0.0.1:15151", "https://example.com/f.zip", null, [], {}));
+  } finally {
+    global.fetch = previousFetch;
+  }
+
+  // The GET path is the one every older caller used; it must stay a GET.
+  assert.equal(seen[0].init.method, "GET");
+  assert.match(seen[0].url, /^http:\/\/127\.0\.0\.1:15151\/api\/add\?url=/);
+  assert.match(seen[0].url, /extv=1\.7\.0/);
 });

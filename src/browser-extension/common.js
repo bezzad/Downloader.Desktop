@@ -45,7 +45,7 @@ async function discoverAppPort(probe = pingPort, cachedPort = null) {
 // Does the app answer /ping on this port? Never throws.
 async function pingPort(port) {
   try {
-    const res = await fetch(`${APP_HOST}:${port}/ping`, { method: "GET" });
+    const res = await fetch(withIdentity(`${APP_HOST}:${port}/ping`), withIdentityHeaders({ method: "GET" }));
     return res.status > 0;
   } catch {
     return false;
@@ -231,11 +231,11 @@ async function captureCookies(url) {
 // rather than "dropped".
 async function postAdd(base, body) {
   try {
-    const res = await fetch(`${base}/api/add`, {
+    const res = await fetch(`${base}/api/add`, withIdentityHeaders({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    });
+    }));
     let json = null;
     try { json = await res.json?.(); } catch { /* an older app may answer with no/!JSON body */ }
     return { ok: !!res.ok, status: res.status, json };
@@ -263,6 +263,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
     if (referer) body.referer = referer;
     if (headers && Object.keys(headers).length) body.headers = headers;
     if (savePath) body.path = savePath;
+    Object.assign(body, extensionIdentity());
     const res = await postAdd(base, body);
     if (res.ok) return "ok";
     if (res.status === 404) return "fallback";
@@ -272,7 +273,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
   if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
   try {
-    const res = await fetch(endpoint, { method: "GET" });
+    const res = await fetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }));
     if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
     if (res.status === 404) return "fallback";
     return "fail";
@@ -301,7 +302,7 @@ async function sendToApp(url, filename, context) {
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
   }
   try {
-    const res = await fetch(`${base}/add?url=${encodeURIComponent(url)}`, { method: "GET" });
+    const res = await fetch(withIdentity(`${base}/add?url=${encodeURIComponent(url)}`), withIdentityHeaders({ method: "GET" }));
     return res.ok;
   } catch {
     return false;
@@ -348,7 +349,7 @@ async function confirmAppFetching(base, id, opts) {
   for (;;) {
     let rows = null;
     try {
-      const res = await fetch(`${base}/api/list`);
+      const res = await fetch(withIdentity(`${base}/api/list`), withIdentityHeaders());
       if (res?.ok) rows = await res.json?.();
     } catch { /* the app went away mid-wait — treated as "not confirmed" below */ }
 
@@ -374,6 +375,57 @@ function browserUserAgent() {
   } catch {
     return "";
   }
+}
+
+// ---------------- Telling the app which extension is talking to it ----------------
+//
+// The app can only warn "your extension is out of date" if it knows what is installed, and nothing was
+// telling it. This rides along on the requests the extension ALREADY makes — no extra request, no extra
+// permission — as query parameters on the GET forms, JSON fields on the POST form, and a header so /ping
+// carries it too.
+//
+// Never throws: an identity we could not read is worth far less than the request it is attached to, so
+// every failure yields {} and the request goes out exactly as it did before (same rule as captureCookies).
+
+// A coarse label, not a fingerprint: enough for the app to say "your Chrome extension", nothing more.
+// Firefox is the one that exposes `browser`; Edge is the Chromium build whose UA names Edg.
+function browserLabel() {
+  try {
+    if (typeof globalThis.browser !== "undefined" && globalThis.browser?.runtime) return "firefox";
+    if (/\bEdg\//.test(browserUserAgent())) return "edge";
+    return "chrome";
+  } catch {
+    return "chrome";
+  }
+}
+
+// { extVersion, browser } — or {} when the manifest is unreadable.
+function extensionIdentity() {
+  try {
+    const version = api?.runtime?.getManifest?.().version;
+    if (typeof version !== "string" || !version) return {};
+    return { extVersion: version, browser: browserLabel() };
+  } catch {
+    return {};
+  }
+}
+
+// Appends the identity to a URL that may already carry a query string.
+function withIdentity(url) {
+  const id = extensionIdentity();
+  if (!id.extVersion) return url;
+  const sep = String(url).includes("?") ? "&" : "?";
+  return `${url}${sep}extv=${encodeURIComponent(id.extVersion)}&extb=${encodeURIComponent(id.browser)}`;
+}
+
+// Merges the identity into a fetch() init's headers, leaving anything already there alone.
+function withIdentityHeaders(init = {}) {
+  const id = extensionIdentity();
+  if (!id.extVersion) return init;
+  return {
+    ...init,
+    headers: { ...(init.headers || {}), "X-Downloader-Extension": `${id.extVersion}; ${id.browser}` }
+  };
 }
 
 async function handOffToApp(url, filename, context) {
@@ -412,6 +464,7 @@ async function handOffToApp(url, filename, context) {
   // interception caller reads as "leave the browser's own download alone", never as a silent loss.
   const savePath = context?.savePath ?? await getSavePath();
   if (savePath) body.path = savePath;
+  Object.assign(body, extensionIdentity());
 
   const res = await postAdd(appBase(port), body);
   if (!res.ok) {
@@ -632,7 +685,7 @@ const SITE_MEDIA_PLUGIN_NAME = "Video sites (YouTube and others)";
 async function appCanHandlePage(url, port) {
   if (!url || port == null) return { handled: false, by: null };
   try {
-    const res = await fetch(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`);
+    const res = await fetch(withIdentity(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`), withIdentityHeaders());
     if (!res.ok) return { handled: false, by: null };
     const body = await res.json();
     return { handled: body?.handled === true, by: body?.by ?? null };
@@ -857,7 +910,7 @@ async function fetchAppDefaultSavePath(port = null) {
   try {
     const p = port ?? await discoverAppPort();
     if (p == null) return null;
-    const res = await fetch(`${appBase(p)}/api/settings`);
+    const res = await fetch(withIdentity(`${appBase(p)}/api/settings`), withIdentityHeaders());
     if (!res.ok) return null;
     const body = await res.json();
     const path = body?.defaultSavePath;
@@ -1236,6 +1289,7 @@ if (typeof module !== "undefined") {
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
     confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,
+    extensionIdentity, browserLabel, withIdentity, withIdentityHeaders,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
     candidateExts, isPlausiblePathExt,
     rememberResponseHeaders, recallResponseHeaders,
