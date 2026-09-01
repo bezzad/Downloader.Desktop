@@ -263,6 +263,9 @@ public static class LocalApiService
                 case "add":
                     await HandleAddAsync(ctx, manager, config).ConfigureAwait(false);
                     break;
+                case "settings":
+                    HandleSettings(ctx, config);
+                    break;
                 case "can-handle":
                     HandleCanHandle(ctx);
                     break;
@@ -312,6 +315,19 @@ public static class LocalApiService
             ["url"] = url,
             ["handled"] = by != null,
             ["by"] = by,
+        });
+    }
+
+    /// <summary>What a local client needs to pre-fill its own UI: where downloads go by default, and which
+    /// app it is talking to. Read-only, and deliberately just these two fields — the local API ACCEPTS
+    /// cookies, headers and credentials, so handing any of the settings object back is how a secret would
+    /// eventually leak out of it. The browser extension prefills its download-folder box from this.</summary>
+    private static void HandleSettings(HttpListenerContext ctx, Config config)
+    {
+        RespondJson(ctx, 200, new Dictionary<string, object>
+        {
+            ["defaultSavePath"] = config.Settings.DefaultSavePath,
+            ["version"] = UpdateService.CurrentVersion.ToString(),
         });
     }
 

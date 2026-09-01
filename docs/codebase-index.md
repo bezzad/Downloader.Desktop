@@ -247,15 +247,17 @@ version/sha256, attaching both to the same `vX.Y.Z` release. Isolation is guarde
 
 ## 5. `src/browser-extension` — browser integration
 
-Plain JS, Manifest V3, no build step (load unpacked). Version `1.2.2`. Ships for
-Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`).
+Plain JS, Manifest V3, no build step (load unpacked). Version `1.7.0`. Ships for
+Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`). There is **no content script**:
+1.7.0 removed `content.js` (its only job was a relevance hint that has been deleted), so nothing of
+the extension runs on a page except while the popup is open.
 
 | File | Role |
 | --- | --- |
 | `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS/DASH sniffing, badge, forwarding to the app. A `.mpd` is reported as `kind: "dash"` and never size-probed (its own few KB would be discarded as implausibly small media). |
-| `content.js` | Guesses which `<video>`/`<audio>` the user is looking at (a paused-on-last-frame element counts — X.com autoplay) and reports it as a hint. |
-| `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping (`computeMainGroups`). |
-| `popup.js/.html/.css` | The popup: detected media grouped by video with a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
+| `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping, list ordering (`mediaTypePriority`/`sortDetectedGroups`), thumbnail mapping (`buildThumbnailIndex`/`pickThumbnail`), download folder (`getSavePath`/`fetchAppDefaultSavePath`). |
+| `popup.js/.html/.css` | The popup: ONE list of detected media ordered by type, a preview thumbnail per row, a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
+| `options.js/.html/.css` | Settings: the download folder (prefilled from the app's `/api/settings`) and the interception rules. |
 | `common.test.js` | `node --test` unit suite. |
 | `e2e/` | Playwright suite (own `package.json`) with a fixture server and real `.m3u8`/`.mp4` fixtures. |
 

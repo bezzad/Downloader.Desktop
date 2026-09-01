@@ -8,9 +8,7 @@ test("HLS master expands into a quality picker with an estimated size, with no d
   const popup = await openPopupFor(context, extensionId, page);
   await popup.waitForTimeout(3000); // getMedia + probeMedia round trip
 
-  // No video element on this page (relevance is tested separately) — everything lands in Other.
-  await popup.locator("#otherSection summary").click();
-  const cards = popup.locator("#otherList li");
+  const cards = popup.locator("#list li");
   // Exactly ONE card: the master. Its variant playlists (low/high index.m3u8) and segment
   // (low/seg0.ts) are all independently sniffed network responses too, but must be represented
   // by the master's quality picker, not show up as their own redundant cards (real-world
@@ -32,7 +30,6 @@ test("an implausibly tiny junk .m3u8 is filtered out entirely", async ({ context
 
   const popup = await openPopupFor(context, extensionId, page);
   await popup.waitForTimeout(3000);
-  await popup.locator("#otherSection summary").click();
 
   await expect(popup.locator("li", { hasText: "junk.m3u8" })).toHaveCount(0);
 });
@@ -45,9 +42,7 @@ test("direct-file quality variants are grouped into one card", async ({ context,
   const popup = await openPopupFor(context, extensionId, page);
   await popup.waitForTimeout(3000);
 
-  // No playing/visible media element on this page — everything lands under Other detected.
-  await popup.locator("#otherSection summary").click();
-  const cards = popup.locator("#otherList li");
+  const cards = popup.locator("#list li");
   await expect(cards).toHaveCount(1); // both qualities grouped into ONE card
   await expect(cards.first().locator("select.quality option")).toHaveCount(2);
 });

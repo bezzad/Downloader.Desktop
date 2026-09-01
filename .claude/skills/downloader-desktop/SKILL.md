@@ -981,3 +981,46 @@ file (`DownloadManager.EmptyFileGrace`, 5 s, internal so tests can shorten it) a
 appears; the late-arrival path calls the SAME `MarkCompleted` + `FinishTerminal` as an immediate success,
 because a row left Running because the check was late is the bug this guard was written to prevent.
 `Integration/LateFileCompletionTests` covers both sides.
+
+## Extension 1.7.0: one list, previews, a download folder (single-list-thumbnails-path)
+- **The popup's "Main media" vs "Other detected" split is GONE, and so is `content.js`.** The promotion
+  rule (`computeMainGroups` + a per-tab `activeHint` the content script posted on play/pause/timeupdate)
+  needed the hint to be FRESH (≤3 s) at the exact moment the popup asked. On a feed page whose player has
+  finished autoplaying — x.com, the site this is used on most — it routinely was not, so every group
+  including the real video was demoted behind a collapsed `<details>`: the user had to expand "Other" to
+  find the video they were looking straight at. Replaced by `common.js`'s pure
+  `mediaTypePriority(url)`/`sortDetectedGroups(groups)`: order is (type, larger size first, title) with
+  m3u8 → mpd → mp4 → other video → audio → other. No clock, no page state, no hint. **Don't reintroduce a
+  relevance key** — a wrong guess would now reorder the list rather than merely mislabel a section.
+  Removed with it: `MAIN_WINDOW_MS`, the `main` flag on items, `background.js`'s `activeHint` +
+  `activeMediaHint` branch, `content.js` and the `content_scripts` manifest entry (so nothing of the
+  extension runs on a page unless the popup is open).
+- **`Number(null)` is `0` and `Number.isFinite(0)` is true** — that made an *unprobed* group (size `null`)
+  outrank a measured one in `groupKnownSize`. Check `typeof x === "number"` BEFORE the numeric test
+  anywhere a "not measured yet" value shares a field with a real number.
+- **Previews are collected by the POPUP via `api.scripting.executeScript`**, not by a content script: the
+  injected function returns, per `<video>`/`<audio>`, `currentSrc`/`src` + `poster` + a canvas
+  `toDataURL("image/jpeg", 0.6)` frame capped at 160 px, plus the page's `og:image`/`twitter:image`. Same
+  injection path as "Scan page links", no background state (MV3 may evict the worker), and the data URL
+  dies with the popup — it is never sent to the app (a test asserts the add payload carries no
+  `data:image`). **A cross-origin video taints the canvas** so `drawImage`/`toDataURL` throws
+  `SecurityError` on exactly the sites that matter (x.com); the poster → `og:image` → placeholder fallback
+  chain is the real feature. Mapping is `buildThumbnailIndex`/`pickThumbnail` (exact `src`/`groupKey` match,
+  else the largest element's image, else the page image) — a blob: MSE src can never match a network URL.
+  E2E-verifiable only on a SAME-ORIGIN fixture video (`e2e/fixtures/video-playing.html`), where the grab
+  really succeeds and the row's `img[src]` is a `data:image/jpeg` URL.
+- **Popup rows**: single `<ul id="list">`; a fixed 64×36 `.thumb` slot always exists (`.placeholder` with
+  the type letters when there's no image, `img.onerror` → back to placeholder) so late previews never
+  reflow the list. E2E selectors are `#list li` now — `#mainList`/`#otherList`/`#otherSection` are gone.
+- **Download folder**: `GET /api/settings` → `{ defaultSavePath, version }` (new route in
+  `LocalApiService`, read-only — keep it to those two fields, since the same API *accepts* cookies and
+  headers and an echo is how a secret would escape). The options page prefills its text box from
+  `fetchAppDefaultSavePath()` ONLY when nothing is saved (`getSavePath()` wins, so visiting the page can
+  never undo an edit), and every silent send (`sendToAppSilently`, both forms) plus `handOffToApp` adds
+  `path`. `path` is deliberately NOT part of `hasContext`, so a plain send keeps the GET form it always
+  used. A folder the app rejects is a 400 → `"fail"` → the interception path leaves the browser's own
+  download alone, which is the behaviour that chain was built for.
+- **`scripts/build-extension.sh`'s `COMMON=(…)` list must track the manifests** — `verify_zip` fails the
+  build if a manifest references a file the zip lacks, and AMO rejected earlier releases for exactly the
+  opposite (a `content_scripts` entry naming a file that wasn't packaged). Removing a file means removing
+  it from that array too.

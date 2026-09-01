@@ -8,6 +8,9 @@
   The old `extension.yml` workflow (automated `web-ext sign` submission) was **removed on
   2026-08-24** — it had failed on every run since 2026-07-07 because AMO validation rejected the
   package with *"A content script defined in the manifest could not be found at `content.js`"*.
+  (Extension 1.7.0 removed `content.js` and the `content_scripts` entry outright, so that particular
+  rejection cannot recur; `scripts/build-extension.sh` also verifies every file a manifest names is
+  actually in the zip.)
   Use `downloader-extension-firefox.zip` from the release page if you do publish a version.
 - **Chrome Web Store / Edge Add-ons**: still a dashboard upload (steps below). Both extension zips
   are also attached to every GitHub Release (`release.yml`), so grab

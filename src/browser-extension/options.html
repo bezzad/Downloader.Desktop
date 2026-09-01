@@ -43,6 +43,19 @@
     <p class="hint">Off by default. When off, nothing below applies and the browser downloads normally.</p>
   </section>
 
+  <section>
+    <div class="section-head"><span>Where downloads are saved</span></div>
+    <div class="field">
+      <label for="savePath">Save downloads to</label>
+      <input id="savePath" type="text" spellcheck="false" placeholder="/home/you/Downloads" />
+    </div>
+    <p class="hint">
+      Prefilled with the folder the app is set to use. Edit it and every download the extension sends
+      goes there, so the app doesn't ask. It must be an absolute path on the machine running the app —
+      the browser can't offer a folder picker for one. Leave it empty to let the app decide.
+    </p>
+  </section>
+
   <fieldset id="rules">
     <div class="section-head"><span>What to take over</span></div>
 

@@ -182,6 +182,18 @@ are safe no-ops and still return `200`.
 curl -X POST http://127.0.0.1:15151/api/pause -d '{"id":"9f8b4c1e-…"}'
 ```
 
+### Read the app's settings — `GET /api/settings`
+
+```json
+{ "defaultSavePath": "/home/you/Downloads", "version": "2.8.2" }
+```
+
+Read-only, and deliberately just these two fields: this API *accepts* cookies, headers and
+credentials, so handing the settings object back is how one would eventually escape. Its purpose is
+pre-filling a client's own UI — the browser extension starts its download-folder box from
+`defaultSavePath`, so the absolute path it then sends as `path` is right for this machine without the
+user looking it up.
+
 ### Endpoints used by the browser extension
 
 `GET /add?url=…` (opens the Add dialog pre-filled) and `GET /ping` (health check) are unchanged and

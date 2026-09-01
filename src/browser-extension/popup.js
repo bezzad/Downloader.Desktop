@@ -1,16 +1,14 @@
-// Popup UI: shows media detected on the active tab (grouped by video, with a size/quality upgrade
-// pass), lets the user scan page links, paste a URL, and send any/all of them to the desktop app.
-const mainListEl = document.getElementById("mainList");
-const otherListEl = document.getElementById("otherList");
-const mainHeadingEl = document.getElementById("mainHeading");
-const otherSectionEl = document.getElementById("otherSection");
-const otherSummaryEl = document.getElementById("otherSummary");
+// Popup UI: shows media detected on the active tab as ONE list ordered by media type (manifests
+// first — see common.js's sortDetectedGroups for why relevance-ranking was removed), each row with a
+// preview image, a size/quality upgrade pass, and a Download button.
+const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
 const appMissingEl = document.getElementById("appMissing");
 
-let rawItems = []; // { url, type, group, capturedAt, main }
+let rawItems = []; // { url, type, group, capturedAt }
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
+let thumbIndex = { byUrl: new Map(), fallback: null };
 let currentTabId = null;
 let isUnsupportedHost = false;
 let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
@@ -64,10 +62,9 @@ function buildGroups() {
     const key = item.group || groupKey(item.url);
     let g = map.get(key);
     if (!g) {
-      g = { key, kind: kindOf(item.url), main: false, options: [] };
+      g = { key, kind: kindOf(item.url), options: [] };
       map.set(key, g);
     }
-    g.main = g.main || !!item.main;
     if (!g.options.some(o => o.url === item.url))
       g.options.push({ url: item.url, label: null, size: null, approx: false });
   }
@@ -111,7 +108,28 @@ function buildGroups() {
   }
   for (const key of childUris) map.delete(key);
 
-  return [...map.values()];
+  return sortDetectedGroups([...map.values()]);
+}
+
+// A fixed-size preview slot, so the list never reflows as previews arrive and a source that fails to
+// load falls back to the type placeholder instead of leaving a broken image.
+function buildThumb(group) {
+  const slot = document.createElement("div");
+  slot.className = "thumb";
+  const ext = (extOf(groupTypeUrl(group)) || "").toUpperCase();
+  const placeholder = () => {
+    slot.textContent = ext ? ext.slice(0, 4) : "FILE";
+    slot.classList.add("placeholder");
+  };
+  const src = pickThumbnail(thumbIndex, group);
+  if (!src) { placeholder(); return slot; }
+  const img = document.createElement("img");
+  img.alt = "";
+  img.decoding = "async";
+  img.onerror = () => { slot.innerHTML = ""; placeholder(); };
+  img.src = src;
+  slot.appendChild(img);
+  return slot;
 }
 
 function buildCard(group) {
@@ -159,7 +177,7 @@ function buildCard(group) {
   btn.textContent = "Download";
   btn.onclick = () => sendOne(currentOption()?.url, btn);
 
-  li.append(meta, btn);
+  li.append(buildThumb(group), meta, btn);
   return li;
 }
 
@@ -172,10 +190,7 @@ function render() {
   if (siteState.mode !== "normal") {
     currentGroups = [];
     selectsByGroup.clear();
-    mainListEl.innerHTML = "";
-    otherListEl.innerHTML = "";
-    mainHeadingEl.style.display = "none";
-    otherSectionEl.style.display = "none";
+    listEl.innerHTML = "";
     emptyEl.style.display = "block";
     emptyEl.classList.add("unsupported");
     emptyEl.textContent = siteState.message;
@@ -192,17 +207,8 @@ function render() {
 
   currentGroups = buildGroups();
   selectsByGroup.clear();
-  const mainGroups = currentGroups.filter(g => g.main);
-  const otherGroups = currentGroups.filter(g => !g.main);
-
-  mainListEl.innerHTML = "";
-  otherListEl.innerHTML = "";
-  for (const g of mainGroups) mainListEl.append(buildCard(g));
-  for (const g of otherGroups) otherListEl.append(buildCard(g));
-
-  mainHeadingEl.style.display = currentGroups.length ? "flex" : "none";
-  otherSectionEl.style.display = otherGroups.length ? "block" : "none";
-  otherSummaryEl.textContent = `Other detected (${otherGroups.length})`;
+  listEl.innerHTML = "";
+  for (const g of currentGroups) listEl.append(buildCard(g));
 
   if (currentGroups.length === 0) {
     emptyEl.style.display = "block";
@@ -216,7 +222,7 @@ function render() {
 
 function addItem(url, type) {
   if (!isHttp(url) || rawItems.some(i => i.url === url)) return;
-  rawItems.push({ url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now(), main: false });
+  rawItems.push({ url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now() });
 }
 
 async function sendOne(url, btn) {
@@ -248,6 +254,58 @@ async function probeAndRender() {
   render();
 }
 
+// Asks the PAGE what it can see, using the same injection path as "Scan page links" (which is why no
+// content script is needed on every page just to serve a UI that is only looked at while the popup is
+// open). For each player element it reports what identifies it (src), what the site itself offers
+// (poster), and a frame drawn onto a small canvas — which is the real thing but often unavailable,
+// since a cross-origin video taints the canvas. Plus the page's own social image as a last resort.
+//
+// Everything here stays inside the extension: the data URL is the return value of this call, is used
+// to set an <img> in this popup, and is never sent anywhere — least of all to the app (a hand-off
+// carries the link and its request context only).
+async function collectThumbnails() {
+  if (currentTabId == null) return;
+  try {
+    const results = await api.scripting.executeScript({
+      target: { tabId: currentTabId },
+      func: () => {
+        const MAX_W = 160; // a thumbnail, not a frame: keeps the data URL a few KB
+        const shots = [];
+        for (const el of document.querySelectorAll("video, audio")) {
+          const rect = el.getBoundingClientRect();
+          let frame = null;
+          try {
+            if (el.tagName === "VIDEO" && el.videoWidth > 0 && el.videoHeight > 0) {
+              const scale = Math.min(1, MAX_W / el.videoWidth);
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.max(1, Math.round(el.videoWidth * scale));
+              canvas.height = Math.max(1, Math.round(el.videoHeight * scale));
+              canvas.getContext("2d").drawImage(el, 0, 0, canvas.width, canvas.height);
+              frame = canvas.toDataURL("image/jpeg", 0.6); // throws (SecurityError) if tainted
+            }
+          } catch {
+            frame = null; // cross-origin media — the poster/page image below is the answer
+          }
+          shots.push({
+            src: el.currentSrc || el.src || "",
+            poster: el.getAttribute("poster") ? el.poster : "",
+            frame,
+            area: Math.max(0, rect.width * rect.height)
+          });
+        }
+        const meta = sel => document.querySelector(sel)?.content || "";
+        const pageImage = meta('meta[property="og:image"]') || meta('meta[name="twitter:image"]');
+        return { shots, pageImage };
+      }
+    });
+    const data = results?.[0]?.result;
+    if (data) thumbIndex = buildThumbnailIndex(data.shots, data.pageImage);
+  } catch {
+    // Browser-internal pages and pages that forbid injection: rows keep their placeholders, and
+    // every Download action still works.
+  }
+}
+
 async function loadDetected() {
   const tab = await activeTab();
   currentTabId = tab.id;
@@ -263,7 +321,9 @@ async function loadDetected() {
   const { media } = await send("getMedia", { tabId: tab.id });
   for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
   render();
+  // Both upgrade the list in place; neither delays this first paint.
   probeAndRender();
+  collectThumbnails().then(render);
 }
 
 async function scanPageLinks() {

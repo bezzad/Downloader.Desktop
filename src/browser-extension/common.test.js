@@ -9,7 +9,10 @@ global.chrome = { cookies: {} };
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
   runProbesBounded, formatBytes, isKnownUnsupportedHost,
-  isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
+  isPlausibleMediaSize, MIN_MEDIA_BYTES,
+  mediaTypePriority, sortDetectedGroups, groupTypeUrl, groupKnownSize,
+  buildThumbnailIndex, pickThumbnail, shotImage,
+  getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
@@ -137,44 +140,119 @@ test("isPlausibleMediaSize passes unprobed items and rejects only confirmed-tiny
   assert.ok(!isPlausibleMediaSize(0));
 });
 
-test("computeMainGroups promotes nothing without a fresh hint", () => {
-  const items = [{ group: "a", capturedAt: 1000 }];
-  assert.deepEqual(computeMainGroups(items, null, 2000), new Set());
-  const staleHint = { atMs: 0 };
-  assert.deepEqual(computeMainGroups(items, staleHint, 2000 + MAIN_WINDOW_MS + 1), new Set());
+// ---------------- One list, ordered by media type ----------------
+// Replaces the old "Main media vs Other detected" promotion tests: that rule needed a fresh
+// visibility hint at the exact moment the popup asked, which on x.com it routinely was not, so the
+// page's own video was demoted into a collapsed section. Type ordering has no clock in it.
+
+function group(key, opts) {
+  return { key, kind: isManifest(key) ? (key.endsWith(".mpd") ? "dash" : "hls") : "direct", title: key, options: opts ?? [{ url: key, size: null }] };
+}
+
+test("mediaTypePriority ranks manifests first, then mp4, then video, audio, and anything else", () => {
+  assert.ok(mediaTypePriority("https://c/x.m3u8") < mediaTypePriority("https://c/x.mpd"));
+  assert.ok(mediaTypePriority("https://c/x.mpd") < mediaTypePriority("https://c/x.mp4"));
+  assert.ok(mediaTypePriority("https://c/x.mp4") < mediaTypePriority("https://c/x.webm"));
+  assert.ok(mediaTypePriority("https://c/x.webm") < mediaTypePriority("https://c/x.mp3"));
+  assert.ok(mediaTypePriority("https://c/x.mp3") < mediaTypePriority("https://c/x.bin"));
+  assert.equal(mediaTypePriority("https://c/no-extension"), mediaTypePriority("https://c/x.bin"));
 });
 
-test("computeMainGroups promotes the group with the freshest activity", () => {
-  const items = [
-    { group: "old-ad", capturedAt: 1000 },
-    { group: "the-video", capturedAt: 9000 }
-  ];
-  const hint = { atMs: 9200 }; // fresh relative to "now"
-  const result = computeMainGroups(items, hint, 9500);
-  assert.deepEqual(result, new Set(["the-video"]));
+test("sortDetectedGroups puts an HLS manifest above a direct mp4", () => {
+  const sorted = sortDetectedGroups([group("https://c/clip.mp4"), group("https://c/master.m3u8")]);
+  assert.deepEqual(sorted.map(g => g.key), ["https://c/master.m3u8", "https://c/clip.mp4"]);
 });
 
-test("computeMainGroups promotes a paused-but-recently-loaded video (the x.com regression)", () => {
-  // The video finished autoplaying and sits paused; its own last segment request is still the
-  // most recent activity on the page — must be promoted even though nothing is "playing" right now.
-  const items = [
-    { group: "sidebar-ad.mp4", capturedAt: 500 },
-    { group: "video-master.m3u8", capturedAt: 4800 },
-    { group: "video-master.m3u8", capturedAt: 4950 } // a segment of the same group
-  ];
-  const hint = { atMs: 5100 }; // content.js's periodic re-check keeps this fresh while visible
-  const result = computeMainGroups(items, hint, 5200);
-  assert.deepEqual(result, new Set(["video-master.m3u8"]));
+test("sortDetectedGroups orders same-type items by known size, largest first", () => {
+  const small = group("https://c/a.mp4", [{ url: "https://c/a.mp4", size: 2_000_000 }]);
+  const big = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 40_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([small, big]).map(g => g.key), ["https://c/b.mp4", "https://c/a.mp4"]);
 });
 
-test("computeMainGroups can promote more than one near-simultaneous group", () => {
-  const items = [
-    { group: "a", capturedAt: 9000 },
-    { group: "b", capturedAt: 9100 }
-  ];
-  const hint = { atMs: 9200 };
-  const result = computeMainGroups(items, hint, 9300);
-  assert.deepEqual(result, new Set(["a", "b"]));
+test("sortDetectedGroups uses a group's LARGEST option size", () => {
+  const grouped = group("https://c/v.mp4", [
+    { url: "https://c/v_360p.mp4", size: 1_000_000 },
+    { url: "https://c/v_1080p.mp4", size: 30_000_000 }
+  ]);
+  const other = group("https://c/w.mp4", [{ url: "https://c/w.mp4", size: 20_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([other, grouped]).map(g => g.key), ["https://c/v.mp4", "https://c/w.mp4"]);
+});
+
+test("unprobed items sort after probed ones of the same type, deterministically by title", () => {
+  const probed = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 5_000_000 }]);
+  const unprobedA = group("https://c/a.mp4");
+  const unprobedC = group("https://c/c.mp4");
+  const sorted = sortDetectedGroups([unprobedC, probed, unprobedA]);
+  assert.deepEqual(sorted.map(g => g.key), ["https://c/b.mp4", "https://c/a.mp4", "https://c/c.mp4"]);
+  // Stable across calls: nothing here reads a clock or page state.
+  assert.deepEqual(sortDetectedGroups(sorted).map(g => g.key), sorted.map(g => g.key));
+});
+
+test("sortDetectedGroups never mutates its input", () => {
+  const input = [group("https://c/clip.mp4"), group("https://c/master.m3u8")];
+  const before = input.map(g => g.key);
+  sortDetectedGroups(input);
+  assert.deepEqual(input.map(g => g.key), before);
+});
+
+test("groupTypeUrl reads a manifest from its key and a direct file from its first option", () => {
+  assert.equal(groupTypeUrl(group("https://c/master.m3u8")), "https://c/master.m3u8");
+  const g = { key: "https://c/v.mp4", kind: "direct", options: [{ url: "https://c/v_720p.mp4" }] };
+  assert.equal(groupTypeUrl(g), "https://c/v_720p.mp4");
+  assert.equal(groupTypeUrl(null), "");
+});
+
+test("groupKnownSize is -1 until something has been probed", () => {
+  assert.equal(groupKnownSize(group("https://c/a.mp4")), -1);
+  assert.equal(groupKnownSize(group("https://c/a.mp4", [{ url: "https://c/a.mp4", size: 12 }])), 12);
+});
+
+// ---------------- Thumbnails ----------------
+
+test("shotImage prefers a captured frame over a poster", () => {
+  assert.equal(shotImage({ frame: "data:image/jpeg;base64,AAA", poster: "https://c/p.jpg" }), "data:image/jpeg;base64,AAA");
+  assert.equal(shotImage({ frame: null, poster: "https://c/p.jpg" }), "https://c/p.jpg");
+  assert.equal(shotImage({}), null);
+  assert.equal(shotImage(null), null);
+});
+
+test("pickThumbnail prefers the matching element's own image over the page image", () => {
+  const index = buildThumbnailIndex(
+    [{ src: "https://c/clip.mp4", frame: "FRAME", area: 100 }],
+    "https://c/og.jpg");
+  assert.equal(pickThumbnail(index, group("https://c/clip.mp4")), "FRAME");
+});
+
+test("pickThumbnail matches through the group key, not just the exact option URL", () => {
+  // The element plays one quality; the popup shows the merged group whose key drops the token.
+  const index = buildThumbnailIndex([{ src: "https://c/v_720p.mp4", poster: "https://c/p.jpg", area: 9 }], null);
+  const merged = { key: groupKey("https://c/v_720p.mp4"), kind: "direct", options: [{ url: "https://c/v_1080p.mp4" }] };
+  assert.equal(pickThumbnail(index, merged), "https://c/p.jpg");
+});
+
+test("pickThumbnail falls back to the largest element's image, then the page image", () => {
+  const withElement = buildThumbnailIndex([
+    { src: "blob:https://x.com/small", frame: "SMALL", area: 10 },
+    { src: "blob:https://x.com/big", frame: "BIG", area: 900 }
+  ], "https://c/og.jpg");
+  // A blob: src can never match a network URL — which is exactly why there is a fallback at all.
+  assert.equal(pickThumbnail(withElement, group("https://video.twimg.com/master.m3u8")), "BIG");
+
+  const pageOnly = buildThumbnailIndex([{ src: "blob:https://x.com/v", area: 900 }], "https://c/og.jpg");
+  assert.equal(pickThumbnail(pageOnly, group("https://video.twimg.com/master.m3u8")), "https://c/og.jpg");
+});
+
+test("pickThumbnail returns null when nothing is available (the popup draws a placeholder)", () => {
+  const index = buildThumbnailIndex([], null);
+  assert.equal(pickThumbnail(index, group("https://c/a.mp4")), null);
+  assert.equal(pickThumbnail(null, group("https://c/a.mp4")), null);
+  assert.equal(pickThumbnail(index, null), null);
+});
+
+test("buildThumbnailIndex tolerates junk shots", () => {
+  const index = buildThumbnailIndex([null, {}, { src: 42, frame: "F", area: "x" }], undefined);
+  assert.equal(index.fallback, "F");
+  assert.equal(index.byUrl.size, 0); // a non-http src is never indexed
 });
 
 // ---------------- App port discovery (range fallback) ----------------
@@ -779,6 +857,104 @@ test("sendToAppSilently now carries a referer even when there are no cookies", a
   assert.equal(result, "ok");
   assert.equal(seen.opts.method, "POST");
   assert.equal(JSON.parse(seen.opts.body).referer, "https://e.com/page");
+});
+
+// ---------------- The extension's download folder ----------------
+// The app must not ask where a download goes, and must not quietly use somewhere else. A folder set
+// here travels with every hand-off; unset means "say nothing", i.e. exactly the old behaviour.
+
+test("a configured folder travels in the GET form as `path`", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [],
+    { savePath: "/home/me/Downloads" });
+  assert.equal(result, "ok");
+  assert.match(seen.endpoint, /\/api\/add\?url=/);           // still the plain GET path
+  assert.match(seen.endpoint, /[?&]path=%2Fhome%2Fme%2FDownloads/);
+});
+
+test("a configured folder travels in the POST form too, alongside the context", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const cookies = [{ name: "SID", value: "v", domain: ".e.com", path: "/", secure: true, expires: 1893456000 }];
+  await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, cookies,
+    { savePath: "C:\\Users\\me\\Downloads" });
+  assert.equal(seen.opts.method, "POST");
+  assert.equal(JSON.parse(seen.opts.body).path, "C:\\Users\\me\\Downloads");
+});
+
+test("no configured folder means no `path` at all — the app applies its own setting", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [], { savePath: "   " });
+  assert.doesNotMatch(seen.endpoint, /[?&]path=/);
+  await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [], {});
+  assert.doesNotMatch(seen.endpoint, /[?&]path=/);
+});
+
+test("an intercepted hand-off carries the folder, and no image data", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  let seen = null;
+  global.fetch = async (endpoint, opts) => {
+    if (String(endpoint).endsWith("/ping")) return { ok: true, status: 200 };
+    seen = { endpoint, opts };
+    return { ok: true, status: 201, json: async () => ({ id: "abc" }) };
+  };
+  const res = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "/data/dl" });
+  assert.equal(res.ok, true);
+  const body = JSON.parse(seen.opts.body);
+  assert.equal(body.path, "/data/dl");
+  // A preview is a popup-only affordance: it must never reach the app or leave the machine.
+  assert.deepEqual(Object.keys(body).filter(k => /thumb|image|frame|poster|preview/i.test(k)), []);
+  assert.doesNotMatch(seen.opts.body, /data:image/);
+});
+
+test("a folder the app refuses is a failed send, never a silent success", async () => {
+  // The app answers 400 for a path that isn't absolute. That must read as "fail" (not "fallback"),
+  // because the interception path cancels the browser's own download only on a success.
+  global.fetch = async () => ({ ok: false, status: 400 });
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [],
+    { savePath: "relative/dir" });
+  assert.equal(result, "fail");
+
+  global.chrome.cookies.getAll = async () => [];
+  global.fetch = async endpoint => String(endpoint).endsWith("/ping")
+    ? { ok: true, status: 200 }
+    : { ok: false, status: 400, json: async () => ({ error: "'path' must be an absolute folder path" }) };
+  const handed = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "relative/dir" });
+  assert.equal(handed.ok, false);
+  assert.equal(handed.reason, "app-rejected-400");
+});
+
+test("getSavePath/setSavePath round-trip through extension storage, trimmed", async () => {
+  const store = {};
+  global.chrome.storage = {
+    local: {
+      get: async defaults => ({ ...defaults, ...store }),
+      set: async values => { Object.assign(store, values); }
+    }
+  };
+  assert.equal(await getSavePath(), "");        // never configured
+  setSavePath("  /home/me/Downloads  ");
+  assert.equal(store.savePath, "/home/me/Downloads");
+  assert.equal(await getSavePath(), "/home/me/Downloads");
+  delete global.chrome.storage;
+});
+
+test("fetchAppDefaultSavePath reads the app's default, and is null when it can't", async () => {
+  global.fetch = async endpoint => String(endpoint).endsWith("/api/settings")
+    ? { ok: true, status: 200, json: async () => ({ defaultSavePath: "/home/me/Downloads", version: "2.8.2" }) }
+    : { ok: true, status: 200 };
+  assert.equal(await fetchAppDefaultSavePath(15151), "/home/me/Downloads");
+
+  global.fetch = async () => ({ ok: false, status: 404 }); // an app too old for this endpoint
+  assert.equal(await fetchAppDefaultSavePath(15151), null);
+
+  global.fetch = async () => { throw new Error("app not running"); };
+  assert.equal(await fetchAppDefaultSavePath(15151), null);
+
+  global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ defaultSavePath: "  " }) });
+  assert.equal(await fetchAppDefaultSavePath(15151), null);
 });
 
 // ---- Response-header cache (issue #9: the only place an .xapk is ever named) ----

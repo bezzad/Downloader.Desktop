@@ -97,6 +97,11 @@ const MEDIA_CONTENT_TYPES = [
   "application/dash+xml"
 ];
 
+// Split by kind, so the popup can order a list by what a thing IS rather than by a guess about which
+// one the user is looking at (see sortDetectedGroups).
+const VIDEO_EXTENSIONS = ["mp4", "mkv", "webm", "mov", "avi", "flv", "m4v", "mpg", "mpeg", "ts"];
+const AUDIO_EXTENSIONS = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma"];
+
 // A manifest describes a stream rather than being one downloadable file, so it is never grouped or
 // size-probed like a plain media URL — the app expands it after the link is sent over.
 const MANIFEST_EXTENSIONS = ["m3u8", "mpd"];
@@ -245,6 +250,9 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   // can't carry them). Otherwise keep the original URL-only GET path unchanged.
   const referer = context?.referer;
   const headers = context?.headers;
+  // Where the user told the extension to save. Deliberately NOT part of `hasContext`: a folder travels
+  // fine in a query, so a plain send keeps using the GET form it always did.
+  const savePath = typeof context?.savePath === "string" ? context.savePath.trim() : "";
   const hasContext = (cookies && cookies.length) || referer || (headers && Object.keys(headers).length);
   if (hasContext) {
     const body = { url };
@@ -255,6 +263,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
     // precondition. The app applies it to that download only (issue #7).
     if (referer) body.referer = referer;
     if (headers && Object.keys(headers).length) body.headers = headers;
+    if (savePath) body.path = savePath;
     const res = await postAdd(base, body);
     if (res.ok) return "ok";
     if (res.status === 404) return "fallback";
@@ -262,6 +271,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   }
   let endpoint = `${base}/api/add?url=${encodeURIComponent(url)}`;
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
+  if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
   try {
     const res = await fetch(endpoint, { method: "GET" });
     if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
@@ -283,7 +293,10 @@ async function sendToApp(url, filename, context) {
   if (await getAddMode() === "silent") {
     // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
     const cookies = await captureCookies(url);
-    const silent = await sendToAppSilently(base, url, filename, cookies, context);
+    // The extension's own folder, unless the caller already resolved one. An unset folder sends
+    // nothing and the app applies its own setting, exactly as before this existed.
+    const savePath = context?.savePath ?? await getSavePath();
+    const silent = await sendToAppSilently(base, url, filename, cookies, { ...context, savePath });
     if (silent === "ok") return true;
     if (silent === "fail") return false;
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
@@ -395,6 +408,11 @@ async function handOffToApp(url, filename, context) {
   if (cookies.length) body.cookies = cookies;
   if (referer) body.referer = referer;
   if (headers) body.headers = headers;
+  // The folder the user set in the extension's settings. Absent when unset, so the app keeps deciding.
+  // A folder the app refuses (not an absolute path) makes this a 400, i.e. `ok: false` — which the
+  // interception caller reads as "leave the browser's own download alone", never as a silent loss.
+  const savePath = context?.savePath ?? await getSavePath();
+  if (savePath) body.path = savePath;
 
   const res = await postAdd(appBase(port), body);
   if (!res.ok) {
@@ -648,32 +666,143 @@ function isPlausibleMediaSize(size) {
   return size == null || size >= MIN_MEDIA_BYTES;
 }
 
-// Decides which group(s) count as "Main media" for a tab, given its captured items and the
-// latest visibility/playing hint from content.js. Pure and testable — see design.md Decisions 8-9.
+// Which media type leads the popup's list. Replaces the old "Main media vs Other detected" split,
+// which promoted a group only when a visibility hint from a content script happened to be fresh at
+// the exact moment the popup asked — on a feed page whose player has finished autoplaying (x.com
+// being the site this is used on most) that hint is routinely stale, so the real video was demoted
+// and the list opened empty behind a collapsed section. Ordering by what a thing IS needs no clock,
+// no page state and no guess, so the same page always reads the same way.
 //
-// Blob: URLs mean we can't map a DOM element directly to the network URLs it caused, so this is a
-// best-effort proxy: when the content script confirms something is CURRENTLY visible/loaded on
-// the page (a "fresh" hint), promote whichever group(s) had the most recent network activity —
-// real playback keeps fetching segments close to "now"; a static, already-loaded, possibly PAUSED
-// video (v1.2.0's exact bug: a paused video was never promoted because the old logic required
-// "currently playing" AND matched the item's original, possibly stale, capture time) is still the
-// most recently active group relative to older/unrelated page noise.
-// Shared "how close together counts as the same moment" window for the hint-freshness check and
-// the group-activity-recency check below.
-const MAIN_WINDOW_MS = 3000;
+// Manifests first because one of them IS the page's video whenever it exists; mp4 next because a
+// direct file is the next most likely thing a user came for; then other containers, then audio, then
+// anything else we sniffed.
+function mediaTypePriority(url) {
+  const ext = extOf(url);
+  if (ext === "m3u8") return 0;
+  if (ext === "mpd") return 1;
+  if (ext === "mp4") return 2;
+  if (VIDEO_EXTENSIONS.includes(ext)) return 3;
+  if (AUDIO_EXTENSIONS.includes(ext)) return 4;
+  return 5;
+}
 
-function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
-  const hintFresh = !!hint && (nowMs - hint.atMs) <= windowMs;
-  if (!hintFresh || items.length === 0) return new Set();
-  const lastActivityByGroup = new Map();
-  for (const item of items) {
-    const prior = lastActivityByGroup.get(item.group) ?? 0;
-    if (item.capturedAt > prior) lastActivityByGroup.set(item.group, item.capturedAt);
+// The URL that decides a group's type: for a manifest the group key IS the manifest, otherwise the
+// group's first option (every option of a group shares its extension by construction — see groupKey).
+function groupTypeUrl(group) {
+  if (!group) return "";
+  if (group.kind === "hls" || group.kind === "dash") return group.key || "";
+  return group.options?.[0]?.url || group.key || "";
+}
+
+// Largest size known for a group, or -1 when nothing has been probed yet. Unprobed groups therefore
+// sort after probed ones of the same type instead of interleaving unpredictably.
+function groupKnownSize(group) {
+  let best = -1;
+  for (const opt of group?.options || []) {
+    // `Number(null)` is 0, so a null (= unprobed) size must be rejected BEFORE the numeric check or
+    // an unprobed group would outrank one that was measured at zero.
+    if (typeof opt?.size !== "number" || !Number.isFinite(opt.size)) continue;
+    if (opt.size > best) best = opt.size;
   }
-  const latest = Math.max(...lastActivityByGroup.values());
-  const mainGroups = new Set();
-  for (const [group, t] of lastActivityByGroup) if (latest - t <= windowMs) mainGroups.add(group);
-  return mainGroups;
+  return best;
+}
+
+// Total order: type, then larger first, then title. Pure, so the whole ordering rule is testable
+// without a browser. Never mutates its input.
+function sortDetectedGroups(groups) {
+  return [...(groups || [])].sort((a, b) => {
+    const byType = mediaTypePriority(groupTypeUrl(a)) - mediaTypePriority(groupTypeUrl(b));
+    if (byType !== 0) return byType;
+    const bySize = groupKnownSize(b) - groupKnownSize(a);
+    if (bySize !== 0) return bySize;
+    return String(a?.title || a?.key || "").localeCompare(String(b?.title || b?.key || ""));
+  });
+}
+
+// ---------------- Thumbnails ----------------
+
+// A row identified only by the file name parsed out of a signed CDN URL says nothing about which
+// video it is. The popup asks the page for what it can see — a frame drawn from each <video> onto a
+// small canvas, that element's poster, and the page's own social image — and these two pure helpers
+// decide which of those belongs on which row.
+//
+// A `shot` is what the page reported for one element: { src, poster, frame, area }. `frame`/`poster`
+// may be absent (a cross-origin video taints the canvas, and many players have no poster).
+
+// The best image a shot has to offer, most specific first.
+function shotImage(shot) {
+  return shot?.frame || shot?.poster || null;
+}
+
+// Maps media URLs to images, plus one page-level fallback.
+//
+// Exact matching is tried first, but on a page whose player streams through MSE the element's src is
+// a blob: URL that shares nothing with the network URLs it caused — which is why there is a fallback
+// at all. On a single-video page the page-level image IS the right picture; on a feed it is still a
+// better hint than a bare URL, and the row's size and type remain exact either way.
+function buildThumbnailIndex(shots, pageImage) {
+  const byUrl = new Map();
+  let best = null, bestArea = -1;
+  for (const shot of shots || []) {
+    const image = shotImage(shot);
+    if (!image) continue;
+    if (isHttp(shot.src)) {
+      byUrl.set(shot.src, image);
+      byUrl.set(groupKey(shot.src), image);
+    }
+    const area = Number(shot.area) || 0;
+    if (area > bestArea) { bestArea = area; best = image; }
+  }
+  return { byUrl, fallback: best || pageImage || null };
+}
+
+// The image for one group: its own element's, else the page-level fallback, else null (the popup
+// draws a type placeholder — never a broken image, and never a gap that shifts the row).
+function pickThumbnail(index, group) {
+  if (!index || !group) return null;
+  const candidates = [group.key, ...(group.options || []).map(o => o?.url)];
+  for (const url of candidates) {
+    if (!url) continue;
+    const hit = index.byUrl?.get(url) || index.byUrl?.get(groupKey(url));
+    if (hit) return hit;
+  }
+  return index.fallback || null;
+}
+
+// ---------------- Download folder ----------------
+
+// Where the extension tells the app to save. Prefilled on the options page from the app's own default
+// (fetchAppDefaultSavePath) and then owned by the user: an explicit choice here outranks the app's
+// setting, which is the point — the app must not ask, and must not quietly use somewhere else.
+// Unset (the default after an update) means "say nothing", i.e. exactly today's behaviour.
+async function getSavePath() {
+  try {
+    const r = await api.storage.local.get({ savePath: "" });
+    return typeof r.savePath === "string" ? r.savePath.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function setSavePath(path) {
+  try { api.storage.local.set({ savePath: String(path || "").trim() }); } catch { /* optional */ }
+}
+
+// The folder the app is configured to use, so the options page starts from an absolute path that is
+// actually right for this machine. Never throws: an unreachable app, or one too old to answer this
+// endpoint (404), simply yields null and the field stays empty.
+async function fetchAppDefaultSavePath(port = null) {
+  try {
+    const p = port ?? await discoverAppPort();
+    if (p == null) return null;
+    const res = await fetch(`${appBase(p)}/api/settings`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const path = body?.defaultSavePath;
+    return typeof path === "string" && path.trim() ? path.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------- Download interception (issue #9) ----------------
@@ -1038,7 +1167,10 @@ if (typeof module !== "undefined") {
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
-    computeMainGroups, MAIN_WINDOW_MS,
+    mediaTypePriority, sortDetectedGroups, groupTypeUrl, groupKnownSize,
+    VIDEO_EXTENSIONS, AUDIO_EXTENSIONS,
+    shotImage, buildThumbnailIndex, pickThumbnail,
+    getSavePath, setSavePath, fetchAppDefaultSavePath,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
     confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,

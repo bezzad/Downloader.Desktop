@@ -9,12 +9,6 @@ if (typeof importScripts === "function") importScripts("common.js");
 // tabId -> Map(url -> { url, type, group, capturedAt })   detected media for the current page
 const tabMedia = new Map();
 
-// tabId -> { atMs } — latest "user is looking at this" signal from content.js. Refreshed
-// continuously while a video plays or sits paused-but-visible (content.js re-sends on
-// play/pause/timeupdate and a periodic re-check, throttled), so its freshness window naturally
-// covers the whole time the content stays on screen, not just the start.
-const activeHint = new Map();
-
 // ---------------- Context menus ----------------
 api.runtime.onInstalled.addListener(() => {
   api.contextMenus.removeAll(() => {
@@ -303,30 +297,25 @@ function updateBadge(tabId, count) {
 api.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading" && changeInfo.url) {
     tabMedia.delete(tabId);
-    activeHint.delete(tabId);
     updateBadge(tabId, 0);
   }
 });
 api.tabs.onRemoved.addListener(tabId => {
   tabMedia.delete(tabId);
-  activeHint.delete(tabId);
 });
 
 // ---------------- Messages from the popup + content script ----------------
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg.type === "getMedia") {
+      // Every item, in one flat list. There is no "main media" promotion any more: it depended on a
+      // visibility hint from a content script being fresh at the exact moment the popup asked, which
+      // on a feed page (x.com) it routinely was not — so the page's own video was demoted into a
+      // collapsed section. The popup orders by media type instead (common.js sortDetectedGroups).
       const map = tabMedia.get(msg.tabId);
-      const items = map ? [...map.values()] : [];
-      const mainGroups = computeMainGroups(items, activeHint.get(msg.tabId), Date.now());
-      sendResponse({ media: items.map(item => ({ ...item, main: mainGroups.has(item.group) })) });
+      sendResponse({ media: map ? [...map.values()] : [] });
     } else if (msg.type === "probeMedia") {
       sendResponse({ results: await probeMediaForTab(msg.tabId) });
-    } else if (msg.type === "activeMediaHint") {
-      // Sent by content.js — the tab id comes from the content script's own sender context.
-      const tabId = sender.tab?.id;
-      if (tabId != null) activeHint.set(tabId, { atMs: Date.now() });
-      sendResponse({});
     } else if (msg.type === "send") {
       sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
     } else if (msg.type === "ping") {

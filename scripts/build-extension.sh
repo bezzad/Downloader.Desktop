@@ -14,7 +14,7 @@ rm -f "$OUT"/downloader-extension-*.zip
 
 # Files shared by both targets (everything except manifests + repo docs).
 # Keep in sync with what the manifests reference — verify_zip() below enforces that.
-COMMON=(background.js common.js content.js popup.html popup.css popup.js options.html options.css options.js icons)
+COMMON=(background.js common.js popup.html popup.css popup.js options.html options.css options.js icons)
 
 # Fail loudly if a file a manifest points at never made it into the zip. A browser rejects the WHOLE
 # extension when a referenced page is missing ("Could not load options page 'options.html'. Could not

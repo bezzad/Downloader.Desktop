@@ -15,6 +15,7 @@ const els = {
   resetTypes: document.getElementById("resetTypes"),
   minSize: document.getElementById("minSize"),
   excludedSites: document.getElementById("excludedSites"),
+  savePath: document.getElementById("savePath"),
   saved: document.getElementById("saved")
 };
 
@@ -59,9 +60,7 @@ let savedTimer = null;
 async function save() {
   const settings = await setInterceptSettings(collect());
   els.rules.disabled = !settings.enabled;
-  els.saved.hidden = false;
-  clearTimeout(savedTimer);
-  savedTimer = setTimeout(() => { els.saved.hidden = true; }, 1500);
+  flashSaved();
   return settings;
 }
 
@@ -81,6 +80,22 @@ function markFirstRunSeen() {
   try { api.storage.local.set({ interceptIntroSeen: true }); } catch { /* optional */ }
 }
 
+// The download folder is stored separately from the interception rules — it applies to every send,
+// not just an intercepted one. The app's own default is only ever a STARTING POINT: a saved value
+// wins, so visiting this page can never quietly undo the user's edit.
+async function renderSavePath() {
+  const saved = await getSavePath();
+  if (saved) { els.savePath.value = saved; return; }
+  const appDefault = await fetchAppDefaultSavePath();
+  if (appDefault) els.savePath.value = appDefault;
+}
+
+function flashSaved() {
+  els.saved.hidden = false;
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => { els.saved.hidden = true; }, 1500);
+}
+
 async function showAppStatus() {
   const ok = await pingApp();
   els.status.textContent = ok ? "App connected" : "App not running";
@@ -90,6 +105,12 @@ async function showAppStatus() {
 (async function init() {
   render(await getInterceptSettings());
   showAppStatus();
+  renderSavePath();
+
+  els.savePath.addEventListener("change", () => { // on blur, like the other text fields
+    setSavePath(els.savePath.value);
+    flashSaved();
+  });
 
   if (!(await seenFirstRun())) els.firstRun.hidden = false;
 
