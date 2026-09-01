@@ -65,6 +65,27 @@ test("a same-origin video gets a real captured frame as its preview", async ({ c
   expect(src).toMatch(/^data:image\/jpeg/);
 });
 
+test("two distinct videos on one page get two distinct thumbnails, never the same photo repeated", async ({ context, extensionId }) => {
+  // The reported bug: a feed page with several videos showed the SAME picture on every row, because
+  // the popup fell back to one shared "best" image for every group with no exact URL match. Here
+  // both <video> elements are real, playing, same-origin (so frame capture succeeds for both) and
+  // neither's src matches either detected network URL — reproducing the real-site blob: mismatch.
+  const page = await context.newPage();
+  await page.goto("/two-videos.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  await expect(popup.locator("#list li")).toHaveCount(2);
+  const thumbs = popup.locator("#list li .thumb img");
+  await expect(thumbs).toHaveCount(2);
+  const [first, second] = await thumbs.evaluateAll(imgs => imgs.map(img => img.getAttribute("src")));
+  expect(first).toMatch(/^data:image\/jpeg/);
+  expect(second).toMatch(/^data:image\/jpeg/);
+  expect(first).not.toEqual(second); // the actual bug: these used to be identical
+});
+
 test("a row with no available preview still shows a fixed-size type placeholder", async ({ context, extensionId }) => {
   const page = await context.newPage();
   await page.goto("/direct-quality.html"); // fetches only — no player element to photograph

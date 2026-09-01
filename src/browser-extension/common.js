@@ -849,30 +849,41 @@ function shotImage(shot) {
   return shot?.frame || shot?.poster || null;
 }
 
-// Maps media URLs to images, plus one page-level fallback.
+// Maps media URLs to images, plus a QUEUE of leftover images for elements whose src could not be
+// matched to any group at all (a blob: URL, from a page whose player streams through MSE — it shares
+// nothing with the network URLs that caused it).
 //
-// Exact matching is tried first, but on a page whose player streams through MSE the element's src is
-// a blob: URL that shares nothing with the network URLs it caused — which is why there is a fallback
-// at all. On a single-video page the page-level image IS the right picture; on a feed it is still a
-// better hint than a bare URL, and the row's size and type remain exact either way.
+// The queue exists instead of one shared "best" image because a feed page can hold several DISTINCT
+// videos with no exact match for any of them: reusing a single fallback for every unmatched group
+// made every row on a multi-video page show the SAME photo, which reads as broken (v1.8.0 regression
+// on x.com feeds — reported directly: "همون عکس رو تکرار میکند" / "the same photo repeats"). Handing
+// out the real captured images ONE PER GROUP, largest area first, means a page with as many visible
+// players as unmatched groups gets a distinct, plausible photo for each; a page with fewer players
+// than groups runs the queue dry and the rest get the type placeholder — which is honest, unlike a
+// repeated photo that visibly belongs to a different item. The page's own og:image (`pageImage`) is
+// appended LAST and therefore used for AT MOST ONE group — enough to be the right answer on a
+// single-video page, never enough to duplicate across a feed.
 function buildThumbnailIndex(shots, pageImage) {
   const byUrl = new Map();
-  let best = null, bestArea = -1;
+  const unmatched = []; // { image, area } — elements with no http(s) src to key by
   for (const shot of shots || []) {
     const image = shotImage(shot);
     if (!image) continue;
     if (isHttp(shot.src)) {
       byUrl.set(shot.src, image);
       byUrl.set(groupKey(shot.src), image);
+    } else {
+      unmatched.push({ image, area: Number(shot.area) || 0 });
     }
-    const area = Number(shot.area) || 0;
-    if (area > bestArea) { bestArea = area; best = image; }
   }
-  return { byUrl, fallback: best || pageImage || null };
+  unmatched.sort((a, b) => b.area - a.area);
+  const queue = unmatched.map(u => u.image);
+  if (pageImage) queue.push(pageImage);
+  return { byUrl, queue };
 }
 
-// The image for one group: its own element's, else the page-level fallback, else null (the popup
-// draws a type placeholder — never a broken image, and never a gap that shifts the row).
+// A group's own element's image, by exact URL match only — no fallback. Returns null when the group's
+// key/options never appeared as an element's src (the common MSE/blob: case).
 function pickThumbnail(index, group) {
   if (!index || !group) return null;
   const candidates = [group.key, ...(group.options || []).map(o => o?.url)];
@@ -881,7 +892,21 @@ function pickThumbnail(index, group) {
     const hit = index.byUrl?.get(url) || index.byUrl?.get(groupKey(url));
     if (hit) return hit;
   }
-  return index.fallback || null;
+  return null;
+}
+
+// Assigns each group in `groups` (in the order they will be rendered) a distinct image: its own exact
+// match first, else the next unused image off the shared leftover queue, else null (the popup draws a
+// type placeholder — never a broken image, never a gap, and never someone else's photo). Pure: takes
+// its own copy of the queue, so calling it again (a re-render) reproduces the same assignment instead
+// of handing out whatever is left over from a previous call.
+function assignThumbnails(index, groups) {
+  const queue = [...(index?.queue || [])];
+  const result = new Map();
+  for (const group of groups || []) {
+    result.set(group.key, pickThumbnail(index, group) ?? queue.shift() ?? null);
+  }
+  return result;
 }
 
 // ---------------- Download folder ----------------
@@ -1284,7 +1309,7 @@ if (typeof module !== "undefined") {
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
-    shotImage, buildThumbnailIndex, pickThumbnail,
+    shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,

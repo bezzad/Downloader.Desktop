@@ -12,7 +12,7 @@ const {
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   qualityHeight, qualityHeightFromUrl,
-  buildThumbnailIndex, pickThumbnail, shotImage,
+  buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
@@ -276,7 +276,7 @@ test("shotImage prefers a captured frame over a poster", () => {
   assert.equal(shotImage(null), null);
 });
 
-test("pickThumbnail prefers the matching element's own image over the page image", () => {
+test("pickThumbnail prefers the matching element's own image over anything else", () => {
   const index = buildThumbnailIndex(
     [{ src: "https://c/clip.mp4", frame: "FRAME", area: 100 }],
     "https://c/og.jpg");
@@ -290,29 +290,75 @@ test("pickThumbnail matches through the group key, not just the exact option URL
   assert.equal(pickThumbnail(index, merged), "https://c/p.jpg");
 });
 
-test("pickThumbnail falls back to the largest element's image, then the page image", () => {
-  const withElement = buildThumbnailIndex([
-    { src: "blob:https://x.com/small", frame: "SMALL", area: 10 },
-    { src: "blob:https://x.com/big", frame: "BIG", area: 900 }
-  ], "https://c/og.jpg");
-  // A blob: src can never match a network URL — which is exactly why there is a fallback at all.
-  assert.equal(pickThumbnail(withElement, group("https://video.twimg.com/master.m3u8")), "BIG");
-
-  const pageOnly = buildThumbnailIndex([{ src: "blob:https://x.com/v", area: 900 }], "https://c/og.jpg");
-  assert.equal(pickThumbnail(pageOnly, group("https://video.twimg.com/master.m3u8")), "https://c/og.jpg");
-});
-
-test("pickThumbnail returns null when nothing is available (the popup draws a placeholder)", () => {
-  const index = buildThumbnailIndex([], null);
-  assert.equal(pickThumbnail(index, group("https://c/a.mp4")), null);
+test("pickThumbnail returns null on an unmatched group — no page-image or other-element fallback", () => {
+  // Falling back INSIDE pickThumbnail is exactly the v1.8.0 bug: every unmatched group would resolve
+  // to the same single image. Fallback now only happens through assignThumbnails, one group at a time.
+  const index = buildThumbnailIndex(
+    [{ src: "blob:https://x.com/v", frame: "SOMEONE_ELSES_PHOTO", area: 900 }],
+    "https://c/og.jpg");
+  assert.equal(pickThumbnail(index, group("https://video.twimg.com/master.m3u8")), null);
   assert.equal(pickThumbnail(null, group("https://c/a.mp4")), null);
   assert.equal(pickThumbnail(index, null), null);
 });
 
 test("buildThumbnailIndex tolerates junk shots", () => {
   const index = buildThumbnailIndex([null, {}, { src: 42, frame: "F", area: "x" }], undefined);
-  assert.equal(index.fallback, "F");
+  assert.deepEqual(index.queue, ["F"]);
   assert.equal(index.byUrl.size, 0); // a non-http src is never indexed
+});
+
+// ---------------- assignThumbnails: one distinct image per group, never a repeat ----------------
+// The actual bug report: a feed page with several DIFFERENT videos (all blob: src, so none has an
+// exact URL match) showed the SAME photo on every row — because the old pickThumbnail fell back to
+// one shared "best" image for every group that asked. assignThumbnails hands out the captured images
+// one at a time, in list order, so distinct videos get distinct photos.
+
+test("two distinct unmatched videos on one page get two distinct photos, not the same one", () => {
+  const index = buildThumbnailIndex([
+    { src: "blob:https://x.com/1", frame: "PHOTO_A", area: 500 },
+    { src: "blob:https://x.com/2", frame: "PHOTO_B", area: 400 }
+  ], "https://c/og.jpg");
+  const groups = [group("https://c/videoA.m3u8"), group("https://c/videoB.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/videoA.m3u8"), "PHOTO_A"); // largest first
+  assert.equal(assigned.get("https://c/videoB.m3u8"), "PHOTO_B");
+  assert.notEqual(assigned.get("https://c/videoA.m3u8"), assigned.get("https://c/videoB.m3u8"));
+});
+
+test("an exact match is never displaced by the queue", () => {
+  const index = buildThumbnailIndex([
+    { src: "https://c/known.mp4", frame: "KNOWN_FRAME", area: 10 },
+    { src: "blob:https://x.com/1", frame: "QUEUE_PHOTO", area: 900 }
+  ], null);
+  const groups = [group("https://c/known.mp4"), group("https://c/other.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/known.mp4"), "KNOWN_FRAME"); // its own image, not the bigger queued one
+  assert.equal(assigned.get("https://c/other.m3u8"), "QUEUE_PHOTO");
+});
+
+test("once the queue runs dry, later groups get null (placeholder), never a repeat", () => {
+  const index = buildThumbnailIndex([{ src: "blob:https://x.com/1", frame: "ONLY_PHOTO", area: 500 }], null);
+  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8"), group("https://c/c.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/a.m3u8"), "ONLY_PHOTO");
+  assert.equal(assigned.get("https://c/b.m3u8"), null);
+  assert.equal(assigned.get("https://c/c.m3u8"), null);
+});
+
+test("the page image is used for at most ONE group, never repeated across a feed", () => {
+  const index = buildThumbnailIndex([], "https://c/og.jpg"); // no captured elements at all
+  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/a.m3u8"), "https://c/og.jpg");
+  assert.equal(assigned.get("https://c/b.m3u8"), null); // NOT the same og:image again
+});
+
+test("assignThumbnails is pure — calling it again reproduces the same assignment", () => {
+  const index = buildThumbnailIndex([{ src: "blob:https://x.com/1", frame: "PHOTO", area: 500 }], "https://c/og.jpg");
+  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8")];
+  const first = assignThumbnails(index, groups);
+  const second = assignThumbnails(index, groups);
+  assert.deepEqual([...first], [...second]);
 });
 
 // ---------------- App port discovery (range fallback) ----------------

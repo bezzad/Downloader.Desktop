@@ -111,8 +111,10 @@ function buildGroups() {
 }
 
 // A fixed-size preview slot, so the list never reflows as previews arrive and a source that fails to
-// load falls back to the type placeholder instead of leaving a broken image.
-function buildThumb(group) {
+// load falls back to the type placeholder instead of leaving a broken image. `src` is this group's
+// OWN assigned image (see assignThumbnails) — never looked up freshly here, or every card would draw
+// from the same shared fallback and repeat one photo across unrelated items (the x.com regression).
+function buildThumb(group, src) {
   const slot = document.createElement("div");
   slot.className = "thumb";
   const ext = (extOf(groupTypeUrl(group)) || "").toUpperCase();
@@ -120,7 +122,6 @@ function buildThumb(group) {
     slot.textContent = ext ? ext.slice(0, 4) : "FILE";
     slot.classList.add("placeholder");
   };
-  const src = pickThumbnail(thumbIndex, group);
   if (!src) { placeholder(); return slot; }
   const img = document.createElement("img");
   img.alt = "";
@@ -131,7 +132,7 @@ function buildThumb(group) {
   return slot;
 }
 
-function buildCard(group) {
+function buildCard(group, thumbSrc) {
   const li = document.createElement("li");
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -181,7 +182,7 @@ function buildCard(group) {
   btn.textContent = "Download";
   btn.onclick = () => sendOne(currentOption()?.url, btn);
 
-  li.append(buildThumb(group), meta, btn);
+  li.append(buildThumb(group, thumbSrc), meta, btn);
   return li;
 }
 
@@ -212,7 +213,10 @@ function render() {
   currentGroups = buildGroups();
   selectsByGroup.clear();
   listEl.innerHTML = "";
-  for (const g of currentGroups) listEl.append(buildCard(g));
+  // Computed ONCE per render, in list order, so each group gets its own image off the shared leftover
+  // queue instead of every card independently picking (and repeating) the same one.
+  const thumbs = assignThumbnails(thumbIndex, currentGroups);
+  for (const g of currentGroups) listEl.append(buildCard(g, thumbs.get(g.key)));
 
   if (currentGroups.length === 0) {
     emptyEl.style.display = "block";
