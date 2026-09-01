@@ -67,15 +67,15 @@ enforced before the build is offered.
 
 Today the extension never reports its version; the local API only sees `/api/add` and `/api/can-handle`.
 It will now identify itself (version + browser label) on the requests it already makes, so the app can say
-*"Chrome extension 1.6.1 — 1.7.0 available"* and offer the same install flow. This needs **no new browser
+*"Chrome extension 1.5.0 — 1.7.0 available"* and offer the same install flow. This needs **no new browser
 permission** and no polling.
 
-### 4. Release plumbing and a version-drift fix
+### 4. Release plumbing and a version-drift guard
 
 `scripts/build-extension.sh` gains an `extension-catalog.json` (version + sha256 per target, generated the
 same way `build-plugins.sh` generates the plugin catalog), attached to the same release by the existing
-`extension` job. And `manifest.json` (1.6.1) is realigned with `manifest.firefox.json` (1.7.0), with a
-test so the two manifests can never drift again.
+`extension` job. The catalog reads each target's version from its manifest, so the two manifests agreeing
+stops being a convention and becomes load-bearing — a guard test is added for it.
 
 ## Non-goals (deliberately out of scope)
 

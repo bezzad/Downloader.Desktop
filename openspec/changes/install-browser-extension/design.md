@@ -41,9 +41,12 @@ quarantine for a far weaker shape (an unsigned exe spawning `powershell.exe`). N
   **keep that discipline**: the new handshake adds an inbound field, not an outbound one.
 - The extension never sends its own version today (`getManifest()` appears nowhere in `common.js`,
   `background.js` or `popup.js`).
-- **`manifest.json` is 1.6.1 while `manifest.firefox.json` is 1.7.0.** `PUBLISHING.md` says both must be
-  bumped together, and the AMO workflow's bump guard only watches the Firefox manifest, so this drifted
-  unnoticed. Chrome users are one whole feature release behind.
+- **The two manifests currently agree (both 1.7.0), but nothing enforces it.** `PUBLISHING.md` says they
+  must be bumped together and the AMO workflow's bump guard only watches the Firefox manifest, so a
+  one-sided bump would ship a mislabelled Chrome/Edge zip — the code is shared (`build-extension.sh` packs
+  the same `common.js`/`popup.js` into both), so only the declared version would be wrong. Task 2.3 makes
+  the catalog read each target's version from its manifest, which turns that convention into something a
+  test can hold.
 - `Unit/NoShellSpawnTests` text-scans app + plugin source and fails the build on shell spawns. Everything
   here must be in-process: `System.IO.Compression.ZipFile`, `Microsoft.Win32.Registry`,
   `File.SetUnixFileMode`. Not `tar.exe`, not `reg.exe`.

@@ -28,18 +28,24 @@
 
 ---
 
-## 1. Fix the manifest version drift (independent, do this first)
+## 1. Guard the two extension manifests against version drift (independent, do this first)
 
-- [ ] 1.1 Read the `version` field of `src/browser-extension/manifest.json` and
-      `src/browser-extension/manifest.firefox.json`. They are currently **1.6.1** and **1.7.0**. Confirm
-      which features the 1.7.0 work added (see the archived/active `extension-single-list-thumbnails-path`
-      change) and that `manifest.json` is simply the one that was not bumped — i.e. the Chrome build is a
-      feature release behind, not intentionally pinned.
-- [ ] 1.2 Set `manifest.json`'s `version` to match `manifest.firefox.json`. Change nothing else in either
-      file.
-- [ ] 1.3 Add a test to `src/browser-extension/common.test.js` that reads both manifest files, parses them,
+> **Correction, 2026-09-01:** an earlier draft of this task said `manifest.json` was stranded at 1.6.1
+> behind `manifest.firefox.json` at 1.7.0. That was a stale read — the file was bumped by commit `ae11302`
+> in this same shared checkout while the proposal was being written. **Both manifests are 1.7.0 and there
+> is nothing to fix.** The guard below is still worth adding: nothing enforces the agreement today, the
+> AMO workflow's bump guard only watches the Firefox manifest, and task 2.3 makes the catalog read each
+> target's version from its own manifest, so a one-sided bump would publish a mislabelled Chrome/Edge zip.
+
+- [ ] 1.1 Confirm the starting state before writing the test:
+      `grep -n '"version"' src/browser-extension/manifest.json src/browser-extension/manifest.firefox.json`.
+      Expect the same value in both. **If they differ, the drift is real again** — align `manifest.json` to
+      the Firefox manifest's version and note it here, then carry on.
+- [ ] 1.2 Add a test to `src/browser-extension/common.test.js` that reads both manifest files, parses them,
       and asserts the two `version` values are equal, with a failure message naming both values. It must not
-      hard-code a version number — it compares the files to each other.
+      hard-code a version number — it compares the files to each other, so it keeps working across bumps.
+- [ ] 1.3 Prove the test actually fails: temporarily change one manifest's version, run the test, see it go
+      red naming both values, then revert. A guard test that has never been seen failing is not a guard.
 - [ ] 1.4 Run `node --test src/browser-extension/common.test.js`. Green.
 - [ ] 1.5 Add one line to `src/browser-extension/PUBLISHING.md` under the existing "bump both manifests"
       instruction, noting that a test now enforces it.
