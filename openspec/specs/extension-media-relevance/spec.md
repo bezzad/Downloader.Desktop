@@ -2,27 +2,8 @@
 
 ## Purpose
 
-Popup triage of detected media by relevance: the page's actually-viewed video is promoted to a Main media section, incidental detections are demoted but reachable, and known-unsupported sites show an explanatory state instead of a misleading list.
+How the popup presents detected media: one list ordered by media type (no relevance guessing, no collapsed section), and an explanatory state on known-unsupported sites instead of a misleading list.
 ## Requirements
-
-### Requirement: Main media is distinguished from other detected media
-The extension SHALL correlate sniffed media URLs with the page's currently visible `<video>` or `<audio>` element — whether actively playing or paused after loading — and present matches in a distinct "Main media" section, separate from all other detected media.
-
-#### Scenario: Viewed video is promoted to Main media
-- **WHEN** the user opens the popup on a page where a video is visible and playing
-- **THEN** the media group corresponding to that video appears under "Main media"
-
-#### Scenario: A paused-but-viewed video is still promoted
-- **WHEN** a visible video has finished autoplaying and sits paused on its last frame (e.g. a typical social-media inline video)
-- **THEN** the media group corresponding to that video still appears under "Main media", not "Other detected"
-
-#### Scenario: Unrelated detections are demoted, not hidden
-- **WHEN** other media (thumbnails, off-screen posts, unrelated feed items) is detected on the same page
-- **THEN** it appears under a separate, collapsed "Other detected (N)" section that the user can expand, rather than being omitted
-
-#### Scenario: Ambiguous pages can promote more than one group
-- **WHEN** multiple videos on the page are simultaneously visible and playing
-- **THEN** more than one group may appear under "Main media" rather than forcing a single, potentially wrong choice
 
 ### Requirement: Known-unsupported sites always show an explanatory state
 On a page whose hostname is known to stream via a protected/adaptive mechanism the extension cannot capture (e.g. YouTube), the popup SHALL always show a message explaining that the site is not supported and SHALL suppress the detected-media list, regardless of whether unrelated resources were incidentally sniffed.
@@ -38,3 +19,33 @@ On a page whose hostname is known to stream via a protected/adaptive mechanism t
 #### Scenario: Other sites keep the generic empty state
 - **WHEN** the popup is opened on a hostname not in the known-unsupported list and no media was detected
 - **THEN** the popup shows today's generic "No media detected on this page yet" message
+
+### Requirement: All detected media appears in one type-ordered list
+The popup SHALL present every detected media group in a single list, with no relevance-based
+promotion, no separate section, and no collapsed group. The list SHALL be ordered by media type,
+adaptive-streaming manifests first (HLS before DASH), then MP4, then other video containers, then
+audio, then anything else; within one type the larger known size SHALL come first, and items whose
+size is not yet known SHALL follow the probed ones in a deterministic order. The ordering SHALL NOT
+depend on the clock, on playback state, or on any hint about what the user is looking at.
+
+#### Scenario: The page's video is visible without expanding anything
+- **WHEN** the user opens the popup on a page where media was detected
+- **THEN** every detected group is listed directly, with no "Main media" heading and no collapsed
+  "Other detected" section to expand
+
+#### Scenario: A manifest leads the list
+- **WHEN** both an HLS manifest and a direct MP4 were detected on the same page
+- **THEN** the manifest is listed above the MP4
+
+#### Scenario: Same-type items are ordered by size
+- **WHEN** two detected MP4 items have both been probed and have different sizes
+- **THEN** the larger one is listed first
+
+#### Scenario: Unprobed items follow probed ones, deterministically
+- **WHEN** some items of a type have been probed and others have not
+- **THEN** the probed ones are listed first, the unprobed ones follow in a stable order, and
+  re-rendering the same list produces the same order
+
+#### Scenario: Ordering does not depend on playback state
+- **WHEN** the popup is opened on a page whose video has finished autoplaying and sits paused
+- **THEN** that video's group is listed in its type's position exactly as it would be while playing

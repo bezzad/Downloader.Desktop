@@ -55,4 +55,4 @@
       (`npx playwright test --workers=1`) green.
 - [x] 5.5 Run `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` (0 warnings) and the bounded
       `dotnet test` suite green.
-- [ ] 5.6 Commit and push to `develop`; `/opsx:sync` + `/opsx:archive` the change.
+- [x] 5.6 Commit and push to `develop`; `/opsx:sync` + `/opsx:archive` the change.
