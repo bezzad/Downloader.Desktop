@@ -152,13 +152,15 @@ jobs:
           fail_on_unmatched_files: true
           # No generate_release_notes here — the release exists by now (see the notes job).
 
-  # Attach the browser-extension store zips to the same release so users (and the manual Chrome/Edge
-  # dashboard upload) can grab the build matching this version. Runs AFTER the app matrix so the
+  # Attach the browser-extension store zips + extension-catalog.json to the same release. The zips serve
+  # the manual Chrome/Edge dashboard upload; the CATALOG is what the running app reads to offer the
+  # extension for install (Settings -> Install browser extension), which is why its checksums are derived
+  # from these exact zips by build-extension.sh rather than written by hand. Runs AFTER the app matrix so the
   # release already exists — a concurrent create here would reintroduce the "tag_name already_exists"
   # race (see the note above). Store uploads (AMO / Chrome / Edge) are manual dashboard uploads
   # of these zips — the automated AMO workflow was removed 2026-08-24.
   extension:
-    name: Attach extension zips
+    name: Attach extension zips + catalog
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
@@ -168,7 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build extension zips
+      - name: Build extension zips + catalog
         run: ./scripts/build-extension.sh
 
       - name: Attach to GitHub Release
@@ -177,6 +179,7 @@ jobs:
           files: |
             dist/downloader-extension-chrome.zip
             dist/downloader-extension-firefox.zip
+            dist/extension-catalog.json
           fail_on_unmatched_files: true
           # No generate_release_notes here either — the release exists by now; notes are handled below.
 

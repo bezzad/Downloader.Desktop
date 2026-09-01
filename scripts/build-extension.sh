@@ -46,5 +46,58 @@ cp -r "$SRC"/. "$TMP"/
 rm -rf "$TMP"
 verify_zip "$OUT/downloader-extension-firefox.zip" "$SRC/manifest.firefox.json"
 
+# ---------------------------------------------------------------------------
+# extension-catalog.json — what the APP reads to offer the extension for install.
+#
+# The static half lives in packaging/extension/targets.json; the version and sha256 are DERIVED here (from
+# the target's own manifest and from the zip that was just built) so the catalog can never disagree with
+# the assets it describes. Same shape and reasoning as scripts/build-plugins.sh + plugins-catalog.json.
+# ---------------------------------------------------------------------------
+TARGETS="packaging/extension/targets.json"
+CATALOG="$OUT/extension-catalog.json"
+
+if [ ! -f "$TARGETS" ]; then
+  echo "ERROR: $TARGETS is missing — the app cannot be told which builds exist." >&2
+  exit 1
+fi
+
+command -v jq >/dev/null || { echo "ERROR: jq is required to build the extension catalog." >&2; exit 1; }
+
+sha256_of() {
+  if command -v sha256sum >/dev/null; then sha256sum "$1" | awk '{print $1}'
+  else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+
+echo ">> extension-catalog.json ..."
+count="$(jq 'length' "$TARGETS")"
+entries="[]"
+for i in $(seq 0 $((count - 1))); do
+  id="$(jq -r ".[$i].id" "$TARGETS")"
+  family="$(jq -r ".[$i].family" "$TARGETS")"
+  name="$(jq -r ".[$i].name" "$TARGETS")"
+  manifest="$(jq -r ".[$i].manifest" "$TARGETS")"
+  assetName="$(jq -r ".[$i].assetName" "$TARGETS")"
+  minAppVersion="$(jq -r ".[$i].minAppVersion" "$TARGETS")"
+  storeUrl="$(jq -r ".[$i].storeUrl // empty" "$TARGETS")"
+
+  [ -f "$SRC/$manifest" ] || { echo "ERROR: target '$id' names a missing manifest: $SRC/$manifest" >&2; exit 1; }
+  [ -f "$OUT/$assetName" ] || { echo "ERROR: target '$id' names a zip that was not built: $OUT/$assetName" >&2; exit 1; }
+
+  version="$(jq -r '.version' "$SRC/$manifest")"
+  [ -n "$version" ] && [ "$version" != "null" ] || { echo "ERROR: no version in $SRC/$manifest" >&2; exit 1; }
+  sha256="$(sha256_of "$OUT/$assetName")"
+  echo "   $id: version=$version asset=$assetName sha256=$sha256"
+
+  entries="$(jq \
+    --arg id "$id" --arg family "$family" --arg name "$name" \
+    --arg version "$version" --arg assetName "$assetName" --arg sha256 "$sha256" \
+    --arg minAppVersion "$minAppVersion" --arg storeUrl "$storeUrl" \
+    '. + [{id:$id, family:$family, name:$name, version:$version, assetName:$assetName,
+           sha256:$sha256, minAppVersion:$minAppVersion,
+           storeUrl:(if $storeUrl == "" then null else $storeUrl end)}]' \
+    <<<"$entries")"
+done
+echo "$entries" | jq '.' > "$CATALOG"
+
 echo ">> Done:"
-ls -la "$OUT"/downloader-extension-*.zip
+ls -la "$OUT"/downloader-extension-*.zip "$CATALOG"
