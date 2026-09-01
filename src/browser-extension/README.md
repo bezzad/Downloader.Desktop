@@ -131,11 +131,12 @@ involved.
 
 Run the unit tests (pure helpers in `common.js`) with `node --test src/browser-extension/common.test.js`.
 
-## Publishing (later)
+## Publishing
 
-Store submission needs the author's developer accounts and is **not** done here:
+- **Firefox (AMO)** — automatic: `.github/workflows/extension.yml` submits the version for review
+  on every push to `develop`/`main` that touches this folder. See `PUBLISHING.md` for the failure
+  history and how the packaging bug that broke it for two months was fixed.
+- **Chrome Web Store / Edge Add-ons** — still a manual dashboard upload (needs the author's
+  developer account); zip this folder (`scripts/build-extension.sh`) and upload it.
 
-- **Chrome Web Store / Edge Add-ons** — zip this folder and upload in the respective dashboards.
-- **Firefox (AMO)** — submit the Firefox-manifest build at `addons.mozilla.org`.
-
-Bump `version` in both manifests for each release.
+Bump `version` in **both** manifests for each release — a test enforces they agree.

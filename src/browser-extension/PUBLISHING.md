@@ -8,15 +8,23 @@
 > publishes one store's build under the wrong version, and `extension-catalog.json` reads each target's
 > version from its own manifest.
 
-- **Firefox (AMO)**: a manual upload at
+- **Firefox (AMO)**: **automatic again as of 2026-09-01** — bump the version and push to
+  `develop`/`main`; `.github/workflows/extension.yml` submits it to AMO for review.
+  **History**: the original workflow (added 2026-07) failed on **every** run from 2026-07-04
+  through 2026-08-24 with *"A content script defined in the manifest could not be found at
+  `content.js`"* — its own staging step hand-copied a file list that had silently drifted from what
+  the manifest referenced (`content.js`, later `options.html`/`.css`/`.js` too). It was deleted
+  rather than fixed, so **no version after 1.1.0** (2026-07-03) ever reached AMO; every release
+  between 1.2.0 and 1.6.1 shipped Chrome/Edge only. This was **never a token problem** — the
+  `AMO_JWT_ISSUER`/`AMO_JWT_SECRET` secrets were valid the whole time (the job got past auth and
+  upload; only AMO's post-upload validation rejected the package).
+  The rebuilt workflow packages via `scripts/build-extension.sh` — the exact zip a manual dashboard
+  upload would use, whose own `verify_zip` already fails the build if a manifest reference is
+  missing — then runs `web-ext lint` (the same linter AMO's server runs) against that unpacked
+  package as its own failing CI step, so a broken package fails loudly in CI instead of only inside
+  AMO's review queue. Verified locally against the 1.7.0 package: `0 errors 0 warnings 0 notices`.
+  Track submissions at
   <https://addons.mozilla.org/en-US/developers/addon/downloader-browser-integration/versions>.
-  The old `extension.yml` workflow (automated `web-ext sign` submission) was **removed on
-  2026-08-24** — it had failed on every run since 2026-07-07 because AMO validation rejected the
-  package with *"A content script defined in the manifest could not be found at `content.js`"*.
-  (Extension 1.7.0 removed `content.js` and the `content_scripts` entry outright, so that particular
-  rejection cannot recur; `scripts/build-extension.sh` also verifies every file a manifest names is
-  actually in the zip.)
-  Use `downloader-extension-firefox.zip` from the release page if you do publish a version.
 - **Chrome Web Store / Edge Add-ons**: still a dashboard upload (steps below). Both extension zips
   are also attached to every GitHub Release (`release.yml`), so grab
   `downloader-extension-chrome.zip` from the release page — it's the exact build to upload.
@@ -26,7 +34,7 @@
 ```bash
 ./scripts/build-extension.sh
 # → dist/downloader-extension-chrome.zip   (Chrome Web Store + Edge Add-ons)
-# → dist/downloader-extension-firefox.zip  (Firefox AMO — normally submitted by CI)
+# → dist/downloader-extension-firefox.zip  (Firefox AMO — normally submitted by CI, see above)
 ```
 
 ## 2. Store listing (copy/paste)

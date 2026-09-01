@@ -1080,3 +1080,29 @@ Two traps worth keeping:
   `0 errors, 0 warnings`. Same family as the stale-`testhost` note above. Re-run alone before believing
   a build/test failure, and prefer a filtered `--filter` run over the full suite while another session
   is active.
+
+## Firefox/AMO auto-publish: was broken for 2 months, NOT a token issue (fixed 2026-09-01)
+- **Diagnosis recipe**: `gh run list --workflow=extension.yml` (or, once deleted, `gh run view <id> --log`
+  on old run ids from `git log` blame) + `curl -fsSL "https://addons.mozilla.org/api/v5/addons/addon/<slug>/versions/?page_size=50"`
+  to see what's ACTUALLY live on AMO. This showed the last real publish was `1.1.0` (2026-07-03); every
+  release from `1.2.0` through `1.6.1` never reached Firefox users, only Chrome/Edge (manual dashboard).
+- **Root cause**: `.github/workflows/extension.yml`'s staging step hand-copied a file list
+  (`cp background.js common.js popup.html popup.css popup.js`) that silently drifted from the manifest —
+  `content.js` (content_scripts) was never in it, and later `options.html/.css/.js` weren't either. AMO's
+  linter rejected every submission with `MANIFEST_CONTENT_SCRIPT_FILE_NOT_FOUND`. **The `AMO_JWT_ISSUER`/
+  `AMO_JWT_SECRET` secrets were valid the whole time** — `gh secret list` shows them unchanged since
+  2026-07-03, and the failed run logs show the job got past auth and upload, only AMO's post-upload
+  validation failed. Never assume "token expired" for a publish failure without reading the actual log —
+  the error message named the real cause directly.
+- **Fix, don't just re-add**: the rebuilt workflow stages by calling `scripts/build-extension.sh` itself
+  (the SAME zip a manual dashboard upload uses — its `verify_zip` already fails the build if a manifest
+  reference is missing) instead of a second hand-maintained file list, so the two can never drift apart
+  again. It also runs `npx web-ext@8 lint --source-dir <unpacked>` — the SAME linter AMO's server runs —
+  as its own failing CI step BEFORE `web-ext sign`, so a broken package fails loudly in CI instead of only
+  inside AMO's review queue (this is how the 2-month breakage went unnoticed: nothing ran the linter until
+  the real submission). Verify locally before trusting a workflow edit: `./scripts/build-extension.sh &&
+  unzip dist/downloader-extension-firefox.zip -d /tmp/x && npx --yes web-ext@8 lint --source-dir /tmp/x`.
+- **`manifest.firefox.json`'s `strict_min_version` was also stale** (`121.0`, but
+  `browser_specific_settings.gecko.data_collection_permissions` needs Firefox 140/Android 142) — a
+  WARNING not the failing error, but bumped to `142.0` anyway so a real submission carries zero lint
+  warnings too, not just zero errors.
