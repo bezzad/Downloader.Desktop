@@ -1024,3 +1024,29 @@ because a row left Running because the check was late is the bug this guard was 
   build if a manifest references a file the zip lacks, and AMO rejected earlier releases for exactly the
   opposite (a `content_scripts` entry naming a file that wasn't packaged). Removing a file means removing
   it from that array too.
+
+## The ORDER of the recovery paths in `HandleFailure` is load-bearing (issue #9, after v2.8.2)
+
+A failed attempt is offered to three recovery paths in turn, and which one goes first decides whether the
+download survives:
+
+1. **`TryReduceConnections` — same address, one connection.** Must come FIRST. It only fires on a 403 (or a
+   finished-with-nothing) raised while more than one connection was in flight, so it cannot steal an
+   ordinary failure. Putting the address walk ahead of it (v2.8.0–2.8.2) spent every address at full
+   concurrency and left the polite retry to whichever address happened to be LAST — for a browser hand-off
+   that is the clicked page link, not the mirror holding the file. The reporter's mirror failed at 4+
+   connections and succeeded at 1 with the same link, while the app *had* that retry and aimed it wrongly.
+2. **`TryNextUrl` — the next address**, which resets `ForceSingleConnection` so a capable mirror is not
+   demoted to one connection by the previous address's punishment. Bound: ≤ 2 attempts per address.
+3. **`TryAutoRefreshLink` — a fresh signature for the current address.**
+
+Two traps worth keeping:
+
+- The connection backoff **deletes the partial file** (a resumed download keeps the chunk layout its
+  package was created with, so one connection changes nothing while eight ranges sit on disk). So it must
+  never run on a download that was RESUMING real bytes — guarded by `vm.PreAttemptSize is not null`. A 403
+  on a resume is the expired-link shape, and that path keeps the partial.
+- The decision tests for this live in `Integration/UrlFailoverTests.cs` and drive `RaiseFailedForTest`
+  with `vm.PlannedConnections` set by hand — no engine, no timing. End-to-end variants of the same thing
+  are the ones that historically only passed on a fast machine (see the NOTE in that file before writing
+  another one).
