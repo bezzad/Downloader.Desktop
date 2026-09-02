@@ -130,19 +130,27 @@ public sealed class SiteMediaResolver : ILinkResolver
     }
 
     /// <summary>
-    /// YouTube player clients tried, in order, when the chosen stream URL is refused. YouTube serves a
-    /// page's formats through one of several internal clients, and the CDN then answers some of those
-    /// clients' links with 403 unless the request carries a token we cannot mint — which client that is
-    /// varies by video, by session and over time, so there is nothing to hard-code a preference for —
-    /// these are tried only AFTER yt-dlp's own default choice turned out to be refused.
+    /// What is tried, in order, when the chosen stream URL is refused — each entry is a player client to
+    /// pin, and <c>null</c> means "let yt-dlp choose".
+    /// <para>
+    /// The FIRST retry deliberately drops the session (see <see cref="RetryWithoutCookies"/>): handing
+    /// yt-dlp a signed-in session is what makes YouTube answer through its web clients, whose links its
+    /// CDN then serves only against a GVS PO token this app cannot mint — yt-dlp says so itself
+    /// ("&lt;client&gt; client https formats require a GVS PO Token which was not provided … may yield
+    /// HTTP Error 403"). Extracted anonymously the same public video comes back through a client whose
+    /// links are served. The pinned clients follow for the cases where the session is what got us in.
+    /// </para>
     /// </summary>
-    internal static readonly string[] YouTubeRetryClients = { "tv_simply", "web_safari" };
+    internal static readonly string?[] YouTubeRetryClients = { RetryWithoutCookies, "tv_simply", "web_safari" };
 
-    /// <summary>What the user is told when every client's links are refused.</summary>
+    /// <summary>The retry-list entry meaning "extract again, but anonymously".</summary>
+    internal const string? RetryWithoutCookies = null;
+
+    /// <summary>What the user is told when every attempt's links are refused.</summary>
     internal const string AllRefusedMessage =
-        "This site refused every download link it offered for this video (HTTP 403). "
-        + "Try again in a few minutes, or send the page again from the browser extension so a fresh "
-        + "session is used.";
+        "YouTube refused every download link it offered for this video (HTTP 403). It does that when it "
+        + "will not serve the video without a signed-in session AND demands a token this app cannot "
+        + "produce. Try again later, or try a video that plays without signing in.";
 
     /// <summary>
     /// Confirms the chosen stream is actually fetchable and, when it is refused outright, re-extracts the
@@ -175,20 +183,28 @@ public sealed class SiteMediaResolver : ILinkResolver
         foreach (var client in YouTubeRetryClients)
         {
             ct.ThrowIfCancellationRequested();
+            // Dropping the session is only worth trying when there WAS one; without cookies the first
+            // attempt already was the anonymous one.
+            var anonymous = client == RetryWithoutCookies;
+            if (anonymous && string.IsNullOrEmpty(options?.CookieFilePath))
+                continue;
+
+            var cookieFile = anonymous ? null : options?.CookieFilePath;
+            var attempt = anonymous ? "without the session" : $"the {client} player client";
             try
             {
                 var json = await _ytDlp
-                    .ExtractJsonAsync(url, options?.CookieFilePath, client, ct)
+                    .ExtractJsonAsync(url, cookieFile, client, ct)
                     .ConfigureAwait(false);
                 var retried = SiteExtractor.Select(json, options?.VariantId);
                 if (await ProbeAsync(retried, ct).ConfigureAwait(false) == ProbeVerdict.Refused)
                 {
-                    _log.LogWarning("The {Client} player client's links are refused too", client);
+                    _log.LogWarning("Extracting {Attempt} gives refused links too", attempt);
                     continue;
                 }
 
-                _log.LogInformation("Using the {Client} player client — its links are served", client);
-                StoreExtraction(url, options?.CookieFilePath, json);
+                _log.LogInformation("Using the extraction {Attempt} — its links are served", attempt);
+                StoreExtraction(url, cookieFile, json);
                 return retried;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -197,7 +213,7 @@ public sealed class SiteMediaResolver : ILinkResolver
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "Re-extracting through {Client} failed", client);
+                _log.LogWarning(ex, "Re-extracting {Attempt} failed", attempt);
             }
         }
 

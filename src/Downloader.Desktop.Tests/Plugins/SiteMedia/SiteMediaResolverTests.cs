@@ -227,7 +227,25 @@ public class SiteMediaResolverTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal("https://cdn/retried-v1080.mp4", plan.Parts[0].Url);
-        Assert.Equal(SiteMediaResolver.YouTubeRetryClients[0], yt.LastClient);
+        Assert.Equal("tv_simply", yt.LastClient);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_first_retry_drops_the_session_that_made_youtube_gate_the_links()
+    {
+        var yt = new ClientAwareYtDlp(defaultJson: SplitStreamsJson, clientJson: RetriedSplitStreamsJson);
+        var resolver = NewResolver(yt, new StubProbe(ProbeVerdict.Refused, ProbeVerdict.Ok));
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            new ResolveOptions { CookieFilePath = "/tmp/cookies.txt" }, TestContext.Current.CancellationToken);
+
+        // Handing yt-dlp a signed-in session is what makes YouTube answer through the clients whose links
+        // its CDN then refuses without a token we cannot mint, so the cheapest thing to try is the same
+        // page with no session at all.
+        Assert.Null(yt.LastCookieFile);
+        Assert.Null(yt.LastClient);
+        Assert.Equal(0, yt.ClientCalls);
+        Assert.Equal("https://cdn/v1080.mp4", plan.Parts[0].Url);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -241,7 +259,9 @@ public class SiteMediaResolverTests
                 TestContext.Current.CancellationToken));
 
         Assert.Equal(SiteMediaResolver.AllRefusedMessage, ex.Message);
-        Assert.Equal(SiteMediaResolver.YouTubeRetryClients.Length, yt.ClientCalls); // every one was tried
+        // Every pinned client was tried. The drop-the-session entry is skipped here: this add carried no
+        // session, so the first attempt already was the anonymous one.
+        Assert.Equal(SiteMediaResolver.YouTubeRetryClients.Count(c => c != null), yt.ClientCalls);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -276,14 +296,16 @@ public class SiteMediaResolverTests
     public async Task The_retry_keeps_the_session_the_link_was_sent_with()
     {
         var yt = new ClientAwareYtDlp(defaultJson: SplitStreamsJson, clientJson: RetriedSplitStreamsJson);
-        var resolver = NewResolver(yt, new StubProbe(ProbeVerdict.Refused, ProbeVerdict.Ok));
+        // Refused, refused without the session too, then served by the first pinned client.
+        var resolver = NewResolver(yt, new StubProbe(ProbeVerdict.Refused, ProbeVerdict.Refused, ProbeVerdict.Ok));
 
         await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
             new ResolveOptions { CookieFilePath = "/tmp/cookies.txt" }, TestContext.Current.CancellationToken);
 
-        // A signed-in-only page is exactly the case that needs the retry — dropping the cookies would
-        // turn the second attempt into a bot check.
+        // A signed-in-only page is exactly the case that gets this far — a pinned-client retry that
+        // dropped the cookies would just walk into a bot check.
         Assert.Equal("/tmp/cookies.txt", yt.LastCookieFile);
+        Assert.Equal("tv_simply", yt.LastClient);
     }
 
     /// <summary>Serves one extraction by default and a different one when a player client is pinned.</summary>

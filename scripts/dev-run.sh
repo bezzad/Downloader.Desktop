@@ -13,9 +13,15 @@
 # that runs as you (a dev run and a plain install share them). A snap has its own root under
 # ~/snap/downloader/current/.config/Downloader — pass --root to point at it.
 #
+# It also refreshes the browser extension the app installed (~/.config/Downloader/extension/{chrome,
+# firefox}) from this working copy, so a popup change can be tried without a release either. The
+# destination path is never changed: a browser derives a manually loaded extension's ID from its
+# absolute folder, so moving it would create a new identity with empty settings.
+#
 #   scripts/dev-run.sh                 build + install + run
 #   scripts/dev-run.sh --no-run        build + install only
 #   scripts/dev-run.sh --root <dir>    install into another plugins root (e.g. the snap's)
+#   scripts/dev-run.sh --no-extension  leave the installed browser extension alone
 #   scripts/dev-run.sh -- --minimized  everything after `--` is passed to the app
 set -euo pipefail
 
@@ -23,11 +29,13 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src="$repo/src"
 root="${XDG_CONFIG_HOME:-$HOME/.config}/Downloader/plugins"
 run=1
+extension=1
 app_args=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-run) run=0; shift ;;
+    --no-extension) extension=0; shift ;;
     --root) root="$2"; shift 2 ;;
     --) shift; app_args=("$@"); break ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -64,6 +72,29 @@ for entry in "${optional_plugins[@]}"; do
   version=$(grep -oPm1 '(?<=<Version>)[^<]+' "$src/Downloader.Desktop.Plugins/$project/$project.csproj" || true)
   echo "    $id ${version:+($version)}"
 done
+
+# The extension the browser actually loads, refreshed from source. Kept in step with COMMON in
+# scripts/build-extension.sh — a browser rejects the whole extension when a manifest names a file that
+# is not there, so a file added to one list has to be added to the other.
+if [[ $extension -eq 1 ]]; then
+  ext_src="$src/browser-extension"
+  ext_root="${XDG_CONFIG_HOME:-$HOME/.config}/Downloader/extension"
+  ext_files=(background.js common.js popup.html popup.css popup.js options.html options.css options.js)
+  for target in chrome firefox; do
+    dest="$ext_root/$target"
+    [[ -d "$dest" ]] || continue   # that browser's copy was never installed from the app
+    cp "${ext_files[@]/#/$ext_src/}" "$dest/"
+    mkdir -p "$dest/icons" && cp "$ext_src"/icons/* "$dest/icons/"
+    # Firefox needs its own manifest (event page + gecko id); Chrome/Edge take the default one.
+    if [[ "$target" == firefox ]]; then
+      cp "$ext_src/manifest.firefox.json" "$dest/manifest.json"
+    else
+      cp "$ext_src/manifest.json" "$dest/"
+    fi
+    echo "==> Extension refreshed in $dest ($(grep -oPm1 '(?<="version": ")[^"]+' "$dest/manifest.json"))"
+  done
+  echo "    reload it in the browser (chrome://extensions → Reload) to pick the change up"
+fi
 
 if [[ $run -eq 0 ]]; then
   echo "==> Skipping the app (--no-run)"

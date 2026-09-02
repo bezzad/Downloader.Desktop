@@ -1293,6 +1293,22 @@ probed/deduped/thumbnailed) and gains `sendUrl` (the master) + `variantId`; `sen
   CDN serves; all refused ⇒ a sentence the user can act on, never a raw HTTP status. **Only YouTube is
   probed** — nowhere else has a second way to ask, so a probe there would spend a request on a question
   nothing can act on (and would put every existing resolver test on the network).
+- **yt-dlp TELLS you when a 403 is coming — do not suppress its warnings.** `--no-warnings` was removed
+  from `BuildArgs` for exactly this: warnings go to **stderr** (stdout stays parseable JSON, verified),
+  and they carry the real reason — *"tv_simply client https formats require a GVS PO Token which was not
+  provided. They will be skipped as they may yield HTTP Error 403."* `MentionsMissingToken(stderr)` logs
+  it whenever an extraction succeeds. This is also why a pinned client can fail with *"Requested format
+  is not available"*: yt-dlp SKIPPED that client's token-gated formats, leaving nothing to select.
+- **Handing yt-dlp a signed-in session is what CAUSES the token requirement**, so the first retry drops
+  it (`SiteMediaResolver.RetryWithoutCookies`). Measured on this box, one minute apart, same video:
+  with the extension's real cookies the default client answers `WEB_EMBEDDED_PLAYER` → **403**; with an
+  empty jar or none at all it answers `VISIONOS` → **206**. Pinned clients follow for the pages that
+  genuinely need the session.
+- **What is still unfixable without a PO-token provider**: a video YouTube bot-checks anonymously AND
+  gates behind a token when signed in (this box's VPN IP hits that often — bot checks are per-video, see
+  the 2026-08-13 note). Both retries then fail honestly. The documented answer is yt-dlp's
+  `bgutil-ytdlp-pot-provider`, which is a Node/Deno service plus a yt-dlp plugin — a sizeable new
+  dependency chain, NOT attempted.
 - **A probe that cannot REACH the server never rejects a link** (`ProbeVerdict.Unknown`) — an offline box
   must not turn every download into "this site refused it".
 
