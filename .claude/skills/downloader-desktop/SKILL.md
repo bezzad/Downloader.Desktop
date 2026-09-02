@@ -1269,3 +1269,29 @@ probed/deduped/thumbnailed) and gains `sendUrl` (the master) + `variantId`; `sen
 - Tests: `Unit/ApiVariantChoiceTests.cs` (6), 3 in `common.test.js`, and a real-browser e2e
   (`e2e/tests/hls-and-quality.spec.js`) that picks 640x480 and asserts the stub app received
   `master.m3u8` + `variantId=1200000` and NOT `high/index.m3u8`. Extension 1.8.1 → **1.9.0**.
+
+## YouTube "403 (Forbidden)" right after a successful extraction (2026-09-02)
+- **Symptom**: the extension offers the page, the app extracts it (log: "Extracted separate video+audio
+  streams … will mux"), and one second later the row fails with
+  `Network error: … 403 (Forbidden).` The engine log reads `File size: 0, Supports range download: False`
+  — i.e. the engine's `GET bytes=0-0` size probe was ALREADY refused, so nothing about chunking,
+  concurrency, cookies, referer or the UA is involved.
+- **Cause**: YouTube answers an extraction through one of several internal player clients, and its CDN
+  then refuses SOME of those clients' links unless the request carries a PO token this app cannot mint.
+  The reported case came back as `c=WEB_EMBEDDED_PLAYER` (no `pot=` in the URL) — a client yt-dlp fell
+  back to BECAUSE cookies were supplied. Which client is refused varies per video/session/date: measured
+  on one box, one minute — default(`VISIONOS`) 206, `tv_simply` 206, `web`/`web_safari` 206,
+  `mweb` 403, `android_vr` 403, `web_embedded` 403. So there is nothing to hard-code a preference for.
+- **Diagnose in 30 seconds** — the persisted plan keeps the failing URLs:
+  `python3 -c "…"` over `~/.config/Downloader/config.json` → the item's `PlanJson` → each part's URL query
+  → look at `c=` and whether `pot=` is present, then `curl -s -o /dev/null -w '%{http_code}' -r 0-100 <url>`.
+  Extract a comparison yourself with the INSTALLED binaries:
+  `~/.config/Downloader/plugins/data/com.bezzad.site-media/yt-dlp-bin/yt-dlp --js-runtimes deno:<…/deno-bin/deno> --extractor-args "youtube:player_client=<c>" -J --no-warnings <url>`.
+- **Fix (SiteMedia 1.2.0)**: `SiteMediaResolver.EnsureFetchableAsync` probes the chosen stream
+  (`IMediaProbe` → one `GET bytes=0-0` with the part's own headers) and, on a 401/403/410, re-extracts
+  through `YouTubeRetryClients` (`tv_simply`, then `web_safari`, cookies kept) taking the first choice the
+  CDN serves; all refused ⇒ a sentence the user can act on, never a raw HTTP status. **Only YouTube is
+  probed** — nowhere else has a second way to ask, so a probe there would spend a request on a question
+  nothing can act on (and would put every existing resolver test on the network).
+- **A probe that cannot REACH the server never rejects a link** (`ProbeVerdict.Unknown`) — an offline box
+  must not turn every download into "this site refused it".

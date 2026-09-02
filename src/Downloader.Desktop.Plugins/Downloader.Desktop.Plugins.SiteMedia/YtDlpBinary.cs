@@ -110,6 +110,31 @@ public sealed class YtDlpBinary : IYtDlp
     /// <summary>Extractor-args routing x.com/Twitter through the cookie-free public syndication API.</summary>
     internal const string SyndicationArgs = "twitter:api=syndication";
 
+    /// <summary>Extractor-args pinning YouTube to one player client.</summary>
+    internal static string YouTubeClientArgs(string client) => $"youtube:player_client={client}";
+
+    /// <summary>One extraction pinned to a specific player client, with no fallback ladder: the caller
+    /// (<see cref="SiteMediaResolver"/>) is already walking a list of clients and decides what to try
+    /// next, so a failure here is just "that client didn't work".</summary>
+    public async Task<string> ExtractJsonAsync(
+        string url, string? cookieFilePath, string? playerClient, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(playerClient))
+            return await ExtractJsonAsync(url, cookieFilePath, cancellationToken).ConfigureAwait(false);
+
+        var exe = await EnsureYtDlpAsync(cancellationToken).ConfigureAwait(false);
+        var deno = await TryEnsureDenoAsync(cancellationToken).ConfigureAwait(false);
+        _log.LogInformation("Re-extracting {Url} through the {Client} player client", url, playerClient);
+
+        var args = BuildArgs(url, cookieFilePath, deno, YouTubeClientArgs(playerClient));
+        var (stdout, stderr, exitCode) = await RunAsync(exe, args, cancellationToken).ConfigureAwait(false);
+        if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
+            return stdout;
+
+        _log.LogWarning("The {Client} player client failed (exit {Code}): {Err}", playerClient, exitCode, Tail(stderr));
+        throw new InvalidOperationException($"Couldn't extract this link through {playerClient}.");
+    }
+
     /// <summary>True for an x.com / twitter.com page (incl. subdomains), without matching look-alikes
     /// such as <c>x.com.evil.com</c>.</summary>
     internal static bool IsTwitter(string url)

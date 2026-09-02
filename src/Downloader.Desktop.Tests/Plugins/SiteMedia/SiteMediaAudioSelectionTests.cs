@@ -25,7 +25,7 @@ public class SiteMediaAudioSelectionTests
             { "format_id": "251", "url": "https://cdn/a.webm", "protocol": "https", "vcodec": "none", "acodec": "opus", "ext": "webm", "tbr": 130 },
             { "format_id": "140", "url": "https://cdn/a.m4a", "protocol": "https", "vcodec": "none", "acodec": "mp4a.40.2", "ext": "m4a", "tbr": 129 } ] }
         """;
-        var resolver = new SiteMediaResolver(new SiteMediaResolverTests.StubYtDlp(json));
+        var resolver = SiteMediaResolverTests.NewResolver(new SiteMediaResolverTests.StubYtDlp(json));
 
         var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
             TestContext.Current.CancellationToken);
@@ -45,7 +45,7 @@ public class SiteMediaAudioSelectionTests
             { "format_id": "248", "url": "https://cdn/v1080.webm", "protocol": "https", "vcodec": "vp9", "acodec": "none", "height": 1080 },
             { "format_id": "251", "url": "https://cdn/a.webm", "protocol": "https", "vcodec": "none", "acodec": "opus", "ext": "webm", "tbr": 130 } ] }
         """;
-        var resolver = new SiteMediaResolver(new SiteMediaResolverTests.StubYtDlp(json));
+        var resolver = SiteMediaResolverTests.NewResolver(new SiteMediaResolverTests.StubYtDlp(json));
 
         var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
             TestContext.Current.CancellationToken);
