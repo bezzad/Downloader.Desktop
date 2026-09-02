@@ -1225,14 +1225,22 @@ test("the app-not-found message names the ports actually probed", () => {
 // they already were. What the page can do depends on which plugins the running app has, so the app
 // is asked before anything is claimed (issue #9 follow-up).
 
-test("a page the app can handle is offered, not declared unsupported", () => {
+test("a page the app can handle is offered as an item, with no message", () => {
   const state = unsupportedSiteState({
     hostUnsupported: true, appHandlesPage: true, handlerName: "Video sites (YouTube and others)"
   });
   assert.equal(state.mode, "offer");
-  assert.match(state.message, /Downloader can fetch this page/);
-  assert.match(state.message, /Video sites/);
-  assert.doesNotMatch(state.message, /sign in|signed in/i);
+  // No prose at all: the popup renders the page as an ordinary row with a Download button. A block of
+  // explanatory red text standing in for the video item was the complaint this replaced.
+  assert.equal(state.message, null);
+  assert.equal(state.handler, "Video sites (YouTube and others)");
+});
+
+test("an offered page without a named handler still carries no message", () => {
+  const state = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: true, handlerName: null });
+  assert.equal(state.mode, "offer");
+  assert.equal(state.message, null);
+  assert.equal(state.handler, null);
 });
 
 test("without the plugin the message names the plugin, never a sign-in", () => {

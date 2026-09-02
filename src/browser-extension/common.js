@@ -706,13 +706,11 @@ async function appCanHandlePage(url, port) {
 // and signing in again changes nothing (issue #9 follow-up).
 function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName }) {
   if (!hostUnsupported) return { mode: "normal", message: null };
-  if (appHandlesPage) {
-    return {
-      mode: "offer",
-      message: "This site's player hides the video file, but Downloader can fetch this page itself"
-        + (handlerName ? ` (${handlerName})` : "") + ". Send the page to the app.",
-    };
-  }
+  // The app CAN take this page, so there is nothing to explain and nothing to warn about: the popup
+  // shows the page as an ordinary row with a Download button, exactly like a sniffed file. A block of
+  // red text where the video item belongs was the whole complaint — it read as an error for a page
+  // that downloads perfectly well. `handler` is the plugin's name, shown as the row's quiet sub-line.
+  if (appHandlesPage) return { mode: "offer", message: null, handler: handlerName || null };
   return {
     mode: "unsupported",
     message: "This site streams video in a format Downloader can't capture from the page. "

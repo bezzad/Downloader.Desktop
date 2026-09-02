@@ -68,7 +68,7 @@ async function openBlockedSitePage(context) {
   return page;
 }
 
-test("with the plugin installed, the page itself is offered to the app", async ({ context, extensionId }) => {
+test("with the plugin installed, the page itself is listed as a downloadable item", async ({ context, extensionId }) => {
   test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
   const app = await startAppStub({ handled: true, by: "Video sites (YouTube and others)" });
   test.skip(!app, "no free port in the app range for the stub");
@@ -77,11 +77,12 @@ test("with the plugin installed, the page itself is offered to the app", async (
     const page = await openBlockedSitePage(context);
 
     const popup = await openPopupFor(context, extensionId, page);
-    await expect(popup.locator("#empty")).toBeVisible();
-    await expect(popup.locator("#empty")).toContainText("Downloader can fetch this page");
-    await expect(popup.locator("#empty")).toContainText("Video sites");
-    // The offer must be actionable, not just words.
-    await expect(popup.locator("#empty button")).toBeVisible();
+    // The page is an ITEM, not a notice: one ordinary row with a Download button, and no message at
+    // all where the video belongs (the red block of text was the complaint this replaced).
+    await expect(popup.locator("#list li")).toHaveCount(1);
+    await expect(popup.locator("#list li button")).toHaveText("Download");
+    await expect(popup.locator("#list li .size-line")).toContainText("Video sites");
+    await expect(popup.locator("#empty")).toBeHidden();
   } finally {
     await new Promise(r => app.server.close(r));
   }

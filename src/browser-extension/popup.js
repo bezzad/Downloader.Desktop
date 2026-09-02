@@ -14,6 +14,7 @@ let currentTabId = null;
 let isUnsupportedHost = false;
 let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
 let currentPageUrl = "";
+let currentPageTitle = "";
 let currentGroups = [];
 const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
@@ -127,8 +128,10 @@ function buildThumb(group, src) {
   const slot = document.createElement("div");
   slot.className = "thumb";
   const ext = (extOf(groupTypeUrl(group)) || "").toUpperCase();
+  // A page row has no file extension to show — it stands for the video the app will extract.
+  const label = group.kind === "page" ? "PAGE" : (ext ? ext.slice(0, 4) : "FILE");
   const placeholder = () => {
-    slot.textContent = ext ? ext.slice(0, 4) : "FILE";
+    slot.textContent = label;
     slot.classList.add("placeholder");
   };
   if (!src) { placeholder(); return slot; }
@@ -181,7 +184,7 @@ function buildCard(group, thumbSrc) {
     // looking at it. Only when there is no picker: a picker already shows every quality.
     const height = select ? -1 : groupQualityHeight(group);
     const quality = height > 0 ? `${height}p` : "";
-    sizeEl.textContent = [quality, size].filter(Boolean).join(" · ");
+    sizeEl.textContent = [quality, size].filter(Boolean).join(" · ") || group.note || "";
   };
   if (select) select.onchange = updateSize;
   updateSize();
@@ -195,12 +198,38 @@ function buildCard(group, thumbSrc) {
   return li;
 }
 
+// The active page as a one-option group, so it renders through the SAME card builder as everything
+// else. Its URL is the page's: the app re-reads the page with the plugin that claimed it and picks the
+// stream itself, which is the only way to get the video off a site whose player hides the file.
+function pageGroup() {
+  return {
+    key: currentPageUrl,
+    kind: "page",
+    title: currentPageTitle || fileName(currentPageUrl) || currentPageUrl,
+    note: siteState.handler ? `Video page · ${siteState.handler}` : "Video page",
+    options: [{ url: currentPageUrl, label: null, size: null, approx: false }],
+  };
+}
+
 function render() {
-  // Known-unsupported sites (YouTube, Netflix, …) ALWAYS show the explanatory message and
-  // suppress the list — even when something was incidentally sniffed (e.g. YouTube's own UI
-  // sound-effect mp3s), since none of it is ever the protected video content the user wants.
-  // Real-world fix: v1.2.0 only checked this when zero items existed, so those unrelated sounds
-  // were shown as if they were downloadable.
+  // A page the app itself can download is an ITEM, not a notice: one ordinary row, same thumbnail,
+  // same Download button as any sniffed file. It replaced a block of red explanatory text standing
+  // where the video belonged, which read as an error for a page that downloads perfectly well.
+  if (siteState.mode === "offer" && currentPageUrl) {
+    currentGroups = [pageGroup()];
+    selectsByGroup.clear();
+    listEl.innerHTML = "";
+    listEl.append(buildCard(currentGroups[0], thumbIndex.fallback));
+    emptyEl.style.display = "none";
+    emptyEl.classList.remove("unsupported");
+    return;
+  }
+
+  // A site whose video this install genuinely cannot get ALWAYS says so and suppresses the list —
+  // even when something was incidentally sniffed (e.g. YouTube's own UI sound-effect mp3s), since
+  // none of it is ever the protected video content the user wants. Real-world fix: v1.2.0 only
+  // checked this when zero items existed, so those unrelated sounds were shown as if they were
+  // downloadable.
   if (siteState.mode !== "normal") {
     currentGroups = [];
     selectsByGroup.clear();
@@ -208,14 +237,6 @@ function render() {
     emptyEl.style.display = "block";
     emptyEl.classList.add("unsupported");
     emptyEl.textContent = siteState.message;
-    // When the app CAN take the page, saying so isn't enough — offer the one action that works.
-    if (siteState.mode === "offer" && currentPageUrl) {
-      const btn = document.createElement("button");
-      btn.className = "send";
-      btn.textContent = "Send this page";
-      btn.onclick = () => sendOne(currentPageUrl, btn);
-      emptyEl.append(document.createElement("br"), btn);
-    }
     return;
   }
 
@@ -334,6 +355,7 @@ async function loadDetected() {
   const tab = await activeTab();
   currentTabId = tab.id;
   currentPageUrl = tab.url || "";
+  currentPageTitle = tab.title || "";
   try { isUnsupportedHost = isKnownUnsupportedHost(new URL(tab.url).hostname); } catch { isUnsupportedHost = false; }
   // Whether such a page is a dead end depends on the app, not on this list: with the site-media plugin
   // installed the page itself is downloadable. Ask before deciding what to say (issue #9 follow-up).
