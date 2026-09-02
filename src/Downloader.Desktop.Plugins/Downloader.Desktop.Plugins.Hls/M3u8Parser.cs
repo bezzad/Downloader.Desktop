@@ -4,8 +4,8 @@ namespace Downloader.Desktop.Plugins.Hls;
 
 /// <summary>
 /// A small, focused, line-based M3U8 parser. Supports the subset Downloader needs for VOD HLS:
-/// master variant selection, media segment lists, <c>#EXT-X-KEY</c> (AES-128 / NONE), <c>#EXT-X-MAP</c>,
-/// and <c>#EXT-X-MEDIA-SEQUENCE</c>. Live/DRM/byte-range playlists are out of scope.
+/// master variant selection, alternative <c>#EXT-X-MEDIA</c> renditions (separate audio tracks), media
+/// segment lists, <c>#EXT-X-KEY</c> (AES-128 / NONE), <c>#EXT-X-MAP</c>, and <c>#EXT-X-MEDIA-SEQUENCE</c>. Live/DRM/byte-range playlists are out of scope.
 /// </summary>
 public sealed class M3u8Parser : IM3u8Parser
 {
@@ -19,6 +19,7 @@ public sealed class M3u8Parser : IM3u8Parser
     {
         EnsureValid(content);
         var variants = new List<HlsVariant>();
+        var renditions = new List<HlsRendition>();
         string? pendingAttrs = null;
 
         foreach (var line in EnumerateLines(content))
@@ -27,6 +28,22 @@ public sealed class M3u8Parser : IM3u8Parser
             {
                 pendingAttrs = line.Substring("#EXT-X-STREAM-INF:".Length);
             }
+            else if (line.StartsWith("#EXT-X-MEDIA:", StringComparison.Ordinal))
+            {
+                // An alternative rendition (usually the audio track of video-only variants). Without this
+                // the audio playlist is never fetched and the assembled file comes out silent.
+                var attrs = ParseAttributes(line.Substring("#EXT-X-MEDIA:".Length));
+                var type = attrs.TryGetValue("TYPE", out var t) ? t : string.Empty;
+                var group = attrs.TryGetValue("GROUP-ID", out var g) ? g : string.Empty;
+                var uri = attrs.TryGetValue("URI", out var u) && !string.IsNullOrEmpty(u)
+                    ? Resolve(baseUri, u)
+                    : null;
+                attrs.TryGetValue("NAME", out var name);
+                attrs.TryGetValue("LANGUAGE", out var lang);
+                var isDefault = attrs.TryGetValue("DEFAULT", out var def)
+                                && string.Equals(def, "YES", StringComparison.OrdinalIgnoreCase);
+                renditions.Add(new HlsRendition(type, group, uri, name, lang, isDefault));
+            }
             else if (!line.StartsWith("#", StringComparison.Ordinal) && pendingAttrs is not null)
             {
                 var attrs = ParseAttributes(pendingAttrs);
@@ -34,7 +51,9 @@ public sealed class M3u8Parser : IM3u8Parser
                 if (attrs.TryGetValue("BANDWIDTH", out var bw))
                     long.TryParse(bw, NumberStyles.Integer, CultureInfo.InvariantCulture, out bandwidth);
                 attrs.TryGetValue("RESOLUTION", out var res);
-                variants.Add(new HlsVariant(Resolve(baseUri, line), bandwidth, res));
+                attrs.TryGetValue("AUDIO", out var audioGroup);
+                attrs.TryGetValue("CODECS", out var codecs);
+                variants.Add(new HlsVariant(Resolve(baseUri, line), bandwidth, res, audioGroup, codecs));
                 pendingAttrs = null;
             }
         }
@@ -42,7 +61,7 @@ public sealed class M3u8Parser : IM3u8Parser
         if (variants.Count == 0)
             throw new FormatException("Master playlist contained no #EXT-X-STREAM-INF variants.");
 
-        return new HlsMasterPlaylist(variants);
+        return new HlsMasterPlaylist(variants, renditions);
     }
 
     public HlsMediaPlaylist ParseMedia(string content, Uri baseUri)

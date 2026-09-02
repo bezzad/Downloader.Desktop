@@ -1214,3 +1214,33 @@ await the underlying method directly.
   matches the running app), so that i18n key was removed from all 16 packs.
 - **General lesson**: before building a feature that fetches from "the latest release", ask what it does on
   the release that introduces it. If the answer is "nothing", it cannot be tested before shipping.
+
+## "Video downloads but has no sound" — HLS audio renditions and Opus-in-MP4 (2026-09-02)
+Two independent causes, both reported as the same symptom (file plays, no audio):
+- **The HLS plugin only ever downloaded the chosen `#EXT-X-STREAM-INF` variant.** In a master playlist
+  whose variants carry `AUDIO="grp"`, the variant's playlist is **video-only** and the audio lives in a
+  separate `#EXT-X-MEDIA:TYPE=AUDIO,…,URI="…"` rendition — the shape YouTube's HLS manifests and many CDN
+  (x.com) masters use. `M3u8Parser` ignored `#EXT-X-MEDIA` entirely, so the audio playlist was never
+  fetched. Now: renditions are parsed (`HlsRendition`), variants carry `AudioGroupId`/`Codecs`,
+  `HlsMasterPlaylist.AudioFor(variant)` picks the group's `DEFAULT=YES` entry, and `HlsResolver` emits the
+  audio segments as a **second `ConcatRecipe.StreamGroup`** — which reuses the DASH two-group path
+  (concat each → `MuxAsync`) with no post-processor change. A self-contained variant still produces
+  `Streams == null` (one group), byte-for-byte the old recipe.
+  - `AudioFor` returns null when the variant names no `AUDIO` group *unless* its `CODECS` proves it is
+    video-only (`DeclaresNoAudio`) — an absent CODECS proves nothing and must not trigger a guess.
+  - A rendition with **no `URI`** means the audio is muxed into the variant; never download it.
+  - fMP4 HLS (an `#EXT-X-MAP`) now sets `IntermediateExtension = ".mp4"` — labelling fMP4 as `.ts` throws
+    ffmpeg's probing off (same reason DASH does it).
+- **Opus audio copied into MP4** (SiteMedia/yt-dlp mux path): `-c copy` writes Opus into MP4 happily, but
+  most desktop players will not decode it there. `SiteExtractor` now prefers an **MP4-native** audio
+  format (`IsMp4NativeAudio`: judged on `acodec`, falling back to `ext` — extracted URLs have NO file
+  extension, so any extension-based check on the DOWNLOADED file is useless) over both yt-dlp's own
+  `requested_formats` pick and a higher-bitrate Opus. Opus is still used when it is the only audio.
+- **Mux args are now explicit in both plugins** (`FfmpegBinary.BuildMuxArgs`, `FfmpegMuxer.BuildMuxArgs`):
+  `-map 0:v:0 -map 1:a:0`. ffmpeg's default selection picks one stream per type across BOTH inputs, so a
+  "video-only" file carrying a stray audio track can win and the real audio is dropped. `FfmpegBinary`
+  adds `-bsf:a aac_adtstoasc` only for `.ts`/`.aac` audio (AAC in MPEG-TS is ADTS-framed and illegal in
+  MP4); MP4/fMP4 audio already carries its ASC and must NOT be filtered.
+- Tests: `Plugins/Hls/HlsSeparateAudioTests.cs` (parser → resolver → post-processor round trip → args) and
+  `Plugins/SiteMedia/SiteMediaAudioSelectionTests.cs`. Versions bumped: HLS 2.2.1→**2.3.0**,
+  SiteMedia 1.0.1→**1.1.0** (a stale version means the catalog never offers the fix).

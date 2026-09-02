@@ -40,11 +40,20 @@ public sealed class FfmpegMuxer : IMediaMuxer
         _log = logger ?? NullLogger.Instance;
     }
 
+    /// <summary>
+    /// Combine the extracted video-only and audio-only files into one MP4 with stream copy. The maps are
+    /// EXPLICIT: ffmpeg's default selection picks one stream per type across BOTH inputs, so a video file
+    /// carrying a secondary/silent audio track can win over the real audio stream and the result plays
+    /// with no sound.
+    /// </summary>
+    internal static string BuildMuxArgs(string videoFile, string audioFile, string outputPath) =>
+        $"-y -i \"{videoFile}\" -i \"{audioFile}\" -map 0:v:0 -map 1:a:0 -c copy -movflags +faststart \"{outputPath}\"";
+
     public async Task MuxAsync(string videoFile, string audioFile, string outputPath, CancellationToken cancellationToken)
     {
         var exe = await EnsureFfmpegAsync(cancellationToken).ConfigureAwait(false);
 
-        var args = $"-y -i \"{videoFile}\" -i \"{audioFile}\" -c copy -movflags +faststart \"{outputPath}\"";
+        var args = BuildMuxArgs(videoFile, audioFile, outputPath);
         _log.LogInformation("Running ffmpeg (mux): {Exe} {Args}", exe, args);
 
         var psi = new ProcessStartInfo(exe, args)

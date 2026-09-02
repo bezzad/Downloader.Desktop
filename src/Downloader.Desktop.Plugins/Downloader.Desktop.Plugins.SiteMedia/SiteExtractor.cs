@@ -180,10 +180,17 @@ internal static class SiteExtractor
                         ?? formats.Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && !f.HasAudio && !f.IsHls)
                                   .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
                                   .FirstOrDefault();
-        var bestAudio = PickFrom(info.RequestedFormats, f => f.HasAudio && !f.HasVideo)
-                        ?? formats.Where(f => !string.IsNullOrEmpty(f.Url) && f.HasAudio && !f.HasVideo && !f.IsHls)
-                                  .OrderByDescending(f => f.Quality.tbr)
-                                  .FirstOrDefault();
+        // MP4-native audio (AAC/ALAC/AC-3) is preferred over the tool's own pick and over a higher-bitrate
+        // Opus/Vorbis stream: the muxed output is an MP4, and while Opus can be WRITTEN into MP4 most
+        // desktop players will not decode it there — the file then plays with no sound, which is
+        // indistinguishable from having downloaded no audio at all.
+        var audioCandidates = formats
+            .Where(f => !string.IsNullOrEmpty(f.Url) && f.HasAudio && !f.HasVideo && !f.IsHls)
+            .OrderByDescending(f => f.Quality.tbr)
+            .ToList();
+        var bestAudio = audioCandidates.FirstOrDefault(IsMp4NativeAudio)
+                        ?? PickFrom(info.RequestedFormats, f => f.HasAudio && !f.HasVideo)
+                        ?? audioCandidates.FirstOrDefault();
         if (bestVideo is not null && bestAudio is not null)
         {
             return new ExtractionResult
@@ -231,6 +238,22 @@ internal static class SiteExtractor
         }
 
         return info ?? throw new InvalidOperationException("No downloadable video was found at this link.");
+    }
+
+    /// <summary>
+    /// True when the audio stream's codec is one an MP4 container plays everywhere. Judged on the codec
+    /// (and the container as a fallback) rather than the URL, because extracted stream URLs carry no
+    /// file extension.
+    /// </summary>
+    internal static bool IsMp4NativeAudio(YtDlpFormat format)
+    {
+        string[] codecs = ["mp4a", "aac", "alac", "ac-3", "ec-3", "mp3"];
+        var codec = format.ACodec;
+        if (!string.IsNullOrWhiteSpace(codec) && !string.Equals(codec, "none", StringComparison.OrdinalIgnoreCase))
+            return codecs.Any(c => codec!.StartsWith(c, StringComparison.OrdinalIgnoreCase));
+
+        string[] exts = ["m4a", "mp4", "aac", "mp3"];
+        return format.Ext is { } ext && exts.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Best audio-only stream (progressive HTTP preferred, then any non-HLS), or null.</summary>
