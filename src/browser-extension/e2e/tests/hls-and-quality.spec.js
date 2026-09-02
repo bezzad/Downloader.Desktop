@@ -6,6 +6,23 @@ const { test, expect, openPopupFor } = require("../fixtures");
 // preference points discovery at it first (same approach as interception.spec.js).
 const STUB_PORTS = [15152, 15153, 15154, 15155];
 
+/**
+ * Is something already answering /ping in the range, i.e. is a real Downloader running? Then this test
+ * MUST bow out: the kernel allows a second listener on a port the app already holds (SO_REUSEPORT), so
+ * a stub can bind 15152 alongside the app and the extension's request goes to whichever the kernel
+ * picks — observed here, with the add landing in the developer's real app. Same guard, same reason, as
+ * interception.spec.js.
+ */
+async function appAnsweringInRange() {
+  for (const port of [15151, ...STUB_PORTS]) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/ping`, { signal: AbortSignal.timeout(1500) });
+      if (res.status > 0) return port;
+    } catch { /* nothing there */ }
+  }
+  return null;
+}
+
 /** Minimal stub of the app's local API: answers /ping for discovery and records every add. */
 function startAddRecorder() {
   const adds = [];
@@ -97,6 +114,8 @@ test("choosing a quality sends the MASTER plus that quality's id, not the rendit
   // A rendition of a master that keeps its audio in a separate #EXT-X-MEDIA group is VIDEO ONLY, so
   // the app downloaded a file with no sound. The app has to receive the master to be able to attach
   // the audio track, plus the id of the quality the user picked.
+  const running = await appAnsweringInRange();
+  test.skip(running != null, `a real app is answering on ${running} — it would receive this test's add`);
   const app = await startAddRecorder();
   test.skip(!app, "no free port in the app range for the stub");
   try {
