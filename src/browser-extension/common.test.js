@@ -24,7 +24,7 @@ const {
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
-  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME
+  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -1276,6 +1276,46 @@ test("asking the app what it can handle survives an old app, an error and no app
     let called = false;
     global.fetch = async () => { called = true; };
     assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null), { handled: false, by: null });
+    assert.equal(called, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+
+// ── The qualities the app offers for a page ──────────────────────────────────────────────────────
+// Sending the page used to download whatever the site happened to be playing, with no way to ask for
+// audio-only or a smaller copy. The popup now shows the app's own picker on the row.
+
+test("the page's qualities come back from the app, and every failure reads as no choices", async () => {
+  const realFetch = global.fetch;
+  try {
+    let sent = null;
+    global.fetch = async (url, init) => {
+      sent = { url, body: JSON.parse(init.body) };
+      return { ok: true, json: async () => ({ variants: [{ id: "audio", label: "Audio only" }] }) };
+    };
+    const answer = await appPageVariants("https://youtube.com/watch?v=a", [{ name: "SID", value: "x" }], 15151);
+    assert.deepEqual(answer.variants, [{ id: "audio", label: "Audio only" }]);
+    // The session travels with the question: YouTube lists nothing for an anonymous caller, so asking
+    // without the cookies we already hold would report "no choices" for the very pages this is for.
+    assert.equal(sent.body.cookies.length, 1);
+    assert.match(sent.url, /\/api\/variants$/);
+
+    // An app older than this endpoint 404s: no picker, and the row stays one plain download.
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.deepEqual((await appPageVariants("https://youtube.com/watch?v=a", [], 15151)).variants, []);
+
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.deepEqual((await appPageVariants("https://youtube.com/watch?v=a", [], 15151)).variants, []);
+
+    // A lookup the app reports as failed is still an answer, not an exception.
+    global.fetch = async () => ({ ok: true, json: async () => ({ variants: [], error: "sign-in needed" }) });
+    assert.equal((await appPageVariants("https://youtube.com/watch?v=a", [], 15151)).error, "sign-in needed");
+
+    let called = false;
+    global.fetch = async () => { called = true; };
+    assert.deepEqual((await appPageVariants("https://youtube.com/watch?v=a", [], null)).variants, []);
     assert.equal(called, false);
   } finally {
     global.fetch = realFetch;

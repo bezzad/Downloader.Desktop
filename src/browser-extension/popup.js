@@ -16,6 +16,7 @@ let siteState = { mode: "normal", message: null }; // set once the app has been 
 let currentPageUrl = "";
 let currentPageTitle = "";
 let currentGroups = [];
+let pageVariants = []; // the app's qualities for THIS page, once it has answered
 const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
 async function activeTab() {
@@ -38,6 +39,14 @@ function fileName(url) {
     const p = new URL(url).pathname;
     return decodeURIComponent(p.split("/").pop()) || url;
   } catch { return url; }
+}
+
+// What identifies one option inside its card. The URL alone doesn't: a page's qualities are all the
+// SAME url (the page) distinguished only by the variant the app should extract, so keying the
+// <select> by URL would collapse them onto whichever came first.
+function optionKey(opt) {
+  if (!opt) return "";
+  return opt.variantId ? `${opt.url}#${opt.variantId}` : opt.url;
 }
 
 // "720p" stays as-is; short word tokens read better upper-cased in a compact dropdown ("HD").
@@ -160,7 +169,7 @@ function buildCard(group, thumbSrc) {
     select.className = "quality";
     for (const opt of group.options) {
       const o = document.createElement("option");
-      o.value = opt.url;
+      o.value = optionKey(opt);
       o.textContent = opt.label || fileName(opt.url);
       select.appendChild(o);
     }
@@ -173,8 +182,8 @@ function buildCard(group, thumbSrc) {
   meta.appendChild(sizeEl);
 
   const currentOption = () => {
-    const url = select ? select.value : group.options[0]?.url;
-    return group.options.find(o => o.url === url) || group.options[0];
+    const key = select ? select.value : optionKey(group.options[0]);
+    return group.options.find(o => optionKey(o) === key) || group.options[0];
   };
   const updateSize = () => {
     const opt = currentOption();
@@ -201,13 +210,28 @@ function buildCard(group, thumbSrc) {
 // The active page as a one-option group, so it renders through the SAME card builder as everything
 // else. Its URL is the page's: the app re-reads the page with the plugin that claimed it and picks the
 // stream itself, which is the only way to get the video off a site whose player hides the file.
+// Its options are the qualities the APP reported for the page (1080p, 720p, audio-only …) — the same
+// picker the Add window shows, on the row itself, because most of the time what is wanted is not the
+// quality that happened to be playing: it's the audio, or a smaller copy. Until the app answers (or
+// when it offers no real choice) the row keeps its single implicit option and downloads the app's own
+// best pick, exactly as before.
 function pageGroup() {
+  const options = pageVariants.length
+    ? pageVariants.map(v => ({
+        url: v.url || currentPageUrl,
+        sendUrl: v.url || currentPageUrl,
+        variantId: v.url ? null : v.id, // a variant that IS its own link substitutes the URL instead
+        label: v.label || v.id,
+        size: typeof v.size === "number" ? v.size : null,
+        approx: true
+      }))
+    : [{ url: currentPageUrl, label: null, size: null, approx: false }];
   return {
     key: currentPageUrl,
     kind: "page",
     title: currentPageTitle || fileName(currentPageUrl) || currentPageUrl,
     note: siteState.handler ? `Video page · ${siteState.handler}` : "Video page",
-    options: [{ url: currentPageUrl, label: null, size: null, approx: false }],
+    options,
   };
 }
 
@@ -363,6 +387,9 @@ async function loadDetected() {
   if (isUnsupportedHost) {
     const { handled, by } = await send("canHandlePage", { url: tab.url });
     siteState = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: handled, handlerName: by });
+    // Upgrades the page row in place when it answers; the lookup runs the site tool and can take a few
+    // seconds, so it must never hold up the first paint below.
+    if (handled) loadPageVariants(tab.url);
   }
   const { media } = await send("getMedia", { tabId: tab.id });
   for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
@@ -370,6 +397,13 @@ async function loadDetected() {
   // Both upgrade the list in place; neither delays this first paint.
   probeAndRender();
   collectThumbnails().then(render);
+}
+
+async function loadPageVariants(url) {
+  const { variants } = await send("pageVariants", { url });
+  if (!variants || !variants.length) return; // no choice to offer — the row stays as it is
+  pageVariants = variants;
+  render();
 }
 
 async function scanPageLinks() {
@@ -402,8 +436,8 @@ document.getElementById("scanLinks").onclick = scanPageLinks;
 document.getElementById("sendAll").onclick = async () => {
   for (const g of currentGroups) {
     const select = selectsByGroup.get(g.key);
-    const url = select ? select.value : g.options[0]?.url;
-    await sendOption(g.options.find(o => o.url === url) || g.options[0]);
+    const key = select ? select.value : optionKey(g.options[0]);
+    await sendOption(g.options.find(o => optionKey(o) === key) || g.options[0]);
   }
 };
 

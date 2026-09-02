@@ -272,6 +272,9 @@ public static class LocalApiService
                 case "can-handle":
                     HandleCanHandle(ctx);
                     break;
+                case "variants":
+                    await HandleVariantsAsync(ctx).ConfigureAwait(false);
+                    break;
                 case "list":
                     await HandleListAsync(ctx, manager).ConfigureAwait(false);
                     break;
@@ -319,6 +322,81 @@ public static class LocalApiService
             ["handled"] = by != null,
             ["by"] = by,
         });
+    }
+
+    /// <summary>The qualities behind a page URL, so a client can offer the same picker the Add window
+    /// does — the browser extension shows them on the page's row (audio-only, 1080p, 720p…). Takes the
+    /// caller's cookies like <c>/api/add</c> does: on a site that only answers a signed-in session,
+    /// listing the qualities needs the session just as much as downloading them, so an anonymous lookup
+    /// would report "no choices" for exactly the pages this exists for. Answers 200 with an empty list
+    /// when nothing claims the link or it has no real choice; a resolver FAILURE answers 200 too, with
+    /// the reason, so the caller still shows the page as one plain download instead of an error.</summary>
+    private static async Task HandleVariantsAsync(HttpListenerContext ctx)
+    {
+        ApiAddRequest req;
+        if (ctx.Request.HttpMethod == "POST")
+        {
+            var body = await ReadBodyAsync(ctx.Request).ConfigureAwait(false);
+            req = body == null
+                ? new ApiAddRequest { Error = $"request body too large (max {MaxBodyBytes} bytes)" }
+                : ApiAddRequest.FromJson(body);
+        }
+        else
+        {
+            req = ApiAddRequest.FromQuery(ctx.Request.Url);
+        }
+
+        if (req.Error != null)
+        {
+            RespondJson(ctx, 400, new Dictionary<string, object> { ["error"] = req.Error });
+            return;
+        }
+
+        var url = req.Url.Trim();
+        string cookieFile = null;
+        if (req.Cookies is { Count: > 0 })
+        {
+            try { cookieFile = CookieFile.WriteTempFile(req.Cookies); }
+            catch (Exception ex) { AppLog.Warn($"Couldn't write temp cookie file: {ex.Message}"); }
+        }
+
+        var response = new Dictionary<string, object>
+        {
+            ["url"] = url,
+            ["by"] = Plugins?.FindResolverPluginName(url),
+        };
+        try
+        {
+            // The extraction behind this can take a few seconds (it runs the site tool); the caller
+            // renders first and upgrades when this answers, so there is no deadline here beyond the
+            // client's own.
+            var variants = Plugins == null
+                ? null
+                : await Plugins.GetVariantsAsync(url, new global::Downloader.Desktop.Plugins.ResolveOptions { CookieFilePath = cookieFile }, CancellationToken.None)
+                    .ConfigureAwait(false);
+            response["variants"] = (variants ?? Array.Empty<global::Downloader.Desktop.Plugins.LinkVariant>()).Select(v => new Dictionary<string, object>
+            {
+                ["id"] = v.Id,
+                ["label"] = v.Label,
+                ["size"] = v.ExpectedSize,
+                ["default"] = v.IsDefault,
+                ["url"] = v.SubstituteUrl,
+            }).ToArray();
+        }
+        catch (Exception ex)
+        {
+            // A lookup that fails is not a failed request: the page can still be handed over as a whole
+            // and the app will pick a stream itself. Say why, and let the caller decide what to show.
+            AppLog.Warn($"Variant lookup failed for a local-API caller: {ex.Message}");
+            response["variants"] = Array.Empty<object>();
+            response["error"] = ex.Message;
+        }
+        finally
+        {
+            try { if (cookieFile != null) File.Delete(cookieFile); } catch { /* temp file, best effort */ }
+        }
+
+        RespondJson(ctx, 200, response);
     }
 
     /// <summary>What a local client needs to pre-fill its own UI: where downloads go by default, and which

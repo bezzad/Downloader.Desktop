@@ -295,7 +295,10 @@ async function sendToApp(url, filename, context) {
   const port = await discoverAppPort();
   if (port == null) return false;
   const base = appBase(port);
-  if (await getAddMode() === "silent") {
+  // A chosen variant can only travel over the local API: the legacy dialog endpoint carries a URL and
+  // nothing else, so opening the dialog would silently discard the quality the user just picked. The
+  // explicit pick wins over the general "open the dialog" preference.
+  if (await getAddMode() === "silent" || context?.variantId) {
     // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
     const cookies = await captureCookies(url);
     // The extension's own folder, unless the caller already resolved one. An unset folder sends
@@ -514,6 +517,37 @@ async function pingApp() {
 async function askAppCanHandlePage(url) {
   const port = await discoverAppPort();
   return await appCanHandlePage(url, port);
+}
+
+// The qualities behind a page the app claims (1080p / 720p / audio-only …), asked of the app's
+// /api/variants. The session travels with the question: YouTube lists nothing for an anonymous
+// caller, so asking without the cookies we already captured would report "no choices" for exactly
+// the pages this exists for. Never throws — an unreachable or older app (404) answers with an empty
+// list, which renders the page as one plain Download exactly as before this existed.
+async function appPageVariants(url, cookies, port) {
+  if (!url || port == null) return { variants: [], error: null };
+  try {
+    const body = { url };
+    if (cookies && cookies.length) body.cookies = cookies;
+    Object.assign(body, extensionIdentity());
+    const res = await fetch(`${appBase(port)}/api/variants`, withIdentityHeaders({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }));
+    if (!res.ok) return { variants: [], error: null };
+    const json = await res.json();
+    return { variants: Array.isArray(json?.variants) ? json.variants : [], error: json?.error ?? null };
+  } catch {
+    return { variants: [], error: null };
+  }
+}
+
+// As above, discovering the port and capturing the page's live cookies first (background-page use).
+async function askAppPageVariants(url) {
+  const port = await discoverAppPort();
+  if (port == null) return { variants: [], error: null };
+  return await appPageVariants(url, await captureCookies(url), port);
 }
 
 // The version badge in the popup header ("v1.7"). A trailing zero patch is dropped — extension
@@ -1309,6 +1343,7 @@ if (typeof module !== "undefined") {
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
+    appPageVariants, askAppPageVariants,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,

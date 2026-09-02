@@ -214,7 +214,14 @@ public sealed class PluginManager
     /// model tags, …), or null when no resolver claims it or it has no choices. The Add window shows
     /// these; a chosen id goes back through <see cref="ResolveOptions.VariantId"/>. A resolver that
     /// FAILS throws through to the caller so the Add window can explain why there are no options.</summary>
-    public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(string url, CancellationToken cancellationToken)
+        => GetVariantsAsync(url, options: null, cancellationToken);
+
+    /// <summary>As above, forwarding per-request resolve options (e.g. the cookie file a caller captured
+    /// from a live browser session). A site that only answers a signed-in session — YouTube — lists no
+    /// qualities at all without them, so a caller that HAS the session must be able to pass it.</summary>
+    public async Task<IReadOnlyList<LinkVariant>> GetVariantsAsync(
+        string url, ResolveOptions options, CancellationToken cancellationToken)
     {
         // Only the DETECTED resolver's options are shown (same one the Add badge names) — a fallback's
         // generic variants (e.g. "offline copy") must not pollute a video plugin's quality list. Claiming
@@ -229,7 +236,7 @@ public sealed class PluginManager
         {
             try
             {
-                var variants = await resolver.GetVariantsAsync(url, null, cancellationToken).ConfigureAwait(false);
+                var variants = await resolver.GetVariantsAsync(url, options, cancellationToken).ConfigureAwait(false);
                 if (variants is { Count: > 0 })
                     return variants;
                 // Empty = "this resolver has no choices to offer" — a later (fallback) resolver may.

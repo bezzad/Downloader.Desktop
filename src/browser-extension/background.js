@@ -319,6 +319,10 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // What THIS install can do decides the popup's unsupported-site message — the answer depends on
       // which plugins the user has enabled, so only the app can give it.
       sendResponse(await askAppCanHandlePage(msg.url));
+    } else if (msg.type === "pageVariants") {
+      // The qualities the app can get off this page. Asked from here, not the popup, because the
+      // capture of the page's session cookies lives on this side.
+      sendResponse(await askAppPageVariants(msg.url));
     } else {
       sendResponse({});
     }

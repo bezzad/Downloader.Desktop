@@ -1327,3 +1327,24 @@ install, `--root <dir>` targets another plugins root (the snap's lives under
   its already-downloaded tools (yt-dlp/ffmpeg/deno, hundreds of MB) live.
 - A locally installed version ABOVE the catalog's is never "updated" backwards, so a dev copy survives
   the startup update check.
+
+## Quality picker for a page sent from the extension (`/api/variants`)
+
+The extension's page row (a YouTube/x.com page the site-media plugin claims) is a normal card built by
+`popup.js buildCard`, and its `<select>` is filled from the APP, not from anything the extension can
+see: `POST /api/variants {url, cookies}` → `PluginManager.GetVariantsAsync(url, ResolveOptions, ct)` →
+the claiming resolver's `GetVariantsAsync` (`SiteExtractor.ListVariants`: one entry per video height +
+`audio`). Points worth not re-deriving:
+- **The cookies MUST travel with the question.** Listing qualities runs the same extraction as
+  downloading them, so an anonymous lookup on YouTube reports "no choices" for exactly the pages this
+  exists for. The endpoint writes a temp Netscape jar (`CookieFile.WriteTempFile`) and deletes it in a
+  `finally`.
+- **A failed lookup answers 200 with `error`**, not 500: the page can still be handed over whole and the
+  app picks a stream itself, so the row falls back to one plain Download.
+- **Option identity is `optionKey(opt)` = `url#variantId`**, because a page's qualities are all the SAME
+  url; keying the `<select>` by url alone collapses them onto the first.
+- **A picked variant forces the API path** in `common.js sendToApp` even in "dialog" add-mode — the
+  legacy `/add?url=` endpoint carries a URL and nothing else, so the dialog would discard the pick.
+- The app's own Add dialog still looks variants up ANONYMOUSLY (`MainViewModel` → `getVariants`), so a
+  hand-pasted YouTube link shows the "needs a signed-in session" note rather than a picker. Sending the
+  page from the extension is the path that has the session.
