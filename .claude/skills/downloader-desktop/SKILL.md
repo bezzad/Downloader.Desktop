@@ -1295,3 +1295,19 @@ probed/deduped/thumbnailed) and gains `sendUrl` (the master) + `variantId`; `sen
   nothing can act on (and would put every existing resolver test on the network).
 - **A probe that cannot REACH the server never rejects a link** (`ProbeVerdict.Unknown`) — an offline box
   must not turn every download into "this site refused it".
+
+## Testing a local build of an OPTIONAL plugin (no release needed)
+`scripts/dev-run.sh` = build the solution in Release → copy each optional plugin's dll+deps.json into
+`~/.config/Downloader/plugins/<id>/` → `dotnet run -c Release --no-build`. `--no-run` stops after the
+install, `--root <dir>` targets another plugins root (the snap's lives under
+`~/snap/downloader/current/.config/Downloader/plugins`), `-- <args>` are passed to the app.
+- The plugins root is **per-user, not per-install** (`PluginManager.PluginsRoot`), so a `dotnet run`
+  from the repo loads exactly the same installed plugins as a packaged app — that is what makes this
+  work at all. Built-in plugins (GitHub, Ollama) need nothing: the app csproj stages them into its own
+  output.
+- **Restart is mandatory** — a plugin assembly is cached by path once loaded (see the plugin-update
+  swap note above), so copying over a running app changes nothing.
+- Keep the destination folder named by the plugin id: it is the plugin's identity on disk and where
+  its already-downloaded tools (yt-dlp/ffmpeg/deno, hundreds of MB) live.
+- A locally installed version ABOVE the catalog's is never "updated" backwards, so a dev copy survives
+  the startup update check.
