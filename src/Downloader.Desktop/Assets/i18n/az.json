@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Bu kompüterdə dəstəklənən brauzer tapılmadı.",
   "Ext_NoBuild": "Uzantının yükləməsinə çatmaq olmadı. Bağlantınızı yoxlayıb yenidən cəhd edin.",
   "Ext_PickABrowser": "Əvvəlcə ən azı bir brauzer seçin.",
-  "Ext_NeedsNewerApp": "Bu brauzer Downloader-in daha yeni versiyasını tələb edir. Əvvəlcə tətbiqi yeniləyin.",
   "Ext_Install": "Faylları al",
   "Ext_OpenStore": "Mağaza səhifəsini aç",
   "Ext_CopyPath": "Qovluq yolunu kopyala",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Ləğv et",
   "Err_OpenFolder": "Qovluq açıla bilmədi",
   "Err_OpenFolder_NoPath": "Bu yükləmə üçün saxlanmış qovluq yoxdur.",
-  "Err_OpenFolder_Detail": "Qovluq açıla bilmədi: {0}"
+  "Err_OpenFolder_Detail": "Qovluq açıla bilmədi: {0}",
+  "Ext_UsingBundled": "Tətbiqlə gələn nüsxə istifadə olunur. Növbəti buraxılışdan yenilənəcək."
 }

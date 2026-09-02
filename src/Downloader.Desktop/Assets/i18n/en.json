@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "No supported browser was found on this computer.",
   "Ext_NoBuild": "Could not reach the download for the extension. Check your connection and try again.",
   "Ext_PickABrowser": "Pick at least one browser first.",
-  "Ext_NeedsNewerApp": "This browser needs a newer version of Downloader. Update the app first, then try again.",
   "Ext_Install": "Get the files",
   "Ext_OpenStore": "Open the store page",
   "Ext_CopyPath": "Copy folder path",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Cancel",
   "Err_OpenFolder": "Couldn't open the folder",
   "Err_OpenFolder_NoPath": "This download has no folder saved.",
-  "Err_OpenFolder_Detail": "Couldn't open the folder: {0}"
+  "Err_OpenFolder_Detail": "Couldn't open the folder: {0}",
+  "Ext_UsingBundled": "Using the copy included with the app. It will update from the next release."
 }

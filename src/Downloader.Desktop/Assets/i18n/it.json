@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Nessun browser supportato trovato su questo computer.",
   "Ext_NoBuild": "Impossibile raggiungere il download dell'estensione. Controlla la connessione e riprova.",
   "Ext_PickABrowser": "Scegli prima almeno un browser.",
-  "Ext_NeedsNewerApp": "Questo browser richiede una versione più recente di Downloader. Aggiorna l'app e riprova.",
   "Ext_Install": "Ottieni i file",
   "Ext_OpenStore": "Apri la pagina dello store",
   "Ext_CopyPath": "Copia il percorso della cartella",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Annulla",
   "Err_OpenFolder": "Impossibile aprire la cartella",
   "Err_OpenFolder_NoPath": "Questo download non ha una cartella salvata.",
-  "Err_OpenFolder_Detail": "Impossibile aprire la cartella: {0}"
+  "Err_OpenFolder_Detail": "Impossibile aprire la cartella: {0}",
+  "Ext_UsingBundled": "Viene usata la copia inclusa nell'app. Si aggiornerà dalla prossima versione."
 }

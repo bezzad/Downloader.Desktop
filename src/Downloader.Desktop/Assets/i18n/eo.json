@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Neniu subtenata retumilo troviĝis en ĉi tiu komputilo.",
   "Ext_NoBuild": "Ne eblis atingi la elŝuton de la kromprogramo. Kontrolu vian konekton kaj reprovu.",
   "Ext_PickABrowser": "Unue elektu almenaŭ unu retumilon.",
-  "Ext_NeedsNewerApp": "Ĉi tiu retumilo bezonas pli novan version de Downloader. Unue ĝisdatigu la aplikaĵon.",
   "Ext_Install": "Akiri la dosierojn",
   "Ext_OpenStore": "Malfermi la vendejan paĝon",
   "Ext_CopyPath": "Kopii dosierujan vojon",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Nuligi",
   "Err_OpenFolder": "Ne eblis malfermi la dosierujon",
   "Err_OpenFolder_NoPath": "Ĉi tiu elŝuto havas neniun konservitan dosierujon.",
-  "Err_OpenFolder_Detail": "Ne eblis malfermi la dosierujon: {0}"
+  "Err_OpenFolder_Detail": "Ne eblis malfermi la dosierujon: {0}",
+  "Ext_UsingBundled": "Uzante la kopion inkluditan en la aplikaĵo. Ĝi ĝisdatiĝos ekde la sekva eldono."
 }

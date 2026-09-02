@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "이 컴퓨터에서 지원되는 브라우저를 찾을 수 없습니다.",
   "Ext_NoBuild": "확장 프로그램 다운로드에 접근할 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.",
   "Ext_PickABrowser": "먼저 브라우저를 하나 이상 선택하세요.",
-  "Ext_NeedsNewerApp": "이 브라우저에는 더 새로운 버전의 Downloader가 필요합니다. 먼저 앱을 업데이트하세요.",
   "Ext_Install": "파일 받기",
   "Ext_OpenStore": "스토어 페이지 열기",
   "Ext_CopyPath": "폴더 경로 복사",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "취소",
   "Err_OpenFolder": "폴더를 열 수 없습니다",
   "Err_OpenFolder_NoPath": "이 다운로드에 저장된 폴더가 없습니다.",
-  "Err_OpenFolder_Detail": "폴더를 열 수 없습니다: {0}"
+  "Err_OpenFolder_Detail": "폴더를 열 수 없습니다: {0}",
+  "Ext_UsingBundled": "앱에 포함된 사본을 사용합니다. 다음 릴리스부터 업데이트됩니다."
 }

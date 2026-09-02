@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Bu bilgisayarda desteklenen bir tarayıcı bulunamadı.",
   "Ext_NoBuild": "Eklentinin indirmesine ulaşılamadı. Bağlantınızı kontrol edip yeniden deneyin.",
   "Ext_PickABrowser": "Önce en az bir tarayıcı seçin.",
-  "Ext_NeedsNewerApp": "Bu tarayıcı Downloader'ın daha yeni bir sürümünü gerektiriyor. Önce uygulamayı güncelleyin.",
   "Ext_Install": "Dosyaları al",
   "Ext_OpenStore": "Mağaza sayfasını aç",
   "Ext_CopyPath": "Klasör yolunu kopyala",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "İptal",
   "Err_OpenFolder": "Klasör açılamadı",
   "Err_OpenFolder_NoPath": "Bu indirme için kayıtlı bir klasör yok.",
-  "Err_OpenFolder_Detail": "Klasör açılamadı: {0}"
+  "Err_OpenFolder_Detail": "Klasör açılamadı: {0}",
+  "Ext_UsingBundled": "Uygulamayla gelen kopya kullanılıyor. Sonraki sürümden itibaren güncellenecek."
 }

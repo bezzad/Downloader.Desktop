@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "このコンピューターでサポート対象のブラウザーが見つかりませんでした。",
   "Ext_NoBuild": "拡張機能のダウンロードに到達できませんでした。接続を確認して再試行してください。",
   "Ext_PickABrowser": "先にブラウザーを 1 つ以上選んでください。",
-  "Ext_NeedsNewerApp": "このブラウザーには新しいバージョンの Downloader が必要です。先にアプリを更新してください。",
   "Ext_Install": "ファイルを取得",
   "Ext_OpenStore": "ストアページを開く",
   "Ext_CopyPath": "フォルダーのパスをコピー",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "キャンセル",
   "Err_OpenFolder": "フォルダーを開けませんでした",
   "Err_OpenFolder_NoPath": "このダウンロードにはフォルダーが保存されていません。",
-  "Err_OpenFolder_Detail": "フォルダーを開けませんでした: {0}"
+  "Err_OpenFolder_Detail": "フォルダーを開けませんでした: {0}",
+  "Ext_UsingBundled": "アプリに同梱されたコピーを使用します。次のリリースから更新されます。"
 }

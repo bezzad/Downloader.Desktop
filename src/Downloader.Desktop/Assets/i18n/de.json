@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Auf diesem Computer wurde kein unterstützter Browser gefunden.",
   "Ext_NoBuild": "Der Download der Erweiterung war nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "Ext_PickABrowser": "Wählen Sie zuerst mindestens einen Browser.",
-  "Ext_NeedsNewerApp": "Dieser Browser benötigt eine neuere Version von Downloader. Aktualisieren Sie die App und versuchen Sie es erneut.",
   "Ext_Install": "Dateien holen",
   "Ext_OpenStore": "Store-Seite öffnen",
   "Ext_CopyPath": "Ordnerpfad kopieren",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Abbrechen",
   "Err_OpenFolder": "Ordner konnte nicht geöffnet werden",
   "Err_OpenFolder_NoPath": "Für diesen Download ist kein Ordner gespeichert.",
-  "Err_OpenFolder_Detail": "Ordner konnte nicht geöffnet werden: {0}"
+  "Err_OpenFolder_Detail": "Ordner konnte nicht geöffnet werden: {0}",
+  "Ext_UsingBundled": "Es wird die mit der App gelieferte Kopie verwendet. Sie wird ab der nächsten Version aktualisiert."
 }

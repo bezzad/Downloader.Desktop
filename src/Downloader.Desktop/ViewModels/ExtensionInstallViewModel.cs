@@ -100,15 +100,27 @@ public class ExtensionTargetRow : ViewModelBase
     public BrowserFamily Family { get; }
     public ExtensionCatalogEntry Entry { get; }
 
-    /// <summary>Null when the running app is too old for every published build of this family.</summary>
-    public bool HasBuild => Entry != null;
+    /// <summary>
+    /// There is always something to install: the release catalog when it is reachable, otherwise the copy
+    /// bundled with the app. A release published before this feature existed carries no catalog at all,
+    /// so without the bundled floor this would be false on every machine today.
+    /// </summary>
+    public bool HasBuild => true;
+
+    /// <summary>True when the build on offer is the app's own copy rather than the published catalog.</summary>
+    public bool IsBundled => Entry == null;
 
     /// <summary>A published store listing turns the manual steps into a footnote. Its absence is what
     /// makes the manual path primary — never a dead link.</summary>
     public bool UseStore => Entry?.HasStore == true;
 
     public string StoreUrl => Entry?.StoreUrl;
-    public string AvailableVersion => Entry?.Version;
+
+    /// <summary>The version that would be installed — the catalog's, or the bundled copy's.</summary>
+    public string AvailableVersion => Entry?.Version ?? BundledVersion;
+
+    /// <summary>Set by the view model so the row can report the bundled version without reaching out.</summary>
+    public string BundledVersion { get; init; } = "";
 
     public string Title => Entry?.Name ?? (Family == BrowserFamily.Gecko
         ? Localizer.Instance["Ext_Family_Gecko"]
@@ -167,6 +179,8 @@ public class ExtensionInstallViewModel : ViewModelBase
     private readonly Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> _install;
     private readonly Func<string, string> _lastSeenVersion;
     private readonly Func<string, string> _installedPath;
+    private readonly Func<string, bool, ExtensionInstallResult> _installBundled;
+    private readonly Func<string> _bundledVersion;
 
     private IReadOnlyList<ExtensionCatalogEntry> _catalog = Array.Empty<ExtensionCatalogEntry>();
     private CancellationTokenSource _cts;
@@ -176,8 +190,12 @@ public class ExtensionInstallViewModel : ViewModelBase
         Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> fetchCatalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeenVersion = null,
-        Func<string, string> installedPath = null)
+        Func<string, string> installedPath = null,
+        Func<string, bool, ExtensionInstallResult> installBundled = null,
+        Func<string> bundledVersion = null)
     {
+        _installBundled = installBundled ?? ExtensionInstallService.InstallBundled;
+        _bundledVersion = bundledVersion ?? ExtensionInstallService.BundledVersion;
         _detect = detect ?? BrowserDetector.Detect;
         _fetchCatalog = fetchCatalog ?? ExtensionCatalogService.FetchAsync;
         _install = install ?? ExtensionInstallService.InstallAsync;
@@ -256,7 +274,7 @@ public class ExtensionInstallViewModel : ViewModelBase
 
     public bool HasBrowsers => Browsers.Count > 0;
 
-    public bool CanInstall => !IsBusy && Targets.Any(t => t.HasBuild && !t.UseStore);
+    public bool CanInstall => !IsBusy && Targets.Any(t => !t.UseStore);
 
     /// <summary>Detect the browsers, read the catalog, and reconcile both against what is already
     /// installed and what has actually called us. Safe to call again — it is the Refresh command too.</summary>
@@ -280,9 +298,9 @@ public class ExtensionInstallViewModel : ViewModelBase
             if (!HasBrowsers)
                 Notice = Localizer.Instance["Ext_NoBrowsers"];
             else if (_catalog.Count == 0)
-                // Offline, no release, or every published build needs a newer app. All three end here,
-                // and saying "couldn't reach" is honest about all of them.
-                Notice = Localizer.Instance["Ext_NoBuild"];
+                // Offline, no release, or a release older than this feature. The app's own copy is
+                // installed instead, so this is information rather than a dead end.
+                Notice = Localizer.Instance["Ext_UsingBundled"];
         }
         finally
         {
@@ -299,7 +317,11 @@ public class ExtensionInstallViewModel : ViewModelBase
         foreach (var family in Browsers.Select(b => b.Family).Distinct().OrderBy(f => f))
         {
             var entry = EntryFor(family);
-            Targets.Add(new ExtensionTargetRow(family, entry, entry == null ? null : _installedPath(entry.Id)));
+            var targetId = family == BrowserFamily.Gecko ? "firefox" : "chrome";
+            Targets.Add(new ExtensionTargetRow(family, entry, _installedPath(entry?.Id ?? targetId))
+            {
+                BundledVersion = _bundledVersion(),
+            });
         }
         this.RaisePropertyChanged(nameof(CanInstall));
     }
@@ -345,19 +367,18 @@ public class ExtensionInstallViewModel : ViewModelBase
             foreach (var family in families)
             {
                 var target = Targets.FirstOrDefault(t => t.Family == family);
-                if (target == null || !target.HasBuild)
-                {
-                    // The app is older than every published build for this family. Saying so is the
-                    // point — offering a build whose API this app cannot serve produces a broken
-                    // extension and a confused user.
-                    ErrorMessage = Localizer.Instance["Ext_NeedsNewerApp"];
+                if (target == null)
                     continue;
-                }
                 if (target.UseStore)
                     continue;   // nothing to unpack: the store installs and updates it
 
-                var result = await _install(target.Entry,
-                    new Progress<double>(p => Progress = p), _cts.Token).ConfigureAwait(true);
+                // No catalog entry means the release could not be reached, or predates this feature —
+                // install the copy that ships inside the app rather than leaving the user with nothing.
+                var result = target.IsBundled
+                    ? _installBundled(target.Family == BrowserFamily.Gecko ? "firefox" : "chrome",
+                                      target.Family == BrowserFamily.Gecko)
+                    : await _install(target.Entry,
+                        new Progress<double>(p => Progress = p), _cts.Token).ConfigureAwait(true);
 
                 if (result.Success)
                     target.InstalledPath = result.Path;

@@ -100,7 +100,7 @@ public class ExtensionInstallLocalizationTests
         "Ext_Steps_Chromium_1", "Ext_Steps_Chromium_2", "Ext_Steps_Chromium_3",
         "Ext_Steps_Gecko_1", "Ext_Steps_Gecko_2", "Ext_Steps_Gecko_3",
         "Ext_Limits_Chromium", "Ext_Limits_Gecko",
-        "Ext_NoBrowsers", "Ext_NoBuild", "Ext_PickABrowser", "Ext_NeedsNewerApp",
+        "Ext_NoBrowsers", "Ext_NoBuild", "Ext_PickABrowser", "Ext_UsingBundled",
         "Ext_Install", "Ext_OpenStore", "Ext_CopyPath", "Ext_OpenFolder", "Ext_FolderLabel",
         "Ext_StepsTitle", "Ext_Refresh", "Ext_Cancel",
     };

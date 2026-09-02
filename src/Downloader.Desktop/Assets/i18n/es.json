@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "No se encontró ningún navegador compatible en este equipo.",
   "Ext_NoBuild": "No se pudo acceder a la descarga de la extensión. Comprueba tu conexión e inténtalo de nuevo.",
   "Ext_PickABrowser": "Elige al menos un navegador primero.",
-  "Ext_NeedsNewerApp": "Este navegador necesita una versión más reciente de Downloader. Actualiza la app y vuelve a intentarlo.",
   "Ext_Install": "Obtener los archivos",
   "Ext_OpenStore": "Abrir la página de la tienda",
   "Ext_CopyPath": "Copiar ruta de la carpeta",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Cancelar",
   "Err_OpenFolder": "No se pudo abrir la carpeta",
   "Err_OpenFolder_NoPath": "Esta descarga no tiene carpeta guardada.",
-  "Err_OpenFolder_Detail": "No se pudo abrir la carpeta: {0}"
+  "Err_OpenFolder_Detail": "No se pudo abrir la carpeta: {0}",
+  "Ext_UsingBundled": "Se usa la copia incluida con la aplicación. Se actualizará desde la próxima versión."
 }

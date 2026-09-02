@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Não foi encontrado nenhum navegador suportado neste computador.",
   "Ext_NoBuild": "Não foi possível acessar a transferência da extensão. Verifique a sua ligação e tente novamente.",
   "Ext_PickABrowser": "Escolha primeiro pelo menos um navegador.",
-  "Ext_NeedsNewerApp": "Este navegador precisa de uma versão mais recente do Downloader. Atualize a aplicação e tente novamente.",
   "Ext_Install": "Obter os ficheiros",
   "Ext_OpenStore": "Abrir a página da loja",
   "Ext_CopyPath": "Copiar caminho da pasta",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Cancelar",
   "Err_OpenFolder": "Não foi possível abrir a pasta",
   "Err_OpenFolder_NoPath": "Esta transferência não tem pasta guardada.",
-  "Err_OpenFolder_Detail": "Não foi possível abrir a pasta: {0}"
+  "Err_OpenFolder_Detail": "Não foi possível abrir a pasta: {0}",
+  "Ext_UsingBundled": "A usar a cópia incluída na aplicação. Será atualizada a partir da próxima versão."
 }

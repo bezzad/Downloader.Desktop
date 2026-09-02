@@ -98,18 +98,24 @@ public class ExtensionInstallViewModelTests
         Assert.False(vm.HasError);
     }
 
+    /// <summary>
+    /// No catalog is the NORMAL state today: every release published before this feature carries no
+    /// extension-catalog.json, so an installer that gave up here would be dead on arrival — which is
+    /// exactly what the author hit. The app's own copy is installed instead.
+    /// </summary>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task An_empty_catalog_says_so_without_erroring()
+    public async Task An_empty_catalog_falls_back_to_the_copy_bundled_with_the_app()
     {
-        // Offline, no release, or every build needs a newer app — all three land here.
         var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>());
 
         await vm.LoadAsync();
 
-        Assert.True(vm.HasNotice);
-        Assert.False(vm.HasError);
-        Assert.False(vm.CanInstall);
-        Assert.False(Assert.Single(vm.Targets).HasBuild);
+        Assert.True(vm.HasNotice);        // it says which copy it is using
+        Assert.False(vm.HasError);        // …but this is not a failure
+        Assert.True(vm.CanInstall);
+        var target = Assert.Single(vm.Targets);
+        Assert.True(target.HasBuild);
+        Assert.True(target.IsBundled);
     }
 
     // ---- store path vs manual path ----
@@ -361,19 +367,34 @@ public class ExtensionInstallViewModelTests
         Assert.False(Assert.Single(vm.Targets).IsUnpacked);
     }
 
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task A_family_this_app_is_too_old_for_says_so_instead_of_installing()
+    /// <summary>
+    /// A family the catalog cannot serve — unreachable, or gated out by minAppVersion — installs the
+    /// bundled copy, which by construction matches the running app. There is no longer a state where the
+    /// user is told to update the app before they can get the extension.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_family_the_catalog_cannot_serve_installs_the_bundled_copy()
     {
-        Localizer.Instance.Load("en");   // these assert on real text, not raw keys
-        // The catalog gate already dropped the entry, so the family has no build at all.
-        var vm = Vm(new[] { Firefox }, Array.Empty<ExtensionCatalogEntry>());
+        var installedBundled = new List<(string Target, bool Gecko)>();
+        var vm = new ExtensionInstallViewModel(
+            detect: () => new[] { Firefox },
+            fetchCatalog: _ => Task.FromResult<IReadOnlyList<ExtensionCatalogEntry>>(Array.Empty<ExtensionCatalogEntry>()),
+            install: (_, _, _) => throw new InvalidOperationException("the catalog path must not be used here"),
+            lastSeenVersion: _ => null,
+            installedPath: _ => null,
+            installBundled: (target, gecko) =>
+            {
+                installedBundled.Add((target, gecko));
+                return ExtensionInstallResult.Ok("/data/extension/" + target, "1.8.0");
+            },
+            bundledVersion: () => "1.8.0");
         await vm.LoadAsync();
 
         await vm.InstallSelectedAsync();
 
-        Assert.True(vm.HasError);
-        Assert.DoesNotContain("Ext_", vm.ErrorMessage);     // the key resolved to real text
-        Assert.False(Assert.Single(vm.Targets).IsUnpacked);
+        Assert.False(vm.HasError);
+        Assert.Equal(("firefox", true), Assert.Single(installedBundled));   // and with the gecko manifest
+        Assert.True(Assert.Single(vm.Targets).IsUnpacked);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

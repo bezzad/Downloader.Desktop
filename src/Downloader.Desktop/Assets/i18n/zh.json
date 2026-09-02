@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "在此电脑上未找到受支持的浏览器。",
   "Ext_NoBuild": "无法获取扩展的下载文件。请检查网络连接后重试。",
   "Ext_PickABrowser": "请先选择至少一个浏览器。",
-  "Ext_NeedsNewerApp": "此浏览器需要更新版本的 Downloader。请先更新应用后重试。",
   "Ext_Install": "获取文件",
   "Ext_OpenStore": "打开商店页面",
   "Ext_CopyPath": "复制文件夹路径",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "取消",
   "Err_OpenFolder": "无法打开文件夹",
   "Err_OpenFolder_NoPath": "此下载没有保存文件夹。",
-  "Err_OpenFolder_Detail": "无法打开文件夹：{0}"
+  "Err_OpenFolder_Detail": "无法打开文件夹：{0}",
+  "Ext_UsingBundled": "正在使用应用内附带的副本。将从下一个版本开始更新。"
 }

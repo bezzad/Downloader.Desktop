@@ -332,7 +332,6 @@
   "Ext_NoBrowsers": "Aucun navigateur pris en charge n'a été trouvé sur cet ordinateur.",
   "Ext_NoBuild": "Impossible d'accéder au téléchargement de l'extension. Vérifiez votre connexion et réessayez.",
   "Ext_PickABrowser": "Choisissez d'abord au moins un navigateur.",
-  "Ext_NeedsNewerApp": "Ce navigateur nécessite une version plus récente de Downloader. Mettez l'application à jour, puis réessayez.",
   "Ext_Install": "Obtenir les fichiers",
   "Ext_OpenStore": "Ouvrir la page du magasin",
   "Ext_CopyPath": "Copier le chemin du dossier",
@@ -343,5 +342,6 @@
   "Ext_Cancel": "Annuler",
   "Err_OpenFolder": "Impossible d'ouvrir le dossier",
   "Err_OpenFolder_NoPath": "Aucun dossier n'est enregistré pour ce téléchargement.",
-  "Err_OpenFolder_Detail": "Impossible d'ouvrir le dossier : {0}"
+  "Err_OpenFolder_Detail": "Impossible d'ouvrir le dossier : {0}",
+  "Ext_UsingBundled": "La copie fournie avec l'application est utilisée. Elle se mettra à jour dès la prochaine version."
 }

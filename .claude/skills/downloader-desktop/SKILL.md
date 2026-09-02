@@ -1192,3 +1192,25 @@ with the class run ALONE and passed alongside `AppShellStartupTests`/`DialogFlow
 `DeferringScheduler`), i.e. order-dependent in both directions. Pin it for the assertion
 (`RxApp.MainThreadScheduler = ImmediateScheduler.Instance`, restore in `finally` — it is process-wide) or
 await the underlying method directly.
+
+## The extension installer needs a BUNDLED copy — the catalog alone is dead on arrival (2026-09-02)
+- **Symptom**: "Install browser extension" installs nothing and the folder button has nothing to open;
+  `~/.config/Downloader/extension/` does not exist.
+- **Cause, and it is a design trap worth remembering**: the installer reads its build from
+  `extension-catalog.json` on the LATEST GitHub release — an asset that only exists from the release that
+  ships the feature onward. Every already-published release carries none, so on every machine today the
+  catalog fetch legitimately returns empty. A feature whose whole point is "see that it worked" could not
+  be verified before being shipped. Check it with
+  `gh release view --repo bezzad/Downloader.Desktop --json assets --jq '.assets[].name'`.
+- **Fix**: the app bundles a copy of `src/browser-extension` as `AvaloniaResource` under
+  `Assets/extension/` (~110 KB) and `ExtensionInstallService.InstallBundled(target, gecko)` writes it out,
+  picking `manifest.firefox.json` → `manifest.json` for gecko. **The catalog still wins when reachable**, so
+  the extension keeps updating independently of the app — the bundle is the floor, not the source of truth.
+  No sha256 is involved on that path and none is needed: the bytes come from the app binary, not the network.
+- **Keep `ExtensionInstallService.BundledFiles` in step with `COMMON` in `scripts/build-extension.sh`** — a
+  file in the zip but not the bundle makes the bundled install a browser rejects outright. Guarded by
+  `Unit/BundledExtensionTests.The_bundled_file_list_matches_the_release_packaging_script`.
+- Side effect: the "your app is too old for this build" state is now unreachable (the bundled copy always
+  matches the running app), so that i18n key was removed from all 16 packs.
+- **General lesson**: before building a feature that fetches from "the latest release", ask what it does on
+  the release that introduces it. If the answer is "nothing", it cannot be tested before shipping.

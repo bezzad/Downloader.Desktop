@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Platform;
 using Downloader.Desktop.Models;
 
 namespace Downloader.Desktop.Services;
@@ -179,6 +180,103 @@ public static class ExtensionInstallService
 
             AppLog.Error($"Unpacking the browser extension to '{target}' failed", ex);
             return ExtensionInstallResult.Fail($"Could not unpack the extension: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The files bundled with the app, in the order the extension needs them. Kept in step with
+    /// <c>COMMON</c> in <c>scripts/build-extension.sh</c> — a file that ships in the zip but not here
+    /// would produce a bundled install a browser refuses to load, so a test compares the two lists.
+    /// </summary>
+    internal static readonly string[] BundledFiles =
+    {
+        "background.js", "common.js",
+        "popup.html", "popup.css", "popup.js",
+        "options.html", "options.css", "options.js",
+        "icons/icon16.png", "icons/icon48.png", "icons/icon128.png",
+    };
+
+    /// <summary>
+    /// Installs the copy that ships inside the app, for when the release catalog cannot be reached — or
+    /// does not carry a build yet, which is the state of every release published before this feature
+    /// existed. <b>This is what makes the installer work on a fresh machine, offline, and on the very
+    /// release that introduces it.</b>
+    ///
+    /// <para>No checksum is involved and none is needed: these bytes came out of the application binary
+    /// the user already trusts, not off the network. The catalog path keeps its hard verification gate.</para>
+    /// </summary>
+    public static ExtensionInstallResult InstallBundled(string targetId, bool gecko)
+    {
+        var target = TargetPath(targetId);
+        var staging = target + ".new";
+        try
+        {
+            Directory.CreateDirectory(InstallRoot);
+            if (Directory.Exists(staging))
+                Directory.Delete(staging, recursive: true);
+            Directory.CreateDirectory(staging);
+
+            // A gecko browser needs its own manifest, under the name every browser looks for.
+            var manifest = gecko ? "manifest.firefox.json" : "manifest.json";
+            CopyBundled(manifest, Path.Combine(staging, "manifest.json"));
+            foreach (var file in BundledFiles)
+                CopyBundled(file, Path.Combine(staging, file.Replace('/', Path.DirectorySeparatorChar)));
+
+            var version = ReadBundledVersion(Path.Combine(staging, "manifest.json"));
+            File.WriteAllText(Path.Combine(staging, MarkerFile), JsonSerializer.Serialize(new InstalledExtension
+            {
+                Target = targetId,
+                Version = version,
+                InstalledAt = DateTimeOffset.Now,
+            }));
+
+            if (Directory.Exists(target))
+                Directory.Delete(target, recursive: true);
+            Directory.Move(staging, target);
+            return ExtensionInstallResult.Ok(target, version);
+        }
+        catch (Exception ex)
+        {
+            try { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+            catch { /* best-effort */ }
+            AppLog.Error($"Installing the bundled extension to '{target}' failed", ex);
+            return ExtensionInstallResult.Fail($"Could not unpack the extension: {ex.Message}");
+        }
+    }
+
+    /// <summary>The version of the copy bundled with this app.</summary>
+    public static string BundledVersion()
+    {
+        try
+        {
+            using var stream = AssetLoader.Open(new Uri("avares://Downloader.Desktop/Assets/extension/manifest.json"));
+            using var doc = JsonDocument.Parse(stream);
+            return doc.RootElement.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static void CopyBundled(string name, string destination)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        using var source = AssetLoader.Open(new Uri($"avares://Downloader.Desktop/Assets/extension/{name}"));
+        using var dest = File.Create(destination);
+        source.CopyTo(dest);
+    }
+
+    private static string ReadBundledVersion(string manifestPath)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            return doc.RootElement.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
+        }
+        catch
+        {
+            return "";
         }
     }
 
