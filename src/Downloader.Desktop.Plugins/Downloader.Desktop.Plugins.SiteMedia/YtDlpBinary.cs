@@ -53,10 +53,13 @@ public sealed class YtDlpBinary : IYtDlp
         if (!string.IsNullOrEmpty(cookieFilePath))
         {
             _log.LogInformation("Trying extension-supplied cookies for {Url}", url);
-            var (co, _, ccode) = await RunAsync(exe, BuildArgs(url, cookieFilePath, deno), cancellationToken)
+            var (co, cstderr, ccode) = await RunAsync(exe, BuildArgs(url, cookieFilePath, deno), cancellationToken)
                 .ConfigureAwait(false);
             if (ccode == 0 && !string.IsNullOrWhiteSpace(co))
+            {
+                WarnAboutTokenGatedFormats(cstderr);
                 return co;
+            }
             _log.LogWarning("Supplied cookies didn't work (exit {Code}); trying anonymously", ccode); // never logs cookie values
         }
 
@@ -64,7 +67,10 @@ public sealed class YtDlpBinary : IYtDlp
         var (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, deno), cancellationToken)
             .ConfigureAwait(false);
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
+        {
+            WarnAboutTokenGatedFormats(stderr);
             return stdout;
+        }
 
         // The cached tool would otherwise stay frozen forever while the sites it extracts change every few
         // weeks — a stale binary is the single most common cause of "this link used to work". Refresh only
@@ -98,17 +104,64 @@ public sealed class YtDlpBinary : IYtDlp
             $"Couldn't extract a video from this link. {FriendlyError(stderr)}".Trim());
     }
 
-    // -J: dump one JSON object, no download. --no-warnings keeps stdout clean JSON. There is deliberately
+    // -J: dump one JSON object on stdout, no download. Warnings are deliberately NOT suppressed: they go
+    // to stderr (stdout stays parseable JSON) and they are how YouTube's own reason for a later 403
+    // reaches our log — "<client> client https formats require a GVS PO Token which was not provided.
+    // They will be skipped as they may yield HTTP Error 403." Without them a refused link looks
+    // inexplicable. There is deliberately
     // no --cookies-from-browser here or anywhere else: reading a browser's cookie store is exactly the
     // infostealer behaviour the extension exists to avoid (issue #4, guarded by NoShellSpawnTests).
     internal static string BuildArgs(string url, string? cookieFile, string? denoPath, string? extractorArgs = null) =>
         (denoPath is null ? "" : $"--js-runtimes \"deno:{denoPath}\" ")
         + (cookieFile is null ? "" : $"--cookies \"{cookieFile}\" ")
         + (string.IsNullOrEmpty(extractorArgs) ? "" : $"--extractor-args \"{extractorArgs}\" ")
-        + $"-J --no-warnings --no-playlist \"{url}\"";
+        + $"-J --no-playlist \"{url}\"";
 
     /// <summary>Extractor-args routing x.com/Twitter through the cookie-free public syndication API.</summary>
     internal const string SyndicationArgs = "twitter:api=syndication";
+
+    /// <summary>Logs yt-dlp's own explanation when the formats it just handed back are the kind YouTube
+    /// serves only against a token this app cannot mint — the reason a download that was planned from a
+    /// perfectly successful extraction then dies on its first request with 403.</summary>
+    private void WarnAboutTokenGatedFormats(string stderr)
+    {
+        if (MentionsMissingToken(stderr))
+            _log.LogWarning("YouTube wants a PO token for these formats: {Warning}", Tail(stderr));
+    }
+
+    /// <summary>True when yt-dlp said the formats need a GVS PO token it did not have.</summary>
+    internal static bool MentionsMissingToken(string stderr) =>
+        !string.IsNullOrEmpty(stderr)
+        && stderr.Contains("PO Token", StringComparison.OrdinalIgnoreCase)
+        && stderr.Contains("not provided", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Extractor-args pinning YouTube to one player client.</summary>
+    internal static string YouTubeClientArgs(string client) => $"youtube:player_client={client}";
+
+    /// <summary>One extraction pinned to a specific player client, with no fallback ladder: the caller
+    /// (<see cref="SiteMediaResolver"/>) is already walking a list of clients and decides what to try
+    /// next, so a failure here is just "that client didn't work".</summary>
+    public async Task<string> ExtractJsonAsync(
+        string url, string? cookieFilePath, string? playerClient, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(playerClient))
+            return await ExtractJsonAsync(url, cookieFilePath, cancellationToken).ConfigureAwait(false);
+
+        var exe = await EnsureYtDlpAsync(cancellationToken).ConfigureAwait(false);
+        var deno = await TryEnsureDenoAsync(cancellationToken).ConfigureAwait(false);
+        _log.LogInformation("Re-extracting {Url} through the {Client} player client", url, playerClient);
+
+        var args = BuildArgs(url, cookieFilePath, deno, YouTubeClientArgs(playerClient));
+        var (stdout, stderr, exitCode) = await RunAsync(exe, args, cancellationToken).ConfigureAwait(false);
+        if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
+        {
+            WarnAboutTokenGatedFormats(stderr);
+            return stdout;
+        }
+
+        _log.LogWarning("The {Client} player client failed (exit {Code}): {Err}", playerClient, exitCode, Tail(stderr));
+        throw new InvalidOperationException($"Couldn't extract this link through {playerClient}.");
+    }
 
     /// <summary>True for an x.com / twitter.com page (incl. subdomains), without matching look-alikes
     /// such as <c>x.com.evil.com</c>.</summary>

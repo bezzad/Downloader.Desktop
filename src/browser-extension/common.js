@@ -45,7 +45,7 @@ async function discoverAppPort(probe = pingPort, cachedPort = null) {
 // Does the app answer /ping on this port? Never throws.
 async function pingPort(port) {
   try {
-    const res = await fetch(`${APP_HOST}:${port}/ping`, { method: "GET" });
+    const res = await fetch(withIdentity(`${APP_HOST}:${port}/ping`), withIdentityHeaders({ method: "GET" }));
     return res.status > 0;
   } catch {
     return false;
@@ -85,21 +85,25 @@ function appBase(port) {
 
 // Media we can hand to the engine: direct HTTP(S) files + adaptive-streaming manifests. (YouTube and
 // other encrypted/DRM streaming sites are NOT supported — they don't expose a direct, fetchable URL.)
+// NOTE: `.mpd` (MPEG-DASH) is deliberately NOT here. The app can download one (the streaming plugin
+// handles DASH), but a DASH manifest cannot be size-probed and carries no quality the popup can read,
+// so it always listed as a nameless, sizeless row that the ordering rule below could say nothing
+// about — the ambiguity the author asked to remove. A `.mpd` link can still be pasted into the
+// popup's own box (which sends any URL) or added in the app directly.
 const MEDIA_EXTENSIONS = [
   "mp4", "mkv", "webm", "mov", "avi", "flv", "m4v", "mpg", "mpeg", "ts",
   "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma",
-  "m3u8", // HLS playlist
-  "mpd"   // MPEG-DASH manifest
+  "m3u8"  // HLS playlist
 ];
 const MEDIA_CONTENT_TYPES = [
   "video/", "audio/",
-  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl",
-  "application/dash+xml"
+  "application/vnd.apple.mpegurl", "application/x-mpegurl", "application/mpegurl"
 ];
 
 // A manifest describes a stream rather than being one downloadable file, so it is never grouped or
-// size-probed like a plain media URL — the app expands it after the link is sent over.
-const MANIFEST_EXTENSIONS = ["m3u8", "mpd"];
+// size-probed like a plain media URL — the app expands it after the link is sent over. Only HLS is
+// listed: see the MEDIA_EXTENSIONS note above for why `.mpd` is not surfaced.
+const MANIFEST_EXTENSIONS = ["m3u8"];
 
 function isManifest(url) {
   return MANIFEST_EXTENSIONS.includes(extOf(url));
@@ -227,11 +231,11 @@ async function captureCookies(url) {
 // rather than "dropped".
 async function postAdd(base, body) {
   try {
-    const res = await fetch(`${base}/api/add`, {
+    const res = await fetch(`${base}/api/add`, withIdentityHeaders({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    });
+    }));
     let json = null;
     try { json = await res.json?.(); } catch { /* an older app may answer with no/!JSON body */ }
     return { ok: !!res.ok, status: res.status, json };
@@ -245,6 +249,12 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   // can't carry them). Otherwise keep the original URL-only GET path unchanged.
   const referer = context?.referer;
   const headers = context?.headers;
+  // Where the user told the extension to save. Deliberately NOT part of `hasContext`: a folder travels
+  // fine in a query, so a plain send keeps using the GET form it always did.
+  const savePath = typeof context?.savePath === "string" ? context.savePath.trim() : "";
+  // Which rendition of an expandable link (an HLS master's qualities) the user picked. Like savePath it
+  // travels fine in a query, so it is deliberately NOT part of `hasContext`.
+  const variantId = typeof context?.variantId === "string" ? context.variantId.trim() : "";
   const hasContext = (cookies && cookies.length) || referer || (headers && Object.keys(headers).length);
   if (hasContext) {
     const body = { url };
@@ -255,6 +265,9 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
     // precondition. The app applies it to that download only (issue #7).
     if (referer) body.referer = referer;
     if (headers && Object.keys(headers).length) body.headers = headers;
+    if (savePath) body.path = savePath;
+    if (variantId) body.variantId = variantId;
+    Object.assign(body, extensionIdentity());
     const res = await postAdd(base, body);
     if (res.ok) return "ok";
     if (res.status === 404) return "fallback";
@@ -262,8 +275,10 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   }
   let endpoint = `${base}/api/add?url=${encodeURIComponent(url)}`;
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
+  if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
+  if (variantId) endpoint += `&variantId=${encodeURIComponent(variantId)}`;
   try {
-    const res = await fetch(endpoint, { method: "GET" });
+    const res = await fetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }));
     if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
     if (res.status === 404) return "fallback";
     return "fail";
@@ -280,16 +295,22 @@ async function sendToApp(url, filename, context) {
   const port = await discoverAppPort();
   if (port == null) return false;
   const base = appBase(port);
-  if (await getAddMode() === "silent") {
+  // A chosen variant can only travel over the local API: the legacy dialog endpoint carries a URL and
+  // nothing else, so opening the dialog would silently discard the quality the user just picked. The
+  // explicit pick wins over the general "open the dialog" preference.
+  if (await getAddMode() === "silent" || context?.variantId) {
     // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
     const cookies = await captureCookies(url);
-    const silent = await sendToAppSilently(base, url, filename, cookies, context);
+    // The extension's own folder, unless the caller already resolved one. An unset folder sends
+    // nothing and the app applies its own setting, exactly as before this existed.
+    const savePath = context?.savePath ?? await getSavePath();
+    const silent = await sendToAppSilently(base, url, filename, cookies, { ...context, savePath });
     if (silent === "ok") return true;
     if (silent === "fail") return false;
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
   }
   try {
-    const res = await fetch(`${base}/add?url=${encodeURIComponent(url)}`, { method: "GET" });
+    const res = await fetch(withIdentity(`${base}/add?url=${encodeURIComponent(url)}`), withIdentityHeaders({ method: "GET" }));
     return res.ok;
   } catch {
     return false;
@@ -336,7 +357,7 @@ async function confirmAppFetching(base, id, opts) {
   for (;;) {
     let rows = null;
     try {
-      const res = await fetch(`${base}/api/list`);
+      const res = await fetch(withIdentity(`${base}/api/list`), withIdentityHeaders());
       if (res?.ok) rows = await res.json?.();
     } catch { /* the app went away mid-wait — treated as "not confirmed" below */ }
 
@@ -362,6 +383,57 @@ function browserUserAgent() {
   } catch {
     return "";
   }
+}
+
+// ---------------- Telling the app which extension is talking to it ----------------
+//
+// The app can only warn "your extension is out of date" if it knows what is installed, and nothing was
+// telling it. This rides along on the requests the extension ALREADY makes — no extra request, no extra
+// permission — as query parameters on the GET forms, JSON fields on the POST form, and a header so /ping
+// carries it too.
+//
+// Never throws: an identity we could not read is worth far less than the request it is attached to, so
+// every failure yields {} and the request goes out exactly as it did before (same rule as captureCookies).
+
+// A coarse label, not a fingerprint: enough for the app to say "your Chrome extension", nothing more.
+// Firefox is the one that exposes `browser`; Edge is the Chromium build whose UA names Edg.
+function browserLabel() {
+  try {
+    if (typeof globalThis.browser !== "undefined" && globalThis.browser?.runtime) return "firefox";
+    if (/\bEdg\//.test(browserUserAgent())) return "edge";
+    return "chrome";
+  } catch {
+    return "chrome";
+  }
+}
+
+// { extVersion, browser } — or {} when the manifest is unreadable.
+function extensionIdentity() {
+  try {
+    const version = api?.runtime?.getManifest?.().version;
+    if (typeof version !== "string" || !version) return {};
+    return { extVersion: version, browser: browserLabel() };
+  } catch {
+    return {};
+  }
+}
+
+// Appends the identity to a URL that may already carry a query string.
+function withIdentity(url) {
+  const id = extensionIdentity();
+  if (!id.extVersion) return url;
+  const sep = String(url).includes("?") ? "&" : "?";
+  return `${url}${sep}extv=${encodeURIComponent(id.extVersion)}&extb=${encodeURIComponent(id.browser)}`;
+}
+
+// Merges the identity into a fetch() init's headers, leaving anything already there alone.
+function withIdentityHeaders(init = {}) {
+  const id = extensionIdentity();
+  if (!id.extVersion) return init;
+  return {
+    ...init,
+    headers: { ...(init.headers || {}), "X-Downloader-Extension": `${id.extVersion}; ${id.browser}` }
+  };
 }
 
 async function handOffToApp(url, filename, context) {
@@ -395,6 +467,12 @@ async function handOffToApp(url, filename, context) {
   if (cookies.length) body.cookies = cookies;
   if (referer) body.referer = referer;
   if (headers) body.headers = headers;
+  // The folder the user set in the extension's settings. Absent when unset, so the app keeps deciding.
+  // A folder the app refuses (not an absolute path) makes this a 400, i.e. `ok: false` — which the
+  // interception caller reads as "leave the browser's own download alone", never as a silent loss.
+  const savePath = context?.savePath ?? await getSavePath();
+  if (savePath) body.path = savePath;
+  Object.assign(body, extensionIdentity());
 
   const res = await postAdd(appBase(port), body);
   if (!res.ok) {
@@ -439,6 +517,45 @@ async function pingApp() {
 async function askAppCanHandlePage(url) {
   const port = await discoverAppPort();
   return await appCanHandlePage(url, port);
+}
+
+// The qualities behind a page the app claims (1080p / 720p / audio-only …), asked of the app's
+// /api/variants. The session travels with the question: YouTube lists nothing for an anonymous
+// caller, so asking without the cookies we already captured would report "no choices" for exactly
+// the pages this exists for. Never throws — an unreachable or older app (404) answers with an empty
+// list, which renders the page as one plain Download exactly as before this existed.
+async function appPageVariants(url, cookies, port) {
+  if (!url || port == null) return { variants: [], error: null };
+  try {
+    const body = { url };
+    if (cookies && cookies.length) body.cookies = cookies;
+    Object.assign(body, extensionIdentity());
+    const res = await fetch(`${appBase(port)}/api/variants`, withIdentityHeaders({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }));
+    if (!res.ok) return { variants: [], error: null };
+    const json = await res.json();
+    return { variants: Array.isArray(json?.variants) ? json.variants : [], error: json?.error ?? null };
+  } catch {
+    return { variants: [], error: null };
+  }
+}
+
+// As above, discovering the port and capturing the page's live cookies first (background-page use).
+async function askAppPageVariants(url) {
+  const port = await discoverAppPort();
+  if (port == null) return { variants: [], error: null };
+  return await appPageVariants(url, await captureCookies(url), port);
+}
+
+// The version badge in the popup header ("v1.7"). A trailing zero patch is dropped — extension
+// releases bump the patch far more often than the minor, and "v1.7.0" reads noisier for a badge
+// than "v1.7" while a real patch ("v1.7.1") still shows in full so it's never hidden.
+function shortVersion(version) {
+  if (typeof version !== "string" || !version) return "";
+  return version.replace(/\.0$/, "");
 }
 
 // ---------------- Media metadata probing (popup: size/resolution/quality) ----------------
@@ -607,7 +724,7 @@ const SITE_MEDIA_PLUGIN_NAME = "Video sites (YouTube and others)";
 async function appCanHandlePage(url, port) {
   if (!url || port == null) return { handled: false, by: null };
   try {
-    const res = await fetch(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`);
+    const res = await fetch(withIdentity(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`), withIdentityHeaders());
     if (!res.ok) return { handled: false, by: null };
     const body = await res.json();
     return { handled: body?.handled === true, by: body?.by ?? null };
@@ -623,13 +740,11 @@ async function appCanHandlePage(url, port) {
 // and signing in again changes nothing (issue #9 follow-up).
 function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName }) {
   if (!hostUnsupported) return { mode: "normal", message: null };
-  if (appHandlesPage) {
-    return {
-      mode: "offer",
-      message: "This site's player hides the video file, but Downloader can fetch this page itself"
-        + (handlerName ? ` (${handlerName})` : "") + ". Send the page to the app.",
-    };
-  }
+  // The app CAN take this page, so there is nothing to explain and nothing to warn about: the popup
+  // shows the page as an ordinary row with a Download button, exactly like a sniffed file. A block of
+  // red text where the video item belongs was the whole complaint — it read as an error for a page
+  // that downloads perfectly well. `handler` is the plugin's name, shown as the row's quiet sub-line.
+  if (appHandlesPage) return { mode: "offer", message: null, handler: handlerName || null };
   return {
     mode: "unsupported",
     message: "This site streams video in a format Downloader can't capture from the page. "
@@ -648,32 +763,223 @@ function isPlausibleMediaSize(size) {
   return size == null || size >= MIN_MEDIA_BYTES;
 }
 
-// Decides which group(s) count as "Main media" for a tab, given its captured items and the
-// latest visibility/playing hint from content.js. Pure and testable — see design.md Decisions 8-9.
+// How the popup orders its one list. Two rules, in this order:
 //
-// Blob: URLs mean we can't map a DOM element directly to the network URLs it caused, so this is a
-// best-effort proxy: when the content script confirms something is CURRENTLY visible/loaded on
-// the page (a "fresh" hint), promote whichever group(s) had the most recent network activity —
-// real playback keeps fetching segments close to "now"; a static, already-loaded, possibly PAUSED
-// video (v1.2.0's exact bug: a paused video was never promoted because the old logic required
-// "currently playing" AND matched the item's original, possibly stale, capture time) is still the
-// most recently active group relative to older/unrelated page noise.
-// Shared "how close together counts as the same moment" window for the hint-freshness check and
-// the group-activity-recency check below.
-const MAIN_WINDOW_MS = 3000;
+//   1. an HLS master (`.m3u8`) leads — it is the page's actual stream and expands into every quality
+//      the site offers, so it is never something a user has to scroll past;
+//   2. everything else is ranked by QUALITY first (1080p above 720p) and, when no quality can be
+//      read from the link, by SIZE (the bigger file is the better copy).
+//
+// Ranking by file type alone (the first attempt at this) was ambiguous: it could not say why a tiny
+// 360p mp4 sat above a 1080p webm, since type says nothing about which copy of a video is the good
+// one. Quality does, and size stands in for it when the link doesn't name one.
+//
+// It replaced the "Main media vs Other detected" split, which promoted a group only when a visibility
+// hint from a content script happened to be fresh at the exact moment the popup asked — on a feed page
+// whose player has finished autoplaying (x.com being the site this is used on most) that hint is
+// routinely stale, so the real video was demoted into a collapsed section. Nothing here reads a clock,
+// playback state, or any guess about what the user is looking at.
 
-function computeMainGroups(items, hint, nowMs, windowMs = MAIN_WINDOW_MS) {
-  const hintFresh = !!hint && (nowMs - hint.atMs) <= windowMs;
-  if (!hintFresh || items.length === 0) return new Set();
-  const lastActivityByGroup = new Map();
-  for (const item of items) {
-    const prior = lastActivityByGroup.get(item.group) ?? 0;
-    if (item.capturedAt > prior) lastActivityByGroup.set(item.group, item.capturedAt);
+// Heights we accept as a real video quality. Below/above this a "quality" is noise, not a rendition.
+const MIN_QUALITY_HEIGHT = 144;
+const MAX_QUALITY_HEIGHT = 4320;
+
+// Named shorthands sites use instead of a height. Only unambiguous ones: `hd`, `high`, `low` and
+// friends are deliberately absent — they are relative to a stream we cannot see, and inventing a
+// number for them would order the list on a fiction.
+const QUALITY_WORDS = { "4k": 2160, "8k": 4320, "2k": 1440 };
+
+// The vertical resolution a piece of text names, or null. Reads "1080p", "1920x1080" and "4K".
+function qualityHeight(text) {
+  if (typeof text !== "string" || !text) return null;
+  const t = text.toLowerCase();
+  const word = QUALITY_WORDS[t.trim()];
+  if (word) return word;
+  const dims = t.match(/(\d{2,5})\s*[x×]\s*(\d{2,5})/); // "1920x1080" — the HLS variant label form
+  if (dims) {
+    const h = parseInt(dims[2], 10);
+    if (h >= MIN_QUALITY_HEIGHT && h <= MAX_QUALITY_HEIGHT) return h;
   }
-  const latest = Math.max(...lastActivityByGroup.values());
-  const mainGroups = new Set();
-  for (const [group, t] of lastActivityByGroup) if (latest - t <= windowMs) mainGroups.add(group);
-  return mainGroups;
+  const p = t.match(/(?:^|[^\d])(\d{3,4})p(?:[^a-z]|$)/); // "1080p", "_720p."
+  if (p) {
+    const h = parseInt(p[1], 10);
+    if (h >= MIN_QUALITY_HEIGHT && h <= MAX_QUALITY_HEIGHT) return h;
+  }
+  for (const [wordKey, h] of Object.entries(QUALITY_WORDS))
+    if (new RegExp(`(?:^|[^a-z0-9])${wordKey}(?:[^a-z0-9]|$)`).test(t)) return h;
+  return null;
+}
+
+// The quality a media URL names anywhere in its path — not just in a trailing token, because plenty
+// of CDNs put the rendition in a directory (`/1080p/video.mp4`, `/hls/1280x720/seg.ts`).
+function qualityHeightFromUrl(url) {
+  try {
+    return qualityHeight(decodeURIComponent(new URL(url).pathname));
+  } catch {
+    return qualityHeight(typeof url === "string" ? url : "");
+  }
+}
+
+// The best quality known for a group: from an option's label (an HLS variant's "1920x1080", or a
+// direct file's "720p" picker entry) or from its URL. -1 when nothing names one, so a group of
+// unknown quality falls below every group whose quality was readable and is then ranked on size.
+function groupQualityHeight(group) {
+  let best = -1;
+  for (const opt of group?.options || []) {
+    const h = qualityHeight(opt?.label) ?? qualityHeightFromUrl(opt?.url);
+    if (typeof h === "number" && h > best) best = h;
+  }
+  return best;
+}
+
+// True for the one type that always leads: an HLS master playlist.
+function leadsList(group) {
+  return extOf(groupTypeUrl(group)) === "m3u8";
+}
+
+// The URL that identifies a group: for a manifest the group key IS the manifest, otherwise the
+// group's first option.
+function groupTypeUrl(group) {
+  if (!group) return "";
+  if (group.kind === "hls") return group.key || "";
+  return group.options?.[0]?.url || group.key || "";
+}
+
+// Largest size known for a group, or -1 when nothing has been probed yet.
+function groupKnownSize(group) {
+  let best = -1;
+  for (const opt of group?.options || []) {
+    // `Number(null)` is 0, so a null (= unprobed) size must be rejected BEFORE the numeric check or
+    // an unprobed group would outrank one that was measured at zero.
+    if (typeof opt?.size !== "number" || !Number.isFinite(opt.size)) continue;
+    if (opt.size > best) best = opt.size;
+  }
+  return best;
+}
+
+// Total order: HLS first, then quality, then size, then title. Pure, so the whole ordering rule is
+// testable without a browser. Never mutates its input.
+function sortDetectedGroups(groups) {
+  return [...(groups || [])].sort((a, b) => {
+    const byLead = (leadsList(a) ? 0 : 1) - (leadsList(b) ? 0 : 1);
+    if (byLead !== 0) return byLead;
+    const byQuality = groupQualityHeight(b) - groupQualityHeight(a);
+    if (byQuality !== 0) return byQuality;
+    const bySize = groupKnownSize(b) - groupKnownSize(a);
+    if (bySize !== 0) return bySize;
+    return String(a?.title || a?.key || "").localeCompare(String(b?.title || b?.key || ""));
+  });
+}
+
+// ---------------- Thumbnails ----------------
+
+// A row identified only by the file name parsed out of a signed CDN URL says nothing about which
+// video it is. The popup asks the page for what it can see — a frame drawn from each <video> onto a
+// small canvas, that element's poster, and the page's own social image — and these two pure helpers
+// decide which of those belongs on which row.
+//
+// A `shot` is what the page reported for one element: { src, poster, frame, area }. `frame`/`poster`
+// may be absent (a cross-origin video taints the canvas, and many players have no poster).
+
+// The best image a shot has to offer, most specific first.
+function shotImage(shot) {
+  return shot?.frame || shot?.poster || null;
+}
+
+// Maps media URLs to images, plus a QUEUE of leftover images for elements whose src could not be
+// matched to any group at all (a blob: URL, from a page whose player streams through MSE — it shares
+// nothing with the network URLs that caused it).
+//
+// The queue exists instead of one shared "best" image because a feed page can hold several DISTINCT
+// videos with no exact match for any of them: reusing a single fallback for every unmatched group
+// made every row on a multi-video page show the SAME photo, which reads as broken (v1.8.0 regression
+// on x.com feeds — reported directly: "همون عکس رو تکرار میکند" / "the same photo repeats"). Handing
+// out the real captured images ONE PER GROUP, largest area first, means a page with as many visible
+// players as unmatched groups gets a distinct, plausible photo for each; a page with fewer players
+// than groups runs the queue dry and the rest get the type placeholder — which is honest, unlike a
+// repeated photo that visibly belongs to a different item. The page's own og:image (`pageImage`) is
+// appended LAST and therefore used for AT MOST ONE group — enough to be the right answer on a
+// single-video page, never enough to duplicate across a feed.
+function buildThumbnailIndex(shots, pageImage) {
+  const byUrl = new Map();
+  const unmatched = []; // { image, area } — elements with no http(s) src to key by
+  for (const shot of shots || []) {
+    const image = shotImage(shot);
+    if (!image) continue;
+    if (isHttp(shot.src)) {
+      byUrl.set(shot.src, image);
+      byUrl.set(groupKey(shot.src), image);
+    } else {
+      unmatched.push({ image, area: Number(shot.area) || 0 });
+    }
+  }
+  unmatched.sort((a, b) => b.area - a.area);
+  const queue = unmatched.map(u => u.image);
+  if (pageImage) queue.push(pageImage);
+  return { byUrl, queue };
+}
+
+// A group's own element's image, by exact URL match only — no fallback. Returns null when the group's
+// key/options never appeared as an element's src (the common MSE/blob: case).
+function pickThumbnail(index, group) {
+  if (!index || !group) return null;
+  const candidates = [group.key, ...(group.options || []).map(o => o?.url)];
+  for (const url of candidates) {
+    if (!url) continue;
+    const hit = index.byUrl?.get(url) || index.byUrl?.get(groupKey(url));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+// Assigns each group in `groups` (in the order they will be rendered) a distinct image: its own exact
+// match first, else the next unused image off the shared leftover queue, else null (the popup draws a
+// type placeholder — never a broken image, never a gap, and never someone else's photo). Pure: takes
+// its own copy of the queue, so calling it again (a re-render) reproduces the same assignment instead
+// of handing out whatever is left over from a previous call.
+function assignThumbnails(index, groups) {
+  const queue = [...(index?.queue || [])];
+  const result = new Map();
+  for (const group of groups || []) {
+    result.set(group.key, pickThumbnail(index, group) ?? queue.shift() ?? null);
+  }
+  return result;
+}
+
+// ---------------- Download folder ----------------
+
+// Where the extension tells the app to save. Prefilled on the options page from the app's own default
+// (fetchAppDefaultSavePath) and then owned by the user: an explicit choice here outranks the app's
+// setting, which is the point — the app must not ask, and must not quietly use somewhere else.
+// Unset (the default after an update) means "say nothing", i.e. exactly today's behaviour.
+async function getSavePath() {
+  try {
+    const r = await api.storage.local.get({ savePath: "" });
+    return typeof r.savePath === "string" ? r.savePath.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function setSavePath(path) {
+  try { api.storage.local.set({ savePath: String(path || "").trim() }); } catch { /* optional */ }
+}
+
+// The folder the app is configured to use, so the options page starts from an absolute path that is
+// actually right for this machine. Never throws: an unreachable app, or one too old to answer this
+// endpoint (404), simply yields null and the field stays empty.
+async function fetchAppDefaultSavePath(port = null) {
+  try {
+    const p = port ?? await discoverAppPort();
+    if (p == null) return null;
+    const res = await fetch(withIdentity(`${appBase(p)}/api/settings`), withIdentityHeaders());
+    if (!res.ok) return null;
+    const body = await res.json();
+    const path = body?.defaultSavePath;
+    return typeof path === "string" && path.trim() ? path.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------- Download interception (issue #9) ----------------
@@ -1033,15 +1339,20 @@ if (typeof module !== "undefined") {
   module.exports = {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
     isManifest, MANIFEST_EXTENSIONS,
-    formatBytes, probeSize, parseHlsMaster, estimateHlsSize,
+    formatBytes, shortVersion, probeSize, parseHlsMaster, estimateHlsSize,
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
+    appPageVariants, askAppPageVariants,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
-    computeMainGroups, MAIN_WINDOW_MS,
+    sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+    qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
+    shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
+    getSavePath, setSavePath, fetchAppDefaultSavePath,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
     confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,
+    extensionIdentity, browserLabel, withIdentity, withIdentityHeaders,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
     candidateExts, isPlausiblePathExt,
     rememberResponseHeaders, recallResponseHeaders,

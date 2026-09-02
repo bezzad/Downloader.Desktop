@@ -78,6 +78,7 @@ public sealed class HlsResolver : ILinkResolver
     {
         var (content, baseUri) = await GetAsync(url, headers, ct).ConfigureAwait(false);
 
+        HlsMediaPlaylist? audio = null;
         if (_parser.IsMaster(content))
         {
             var master = _parser.ParseMaster(content, baseUri);
@@ -85,21 +86,50 @@ public sealed class HlsResolver : ILinkResolver
             _log.LogInformation("HLS master playlist: selected variant {Bandwidth} bps ({Resolution})",
                 chosen.Bandwidth, chosen.Resolution ?? "?");
             (content, baseUri) = await GetAsync(chosen.Uri, headers, ct).ConfigureAwait(false);
+
+            // A variant that points at an #EXT-X-MEDIA audio group carries no audio of its own: without
+            // downloading that rendition too, the assembled file plays but is silent.
+            if (master.AudioFor(chosen) is { Uri: { } audioUrl } rendition)
+            {
+                var (audioContent, audioBase) = await GetAsync(audioUrl, headers, ct).ConfigureAwait(false);
+                audio = _parser.ParseMedia(audioContent, audioBase);
+                _log.LogInformation("HLS variant has a separate audio rendition ({Name}, {Segments} segments)",
+                    rendition.Name ?? rendition.GroupId, audio.Segments.Count);
+            }
         }
 
         var media = _parser.ParseMedia(content, baseUri);
 
-        var parts = new List<DownloadPart>(media.Segments.Count + 1);
-        if (media.InitSegmentUri is not null)
-            parts.Add(new DownloadPart { Url = media.InitSegmentUri, Kind = PartKind.Segment, Headers = headers });
-        foreach (var seg in media.Segments)
-            parts.Add(new DownloadPart { Url = seg.Uri, Kind = PartKind.Segment, Headers = headers });
+        var streams = audio is null
+            ? new List<HlsMediaPlaylist> { media }
+            : new List<HlsMediaPlaylist> { media, audio };
+
+        var parts = new List<DownloadPart>(streams.Sum(s => s.Segments.Count + 1));
+        foreach (var stream in streams)
+        {
+            if (stream.InitSegmentUri is not null)
+                parts.Add(new DownloadPart { Url = stream.InitSegmentUri, Kind = PartKind.Segment, Headers = headers });
+            foreach (var seg in stream.Segments)
+                parts.Add(new DownloadPart { Url = seg.Uri, Kind = PartKind.Segment, Headers = headers });
+        }
 
         var recipe = new ConcatRecipe
         {
             HasInitSegment = media.InitSegmentUri is not null,
             OutputExtension = ".mp4",
-            Segments = media.Segments.Select(s => new SegmentEntry
+            // fMP4 segments (an #EXT-X-MAP init segment) must not be handed to ffmpeg as ".ts" — the
+            // wrong hint throws its container probing off.
+            IntermediateExtension = media.InitSegmentUri is not null ? ".mp4" : ".ts",
+            // One group per stream, so the post-processor concatenates video and audio separately and then
+            // muxes them. Absent (null) for a single stream, exactly as every earlier recipe.
+            Streams = audio is null
+                ? null
+                : streams.Select(s => new StreamGroup
+                {
+                    HasInitSegment = s.InitSegmentUri is not null,
+                    SegmentCount = s.Segments.Count,
+                }).ToList(),
+            Segments = streams.SelectMany(s => s.Segments).Select(s => new SegmentEntry
             {
                 Encrypted = s.Key is { } k && k.IsEncrypted,
                 KeyUri = s.Key is { } k2 && k2.IsEncrypted ? k2.Uri : null,
@@ -108,13 +138,13 @@ public sealed class HlsResolver : ILinkResolver
             // The key is fetched at assembly time, by the post-processor, out of a client that knows nothing
             // about this download — so its context has to travel on the recipe. The key is normally served
             // from the same protected origin as the playlist we just fetched with these very headers.
-            KeyHeaders = headers is { Count: > 0 } && media.IsEncrypted
+            KeyHeaders = headers is { Count: > 0 } && streams.Any(st => st.IsEncrypted)
                 ? headers.ToDictionary(h => h.Key, h => h.Value, StringComparer.OrdinalIgnoreCase)
                 : null,
         };
 
-        _log.LogInformation("HLS resolved {Count} segments (encrypted: {Enc}) from {Url}",
-            media.Segments.Count, media.IsEncrypted, url);
+        _log.LogInformation("HLS resolved {Count} segments across {Streams} stream(s) (encrypted: {Enc}) from {Url}",
+            streams.Sum(st => st.Segments.Count), streams.Count, streams.Any(st => st.IsEncrypted), url);
 
         return new DownloadPlan
         {

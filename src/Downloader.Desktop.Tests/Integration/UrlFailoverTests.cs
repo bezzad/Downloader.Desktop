@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -288,6 +288,147 @@ public class UrlFailoverTests
         Assert.True(vm.ForceSingleConnection, "the single-connection retry must have been spent");
         Assert.Equal(Localizer.Instance["Error_ServerRefusedConnections"], vm.ErrorMessage);
         Assert.DoesNotContain("expired", vm.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The v2.8.2 gap, at the level of the decision. A download refused while several chunks were
+    /// in flight must be retried over ONE connection against the address that was refused — not handed to
+    /// the next address at full concurrency.
+    /// <para>
+    /// The reporter's Softpedia secure mirror failed at 4+ connections and succeeded at 1 with the very
+    /// same link, and the app had exactly that retry: it just ran it too late. Every address was spent at
+    /// full concurrency first, so the single-connection attempt fell to whichever address happened to be
+    /// LAST — for a browser hand-off, the clicked page link rather than the mirror holding the file.
+    /// </para></summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_refusal_of_several_connections_is_retried_on_the_same_address_first()
+    {
+        var manager = NewManager(chunkCount: 8);
+        var vm = manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { "https://10.255.255.1/mirror", "https://10.255.255.1/page" },
+            SaveFolder = TempDir(),
+            FileName = "e.zip",
+        }, autoStart: false);
+        vm.PlannedConnections = 8; // what the refused attempt had open (Start captures this for real)
+
+        Assert.True(manager.RaiseFailedForTest(vm, Forbidden()),
+            "a refusal of several connections must earn another attempt, not a Failed row");
+
+        Assert.True(vm.ForceSingleConnection, "the retry must be the one that was proven to work: one connection");
+        Assert.Equal(0, vm.UrlAttempt); // …to the SAME address, which is the only one known to answer
+    }
+
+    /// <summary>The other half of that decision, and the behaviour the reordering must not cost: a 403 to a
+    /// download that had a single connection open says nothing about concurrency, so it still moves to the
+    /// next address.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_lone_request_that_is_refused_still_moves_to_the_next_address()
+    {
+        var manager = NewManager();
+        var vm = manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { "https://10.255.255.1/one", "https://10.255.255.1/two" },
+            SaveFolder = TempDir(),
+            FileName = "f.zip",
+        }, autoStart: false);
+        vm.PlannedConnections = 1;
+
+        Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
+
+        Assert.False(vm.ForceSingleConnection, "there was nothing to back off from");
+        Assert.Equal(1, vm.UrlAttempt);
+    }
+
+    /// <summary>The connection backoff throws the partial file away — a resumed download keeps the chunk
+    /// layout its package was created with, so one connection changes nothing while eight ranges are on
+    /// disk. That makes it the wrong answer for a download that was RESUMING real bytes: a 403 there is an
+    /// expired link, and deleting the partial would destroy a nearly-finished download the refresh path
+    /// can save. So the backoff stays out of the way, and the file survives.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_resumed_download_that_is_refused_keeps_its_partial_file()
+    {
+        var folder = TempDir();
+        var manager = NewManager(chunkCount: 8);
+        var vm = manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { "https://10.255.255.1/mirror", "https://10.255.255.1/page" },
+            SaveFolder = folder,
+            FileName = "g.zip",
+        }, autoStart: false);
+        vm.PlannedConnections = 8;
+        vm.PreAttemptSize = 5_000_000; // this attempt was continuing a download that already had bytes
+        var partial = Path.Combine(folder, "g.zip.download");
+        File.WriteAllBytes(partial, Bytes(4096));
+
+        Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
+
+        Assert.False(vm.ForceSingleConnection, "a resume must not spend the backoff that deletes the file");
+        Assert.True(File.Exists(partial), "the partial file was thrown away on a resume");
+    }
+
+    /// <summary>End to end, with the reordering doing the work: a mirror that answers whole-file requests
+    /// and refuses ranged ones serves the file over its OWN address. The download also carries a dead
+    /// second address, which must never be fetched from — that is what "the same address first" means, and
+    /// it holds whether the app or the engine is the layer that backs off.</summary>
+    [AvaloniaFact(Timeout = 300_000)] // a real download on a small CI runner; see WaitFor
+    public async Task A_mirror_that_refuses_ranges_still_serves_its_own_address()
+    {
+        Localizer.Instance.Load("en");
+        var originalTimeout = DownloadManager.StallTimeout;
+        DownloadManager.StallTimeout = TimeSpan.FromSeconds(5); // process-wide; restored below
+        try
+        {
+            using var server = new PickyServer { RefuseRangeRequests = true };
+            server.Serve("/mirror", Bytes(2 * 1024 * 1024)); // big enough that the engine really splits it
+            server.Refuse("/page", HttpStatusCode.Gone);
+
+            var folder = TempDir();
+            var manager = NewManager(chunkCount: 8);
+            manager.Add(new DownloadItem
+            {
+                Urls = new List<string> { server.Url + "mirror", server.Url + "page" },
+                SaveFolder = folder,
+                FileName = "picky-mirror.bin",
+            }, autoStart: true);
+            var vm = manager.Items[0];
+
+            var saved = Path.Combine(folder, "picky-mirror.bin");
+            await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved),
+                () => $"never arrived: status={vm.Status} single={vm.ForceSingleConnection} "
+                      + $"url={vm.UrlAttempt} err={vm.ErrorMessage} requests=[{string.Join(" ; ", server.Log)}]");
+
+            Assert.Equal(Bytes(2 * 1024 * 1024), File.ReadAllBytes(saved));
+            Assert.Equal(0, server.Hits("/page"));
+        }
+        finally
+        {
+            DownloadManager.StallTimeout = originalTimeout;
+        }
+    }
+
+    /// <summary>And a download that runs out of patience with one address gets its connections back for
+    /// the next one. The usual browser hand-off is a spent signed link followed by a good one, so carrying
+    /// the previous address's punishment forward would quietly turn a capable mirror into a
+    /// one-connection download.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_next_address_starts_at_full_concurrency_again()
+    {
+        var manager = NewManager(chunkCount: 8);
+        var vm = manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { "https://10.255.255.1/spent", "https://10.255.255.1/good" },
+            SaveFolder = TempDir(),
+            FileName = "h.zip",
+        }, autoStart: false);
+        vm.PlannedConnections = 8;
+
+        // First address: refused at eight, then refused alone as well.
+        Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
+        Assert.True(vm.ForceSingleConnection);
+        Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
+
+        Assert.Equal(1, vm.UrlAttempt);
+        Assert.False(vm.ForceSingleConnection, "the second address must not inherit the first one's backoff");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────────

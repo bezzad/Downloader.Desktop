@@ -1,0 +1,9 @@
+<!doctype html>
+<html><body>
+<!-- One page with both an adaptive manifest and a direct file, so the popup's ordering rule
+     (manifests first — common.js sortDetectedGroups) can be checked end to end. -->
+<script>
+  fetch('/videos/movie_720p.mp4'); // detected first, must still be listed BELOW the manifest
+  fetch('/master.m3u8');
+</script>
+</body></html>

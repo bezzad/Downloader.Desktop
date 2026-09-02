@@ -1,21 +1,22 @@
-// Popup UI: shows media detected on the active tab (grouped by video, with a size/quality upgrade
-// pass), lets the user scan page links, paste a URL, and send any/all of them to the desktop app.
-const mainListEl = document.getElementById("mainList");
-const otherListEl = document.getElementById("otherList");
-const mainHeadingEl = document.getElementById("mainHeading");
-const otherSectionEl = document.getElementById("otherSection");
-const otherSummaryEl = document.getElementById("otherSummary");
+// Popup UI: shows media detected on the active tab as ONE list, best copy first (HLS master, then
+// quality, then size — see common.js's sortDetectedGroups for why relevance-ranking was removed),
+// each row with a preview image, a size/quality upgrade pass, and a Download button.
+const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
+const versionEl = document.getElementById("version");
 const appMissingEl = document.getElementById("appMissing");
 
-let rawItems = []; // { url, type, group, capturedAt, main }
+let rawItems = []; // { url, type, group, capturedAt }
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
+let thumbIndex = { byUrl: new Map(), fallback: null };
 let currentTabId = null;
 let isUnsupportedHost = false;
 let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
 let currentPageUrl = "";
+let currentPageTitle = "";
 let currentGroups = [];
+let pageVariants = []; // the app's qualities for THIS page, once it has answered
 const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
 async function activeTab() {
@@ -40,6 +41,14 @@ function fileName(url) {
   } catch { return url; }
 }
 
+// What identifies one option inside its card. The URL alone doesn't: a page's qualities are all the
+// SAME url (the page) distinguished only by the variant the app should extract, so keying the
+// <select> by URL would collapse them onto whichever came first.
+function optionKey(opt) {
+  if (!opt) return "";
+  return opt.variantId ? `${opt.url}#${opt.variantId}` : opt.url;
+}
+
 // "720p" stays as-is; short word tokens read better upper-cased in a compact dropdown ("HD").
 function qualityLabel(url) {
   const token = extractQualityToken(url);
@@ -50,12 +59,10 @@ function qualityLabel(url) {
 // Collapses rawItems into one card per group (see common.js's groupKey / design.md Decision 4),
 // then layers in whatever probeMedia has resolved so far (sizes, and for HLS masters, the real
 // quality variants replacing the single placeholder option).
-// "hls"/"dash" are manifests the app expands; everything else is one directly downloadable file.
+// "hls" is a manifest the app expands into its own qualities; everything else is one directly
+// downloadable file. (DASH is not surfaced at all — see common.js's MEDIA_EXTENSIONS note.)
 function kindOf(url) {
-  const ext = extOf(url);
-  if (ext === "m3u8") return "hls";
-  if (ext === "mpd") return "dash";
-  return "direct";
+  return extOf(url) === "m3u8" ? "hls" : "direct";
 }
 
 function buildGroups() {
@@ -64,10 +71,9 @@ function buildGroups() {
     const key = item.group || groupKey(item.url);
     let g = map.get(key);
     if (!g) {
-      g = { key, kind: kindOf(item.url), main: false, options: [] };
+      g = { key, kind: kindOf(item.url), options: [] };
       map.set(key, g);
     }
-    g.main = g.main || !!item.main;
     if (!g.options.some(o => o.url === item.url))
       g.options.push({ url: item.url, label: null, size: null, approx: false });
   }
@@ -75,8 +81,17 @@ function buildGroups() {
   for (const g of map.values()) {
     const probed = probedByUrl.get(g.key);
     if (g.kind === "hls" && probed?.kind === "hls" && probed.variants.length) {
+      // The row still IDENTIFIES itself by the rendition URL (that is what was probed, deduped and
+      // thumbnailed), but what gets SENT is the MASTER plus the chosen quality's id. A rendition of a
+      // master that keeps its audio in a separate #EXT-X-MEDIA group is video-only, so handing the app
+      // the rendition URL downloaded a video with no sound (reported on x.com). The app re-reads the
+      // master, picks this quality and attaches its audio track. `variantId` is the app-side id scheme
+      // (BANDWIDTH); when a variant declares none, the id is omitted and the app picks its own best —
+      // audio always beats an exact quality match.
       g.options = probed.variants.map(v => ({
         url: v.uri,
+        sendUrl: g.key,
+        variantId: v.bandwidth ? String(v.bandwidth) : null,
         label: v.resolution || (v.bandwidth ? `${Math.round(v.bandwidth / 1000)} kbps` : "Variant"),
         size: v.size,
         approx: true
@@ -111,10 +126,34 @@ function buildGroups() {
   }
   for (const key of childUris) map.delete(key);
 
-  return [...map.values()];
+  return sortDetectedGroups([...map.values()]);
 }
 
-function buildCard(group) {
+// A fixed-size preview slot, so the list never reflows as previews arrive and a source that fails to
+// load falls back to the type placeholder instead of leaving a broken image. `src` is this group's
+// OWN assigned image (see assignThumbnails) — never looked up freshly here, or every card would draw
+// from the same shared fallback and repeat one photo across unrelated items (the x.com regression).
+function buildThumb(group, src) {
+  const slot = document.createElement("div");
+  slot.className = "thumb";
+  const ext = (extOf(groupTypeUrl(group)) || "").toUpperCase();
+  // A page row has no file extension to show — it stands for the video the app will extract.
+  const label = group.kind === "page" ? "PAGE" : (ext ? ext.slice(0, 4) : "FILE");
+  const placeholder = () => {
+    slot.textContent = label;
+    slot.classList.add("placeholder");
+  };
+  if (!src) { placeholder(); return slot; }
+  const img = document.createElement("img");
+  img.alt = "";
+  img.decoding = "async";
+  img.onerror = () => { slot.innerHTML = ""; placeholder(); };
+  img.src = src;
+  slot.appendChild(img);
+  return slot;
+}
+
+function buildCard(group, thumbSrc) {
   const li = document.createElement("li");
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -130,7 +169,7 @@ function buildCard(group) {
     select.className = "quality";
     for (const opt of group.options) {
       const o = document.createElement("option");
-      o.value = opt.url;
+      o.value = optionKey(opt);
       o.textContent = opt.label || fileName(opt.url);
       select.appendChild(o);
     }
@@ -143,13 +182,18 @@ function buildCard(group) {
   meta.appendChild(sizeEl);
 
   const currentOption = () => {
-    const url = select ? select.value : group.options[0]?.url;
-    return group.options.find(o => o.url === url) || group.options[0];
+    const key = select ? select.value : optionKey(group.options[0]);
+    return group.options.find(o => optionKey(o) === key) || group.options[0];
   };
   const updateSize = () => {
     const opt = currentOption();
     const human = opt && formatBytes(opt.size);
-    sizeEl.textContent = human ? (opt.approx ? "~" : "") + human : "";
+    const size = human ? (opt.approx ? "~" : "") + human : "";
+    // Say the quality the row was ranked on — otherwise the order of the list is unexplainable from
+    // looking at it. Only when there is no picker: a picker already shows every quality.
+    const height = select ? -1 : groupQualityHeight(group);
+    const quality = height > 0 ? `${height}p` : "";
+    sizeEl.textContent = [quality, size].filter(Boolean).join(" · ") || group.note || "";
   };
   if (select) select.onchange = updateSize;
   updateSize();
@@ -157,52 +201,76 @@ function buildCard(group) {
   const btn = document.createElement("button");
   btn.className = "primary";
   btn.textContent = "Download";
-  btn.onclick = () => sendOne(currentOption()?.url, btn);
+  btn.onclick = () => sendOption(currentOption(), btn);
 
-  li.append(meta, btn);
+  li.append(buildThumb(group, thumbSrc), meta, btn);
   return li;
 }
 
+// The active page as a one-option group, so it renders through the SAME card builder as everything
+// else. Its URL is the page's: the app re-reads the page with the plugin that claimed it and picks the
+// stream itself, which is the only way to get the video off a site whose player hides the file.
+// Its options are the qualities the APP reported for the page (1080p, 720p, audio-only …) — the same
+// picker the Add window shows, on the row itself, because most of the time what is wanted is not the
+// quality that happened to be playing: it's the audio, or a smaller copy. Until the app answers (or
+// when it offers no real choice) the row keeps its single implicit option and downloads the app's own
+// best pick, exactly as before.
+function pageGroup() {
+  const options = pageVariants.length
+    ? pageVariants.map(v => ({
+        url: v.url || currentPageUrl,
+        sendUrl: v.url || currentPageUrl,
+        variantId: v.url ? null : v.id, // a variant that IS its own link substitutes the URL instead
+        label: v.label || v.id,
+        size: typeof v.size === "number" ? v.size : null,
+        approx: true
+      }))
+    : [{ url: currentPageUrl, label: null, size: null, approx: false }];
+  return {
+    key: currentPageUrl,
+    kind: "page",
+    title: currentPageTitle || fileName(currentPageUrl) || currentPageUrl,
+    note: siteState.handler ? `Video page · ${siteState.handler}` : "Video page",
+    options,
+  };
+}
+
 function render() {
-  // Known-unsupported sites (YouTube, Netflix, …) ALWAYS show the explanatory message and
-  // suppress the list — even when something was incidentally sniffed (e.g. YouTube's own UI
-  // sound-effect mp3s), since none of it is ever the protected video content the user wants.
-  // Real-world fix: v1.2.0 only checked this when zero items existed, so those unrelated sounds
-  // were shown as if they were downloadable.
+  // A page the app itself can download is an ITEM, not a notice: one ordinary row, same thumbnail,
+  // same Download button as any sniffed file. It replaced a block of red explanatory text standing
+  // where the video belonged, which read as an error for a page that downloads perfectly well.
+  if (siteState.mode === "offer" && currentPageUrl) {
+    currentGroups = [pageGroup()];
+    selectsByGroup.clear();
+    listEl.innerHTML = "";
+    listEl.append(buildCard(currentGroups[0], thumbIndex.fallback));
+    emptyEl.style.display = "none";
+    emptyEl.classList.remove("unsupported");
+    return;
+  }
+
+  // A site whose video this install genuinely cannot get ALWAYS says so and suppresses the list —
+  // even when something was incidentally sniffed (e.g. YouTube's own UI sound-effect mp3s), since
+  // none of it is ever the protected video content the user wants. Real-world fix: v1.2.0 only
+  // checked this when zero items existed, so those unrelated sounds were shown as if they were
+  // downloadable.
   if (siteState.mode !== "normal") {
     currentGroups = [];
     selectsByGroup.clear();
-    mainListEl.innerHTML = "";
-    otherListEl.innerHTML = "";
-    mainHeadingEl.style.display = "none";
-    otherSectionEl.style.display = "none";
+    listEl.innerHTML = "";
     emptyEl.style.display = "block";
     emptyEl.classList.add("unsupported");
     emptyEl.textContent = siteState.message;
-    // When the app CAN take the page, saying so isn't enough — offer the one action that works.
-    if (siteState.mode === "offer" && currentPageUrl) {
-      const btn = document.createElement("button");
-      btn.className = "send";
-      btn.textContent = "Send this page";
-      btn.onclick = () => sendOne(currentPageUrl, btn);
-      emptyEl.append(document.createElement("br"), btn);
-    }
     return;
   }
 
   currentGroups = buildGroups();
   selectsByGroup.clear();
-  const mainGroups = currentGroups.filter(g => g.main);
-  const otherGroups = currentGroups.filter(g => !g.main);
-
-  mainListEl.innerHTML = "";
-  otherListEl.innerHTML = "";
-  for (const g of mainGroups) mainListEl.append(buildCard(g));
-  for (const g of otherGroups) otherListEl.append(buildCard(g));
-
-  mainHeadingEl.style.display = currentGroups.length ? "flex" : "none";
-  otherSectionEl.style.display = otherGroups.length ? "block" : "none";
-  otherSummaryEl.textContent = `Other detected (${otherGroups.length})`;
+  listEl.innerHTML = "";
+  // Computed ONCE per render, in list order, so each group gets its own image off the shared leftover
+  // queue instead of every card independently picking (and repeating) the same one.
+  const thumbs = assignThumbnails(thumbIndex, currentGroups);
+  for (const g of currentGroups) listEl.append(buildCard(g, thumbs.get(g.key)));
 
   if (currentGroups.length === 0) {
     emptyEl.style.display = "block";
@@ -216,14 +284,21 @@ function render() {
 
 function addItem(url, type) {
   if (!isHttp(url) || rawItems.some(i => i.url === url)) return;
-  rawItems.push({ url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now(), main: false });
+  rawItems.push({ url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now() });
 }
 
-async function sendOne(url, btn) {
+async function sendOne(url, btn, variantId) {
   if (!url) return;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
-  const { ok } = await send("send", { url });
+  const { ok } = await send("send", { url, variantId: variantId || null });
   if (btn) { btn.textContent = ok ? "Sent ✓" : "Failed"; }
+}
+
+// Sends one chosen option: its `sendUrl` when the option stands for a rendition of a manifest the app
+// should expand itself (see buildGroups), else its own URL.
+function sendOption(opt, btn) {
+  if (!opt) return Promise.resolve();
+  return sendOne(opt.sendUrl || opt.url, btn, opt.variantId);
 }
 
 async function refreshStatus() {
@@ -248,10 +323,63 @@ async function probeAndRender() {
   render();
 }
 
+// Asks the PAGE what it can see, using the same injection path as "Scan page links" (which is why no
+// content script is needed on every page just to serve a UI that is only looked at while the popup is
+// open). For each player element it reports what identifies it (src), what the site itself offers
+// (poster), and a frame drawn onto a small canvas — which is the real thing but often unavailable,
+// since a cross-origin video taints the canvas. Plus the page's own social image as a last resort.
+//
+// Everything here stays inside the extension: the data URL is the return value of this call, is used
+// to set an <img> in this popup, and is never sent anywhere — least of all to the app (a hand-off
+// carries the link and its request context only).
+async function collectThumbnails() {
+  if (currentTabId == null) return;
+  try {
+    const results = await api.scripting.executeScript({
+      target: { tabId: currentTabId },
+      func: () => {
+        const MAX_W = 160; // a thumbnail, not a frame: keeps the data URL a few KB
+        const shots = [];
+        for (const el of document.querySelectorAll("video, audio")) {
+          const rect = el.getBoundingClientRect();
+          let frame = null;
+          try {
+            if (el.tagName === "VIDEO" && el.videoWidth > 0 && el.videoHeight > 0) {
+              const scale = Math.min(1, MAX_W / el.videoWidth);
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.max(1, Math.round(el.videoWidth * scale));
+              canvas.height = Math.max(1, Math.round(el.videoHeight * scale));
+              canvas.getContext("2d").drawImage(el, 0, 0, canvas.width, canvas.height);
+              frame = canvas.toDataURL("image/jpeg", 0.6); // throws (SecurityError) if tainted
+            }
+          } catch {
+            frame = null; // cross-origin media — the poster/page image below is the answer
+          }
+          shots.push({
+            src: el.currentSrc || el.src || "",
+            poster: el.getAttribute("poster") ? el.poster : "",
+            frame,
+            area: Math.max(0, rect.width * rect.height)
+          });
+        }
+        const meta = sel => document.querySelector(sel)?.content || "";
+        const pageImage = meta('meta[property="og:image"]') || meta('meta[name="twitter:image"]');
+        return { shots, pageImage };
+      }
+    });
+    const data = results?.[0]?.result;
+    if (data) thumbIndex = buildThumbnailIndex(data.shots, data.pageImage);
+  } catch {
+    // Browser-internal pages and pages that forbid injection: rows keep their placeholders, and
+    // every Download action still works.
+  }
+}
+
 async function loadDetected() {
   const tab = await activeTab();
   currentTabId = tab.id;
   currentPageUrl = tab.url || "";
+  currentPageTitle = tab.title || "";
   try { isUnsupportedHost = isKnownUnsupportedHost(new URL(tab.url).hostname); } catch { isUnsupportedHost = false; }
   // Whether such a page is a dead end depends on the app, not on this list: with the site-media plugin
   // installed the page itself is downloadable. Ask before deciding what to say (issue #9 follow-up).
@@ -259,11 +387,23 @@ async function loadDetected() {
   if (isUnsupportedHost) {
     const { handled, by } = await send("canHandlePage", { url: tab.url });
     siteState = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: handled, handlerName: by });
+    // Upgrades the page row in place when it answers; the lookup runs the site tool and can take a few
+    // seconds, so it must never hold up the first paint below.
+    if (handled) loadPageVariants(tab.url);
   }
   const { media } = await send("getMedia", { tabId: tab.id });
   for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
   render();
+  // Both upgrade the list in place; neither delays this first paint.
   probeAndRender();
+  collectThumbnails().then(render);
+}
+
+async function loadPageVariants(url) {
+  const { variants } = await send("pageVariants", { url });
+  if (!variants || !variants.length) return; // no choice to offer — the row stays as it is
+  pageVariants = variants;
+  render();
 }
 
 async function scanPageLinks() {
@@ -296,8 +436,8 @@ document.getElementById("scanLinks").onclick = scanPageLinks;
 document.getElementById("sendAll").onclick = async () => {
   for (const g of currentGroups) {
     const select = selectsByGroup.get(g.key);
-    const url = select ? select.value : g.options[0]?.url;
-    await sendOne(url);
+    const key = select ? select.value : optionKey(g.options[0]);
+    await sendOption(g.options.find(o => optionKey(o) === key) || g.options[0]);
   }
 };
 
@@ -312,6 +452,15 @@ document.getElementById("openOptions").onclick = () => {
   if (api.runtime?.openOptionsPage) api.runtime.openOptionsPage();
   else api.tabs?.create({ url: api.runtime.getURL("options.html") });
 };
+
+// Shows the installed extension's own version next to its name, so a report ("I'm on the latest
+// version but...") can be answered from a screenshot instead of asking the user to dig through
+// about:addons. `getManifest()` is synchronous and always available — no permission, no network.
+if (versionEl) {
+  const full = api.runtime.getManifest().version;
+  versionEl.textContent = `v${shortVersion(full)}`;
+  versionEl.title = `Downloader extension ${full}`;
+}
 
 refreshStatus();
 loadDetected();

@@ -1,8 +1,7 @@
 <!doctype html>
 <html><body>
 <!-- Purely about HLS master/variant/segment fetches (grouping + quality picker + dedup) — no
-     <video> element here on purpose: Main-vs-Other triage is a separate concern, tested against
-     video-playing.html/video-paused.html instead, so the two don't get entangled. -->
+     <video> element here on purpose, so this stays about grouping and never about previews. -->
 <script>
   fetch('/master.m3u8');
   fetch('/low/index.m3u8');

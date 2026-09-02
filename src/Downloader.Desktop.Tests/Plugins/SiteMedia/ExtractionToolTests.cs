@@ -178,7 +178,7 @@ public class ExtractionToolTests
         var yt = new SiteMediaResolverTests.StubYtDlp("""
         { "title": "Signed in", "formats": [ { "format_id": "p", "url": "https://cdn/v.mp4", "ext": "mp4", "protocol": "https", "vcodec": "h264", "acodec": "aac", "height": 720 } ] }
         """);
-        var resolver = new SiteMediaResolver(yt);
+        var resolver = SiteMediaResolverTests.NewResolver(yt);
 
         await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
             new ResolveOptions { CookieFilePath = "/tmp/session.txt" }, TestContext.Current.CancellationToken);

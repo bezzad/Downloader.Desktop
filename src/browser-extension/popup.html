@@ -9,7 +9,10 @@
 <body>
   <header>
     <img src="icons/icon48.png" alt="" width="22" height="22" />
-    <span class="title">Downloader</span>
+    <span class="title-group">
+      <span class="title">Downloader</span>
+      <span id="version" class="version"></span>
+    </span>
     <span id="status" class="status off" title="Desktop app connection">●</span>
   </header>
 
@@ -29,13 +32,11 @@
       <span>Detected media</span>
       <button id="scanLinks" class="link">Scan page links</button>
     </div>
-    <div id="mainHeading" class="section-head sub" style="display:none"><span>Main media</span></div>
-    <ul id="mainList" class="list"></ul>
+    <!-- One list, ordered by media type (manifests first). The old "Main media" / "Other detected"
+         split hid the page's own video behind a collapsed section whenever the relevance guess
+         missed, which on a feed page was most of the time. -->
+    <ul id="list" class="list"></ul>
     <p id="empty" class="empty">No media detected on this page yet.</p>
-    <details id="otherSection" style="display:none">
-      <summary id="otherSummary">Other detected (0)</summary>
-      <ul id="otherList" class="list"></ul>
-    </details>
   </section>
 
   <footer>

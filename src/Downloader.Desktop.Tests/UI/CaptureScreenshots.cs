@@ -214,6 +214,24 @@ public class CaptureScreenshots
                 Save(window, "settings-logging-light.png");
                 Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
             }
+
+            // The browser-extension block, including the "Install browser extension" row — the entry
+            // point to the whole install flow, and the only route a non-technical user has to the
+            // extension. It sits below the fold, so without this the change is invisible in the docs.
+            // Located by its button rather than by a fixed offset, so it keeps framing as Settings grows.
+            var extButton = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+                .FirstOrDefault(b => (b.Content as string) == Localizer.Instance["Ext_Install"]);
+            if (extButton != null)
+            {
+                var y = extButton.TranslatePoint(new Avalonia.Point(0, 0), sv)?.Y ?? 0;
+                // Back off enough to include the toggle and the Local API status row above it.
+                ScrollTo(sv, sv.Offset.Y + y - 210);
+                Save(window, "settings-extension-dark.png");
+                Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+                Save(window, "settings-extension-light.png");
+                Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            }
+
             ScrollTo(sv, 0);
         }
 

@@ -178,6 +178,26 @@ public static class DialogHelper
         await view.ShowDialog(MainWindow);
     }
 
+    /// <summary>
+    /// Opens the "Install browser extension" modal: which browsers are installed, the right build for
+    /// each, and the steps to add it. The app never installs into a browser — see
+    /// <see cref="ExtensionInstallService"/> for why that is settled.
+    /// </summary>
+    public static async Task ShowExtensionInstall()
+    {
+        if (MainWindow == null)
+            return;
+
+        var vm = new ExtensionInstallViewModel();
+        var view = new ExtensionInstallView { DataContext = vm };
+        vm.View = view;
+        BeginModal(view);
+        // Load after the window exists so the browser list and the catalog fetch have somewhere to land
+        // (and so a slow release lookup does not delay the window appearing).
+        _ = vm.LoadAsync();
+        await view.ShowDialog(MainWindow);
+    }
+
     /// <summary>Shows the in-app "update available" prompt (Download / Later). Non-modal Topmost window so
     /// it's visible even if the main window is hidden in the tray.</summary>
     public static void ShowUpdatePrompt(UpdateInfo info)

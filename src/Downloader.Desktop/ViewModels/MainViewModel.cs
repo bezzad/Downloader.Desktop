@@ -325,6 +325,45 @@ public class MainViewModel : ViewModelBase
         {
             _ = UpdateFlow.CheckAsync(manual: false);
             _ = CheckPluginUpdatesAsync();
+            _ = CheckExtensionUpdateAsync();
+        }
+    }
+
+    /// <summary>
+    /// Background check for an out-of-date browser extension: compare what each browser's extension last
+    /// reported (see <see cref="LocalApiService.LastSeenExtensions"/>) against the published catalog and,
+    /// if any is older, point the user at Settings once.
+    ///
+    /// <para>Only browsers that have ACTUALLY contacted this app are considered — an extension that has
+    /// never called is not "out of date", it is not installed, and nagging about it would be noise. The
+    /// app never replaces an extension already loaded in a browser; only the browser can do that.</para>
+    /// </summary>
+    internal async Task CheckExtensionUpdateAsync()
+    {
+        try
+        {
+            var seen = LocalApiService.LastSeenExtensions;
+            if (seen.Count == 0)
+                return;   // nothing has called us — nothing to be out of date
+
+            var catalog = await ExtensionCatalogService.FetchAsync().ConfigureAwait(true);
+            if (catalog.Count == 0)
+                return;
+
+            // One pointer per run, however many browsers are behind: the action lives in the window
+            // (Settings → Install browser extension), because a native notification cannot carry a click.
+            if (ExtensionCatalogService.ShouldWarnAboutExtension(
+                    seen.Values.Select(id => id.Version), catalog, out var reported, out var available))
+            {
+                NotificationService.Notify(
+                    Localizer.Instance["Ext_Install_Button"],
+                    string.Format(Localizer.Instance["Ext_UpdateAvailable"], reported, available),
+                    false);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Browser extension update check failed", ex);
         }
     }
 

@@ -27,7 +27,7 @@ async function appAnsweringInRange() {
  * A stub app that answers /ping and /api/can-handle. `handled` decides which answer it gives, i.e.
  * whether this "install" has a plugin that claims video pages.
  */
-function startAppStub({ handled, by }) {
+function startAppStub({ handled, by, variants, adds }) {
   const server = http.createServer((req, res) => {
     if (req.url.startsWith("/ping")) {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
@@ -37,6 +37,30 @@ function startAppStub({ handled, by }) {
     if (req.url.startsWith("/api/can-handle")) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ handled, by: handled ? by : null }));
+      return;
+    }
+    if (req.url.startsWith("/api/variants")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ variants: variants || [] }));
+      return;
+    }
+    if (req.url.startsWith("/api/add")) {
+      // With no cookies captured (nothing is signed in here) the extension uses the GET form, so the
+      // add's fields arrive in the query — the POST form is read below for when there are.
+      if (req.method === "GET") {
+        const q = new URL(req.url, "http://127.0.0.1").searchParams;
+        adds?.push(Object.fromEntries(q.entries()));
+        res.writeHead(201, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ id: "1", name: "video", status: "Running" }));
+        return;
+      }
+      let body = "";
+      req.on("data", c => { body += c; });
+      req.on("end", () => {
+        try { adds?.push(JSON.parse(body || "{}")); } catch { adds?.push({}); }
+        res.writeHead(201, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ id: "1", name: "video", status: "Running" }));
+      });
       return;
     }
     res.writeHead(404).end();
@@ -68,7 +92,7 @@ async function openBlockedSitePage(context) {
   return page;
 }
 
-test("with the plugin installed, the page itself is offered to the app", async ({ context, extensionId }) => {
+test("with the plugin installed, the page itself is listed as a downloadable item", async ({ context, extensionId }) => {
   test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
   const app = await startAppStub({ handled: true, by: "Video sites (YouTube and others)" });
   test.skip(!app, "no free port in the app range for the stub");
@@ -77,11 +101,49 @@ test("with the plugin installed, the page itself is offered to the app", async (
     const page = await openBlockedSitePage(context);
 
     const popup = await openPopupFor(context, extensionId, page);
-    await expect(popup.locator("#empty")).toBeVisible();
-    await expect(popup.locator("#empty")).toContainText("Downloader can fetch this page");
-    await expect(popup.locator("#empty")).toContainText("Video sites");
-    // The offer must be actionable, not just words.
-    await expect(popup.locator("#empty button")).toBeVisible();
+    // The page is an ITEM, not a notice: one ordinary row with a Download button, and no message at
+    // all where the video belongs (the red block of text was the complaint this replaced).
+    await expect(popup.locator("#list li")).toHaveCount(1);
+    await expect(popup.locator("#list li button")).toHaveText("Download");
+    await expect(popup.locator("#list li .size-line")).toContainText("Video sites");
+    await expect(popup.locator("#empty")).toBeHidden();
+  } finally {
+    await new Promise(r => app.server.close(r));
+  }
+});
+
+test("the page row offers the app's qualities, and the pick is what gets sent", async ({ context, extensionId }) => {
+  test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
+  const adds = [];
+  const app = await startAppStub({
+    handled: true,
+    by: "Video sites (YouTube and others)",
+    adds,
+    variants: [
+      { id: "1080", label: "1080p (≈120 MB)", size: 120000000, default: true, url: null },
+      { id: "720", label: "720p (≈60 MB)", size: 60000000, default: false, url: null },
+      { id: "audio", label: "Audio only (≈4 MB)", size: 4000000, default: false, url: null }
+    ]
+  });
+  test.skip(!app, "no free port in the app range for the stub");
+  try {
+    await setCachedPort(context, app.port);
+    const page = await openBlockedSitePage(context);
+
+    const popup = await openPopupFor(context, extensionId, page);
+    const select = popup.locator("#list li select.quality");
+    await expect(select).toBeVisible();
+    await expect(select.locator("option")).toHaveText([
+      "1080p (≈120 MB)", "720p (≈60 MB)", "Audio only (≈4 MB)"
+    ]);
+
+    // What most people are after on a music video is the audio — so the pick has to survive the send.
+    await select.selectOption({ index: 2 });
+    await popup.locator("#list li button").click();
+    await expect(popup.locator("#list li button")).toHaveText("Sent ✓");
+    expect(adds.length).toBe(1);
+    expect(adds[0].variantId).toBe("audio");
+    expect(adds[0].url).toContain("youtube.com/watch");
   } finally {
     await new Promise(r => app.server.close(r));
   }

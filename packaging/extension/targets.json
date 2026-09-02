@@ -1,0 +1,20 @@
+[
+  {
+    "id": "chrome",
+    "family": "chromium",
+    "name": "Chrome, Edge, Brave, Vivaldi, Opera",
+    "manifest": "manifest.json",
+    "assetName": "downloader-extension-chrome.zip",
+    "minAppVersion": "2.8.0",
+    "storeUrl": null
+  },
+  {
+    "id": "firefox",
+    "family": "gecko",
+    "name": "Firefox, LibreWolf",
+    "manifest": "manifest.firefox.json",
+    "assetName": "downloader-extension-firefox.zip",
+    "minAppVersion": "2.8.0",
+    "storeUrl": null
+  }
+]

@@ -25,8 +25,7 @@ test("a known-unsupported host always shows the explanatory message, even with i
 
   await expect(popup.locator("#empty")).toBeVisible();
   await expect(popup.locator("#empty")).toHaveClass(/unsupported/);
-  await expect(popup.locator("#mainList li")).toHaveCount(0);
-  await expect(popup.locator("#otherSection")).toBeHidden();
+  await expect(popup.locator("#list li")).toHaveCount(0);
 });
 
 test("a non-blocked hostname with genuinely zero detections shows the generic empty state", async ({ context, extensionId }) => {

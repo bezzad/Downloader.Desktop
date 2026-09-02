@@ -52,3 +52,40 @@ The browser extension SHALL be able to reach the desktop app's local API even wh
 - **WHEN** none of the declared ports respond
 - **THEN** the popup shows the existing "not connected" indicator, unchanged from today's behavior when the app isn't running
 
+### Requirement: A hand-off names the extension's configured save folder
+When the extension has a download folder configured, every add it sends to the app SHALL name that
+folder, so the app saves the file there without consulting its own default and without asking the
+user. When no folder is configured the add SHALL omit it, leaving today's behaviour unchanged.
+
+#### Scenario: The configured folder reaches the app
+- **WHEN** the extension sends an add for a link while a download folder is configured
+- **THEN** the request to `/api/add` carries that folder as the download's `path`
+
+#### Scenario: The dialog fallback is unaffected
+- **WHEN** the extension falls back to the legacy `/add?url=` dialog endpoint
+- **THEN** the link is still captured, and the app's Add dialog decides the folder as it does today
+
+### Requirement: The quality picker hands over the manifest, not the rendition
+
+When the popup lists the qualities it parsed out of an HLS master playlist, sending one SHALL hand the
+app the **master** URL plus that quality's variant id — never the rendition's own URL. A rendition of
+a master that keeps its audio in a separate `#EXT-X-MEDIA` group is video-only, so sending it made the
+app download a video with no sound, with no way back to the audio (a rendition's URL does not reveal
+its master's).
+
+Each listed quality SHALL keep its own rendition URL for the extension's internal purposes (size
+probing, duplicate suppression, preview matching), so this affects only what is sent.
+
+#### Scenario: A picked quality arrives as master + choice
+- **WHEN** the user picks a quality on an HLS card and presses Download
+- **THEN** the app receives the master playlist's URL and the id of the picked quality
+- **AND** does NOT receive the rendition's URL
+
+#### Scenario: Send-all behaves the same
+- **WHEN** the user sends every detected item at once
+- **THEN** each HLS card is sent as its master plus its currently selected quality
+
+#### Scenario: A quality does not force the cookie form
+- **WHEN** a send carries a quality but no cookies, headers or referer
+- **THEN** the extension keeps using the plain URL form it has always used, with the quality alongside
+

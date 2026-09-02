@@ -1,0 +1,10 @@
+<!doctype html>
+<html><body>
+<!-- Two unrelated videos where SIZE and QUALITY disagree: alpha is 360p and twice the bytes, beta is
+     1080p and smaller. The 1080p one must be listed first — quality is what says which copy is the
+     good one, and size only stands in when no quality can be read. -->
+<script>
+  fetch('/videos/alpha_360p.mp4'); // bigger, lower quality — detected first
+  fetch('/videos/beta_1080p.mp4');
+</script>
+</body></html>

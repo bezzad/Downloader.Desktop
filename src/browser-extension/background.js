@@ -1,6 +1,7 @@
 // Background service worker / event page.
 // - Adds "Download with Downloader" context menus.
-// - Sniffs video/audio/HLS responses per tab and badges the toolbar icon.
+// - Sniffs video/audio/HLS responses per tab and badges the toolbar icon (DASH is not surfaced —
+//   see common.js's MEDIA_EXTENSIONS note).
 // - Forwards captured URLs to the desktop app's local listener.
 // Chrome loads shared helpers via importScripts (service worker); Firefox loads common.js first
 // through the manifest "scripts" array, so importScripts is absent there — guard it.
@@ -8,12 +9,6 @@ if (typeof importScripts === "function") importScripts("common.js");
 
 // tabId -> Map(url -> { url, type, group, capturedAt })   detected media for the current page
 const tabMedia = new Map();
-
-// tabId -> { atMs } — latest "user is looking at this" signal from content.js. Refreshed
-// continuously while a video plays or sits paused-but-visible (content.js re-sends on
-// play/pause/timeupdate and a periodic re-check, throttled), so its freshness window naturally
-// covers the whole time the content stays on screen, not just the start.
-const activeHint = new Map();
 
 // ---------------- Context menus ----------------
 api.runtime.onInstalled.addListener(() => {
@@ -271,12 +266,6 @@ async function probeMediaForTab(tabId) {
   if (!map) return [];
   const items = [...map.values()];
   const tasks = items.map(item => async signal => {
-    if (extOf(item.url) === "mpd") {
-      // A DASH manifest is expanded by the app (which reads its representations and picks a quality),
-      // so there is nothing useful to probe here — and probing would report the manifest's own few
-      // kilobytes as the media size, which the popup would then discard as implausibly small.
-      return { url: item.url, kind: "dash", size: null };
-    }
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
       if (variants.length === 0)
@@ -303,38 +292,37 @@ function updateBadge(tabId, count) {
 api.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading" && changeInfo.url) {
     tabMedia.delete(tabId);
-    activeHint.delete(tabId);
     updateBadge(tabId, 0);
   }
 });
 api.tabs.onRemoved.addListener(tabId => {
   tabMedia.delete(tabId);
-  activeHint.delete(tabId);
 });
 
 // ---------------- Messages from the popup + content script ----------------
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg.type === "getMedia") {
+      // Every item, in one flat list. There is no "main media" promotion any more: it depended on a
+      // visibility hint from a content script being fresh at the exact moment the popup asked, which
+      // on a feed page (x.com) it routinely was not — so the page's own video was demoted into a
+      // collapsed section. The popup orders by media type instead (common.js sortDetectedGroups).
       const map = tabMedia.get(msg.tabId);
-      const items = map ? [...map.values()] : [];
-      const mainGroups = computeMainGroups(items, activeHint.get(msg.tabId), Date.now());
-      sendResponse({ media: items.map(item => ({ ...item, main: mainGroups.has(item.group) })) });
+      sendResponse({ media: map ? [...map.values()] : [] });
     } else if (msg.type === "probeMedia") {
       sendResponse({ results: await probeMediaForTab(msg.tabId) });
-    } else if (msg.type === "activeMediaHint") {
-      // Sent by content.js — the tab id comes from the content script's own sender context.
-      const tabId = sender.tab?.id;
-      if (tabId != null) activeHint.set(tabId, { atMs: Date.now() });
-      sendResponse({});
     } else if (msg.type === "send") {
-      sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
+      sendResponse({ ok: await sendToApp(msg.url, msg.filename, { variantId: msg.variantId }) });
     } else if (msg.type === "ping") {
       sendResponse({ ok: await pingApp() });
     } else if (msg.type === "canHandlePage") {
       // What THIS install can do decides the popup's unsupported-site message — the answer depends on
       // which plugins the user has enabled, so only the app can give it.
       sendResponse(await askAppCanHandlePage(msg.url));
+    } else if (msg.type === "pageVariants") {
+      // The qualities the app can get off this page. Asked from here, not the popup, because the
+      // capture of the page's session cookies lives on this side.
+      sendResponse(await askAppPageVariants(msg.url));
     } else {
       sendResponse({});
     }

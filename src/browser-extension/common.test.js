@@ -8,10 +8,15 @@ const assert = require("node:assert/strict");
 global.chrome = { cookies: {} };
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
-  runProbesBounded, formatBytes, isKnownUnsupportedHost,
-  isPlausibleMediaSize, MIN_MEDIA_BYTES, computeMainGroups, MAIN_WINDOW_MS,
+  runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
+  isPlausibleMediaSize, MIN_MEDIA_BYTES,
+  sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+  qualityHeight, qualityHeightFromUrl,
+  buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage,
+  getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
+  extensionIdentity, browserLabel, withIdentity, withIdentityHeaders,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
   filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
@@ -19,7 +24,7 @@ const {
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
-  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME
+  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -112,6 +117,16 @@ test("runProbesBounded resolves in order and tolerates throws/timeouts", async (
   assert.deepEqual(results, [1, null, null]);
 });
 
+test("shortVersion drops a trailing zero patch but keeps a real one", () => {
+  assert.equal(shortVersion("1.7.0"), "1.7");
+  assert.equal(shortVersion("1.7.1"), "1.7.1");
+  assert.equal(shortVersion("2.0.0"), "2.0");   // only ONE trailing ".0" is stripped
+  assert.equal(shortVersion("10"), "10");
+  assert.equal(shortVersion(""), "");
+  assert.equal(shortVersion(null), "");
+  assert.equal(shortVersion(undefined), "");
+});
+
 test("formatBytes renders human-readable sizes and rejects non-positive input", () => {
   assert.equal(formatBytes(500), "500 B");
   assert.equal(formatBytes(1536), "1.5 KB");
@@ -137,44 +152,213 @@ test("isPlausibleMediaSize passes unprobed items and rejects only confirmed-tiny
   assert.ok(!isPlausibleMediaSize(0));
 });
 
-test("computeMainGroups promotes nothing without a fresh hint", () => {
-  const items = [{ group: "a", capturedAt: 1000 }];
-  assert.deepEqual(computeMainGroups(items, null, 2000), new Set());
-  const staleHint = { atMs: 0 };
-  assert.deepEqual(computeMainGroups(items, staleHint, 2000 + MAIN_WINDOW_MS + 1), new Set());
+// ---------------- One list: HLS first, then quality, then size ----------------
+// Replaces the old "Main media vs Other detected" promotion tests (that rule needed a fresh
+// visibility hint at the exact moment the popup asked, which on x.com it routinely was not) AND a
+// first attempt at ordering purely by file type, which was ambiguous: type cannot say which copy of
+// a video is the good one. Quality can, and size stands in for it when the link names no quality.
+
+function group(key, opts) {
+  return { key, kind: isManifest(key) ? "hls" : "direct", title: key, options: opts ?? [{ url: key, size: null }] };
+}
+
+test("qualityHeight reads the forms sites actually use", () => {
+  assert.equal(qualityHeight("1080p"), 1080);
+  assert.equal(qualityHeight("720P"), 720);
+  assert.equal(qualityHeight("1920x1080"), 1080);   // the HLS variant label form
+  assert.equal(qualityHeight("1280 × 720"), 720);
+  assert.equal(qualityHeight("4k"), 2160);
+  assert.equal(qualityHeight("2K"), 1440);
 });
 
-test("computeMainGroups promotes the group with the freshest activity", () => {
-  const items = [
-    { group: "old-ad", capturedAt: 1000 },
-    { group: "the-video", capturedAt: 9000 }
-  ];
-  const hint = { atMs: 9200 }; // fresh relative to "now"
-  const result = computeMainGroups(items, hint, 9500);
-  assert.deepEqual(result, new Set(["the-video"]));
+test("qualityHeight invents nothing for a relative word or a bare number", () => {
+  // "hd"/"high"/"low" are relative to a stream we cannot see: ordering on a made-up number would be
+  // worse than ordering on size, which is at least measured.
+  for (const t of ["hd", "sd", "high", "low", "medium", "variant", "", null, undefined, 1080])
+    assert.equal(qualityHeight(t), null, `expected no quality from ${JSON.stringify(t)}`);
+  assert.equal(qualityHeight("2400 kbps"), null); // a bitrate is not a resolution
+  assert.equal(qualityHeight("99p"), null);       // below any real rendition
+  assert.equal(qualityHeight("9000p"), null);     // above any real rendition
 });
 
-test("computeMainGroups promotes a paused-but-recently-loaded video (the x.com regression)", () => {
-  // The video finished autoplaying and sits paused; its own last segment request is still the
-  // most recent activity on the page — must be promoted even though nothing is "playing" right now.
-  const items = [
-    { group: "sidebar-ad.mp4", capturedAt: 500 },
-    { group: "video-master.m3u8", capturedAt: 4800 },
-    { group: "video-master.m3u8", capturedAt: 4950 } // a segment of the same group
-  ];
-  const hint = { atMs: 5100 }; // content.js's periodic re-check keeps this fresh while visible
-  const result = computeMainGroups(items, hint, 5200);
-  assert.deepEqual(result, new Set(["video-master.m3u8"]));
+test("a quality anywhere in the path counts, not just a trailing token", () => {
+  assert.equal(qualityHeightFromUrl("https://c/hls/1080p/video.mp4"), 1080);
+  assert.equal(qualityHeightFromUrl("https://c/v/1280x720/seg.ts"), 720);
+  assert.equal(qualityHeightFromUrl("https://c/clip_720p.mp4"), 720);
+  assert.equal(qualityHeightFromUrl("https://c/clip.mp4"), null);
+  // A query string is not the file's identity — only the path is read.
+  assert.equal(qualityHeightFromUrl("https://c/clip.mp4?label=1080p"), null);
 });
 
-test("computeMainGroups can promote more than one near-simultaneous group", () => {
-  const items = [
-    { group: "a", capturedAt: 9000 },
-    { group: "b", capturedAt: 9100 }
-  ];
-  const hint = { atMs: 9200 };
-  const result = computeMainGroups(items, hint, 9300);
-  assert.deepEqual(result, new Set(["a", "b"]));
+test("an HLS master always leads the list", () => {
+  const hls = group("https://c/master.m3u8");
+  const big1080 = group("https://c/movie_1080p.mp4", [{ url: "https://c/movie_1080p.mp4", size: 900_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([big1080, hls]).map(g => g.key),
+    ["https://c/master.m3u8", "https://c/movie_1080p.mp4"]);
+});
+
+test("after HLS, higher quality wins — regardless of type or size", () => {
+  const webm1080 = group("https://c/a_1080p.webm", [{ url: "https://c/a_1080p.webm", size: 10_000_000 }]);
+  const mp4_360 = group("https://c/b_360p.mp4", [{ url: "https://c/b_360p.mp4", size: 800_000_000 }]);
+  // The 360p file is 80x bigger and an mp4; the 1080p webm is still the better copy.
+  assert.deepEqual(sortDetectedGroups([mp4_360, webm1080]).map(g => g.key),
+    ["https://c/a_1080p.webm", "https://c/b_360p.mp4"]);
+});
+
+test("with no quality to read, the bigger file wins", () => {
+  const small = group("https://c/a.mp4", [{ url: "https://c/a.mp4", size: 2_000_000 }]);
+  const big = group("https://c/b.mp3", [{ url: "https://c/b.mp3", size: 40_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([small, big]).map(g => g.key), ["https://c/b.mp3", "https://c/a.mp4"]);
+});
+
+test("a known quality outranks an unknown one even when the unknown file is bigger", () => {
+  const known = group("https://c/a_720p.mp4", [{ url: "https://c/a_720p.mp4", size: 5_000_000 }]);
+  const unknown = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 500_000_000 }]);
+  assert.deepEqual(sortDetectedGroups([unknown, known]).map(g => g.key), ["https://c/a_720p.mp4", "https://c/b.mp4"]);
+});
+
+test("a group is ranked by its BEST quality and its LARGEST size", () => {
+  const grouped = group("https://c/v.mp4", [
+    { url: "https://c/v_360p.mp4", size: 1_000_000 },
+    { url: "https://c/v_1080p.mp4", size: 30_000_000 }
+  ]);
+  const other = group("https://c/w_720p.mp4", [{ url: "https://c/w_720p.mp4", size: 900_000_000 }]);
+  assert.equal(groupQualityHeight(grouped), 1080);
+  assert.equal(groupKnownSize(grouped), 30_000_000);
+  assert.deepEqual(sortDetectedGroups([other, grouped]).map(g => g.key), ["https://c/v.mp4", "https://c/w_720p.mp4"]);
+});
+
+test("an HLS variant label supplies the quality once the master has been probed", () => {
+  const probed = { key: "https://c/master.m3u8", kind: "hls", title: "master.m3u8", options: [
+    { url: "https://c/low/index.m3u8", label: "640x360", size: 5_000_000 },
+    { url: "https://c/high/index.m3u8", label: "1920x1080", size: 50_000_000 }
+  ]};
+  assert.equal(groupQualityHeight(probed), 1080);
+});
+
+test("unprobed, quality-less items come last, deterministically", () => {
+  const probed = group("https://c/b.mp4", [{ url: "https://c/b.mp4", size: 5_000_000 }]);
+  const unprobedA = group("https://c/a.mp4");
+  const unprobedC = group("https://c/c.mp4");
+  const sorted = sortDetectedGroups([unprobedC, probed, unprobedA]);
+  assert.deepEqual(sorted.map(g => g.key), ["https://c/b.mp4", "https://c/a.mp4", "https://c/c.mp4"]);
+  // Stable across calls: nothing here reads a clock or page state.
+  assert.deepEqual(sortDetectedGroups(sorted).map(g => g.key), sorted.map(g => g.key));
+});
+
+test("sortDetectedGroups never mutates its input", () => {
+  const input = [group("https://c/clip.mp4"), group("https://c/master.m3u8")];
+  const before = input.map(g => g.key);
+  sortDetectedGroups(input);
+  assert.deepEqual(input.map(g => g.key), before);
+});
+
+test("leadsList/groupTypeUrl read a manifest from its key and a file from its first option", () => {
+  assert.ok(leadsList(group("https://c/master.m3u8")));
+  assert.equal(groupTypeUrl(group("https://c/master.m3u8")), "https://c/master.m3u8");
+  const g = { key: "https://c/v.mp4", kind: "direct", options: [{ url: "https://c/v_720p.mp4" }] };
+  assert.ok(!leadsList(g));
+  assert.equal(groupTypeUrl(g), "https://c/v_720p.mp4");
+  assert.equal(groupTypeUrl(null), "");
+});
+
+test("groupKnownSize is -1 until something has been probed", () => {
+  assert.equal(groupKnownSize(group("https://c/a.mp4")), -1);
+  assert.equal(groupKnownSize(group("https://c/a.mp4", [{ url: "https://c/a.mp4", size: 12 }])), 12);
+});
+
+// ---------------- Thumbnails ----------------
+
+test("shotImage prefers a captured frame over a poster", () => {
+  assert.equal(shotImage({ frame: "data:image/jpeg;base64,AAA", poster: "https://c/p.jpg" }), "data:image/jpeg;base64,AAA");
+  assert.equal(shotImage({ frame: null, poster: "https://c/p.jpg" }), "https://c/p.jpg");
+  assert.equal(shotImage({}), null);
+  assert.equal(shotImage(null), null);
+});
+
+test("pickThumbnail prefers the matching element's own image over anything else", () => {
+  const index = buildThumbnailIndex(
+    [{ src: "https://c/clip.mp4", frame: "FRAME", area: 100 }],
+    "https://c/og.jpg");
+  assert.equal(pickThumbnail(index, group("https://c/clip.mp4")), "FRAME");
+});
+
+test("pickThumbnail matches through the group key, not just the exact option URL", () => {
+  // The element plays one quality; the popup shows the merged group whose key drops the token.
+  const index = buildThumbnailIndex([{ src: "https://c/v_720p.mp4", poster: "https://c/p.jpg", area: 9 }], null);
+  const merged = { key: groupKey("https://c/v_720p.mp4"), kind: "direct", options: [{ url: "https://c/v_1080p.mp4" }] };
+  assert.equal(pickThumbnail(index, merged), "https://c/p.jpg");
+});
+
+test("pickThumbnail returns null on an unmatched group — no page-image or other-element fallback", () => {
+  // Falling back INSIDE pickThumbnail is exactly the v1.8.0 bug: every unmatched group would resolve
+  // to the same single image. Fallback now only happens through assignThumbnails, one group at a time.
+  const index = buildThumbnailIndex(
+    [{ src: "blob:https://x.com/v", frame: "SOMEONE_ELSES_PHOTO", area: 900 }],
+    "https://c/og.jpg");
+  assert.equal(pickThumbnail(index, group("https://video.twimg.com/master.m3u8")), null);
+  assert.equal(pickThumbnail(null, group("https://c/a.mp4")), null);
+  assert.equal(pickThumbnail(index, null), null);
+});
+
+test("buildThumbnailIndex tolerates junk shots", () => {
+  const index = buildThumbnailIndex([null, {}, { src: 42, frame: "F", area: "x" }], undefined);
+  assert.deepEqual(index.queue, ["F"]);
+  assert.equal(index.byUrl.size, 0); // a non-http src is never indexed
+});
+
+// ---------------- assignThumbnails: one distinct image per group, never a repeat ----------------
+// The actual bug report: a feed page with several DIFFERENT videos (all blob: src, so none has an
+// exact URL match) showed the SAME photo on every row — because the old pickThumbnail fell back to
+// one shared "best" image for every group that asked. assignThumbnails hands out the captured images
+// one at a time, in list order, so distinct videos get distinct photos.
+
+test("two distinct unmatched videos on one page get two distinct photos, not the same one", () => {
+  const index = buildThumbnailIndex([
+    { src: "blob:https://x.com/1", frame: "PHOTO_A", area: 500 },
+    { src: "blob:https://x.com/2", frame: "PHOTO_B", area: 400 }
+  ], "https://c/og.jpg");
+  const groups = [group("https://c/videoA.m3u8"), group("https://c/videoB.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/videoA.m3u8"), "PHOTO_A"); // largest first
+  assert.equal(assigned.get("https://c/videoB.m3u8"), "PHOTO_B");
+  assert.notEqual(assigned.get("https://c/videoA.m3u8"), assigned.get("https://c/videoB.m3u8"));
+});
+
+test("an exact match is never displaced by the queue", () => {
+  const index = buildThumbnailIndex([
+    { src: "https://c/known.mp4", frame: "KNOWN_FRAME", area: 10 },
+    { src: "blob:https://x.com/1", frame: "QUEUE_PHOTO", area: 900 }
+  ], null);
+  const groups = [group("https://c/known.mp4"), group("https://c/other.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/known.mp4"), "KNOWN_FRAME"); // its own image, not the bigger queued one
+  assert.equal(assigned.get("https://c/other.m3u8"), "QUEUE_PHOTO");
+});
+
+test("once the queue runs dry, later groups get null (placeholder), never a repeat", () => {
+  const index = buildThumbnailIndex([{ src: "blob:https://x.com/1", frame: "ONLY_PHOTO", area: 500 }], null);
+  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8"), group("https://c/c.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/a.m3u8"), "ONLY_PHOTO");
+  assert.equal(assigned.get("https://c/b.m3u8"), null);
+  assert.equal(assigned.get("https://c/c.m3u8"), null);
+});
+
+test("the page image is used for at most ONE group, never repeated across a feed", () => {
+  const index = buildThumbnailIndex([], "https://c/og.jpg"); // no captured elements at all
+  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8")];
+  const assigned = assignThumbnails(index, groups);
+  assert.equal(assigned.get("https://c/a.m3u8"), "https://c/og.jpg");
+  assert.equal(assigned.get("https://c/b.m3u8"), null); // NOT the same og:image again
+});
+
+test("assignThumbnails is pure — calling it again reproduces the same assignment", () => {
+  const index = buildThumbnailIndex([{ src: "blob:https://x.com/1", frame: "PHOTO", area: 500 }], "https://c/og.jpg");
+  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8")];
+  const first = assignThumbnails(index, groups);
+  const second = assignThumbnails(index, groups);
+  assert.deepEqual([...first], [...second]);
 });
 
 // ---------------- App port discovery (range fallback) ----------------
@@ -301,24 +485,63 @@ test("sendToAppSilently keeps the URL-only GET path when no cookies are captured
   assert.notEqual(seen.opts && seen.opts.method, "POST");
 });
 
-test("a DASH manifest counts as media", () => {
-  assert.ok(MEDIA_EXTENSIONS.includes("mpd"));
-  assert.ok(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd"));
-  assert.ok(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd?token=abc"));
-  assert.ok(isMediaContentType("application/dash+xml"));
+test("sendToAppSilently carries the chosen quality in the GET form", async () => {
+  // An HLS master's rendition is often video-only (its audio lives in a separate #EXT-X-MEDIA group),
+  // so the popup hands over the MASTER plus the quality's id and lets the app expand it. A quality is
+  // not a secret, so it travels in the query and does not force the POST form.
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+
+  const result = await sendToAppSilently(
+    "http://127.0.0.1:15151", "https://video.twimg.com/x/pl/master.m3u8", null, [], { variantId: "4800000" });
+
+  assert.equal(result, "ok");
+  assert.match(seen.endpoint, /\/api\/add\?url=/);
+  assert.match(seen.endpoint, /[?&]variantId=4800000(&|$)/);
+  assert.notEqual(seen.opts && seen.opts.method, "POST");
 });
 
-test("manifests are recognised as manifests, plain media is not", () => {
-  assert.ok(isManifest("https://cdn.example.com/s/manifest.mpd"));
+test("sendToAppSilently carries the chosen quality in the JSON form too", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const cookies = [{ name: "auth_token", value: "v", domain: ".x.com", path: "/", secure: true }];
+
+  await sendToAppSilently(
+    "http://127.0.0.1:15151", "https://video.twimg.com/x/pl/master.m3u8", null, cookies, { variantId: "2400000" });
+
+  const body = JSON.parse(seen.opts.body);
+  assert.equal(body.variantId, "2400000");
+});
+
+test("sendToAppSilently omits the quality when none was chosen", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+
+  await sendToAppSilently("http://127.0.0.1:15151", "https://example.com/a.zip", null, []);
+
+  assert.ok(!seen.endpoint.includes("variantId"));
+});
+
+test("a DASH manifest is deliberately never surfaced", () => {
+  // The app CAN download a .mpd (its streaming plugin handles DASH), but the popup cannot probe one
+  // for a size or read a quality off it, so it could only ever be a nameless, sizeless row that the
+  // ordering rule can say nothing about. It stays available by pasting the link.
+  assert.ok(!MEDIA_EXTENSIONS.includes("mpd"));
+  assert.equal(looksLikeMedia("https://cdn.example.com/stream/manifest.mpd"), false);
+  assert.equal(isMediaContentType("application/dash+xml"), false);
+  assert.equal(isManifest("https://cdn.example.com/s/manifest.mpd"), false);
+});
+
+test("an HLS master is recognised as a manifest, plain media is not", () => {
   assert.ok(isManifest("https://cdn.example.com/s/master.m3u8"));
   assert.equal(isManifest("https://cdn.example.com/s/movie.mp4"), false);
 });
 
-test("groupKey treats every .mpd URL as its own group", () => {
-  // A DASH manifest's representations are expanded by the app, so quality-token grouping must never
-  // merge two manifests (or a manifest with a plain file) into one card.
-  const a = "https://cdn.example.com/stream/video_720p.mpd";
-  const b = "https://cdn.example.com/stream/video_1080p.mpd";
+test("groupKey treats every manifest URL as its own group", () => {
+  // A manifest's renditions are expanded by the app, so quality-token grouping must never merge two
+  // manifests (or a manifest with a plain file) into one card.
+  const a = "https://cdn.example.com/stream/video_720p.m3u8";
+  const b = "https://cdn.example.com/stream/video_1080p.m3u8";
   assert.equal(groupKey(a), a);
   assert.equal(groupKey(b), b);
   assert.notEqual(groupKey(a), groupKey(b));
@@ -781,6 +1004,104 @@ test("sendToAppSilently now carries a referer even when there are no cookies", a
   assert.equal(JSON.parse(seen.opts.body).referer, "https://e.com/page");
 });
 
+// ---------------- The extension's download folder ----------------
+// The app must not ask where a download goes, and must not quietly use somewhere else. A folder set
+// here travels with every hand-off; unset means "say nothing", i.e. exactly the old behaviour.
+
+test("a configured folder travels in the GET form as `path`", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [],
+    { savePath: "/home/me/Downloads" });
+  assert.equal(result, "ok");
+  assert.match(seen.endpoint, /\/api\/add\?url=/);           // still the plain GET path
+  assert.match(seen.endpoint, /[?&]path=%2Fhome%2Fme%2FDownloads/);
+});
+
+test("a configured folder travels in the POST form too, alongside the context", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const cookies = [{ name: "SID", value: "v", domain: ".e.com", path: "/", secure: true, expires: 1893456000 }];
+  await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, cookies,
+    { savePath: "C:\\Users\\me\\Downloads" });
+  assert.equal(seen.opts.method, "POST");
+  assert.equal(JSON.parse(seen.opts.body).path, "C:\\Users\\me\\Downloads");
+});
+
+test("no configured folder means no `path` at all — the app applies its own setting", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [], { savePath: "   " });
+  assert.doesNotMatch(seen.endpoint, /[?&]path=/);
+  await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [], {});
+  assert.doesNotMatch(seen.endpoint, /[?&]path=/);
+});
+
+test("an intercepted hand-off carries the folder, and no image data", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  let seen = null;
+  global.fetch = async (endpoint, opts) => {
+    if (String(endpoint).endsWith("/ping")) return { ok: true, status: 200 };
+    seen = { endpoint, opts };
+    return { ok: true, status: 201, json: async () => ({ id: "abc" }) };
+  };
+  const res = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "/data/dl" });
+  assert.equal(res.ok, true);
+  const body = JSON.parse(seen.opts.body);
+  assert.equal(body.path, "/data/dl");
+  // A preview is a popup-only affordance: it must never reach the app or leave the machine.
+  assert.deepEqual(Object.keys(body).filter(k => /thumb|image|frame|poster|preview/i.test(k)), []);
+  assert.doesNotMatch(seen.opts.body, /data:image/);
+});
+
+test("a folder the app refuses is a failed send, never a silent success", async () => {
+  // The app answers 400 for a path that isn't absolute. That must read as "fail" (not "fallback"),
+  // because the interception path cancels the browser's own download only on a success.
+  global.fetch = async () => ({ ok: false, status: 400 });
+  const result = await sendToAppSilently("http://127.0.0.1:15151", "https://e.com/a.zip", null, [],
+    { savePath: "relative/dir" });
+  assert.equal(result, "fail");
+
+  global.chrome.cookies.getAll = async () => [];
+  global.fetch = async endpoint => String(endpoint).endsWith("/ping")
+    ? { ok: true, status: 200 }
+    : { ok: false, status: 400, json: async () => ({ error: "'path' must be an absolute folder path" }) };
+  const handed = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "relative/dir" });
+  assert.equal(handed.ok, false);
+  assert.equal(handed.reason, "app-rejected-400");
+});
+
+test("getSavePath/setSavePath round-trip through extension storage, trimmed", async () => {
+  const store = {};
+  global.chrome.storage = {
+    local: {
+      get: async defaults => ({ ...defaults, ...store }),
+      set: async values => { Object.assign(store, values); }
+    }
+  };
+  assert.equal(await getSavePath(), "");        // never configured
+  setSavePath("  /home/me/Downloads  ");
+  assert.equal(store.savePath, "/home/me/Downloads");
+  assert.equal(await getSavePath(), "/home/me/Downloads");
+  delete global.chrome.storage;
+});
+
+test("fetchAppDefaultSavePath reads the app's default, and is null when it can't", async () => {
+  global.fetch = async endpoint => String(endpoint).endsWith("/api/settings")
+    ? { ok: true, status: 200, json: async () => ({ defaultSavePath: "/home/me/Downloads", version: "2.8.2" }) }
+    : { ok: true, status: 200 };
+  assert.equal(await fetchAppDefaultSavePath(15151), "/home/me/Downloads");
+
+  global.fetch = async () => ({ ok: false, status: 404 }); // an app too old for this endpoint
+  assert.equal(await fetchAppDefaultSavePath(15151), null);
+
+  global.fetch = async () => { throw new Error("app not running"); };
+  assert.equal(await fetchAppDefaultSavePath(15151), null);
+
+  global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ defaultSavePath: "  " }) });
+  assert.equal(await fetchAppDefaultSavePath(15151), null);
+});
+
 // ---- Response-header cache (issue #9: the only place an .xapk is ever named) ----
 
 test("a response's content-disposition is recorded and read back", () => {
@@ -904,14 +1225,22 @@ test("the app-not-found message names the ports actually probed", () => {
 // they already were. What the page can do depends on which plugins the running app has, so the app
 // is asked before anything is claimed (issue #9 follow-up).
 
-test("a page the app can handle is offered, not declared unsupported", () => {
+test("a page the app can handle is offered as an item, with no message", () => {
   const state = unsupportedSiteState({
     hostUnsupported: true, appHandlesPage: true, handlerName: "Video sites (YouTube and others)"
   });
   assert.equal(state.mode, "offer");
-  assert.match(state.message, /Downloader can fetch this page/);
-  assert.match(state.message, /Video sites/);
-  assert.doesNotMatch(state.message, /sign in|signed in/i);
+  // No prose at all: the popup renders the page as an ordinary row with a Download button. A block of
+  // explanatory red text standing in for the video item was the complaint this replaced.
+  assert.equal(state.message, null);
+  assert.equal(state.handler, "Video sites (YouTube and others)");
+});
+
+test("an offered page without a named handler still carries no message", () => {
+  const state = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: true, handlerName: null });
+  assert.equal(state.mode, "offer");
+  assert.equal(state.message, null);
+  assert.equal(state.handler, null);
 });
 
 test("without the plugin the message names the plugin, never a sign-in", () => {
@@ -947,6 +1276,46 @@ test("asking the app what it can handle survives an old app, an error and no app
     let called = false;
     global.fetch = async () => { called = true; };
     assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null), { handled: false, by: null });
+    assert.equal(called, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+
+// ── The qualities the app offers for a page ──────────────────────────────────────────────────────
+// Sending the page used to download whatever the site happened to be playing, with no way to ask for
+// audio-only or a smaller copy. The popup now shows the app's own picker on the row.
+
+test("the page's qualities come back from the app, and every failure reads as no choices", async () => {
+  const realFetch = global.fetch;
+  try {
+    let sent = null;
+    global.fetch = async (url, init) => {
+      sent = { url, body: JSON.parse(init.body) };
+      return { ok: true, json: async () => ({ variants: [{ id: "audio", label: "Audio only" }] }) };
+    };
+    const answer = await appPageVariants("https://youtube.com/watch?v=a", [{ name: "SID", value: "x" }], 15151);
+    assert.deepEqual(answer.variants, [{ id: "audio", label: "Audio only" }]);
+    // The session travels with the question: YouTube lists nothing for an anonymous caller, so asking
+    // without the cookies we already hold would report "no choices" for the very pages this is for.
+    assert.equal(sent.body.cookies.length, 1);
+    assert.match(sent.url, /\/api\/variants$/);
+
+    // An app older than this endpoint 404s: no picker, and the row stays one plain download.
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.deepEqual((await appPageVariants("https://youtube.com/watch?v=a", [], 15151)).variants, []);
+
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.deepEqual((await appPageVariants("https://youtube.com/watch?v=a", [], 15151)).variants, []);
+
+    // A lookup the app reports as failed is still an answer, not an exception.
+    global.fetch = async () => ({ ok: true, json: async () => ({ variants: [], error: "sign-in needed" }) });
+    assert.equal((await appPageVariants("https://youtube.com/watch?v=a", [], 15151)).error, "sign-in needed");
+
+    let called = false;
+    global.fetch = async () => { called = true; };
+    assert.deepEqual((await appPageVariants("https://youtube.com/watch?v=a", [], null)).variants, []);
     assert.equal(called, false);
   } finally {
     global.fetch = realFetch;
@@ -994,4 +1363,176 @@ test("a download with no usable address at all hands over nothing", () => {
   assert.deepEqual(handOffUrls({ url: "blob:x", finalUrl: null }), { url: null, mirrors: null });
   assert.deepEqual(handOffUrls({}), { url: null, mirrors: null });
   assert.deepEqual(handOffUrls(null), { url: null, mirrors: null });
+});
+
+// ---------------------------------------------------------------------------
+// The two manifests must declare the same version.
+//
+// The code is shared — build-extension.sh packs the same common.js/popup.js into both zips — so a
+// one-sided bump does not change behaviour, it just publishes a Chrome/Edge zip that LIES about its
+// version. Nothing enforced this before: PUBLISHING.md asks for both, and the AMO workflow's bump guard
+// only watches the Firefox manifest. The extension catalog now reads each target's version from its own
+// manifest, which makes the agreement load-bearing.
+// ---------------------------------------------------------------------------
+const fs = require("node:fs");
+const path = require("node:path");
+
+function manifestVersion(file) {
+  const full = path.join(__dirname, file);
+  return { file, version: JSON.parse(fs.readFileSync(full, "utf8")).version };
+}
+
+test("both extension manifests declare the same version", () => {
+  const chrome = manifestVersion("manifest.json");
+  const firefox = manifestVersion("manifest.firefox.json");
+
+  // Deliberately not compared against a hard-coded number — this compares the files to each other, so it
+  // keeps working across every bump and only fails when they actually drift.
+  assert.equal(
+    chrome.version, firefox.version,
+    `extension manifests disagree: ${chrome.file}=${chrome.version} vs ${firefox.file}=${firefox.version}. `
+    + "Bump BOTH (see PUBLISHING.md) — the zips share their code, so a one-sided bump only mislabels one store's build."
+  );
+});
+
+test("both manifests declare a plain semver version", () => {
+  for (const file of ["manifest.json", "manifest.firefox.json"]) {
+    const { version } = manifestVersion(file);
+    assert.match(version, /^\d+\.\d+\.\d+$/, `${file} version "${version}" is not major.minor.patch`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Telling the app which extension is talking to it.
+//
+// This rides on requests the extension already makes, so the rule that matters most is that it can never
+// break one: an identity we cannot read must degrade to sending nothing, exactly like captureCookies
+// returning [] rather than blocking a send.
+// ---------------------------------------------------------------------------
+
+// `api` is bound at load, so mutate the same object the module holds rather than reassigning global.chrome.
+function withRuntime(manifest, fn) {
+  const had = Object.prototype.hasOwnProperty.call(global.chrome, "runtime");
+  const previous = global.chrome.runtime;
+  const hadBrowser = Object.prototype.hasOwnProperty.call(globalThis, "browser");
+  const previousBrowser = globalThis.browser;
+  try {
+    global.chrome.runtime = manifest === undefined ? undefined : { getManifest: () => manifest };
+    delete globalThis.browser;
+    return fn();
+  } finally {
+    if (had) global.chrome.runtime = previous; else delete global.chrome.runtime;
+    if (hadBrowser) globalThis.browser = previousBrowser; else delete globalThis.browser;
+  }
+}
+
+test("the identity carries the manifest version and a coarse browser label", () => {
+  withRuntime({ version: "1.7.0" }, () => {
+    const id = extensionIdentity();
+    assert.equal(id.extVersion, "1.7.0");
+    assert.ok(["chrome", "edge", "firefox"].includes(id.browser), `unexpected label ${id.browser}`);
+    // A label, not a fingerprint — nothing beyond these two fields goes out.
+    assert.deepEqual(Object.keys(id).sort(), ["browser", "extVersion"]);
+  });
+});
+
+test("an unreadable manifest yields no identity instead of throwing", () => {
+  // Every one of these is a request that must still go out unchanged.
+  withRuntime(undefined, () => assert.deepEqual(extensionIdentity(), {}));
+  withRuntime({}, () => assert.deepEqual(extensionIdentity(), {}));
+  withRuntime({ version: "" }, () => assert.deepEqual(extensionIdentity(), {}));
+  withRuntime({ version: 17 }, () => assert.deepEqual(extensionIdentity(), {}));
+
+  const had = Object.prototype.hasOwnProperty.call(global.chrome, "runtime");
+  const previous = global.chrome.runtime;
+  try {
+    global.chrome.runtime = { getManifest() { throw new Error("evicted"); } };
+    assert.deepEqual(extensionIdentity(), {});
+  } finally {
+    if (had) global.chrome.runtime = previous; else delete global.chrome.runtime;
+  }
+});
+
+test("Firefox is labelled by its own browser namespace", () => {
+  const previous = globalThis.browser;
+  const had = Object.prototype.hasOwnProperty.call(globalThis, "browser");
+  try {
+    globalThis.browser = { runtime: {} };
+    assert.equal(browserLabel(), "firefox");
+  } finally {
+    if (had) globalThis.browser = previous; else delete globalThis.browser;
+  }
+});
+
+test("withIdentity appends to a URL with or without an existing query", () => {
+  withRuntime({ version: "1.7.0" }, () => {
+    assert.match(withIdentity("http://127.0.0.1:15151/ping"), /\/ping\?extv=1\.7\.0&extb=/);
+    assert.match(withIdentity("http://127.0.0.1:15151/api/add?url=x"), /\?url=x&extv=1\.7\.0&extb=/);
+  });
+});
+
+test("withIdentity leaves the URL alone when there is no identity", () => {
+  withRuntime(undefined, () => {
+    assert.equal(withIdentity("http://127.0.0.1:15151/ping"), "http://127.0.0.1:15151/ping");
+  });
+});
+
+test("withIdentityHeaders adds the header without disturbing existing ones", () => {
+  withRuntime({ version: "1.7.0" }, () => {
+    const init = withIdentityHeaders({ method: "POST", headers: { "Content-Type": "application/json" } });
+    assert.equal(init.method, "POST");
+    assert.equal(init.headers["Content-Type"], "application/json");
+    assert.match(init.headers["X-Downloader-Extension"], /^1\.7\.0; (chrome|edge|firefox)$/);
+  });
+});
+
+test("withIdentityHeaders returns the init untouched when there is no identity", () => {
+  withRuntime(undefined, () => {
+    const init = { method: "GET" };
+    assert.deepEqual(withIdentityHeaders(init), init);
+    assert.deepEqual(withIdentityHeaders(), {});
+  });
+});
+
+test("a silent add carries the identity in its JSON body when it has a context", async () => {
+  const seen = [];
+  const previousFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    seen.push({ url: String(url), init });
+    return { ok: true, status: 201, json: async () => ({ id: "1" }) };
+  };
+  try {
+    await withRuntime({ version: "1.7.0" }, () => sendToAppSilently(
+      "http://127.0.0.1:15151", "https://example.com/f.zip", "f.zip",
+      [{ domain: "example.com", name: "s", value: "1", path: "/" }], {}));
+  } finally {
+    global.fetch = previousFetch;
+  }
+
+  const body = JSON.parse(seen[0].init.body);
+  assert.equal(body.extVersion, "1.7.0");
+  assert.ok(body.browser);
+  // Still a POST to /api/add — the identity must not change which endpoint or form is used.
+  assert.equal(seen[0].url, "http://127.0.0.1:15151/api/add");
+  assert.equal(seen[0].init.method, "POST");
+});
+
+test("a plain silent add keeps its GET form and gains the identity in the query", async () => {
+  const seen = [];
+  const previousFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    seen.push({ url: String(url), init });
+    return { ok: true, status: 201 };
+  };
+  try {
+    await withRuntime({ version: "1.7.0" }, () => sendToAppSilently(
+      "http://127.0.0.1:15151", "https://example.com/f.zip", null, [], {}));
+  } finally {
+    global.fetch = previousFetch;
+  }
+
+  // The GET path is the one every older caller used; it must stay a GET.
+  assert.equal(seen[0].init.method, "GET");
+  assert.match(seen[0].url, /^http:\/\/127\.0\.0\.1:15151\/api\/add\?url=/);
+  assert.match(seen[0].url, /extv=1\.7\.0/);
 });

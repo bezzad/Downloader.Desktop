@@ -133,3 +133,68 @@ When an add request carries a `cookies` array, the app SHALL use those cookies b
 - **WHEN** a download added with cookies fails and the user retries it in the same session
 - **THEN** the retry sends the same cookies rather than requesting anonymously
 
+### Requirement: Settings endpoint
+The local API SHALL answer `GET /api/settings` with a JSON object describing the settings a local
+client needs in order to pre-fill its own UI — at minimum the app's configured default save folder
+and the app's version. The endpoint SHALL be read-only and SHALL NOT expose secrets (no cookies, no
+headers, no credentials, no proxy password).
+
+#### Scenario: A client reads the default save folder
+- **WHEN** a client sends `GET /api/settings` while the integration toggle is on
+- **THEN** the API responds `200` with a JSON object whose `defaultSavePath` is the folder the app is
+  configured to save downloads in
+- **AND** whose `version` is the running app's version
+
+#### Scenario: The endpoint changes nothing
+- **WHEN** a client sends `GET /api/settings`
+- **THEN** no download is added, started or modified, and the app's settings are unchanged
+
+### Requirement: The extension identifies itself on the requests it already makes
+The browser extension SHALL include its own version and a coarse browser label on the requests it already
+sends to the local API, without requiring an additional browser permission and without issuing an extra
+request. The app SHALL record only the most recently reported version, browser label and time, in memory
+only. That information SHALL NOT be written to the configuration file and SHALL NOT be written to the log.
+
+#### Scenario: Version and browser reach the app
+- **WHEN** the extension sends a request to the local API
+- **THEN** the app records the extension version and browser label it reported
+
+#### Scenario: No extra request or permission
+- **WHEN** the extension reports its identity
+- **THEN** it does so on an existing request and requires no browser permission beyond those already granted
+
+#### Scenario: Identity is not persisted or logged
+- **WHEN** the app records a reported extension identity
+- **THEN** it is not written to the configuration file and does not appear in the log
+
+#### Scenario: A request without identity still works
+- **WHEN** a request arrives with no extension identity, as an older extension or another tool would send
+- **THEN** the request is handled exactly as before and no error is raised
+
+### Requirement: An add can carry a stream/quality choice
+
+`POST /api/add` and its GET form SHALL accept an optional `variantId` naming which stream behind an
+expandable link the caller wants (a rendition of an HLS master, a model's tag), and SHALL apply it to
+that download only. The id belongs to the resolving plugin's own scheme; an unknown or absent id
+SHALL NOT be an error — the resolver falls back to its default (best) choice, because a caller that
+guessed wrong must still get a usable download.
+
+This exists so a caller can hand over a **master** playlist plus the quality it wants instead of a
+rendition URL: a rendition of a master whose audio lives in a separate group is video-only, and
+downloading it directly produces a file with no sound.
+
+A quality is not a credential, so it SHALL travel in the GET query as well as the JSON body, and it
+SHALL survive a forwarded (CLI) add. The `201` response SHALL report the choice it accepted.
+
+#### Scenario: The caller pins a quality
+- **WHEN** a client adds a master playlist with `variantId` naming one of its renditions
+- **THEN** the download resolves that rendition (with its audio) and the response reports the choice
+
+#### Scenario: An unrecognised choice still downloads
+- **WHEN** a client adds a link with a `variantId` the resolver does not know
+- **THEN** the add succeeds and the resolver's default (best) stream is downloaded
+
+#### Scenario: No choice given
+- **WHEN** a client adds a link without `variantId`
+- **THEN** the download behaves exactly as it did before this field existed
+

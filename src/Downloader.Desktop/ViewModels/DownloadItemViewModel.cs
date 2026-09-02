@@ -556,12 +556,23 @@ public class DownloadItemViewModel : ViewModelBase
         // the final file doesn't exist yet — the engine writes "<name>.download" — so reveal that temp
         // file instead, then fall back to just opening the folder.
         var final = _item.FilePath;
+        bool opened;
+        string attempted;
         if (!string.IsNullOrWhiteSpace(final) && File.Exists(final))
-            RevealInFolder(final);
+            opened = RevealInFolder(attempted = final);
         else if (!string.IsNullOrWhiteSpace(final) && File.Exists(final + ".download"))
-            RevealInFolder(final + ".download");
+            opened = RevealInFolder(attempted = final + ".download");
         else
-            ShellOpen(_item.FolderPath);
+            opened = ShellOpen(attempted = _item.FolderPath);
+
+        if (!opened)
+            // Never fail silently. This button did nothing at all on Linux for a long time and all the
+            // user could report was "nothing happens" — with no message and no log line there was
+            // nothing to diagnose from. Naming the path also catches the case where it is simply gone.
+            Services.NotificationService.Inform(
+                Localizer.Instance["Err_OpenFolder"],
+                string.IsNullOrWhiteSpace(attempted) ? Localizer.Instance["Err_OpenFolder_NoPath"] : attempted,
+                isError: true);
     }
 
     private void OpenFile()
@@ -570,29 +581,9 @@ public class DownloadItemViewModel : ViewModelBase
         ShellOpen(File.Exists(path) ? path : _item.FolderPath);
     }
 
-    /// <summary>Opens the containing folder with the file selected/highlighted, cross-platform.</summary>
-    private static void RevealInFolder(string path)
-    {
-        var revealed = OperatingSystem.IsWindows()
-            ? Services.ShellLauncher.Run("explorer.exe", $"/select,\"{path}\"")
-            : OperatingSystem.IsMacOS()
-                ? Services.ShellLauncher.Run("open", "-R", path)
-                // Linux: the FileManager1 D-Bus interface selects the item in Nautilus/Dolphin/etc.
-                : Services.ShellLauncher.Run("dbus-send",
-                    "--session",
-                    "--dest=org.freedesktop.FileManager1",
-                    "--type=method_call",
-                    "/org/freedesktop/FileManager1",
-                    "org.freedesktop.FileManager1.ShowItems",
-                    "array:string:file://" + path,
-                    "string:");
+    private static bool RevealInFolder(string path) => Services.ShellLauncher.RevealInFolder(path);
 
-        if (!revealed)
-            // Fall back to just opening the folder if the reveal mechanism isn't available.
-            ShellOpen(Path.GetDirectoryName(path));
-    }
-
-    private static void ShellOpen(string target) => Services.ShellLauncher.Open(target);
+    private static bool ShellOpen(string target) => Services.ShellLauncher.OpenFolder(target);
 
     /// <summary>Human-readable byte size (e.g. "12.5 MB"). Public so other VMs (Queues) can reuse it.</summary>
     public static string FormatBytes(long bytes)

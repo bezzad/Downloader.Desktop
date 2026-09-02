@@ -981,3 +981,370 @@ file (`DownloadManager.EmptyFileGrace`, 5 s, internal so tests can shorten it) a
 appears; the late-arrival path calls the SAME `MarkCompleted` + `FinishTerminal` as an immediate success,
 because a row left Running because the check was late is the bug this guard was written to prevent.
 `Integration/LateFileCompletionTests` covers both sides.
+
+## Extension 1.7.0: one list, previews, a download folder (single-list-thumbnails-path)
+- **The popup's "Main media" vs "Other detected" split is GONE, and so is `content.js`.** The promotion
+  rule (`computeMainGroups` + a per-tab `activeHint` the content script posted on play/pause/timeupdate)
+  needed the hint to be FRESH (≤3 s) at the exact moment the popup asked. On a feed page whose player has
+  finished autoplaying — x.com, the site this is used on most — it routinely was not, so every group
+  including the real video was demoted behind a collapsed `<details>`: the user had to expand "Other" to
+  find the video they were looking straight at. Replaced by `common.js`'s pure `sortDetectedGroups`.
+  **Ordering by file TYPE was the first attempt and the author rejected it as ambiguous** (it cannot say
+  why a 360p mp4 sits above a 1080p webm — type says nothing about which copy of a video is the good
+  one). The rule is now: **HLS master first, then quality (`qualityHeight`), then known size, then
+  title.** A quality is only used when the link or a picker label NAMES one — `1080p`, `1920x1080`,
+  `4K`; relative words (`hd`/`high`/`low`) are deliberately parsed as *unknown*, because inventing a
+  number for them orders the list on a fiction, and measured size is the more truthful fallback.
+  `qualityHeightFromUrl` scans the whole PATH (not just a trailing token — CDNs use `/1080p/v.mp4`) and
+  ignores the query string. No clock, no page state, no hint. **Don't reintroduce a relevance key** — a
+  wrong guess would now reorder the list rather than merely mislabel a section.
+- **DASH (`.mpd`) is NOT surfaced by the extension** (author's call, 1.7.0): removed from
+  `MEDIA_EXTENSIONS`, `MEDIA_CONTENT_TYPES` (`application/dash+xml`) and `MANIFEST_EXTENSIONS`, and the
+  `kind: "dash"` probe branch is gone from `background.js`. A manifest can be neither size-probed nor
+  read for a quality, so it could only ever be a row the ordering rule can say nothing about. **The
+  app's own DASH support is untouched** (`dash-streams`, the streaming plugin) — a `.mpd` still works
+  when pasted into the popup's link box (that path applies no media filter) or added in the app.
+  Removed with it: `MAIN_WINDOW_MS`, the `main` flag on items, `background.js`'s `activeHint` +
+  `activeMediaHint` branch, `content.js` and the `content_scripts` manifest entry (so nothing of the
+  extension runs on a page unless the popup is open).
+- **`Number(null)` is `0` and `Number.isFinite(0)` is true** — that made an *unprobed* group (size `null`)
+  outrank a measured one in `groupKnownSize`. Check `typeof x === "number"` BEFORE the numeric test
+  anywhere a "not measured yet" value shares a field with a real number.
+- **Previews are collected by the POPUP via `api.scripting.executeScript`**, not by a content script: the
+  injected function returns, per `<video>`/`<audio>`, `currentSrc`/`src` + `poster` + a canvas
+  `toDataURL("image/jpeg", 0.6)` frame capped at 160 px, plus the page's `og:image`/`twitter:image`. Same
+  injection path as "Scan page links", no background state (MV3 may evict the worker), and the data URL
+  dies with the popup — it is never sent to the app (a test asserts the add payload carries no
+  `data:image`). **A cross-origin video taints the canvas** so `drawImage`/`toDataURL` throws
+  `SecurityError` on exactly the sites that matter (x.com); the poster → `og:image` → placeholder fallback
+  chain is the real feature. Mapping is `buildThumbnailIndex`/`pickThumbnail` (exact `src`/`groupKey` match,
+  else the largest element's image, else the page image) — a blob: MSE src can never match a network URL.
+  E2E-verifiable only on a SAME-ORIGIN fixture video (`e2e/fixtures/video-playing.html`), where the grab
+  really succeeds and the row's `img[src]` is a `data:image/jpeg` URL.
+- **Popup rows**: single `<ul id="list">`; a fixed 64×36 `.thumb` slot always exists (`.placeholder` with
+  the type letters when there's no image, `img.onerror` → back to placeholder) so late previews never
+  reflow the list. E2E selectors are `#list li` now — `#mainList`/`#otherList`/`#otherSection` are gone.
+- **Download folder**: `GET /api/settings` → `{ defaultSavePath, version }` (new route in
+  `LocalApiService`, read-only — keep it to those two fields, since the same API *accepts* cookies and
+  headers and an echo is how a secret would escape). The options page prefills its text box from
+  `fetchAppDefaultSavePath()` ONLY when nothing is saved (`getSavePath()` wins, so visiting the page can
+  never undo an edit), and every silent send (`sendToAppSilently`, both forms) plus `handOffToApp` adds
+  `path`. `path` is deliberately NOT part of `hasContext`, so a plain send keeps the GET form it always
+  used. A folder the app rejects is a 400 → `"fail"` → the interception path leaves the browser's own
+  download alone, which is the behaviour that chain was built for.
+- **`scripts/build-extension.sh`'s `COMMON=(…)` list must track the manifests** — `verify_zip` fails the
+  build if a manifest references a file the zip lacks, and AMO rejected earlier releases for exactly the
+  opposite (a `content_scripts` entry naming a file that wasn't packaged). Removing a file means removing
+  it from that array too.
+
+## The ORDER of the recovery paths in `HandleFailure` is load-bearing (issue #9, after v2.8.2)
+
+A failed attempt is offered to three recovery paths in turn, and which one goes first decides whether the
+download survives:
+
+1. **`TryReduceConnections` — same address, one connection.** Must come FIRST. It only fires on a 403 (or a
+   finished-with-nothing) raised while more than one connection was in flight, so it cannot steal an
+   ordinary failure. Putting the address walk ahead of it (v2.8.0–2.8.2) spent every address at full
+   concurrency and left the polite retry to whichever address happened to be LAST — for a browser hand-off
+   that is the clicked page link, not the mirror holding the file. The reporter's mirror failed at 4+
+   connections and succeeded at 1 with the same link, while the app *had* that retry and aimed it wrongly.
+2. **`TryNextUrl` — the next address**, which resets `ForceSingleConnection` so a capable mirror is not
+   demoted to one connection by the previous address's punishment. Bound: ≤ 2 attempts per address.
+3. **`TryAutoRefreshLink` — a fresh signature for the current address.**
+
+Two traps worth keeping:
+
+- The connection backoff **deletes the partial file** (a resumed download keeps the chunk layout its
+  package was created with, so one connection changes nothing while eight ranges sit on disk). So it must
+  never run on a download that was RESUMING real bytes — guarded by `vm.PreAttemptSize is not null`. A 403
+  on a resume is the expired-link shape, and that path keeps the partial.
+- The decision tests for this live in `Integration/UrlFailoverTests.cs` and drive `RaiseFailedForTest`
+  with `vm.PlannedConnections` set by hand — no engine, no timing. End-to-end variants of the same thing
+  are the ones that historically only passed on a fast machine (see the NOTE in that file before writing
+  another one).
+
+## Two sessions in ONE worktree: never `git add -A` (learned the hard way, 2026-09-01)
+- The author sometimes runs a second session on the SAME checkout (e.g. one on the extension, one on
+  issue #9's retry order). `git add -A` then sweeps the OTHER session's uncommitted work into your
+  commit and pushes it under your message — it happened: `DownloadManager.cs` +
+  `Integration/UrlFailoverTests.cs` (143 lines of someone else's in-flight work) landed inside an
+  extension commit. **Stage explicit paths** (`git add src/browser-extension docs/... `) and read
+  `git status --short` BEFORE committing, treating any file outside your own change as someone else's.
+- **Do not "fix" it by rewriting history or reverting their files.** `develop` is shared (never
+  force-push), and a revert commit would delete edits another session is still holding in its working
+  tree. The honest repair is: verify the tree still builds and their tests pass, leave the content
+  alone, and TELL the author — the other session can carry on and commit the rest normally (its
+  `git status` will simply show those files as already committed).
+- **A concurrent `dotnet build` in the same tree produces phantom failures**: a run that overlapped the
+  other session's build reported `1 Error(s)` with no error line and exit code 0; re-running alone gave
+  `0 errors, 0 warnings`. Same family as the stale-`testhost` note above. Re-run alone before believing
+  a build/test failure, and prefer a filtered `--filter` run over the full suite while another session
+  is active.
+
+## Firefox/AMO auto-publish: was broken for 2 months, NOT a token issue (fixed 2026-09-01)
+- **Diagnosis recipe**: `gh run list --workflow=extension.yml` (or, once deleted, `gh run view <id> --log`
+  on old run ids from `git log` blame) + `curl -fsSL "https://addons.mozilla.org/api/v5/addons/addon/<slug>/versions/?page_size=50"`
+  to see what's ACTUALLY live on AMO. This showed the last real publish was `1.1.0` (2026-07-03); every
+  release from `1.2.0` through `1.6.1` never reached Firefox users, only Chrome/Edge (manual dashboard).
+- **Root cause**: `.github/workflows/extension.yml`'s staging step hand-copied a file list
+  (`cp background.js common.js popup.html popup.css popup.js`) that silently drifted from the manifest —
+  `content.js` (content_scripts) was never in it, and later `options.html/.css/.js` weren't either. AMO's
+  linter rejected every submission with `MANIFEST_CONTENT_SCRIPT_FILE_NOT_FOUND`. **The `AMO_JWT_ISSUER`/
+  `AMO_JWT_SECRET` secrets were valid the whole time** — `gh secret list` shows them unchanged since
+  2026-07-03, and the failed run logs show the job got past auth and upload, only AMO's post-upload
+  validation failed. Never assume "token expired" for a publish failure without reading the actual log —
+  the error message named the real cause directly.
+- **Fix, don't just re-add**: the rebuilt workflow stages by calling `scripts/build-extension.sh` itself
+  (the SAME zip a manual dashboard upload uses — its `verify_zip` already fails the build if a manifest
+  reference is missing) instead of a second hand-maintained file list, so the two can never drift apart
+  again. It also runs `npx web-ext@8 lint --source-dir <unpacked>` — the SAME linter AMO's server runs —
+  as its own failing CI step BEFORE `web-ext sign`, so a broken package fails loudly in CI instead of only
+  inside AMO's review queue (this is how the 2-month breakage went unnoticed: nothing ran the linter until
+  the real submission). Verify locally before trusting a workflow edit: `./scripts/build-extension.sh &&
+  unzip dist/downloader-extension-firefox.zip -d /tmp/x && npx --yes web-ext@8 lint --source-dir /tmp/x`.
+- **`manifest.firefox.json`'s `strict_min_version` was also stale** (`121.0`, but
+  `browser_specific_settings.gecko.data_collection_permissions` needs Firefox 140/Android 142) — a
+  WARNING not the failing error, but bumped to `142.0` anyway so a real submission carries zero lint
+  warnings too, not just zero errors.
+
+## In-app browser-extension install (install-browser-extension, 2026-09-01)
+- **No browser accepts a locally installed unsigned extension into a normal profile, and OS elevation does
+  not change that** — this question is settled, don't re-open it. Chromium's external-install registry key
+  and `External Extensions` JSON take only a Web-Store `update_url`; Firefox needs a Mozilla-signed xpi. The
+  ONLY thing admin rights buy is a browser-**policy** write (`ExtensionInstallForcelist` / `policies.json`),
+  which is the hijacker signature and is scored HIGHER for being elevated — i.e. strictly worse than the
+  unsigned-exe-spawns-powershell shape that already got this app quarantined (issue #4). So the app fetches,
+  verifies and unpacks the files; the browser is where the install happens. `NoShellSpawnTests` now bans the
+  policy hooks AND the profile-path fragments (`Login Data`, `Local State`, `Web Data`, `cookies.sqlite`,
+  `places.sqlite`, `profiles.ini`) outright.
+- **`BrowserDetector` reads existence + executable path ONLY.** A feature about browsers is exactly where
+  profile access gets added by accident. Windows = `Microsoft.Win32.Registry` (`StartMenuInternet` →
+  `shell\open\command`, then `App Paths`), never a spawned `reg.exe`; Linux = `PATH` + snap/flatpak export
+  dirs; macOS = known `.app` bundles. `DetectOverride` is the test seam (a test cannot install a browser).
+- **The unpack destination must NEVER move**: a browser derives a manually loaded extension's ID from its
+  absolute folder path, so a new path per install means a new identity and an empty settings store, and a
+  temp folder breaks the extension when the OS cleans temp. `<AppData>/Downloader/extension/<target>/`,
+  staged as `<target>.new` → swap so an interrupted install leaves the previous copy intact.
+- **A matching sha256 does NOT make a zip trusted** — it only proves it is the file the catalog named. Every
+  entry path is still checked for `..`, rooted and drive-qualified forms before extraction.
+- **`storeUrl` in `packaging/extension/targets.json` is the whole switch** between the manual "load unpacked"
+  path and opening that browser at its store listing. Publishing a listing is a data edit, not code.
+- **The extension identifies itself on requests it already makes** (`extv`/`extb` query params, JSON fields
+  on the POST form, `X-Downloader-Extension` header), read once in `LocalApiService`'s request loop so
+  `/ping` and the legacy routes carry it too. In memory only — never persisted, never logged (the GET form of
+  `/api/add` carries a live session; that's why the URL isn't logged either). An unreadable manifest yields
+  `{}` and the request goes out unchanged.
+- **"Connected" must come from the extension calling, never from having unpacked files.** The manual load
+  fails in ways the app cannot see (Developer mode disabled by policy, user closed the tab), so a tick
+  meaning "we unzipped something" is worse than no tick.
+
+## Two shared-checkout / flake traps (2026-09-01)
+- **`git commit` commits the INDEX, not what you just `git add`ed.** The existing note says "never
+  `git add -A`" — that is not enough. Another session's `git add` had already staged six of its files, so a
+  commit of two of my own swept all six in under my message. Nothing was pushed, so the repair was
+  `git reset --soft HEAD~1` + `git restore --staged <their paths>` + recommit (their working-tree content is
+  untouched by that; they only have to re-`add`). **Read `git diff --cached` before every commit here**, not
+  just `git status`.
+- **The Playwright `interception` spec can fail in a FULL run even with `--workers=1`** and pass 10/10 when
+  its own file runs alone (seen: "browser's copy is cancelled" got `in_progress` instead of `interrupted`).
+  That symptom looks exactly like the app rejecting the hand-off, so check the stub first — `startStubApp`
+  answers 201 regardless of body, so extra JSON fields/headers cannot cause it. Re-run the single spec
+  before believing a regression. The existing note said workers=1 made the suite green; it mostly does.
+- **A `Task.Delay` after a fire-and-forget `ICommand.Execute(null)` is a flake waiting for CI.** One such
+  assertion passed alone and failed in the 1490-test run. Type the command `ReactiveCommand<Unit, Unit>`
+  (still an `ICommand`, XAML unchanged) and `await cmd.Execute()` — needs `using System.Reactive.Linq;`.
+
+## "Open containing folder" does nothing on Linux — the snap/D-Bus trap (2026-09-01)
+- **Symptom**: clicking open/reveal-folder does nothing at all, for every download row, no error, no log
+  line. Reported on Linux; reproduced under the **snap**.
+- **Root cause, two defects compounding**: (1) the Linux reveal is a D-Bus call to
+  `org.freedesktop.FileManager1`, which **AppArmor DENIES to a snap-confined app**, but `dbus-send`
+  *without* `--print-reply` never waits for a reply and **exits 0 anyway**; (2) `ShellLauncher.Run`
+  reported whether the process STARTED, not whether it succeeded. So the app concluded the reveal worked
+  and never ran its "just open the folder" fallback.
+- **Verify it like this** (works on any machine with the snap installed):
+  `snap run --shell downloader -c 'dbus-send --session --print-reply --dest=org.freedesktop.FileManager1 --type=method_call /org/freedesktop/FileManager1 org.freedesktop.FileManager1.ShowItems "array:string:file:///home/<you>/Downloads/x" string:; echo $?'`
+  → **exit 1** (AccessDenied) confined, **exit 0** unconfined; drop `--print-reply` and it is 0 both ways.
+  `xdg-open` and `gio open` ARE allowed under snap, so the fallback is what makes it work.
+- **Fix**: `ShellLauncher.RunChecked(timeout, …)` (waits, checks the exit code, kills a hang) +
+  `--print-reply` + `ShellLauncher.OpenFolder` / `RevealInFolder` owning the fallback chain
+  (default handler → `gio open`) + `AppLog.Warn` at every failure. All four folder buttons (download row,
+  plugins, logs, extension dialog) now go through it.
+- **`explorer.exe` returns a NON-ZERO exit code even on success** — never route the Windows reveal through
+  `RunChecked`, and keep its `/select,"<path>"` argument quoted exactly as it is (the quotes are inside
+  the single argument; `ArgumentList` does the outer escaping).
+- **A snap's `/tmp` is a private tmpfs and `$HOME` is `~/snap/<name>/<rev>`** — a probe using `/tmp/...`
+  or `$HOME/...` inside `snap run --shell` tests nothing. Use a real absolute path under the user's home.
+
+## `System.Progress<T>` is asynchronous — never assert its value right after the await
+`new Progress<double>(p => X = p)` captures `SynchronizationContext.Current` and **posts** each callback
+(to the ThreadPool when there is none). So `await DoWork(new Progress<double>(...)); Assert.Equal(1.0, X);`
+is a race: it passed alone and failed in the full run once an `[AvaloniaFact]` had installed the dispatcher
+context. Keep `Progress<T>` in the VM — it is what stops a bound property being set from the engine's
+background thread — and assert the progress contract against the SERVICE, where reports are collected
+synchronously. Same family as the two other timing traps above; the tell is "passes alone, fails in the
+full run, passes on re-run".
+
+## Awaiting a `ReactiveCommand` from a plain `[Fact]` hangs
+`ReactiveCommand` delivers on `RxApp.MainThreadScheduler`, which in a plain `[Fact]` is whatever the last
+test left there and nothing pumps it — `await cmd.Execute()` then hangs to the per-test timeout. It failed
+with the class run ALONE and passed alongside `AppShellStartupTests`/`DialogFlowTests` (they install a
+`DeferringScheduler`), i.e. order-dependent in both directions. Pin it for the assertion
+(`RxApp.MainThreadScheduler = ImmediateScheduler.Instance`, restore in `finally` — it is process-wide) or
+await the underlying method directly.
+
+## The extension installer needs a BUNDLED copy — the catalog alone is dead on arrival (2026-09-02)
+- **Symptom**: "Install browser extension" installs nothing and the folder button has nothing to open;
+  `~/.config/Downloader/extension/` does not exist.
+- **Cause, and it is a design trap worth remembering**: the installer reads its build from
+  `extension-catalog.json` on the LATEST GitHub release — an asset that only exists from the release that
+  ships the feature onward. Every already-published release carries none, so on every machine today the
+  catalog fetch legitimately returns empty. A feature whose whole point is "see that it worked" could not
+  be verified before being shipped. Check it with
+  `gh release view --repo bezzad/Downloader.Desktop --json assets --jq '.assets[].name'`.
+- **Fix**: the app bundles a copy of `src/browser-extension` as `AvaloniaResource` under
+  `Assets/extension/` (~110 KB) and `ExtensionInstallService.InstallBundled(target, gecko)` writes it out,
+  picking `manifest.firefox.json` → `manifest.json` for gecko. **The catalog still wins when reachable**, so
+  the extension keeps updating independently of the app — the bundle is the floor, not the source of truth.
+  No sha256 is involved on that path and none is needed: the bytes come from the app binary, not the network.
+- **Keep `ExtensionInstallService.BundledFiles` in step with `COMMON` in `scripts/build-extension.sh`** — a
+  file in the zip but not the bundle makes the bundled install a browser rejects outright. Guarded by
+  `Unit/BundledExtensionTests.The_bundled_file_list_matches_the_release_packaging_script`.
+- Side effect: the "your app is too old for this build" state is now unreachable (the bundled copy always
+  matches the running app), so that i18n key was removed from all 16 packs.
+- **General lesson**: before building a feature that fetches from "the latest release", ask what it does on
+  the release that introduces it. If the answer is "nothing", it cannot be tested before shipping.
+
+## "Video downloads but has no sound" — HLS audio renditions and Opus-in-MP4 (2026-09-02)
+Two independent causes, both reported as the same symptom (file plays, no audio):
+- **The HLS plugin only ever downloaded the chosen `#EXT-X-STREAM-INF` variant.** In a master playlist
+  whose variants carry `AUDIO="grp"`, the variant's playlist is **video-only** and the audio lives in a
+  separate `#EXT-X-MEDIA:TYPE=AUDIO,…,URI="…"` rendition — the shape YouTube's HLS manifests and many CDN
+  (x.com) masters use. `M3u8Parser` ignored `#EXT-X-MEDIA` entirely, so the audio playlist was never
+  fetched. Now: renditions are parsed (`HlsRendition`), variants carry `AudioGroupId`/`Codecs`,
+  `HlsMasterPlaylist.AudioFor(variant)` picks the group's `DEFAULT=YES` entry, and `HlsResolver` emits the
+  audio segments as a **second `ConcatRecipe.StreamGroup`** — which reuses the DASH two-group path
+  (concat each → `MuxAsync`) with no post-processor change. A self-contained variant still produces
+  `Streams == null` (one group), byte-for-byte the old recipe.
+  - `AudioFor` returns null when the variant names no `AUDIO` group *unless* its `CODECS` proves it is
+    video-only (`DeclaresNoAudio`) — an absent CODECS proves nothing and must not trigger a guess.
+  - A rendition with **no `URI`** means the audio is muxed into the variant; never download it.
+  - fMP4 HLS (an `#EXT-X-MAP`) now sets `IntermediateExtension = ".mp4"` — labelling fMP4 as `.ts` throws
+    ffmpeg's probing off (same reason DASH does it).
+- **Opus audio copied into MP4** (SiteMedia/yt-dlp mux path): `-c copy` writes Opus into MP4 happily, but
+  most desktop players will not decode it there. `SiteExtractor` now prefers an **MP4-native** audio
+  format (`IsMp4NativeAudio`: judged on `acodec`, falling back to `ext` — extracted URLs have NO file
+  extension, so any extension-based check on the DOWNLOADED file is useless) over both yt-dlp's own
+  `requested_formats` pick and a higher-bitrate Opus. Opus is still used when it is the only audio.
+- **Mux args are now explicit in both plugins** (`FfmpegBinary.BuildMuxArgs`, `FfmpegMuxer.BuildMuxArgs`):
+  `-map 0:v:0 -map 1:a:0`. ffmpeg's default selection picks one stream per type across BOTH inputs, so a
+  "video-only" file carrying a stray audio track can win and the real audio is dropped. `FfmpegBinary`
+  adds `-bsf:a aac_adtstoasc` only for `.ts`/`.aac` audio (AAC in MPEG-TS is ADTS-framed and illegal in
+  MP4); MP4/fMP4 audio already carries its ASC and must NOT be filtered.
+- Tests: `Plugins/Hls/HlsSeparateAudioTests.cs` (parser → resolver → post-processor round trip → args) and
+  `Plugins/SiteMedia/SiteMediaAudioSelectionTests.cs`. Versions bumped: HLS 2.2.1→**2.3.0**,
+  SiteMedia 1.0.1→**1.1.0** (a stale version means the catalog never offers the fix).
+
+### …and the extension's quality picker was the OTHER half of "no sound" (2026-09-02)
+Diagnosed from the real record, not a guess: `~/.config/Downloader/config.json`'s `Downloads` entry for
+the reported x.com item held
+`https://video.twimg.com/amplify_video/<id>/pl/avc1/720x1280/<name>.m3u8` — a **rendition**, whose own
+playlist maps to `/vid/avc1/…` fMP4 segments, i.e. **video only** (verified with curl; the master's
+address cannot be guessed from a rendition's, `…/pl/<name>.m3u8` 404s). So the app never received the
+master and had nothing to attach audio from — the HLS-plugin fix alone could not have helped that item.
+Cause: `popup.js buildGroups` replaced an HLS master group's options with the parsed variants and set
+`o.value = v.uri`, so "Download" sent the **rendition** URL. Now each option keeps `url` (what was
+probed/deduped/thumbnailed) and gains `sendUrl` (the master) + `variantId`; `sendOption` sends those.
+- **`/api/add` gained `variantId`** (JSON body, GET query, and `ToJson` for a forwarded CLI add) →
+  `DownloadItem.VariantId`, which `DownloadManager.Start` already passes to the resolver. Like `path`
+  it is NOT part of the extension's `hasContext`, so a plain send keeps its GET form.
+- The id scheme is the plugin's own (`HlsResolver.UniqueId` = BANDWIDTH). The extension sends the
+  variant's `BANDWIDTH`; an unknown/absent id makes `Pick` fall back to `Best()` — **audio always beats
+  an exact quality match**, so the coupling degrades safely.
+- Still unfixable by design: a rendition sniffed with **no master anywhere** (the extension deletes
+  rendition rows only when it saw their master — `childUris`). Nothing in a media playlist says where
+  its audio group lives, and guessing x.com's `/pl/mp4a/<bitrate>/…` sibling is exactly the
+  site-specific arms race HLS 2.0.0 dropped. For those, the page URL + `com.bezzad.site-media` is the
+  answer.
+- Tests: `Unit/ApiVariantChoiceTests.cs` (6), 3 in `common.test.js`, and a real-browser e2e
+  (`e2e/tests/hls-and-quality.spec.js`) that picks 640x480 and asserts the stub app received
+  `master.m3u8` + `variantId=1200000` and NOT `high/index.m3u8`. Extension 1.8.1 → **1.9.0**.
+
+## YouTube "403 (Forbidden)" right after a successful extraction (2026-09-02)
+- **Symptom**: the extension offers the page, the app extracts it (log: "Extracted separate video+audio
+  streams … will mux"), and one second later the row fails with
+  `Network error: … 403 (Forbidden).` The engine log reads `File size: 0, Supports range download: False`
+  — i.e. the engine's `GET bytes=0-0` size probe was ALREADY refused, so nothing about chunking,
+  concurrency, cookies, referer or the UA is involved.
+- **Cause**: YouTube answers an extraction through one of several internal player clients, and its CDN
+  then refuses SOME of those clients' links unless the request carries a PO token this app cannot mint.
+  The reported case came back as `c=WEB_EMBEDDED_PLAYER` (no `pot=` in the URL) — a client yt-dlp fell
+  back to BECAUSE cookies were supplied. Which client is refused varies per video/session/date: measured
+  on one box, one minute — default(`VISIONOS`) 206, `tv_simply` 206, `web`/`web_safari` 206,
+  `mweb` 403, `android_vr` 403, `web_embedded` 403. So there is nothing to hard-code a preference for.
+- **Diagnose in 30 seconds** — the persisted plan keeps the failing URLs:
+  `python3 -c "…"` over `~/.config/Downloader/config.json` → the item's `PlanJson` → each part's URL query
+  → look at `c=` and whether `pot=` is present, then `curl -s -o /dev/null -w '%{http_code}' -r 0-100 <url>`.
+  Extract a comparison yourself with the INSTALLED binaries:
+  `~/.config/Downloader/plugins/data/com.bezzad.site-media/yt-dlp-bin/yt-dlp --js-runtimes deno:<…/deno-bin/deno> --extractor-args "youtube:player_client=<c>" -J --no-warnings <url>`.
+- **Fix (SiteMedia 1.2.0)**: `SiteMediaResolver.EnsureFetchableAsync` probes the chosen stream
+  (`IMediaProbe` → one `GET bytes=0-0` with the part's own headers) and, on a 401/403/410, re-extracts
+  through `YouTubeRetryClients` (`tv_simply`, then `web_safari`, cookies kept) taking the first choice the
+  CDN serves; all refused ⇒ a sentence the user can act on, never a raw HTTP status. **Only YouTube is
+  probed** — nowhere else has a second way to ask, so a probe there would spend a request on a question
+  nothing can act on (and would put every existing resolver test on the network).
+- **yt-dlp TELLS you when a 403 is coming — do not suppress its warnings.** `--no-warnings` was removed
+  from `BuildArgs` for exactly this: warnings go to **stderr** (stdout stays parseable JSON, verified),
+  and they carry the real reason — *"tv_simply client https formats require a GVS PO Token which was not
+  provided. They will be skipped as they may yield HTTP Error 403."* `MentionsMissingToken(stderr)` logs
+  it whenever an extraction succeeds. This is also why a pinned client can fail with *"Requested format
+  is not available"*: yt-dlp SKIPPED that client's token-gated formats, leaving nothing to select.
+- **Handing yt-dlp a signed-in session is what CAUSES the token requirement**, so the first retry drops
+  it (`SiteMediaResolver.RetryWithoutCookies`). Measured on this box, one minute apart, same video:
+  with the extension's real cookies the default client answers `WEB_EMBEDDED_PLAYER` → **403**; with an
+  empty jar or none at all it answers `VISIONOS` → **206**. Pinned clients follow for the pages that
+  genuinely need the session.
+- **What is still unfixable without a PO-token provider**: a video YouTube bot-checks anonymously AND
+  gates behind a token when signed in (this box's VPN IP hits that often — bot checks are per-video, see
+  the 2026-08-13 note). Both retries then fail honestly. The documented answer is yt-dlp's
+  `bgutil-ytdlp-pot-provider`, which is a Node/Deno service plus a yt-dlp plugin — a sizeable new
+  dependency chain, NOT attempted.
+- **A probe that cannot REACH the server never rejects a link** (`ProbeVerdict.Unknown`) — an offline box
+  must not turn every download into "this site refused it".
+
+## Testing a local build of an OPTIONAL plugin (no release needed)
+`scripts/dev-run.sh` = build the solution in Release → copy each optional plugin's dll+deps.json into
+`~/.config/Downloader/plugins/<id>/` → `dotnet run -c Release --no-build`. `--no-run` stops after the
+install, `--root <dir>` targets another plugins root (the snap's lives under
+`~/snap/downloader/current/.config/Downloader/plugins`), `-- <args>` are passed to the app.
+- The plugins root is **per-user, not per-install** (`PluginManager.PluginsRoot`), so a `dotnet run`
+  from the repo loads exactly the same installed plugins as a packaged app — that is what makes this
+  work at all. Built-in plugins (GitHub, Ollama) need nothing: the app csproj stages them into its own
+  output.
+- **Restart is mandatory** — a plugin assembly is cached by path once loaded (see the plugin-update
+  swap note above), so copying over a running app changes nothing.
+- Keep the destination folder named by the plugin id: it is the plugin's identity on disk and where
+  its already-downloaded tools (yt-dlp/ffmpeg/deno, hundreds of MB) live.
+- A locally installed version ABOVE the catalog's is never "updated" backwards, so a dev copy survives
+  the startup update check.
+
+## Quality picker for a page sent from the extension (`/api/variants`)
+
+The extension's page row (a YouTube/x.com page the site-media plugin claims) is a normal card built by
+`popup.js buildCard`, and its `<select>` is filled from the APP, not from anything the extension can
+see: `POST /api/variants {url, cookies}` → `PluginManager.GetVariantsAsync(url, ResolveOptions, ct)` →
+the claiming resolver's `GetVariantsAsync` (`SiteExtractor.ListVariants`: one entry per video height +
+`audio`). Points worth not re-deriving:
+- **The cookies MUST travel with the question.** Listing qualities runs the same extraction as
+  downloading them, so an anonymous lookup on YouTube reports "no choices" for exactly the pages this
+  exists for. The endpoint writes a temp Netscape jar (`CookieFile.WriteTempFile`) and deletes it in a
+  `finally`.
+- **A failed lookup answers 200 with `error`**, not 500: the page can still be handed over whole and the
+  app picks a stream itself, so the row falls back to one plain Download.
+- **Option identity is `optionKey(opt)` = `url#variantId`**, because a page's qualities are all the SAME
+  url; keying the `<select>` by url alone collapses them onto the first.
+- **A picked variant forces the API path** in `common.js sendToApp` even in "dialog" add-mode — the
+  legacy `/add?url=` endpoint carries a URL and nothing else, so the dialog would discard the pick.
+- The app's own Add dialog still looks variants up ANONYMOUSLY (`MainViewModel` → `getVariants`), so a
+  hand-pasted YouTube link shows the "needs a signed-in session" note rather than a picker. Sending the
+  page from the extension is the path that has the session.

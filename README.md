@@ -172,9 +172,22 @@ A companion **browser extension** (Chrome, Edge, Firefox) sends links straight t
 - Captured links go straight into the app and **start downloading — no dialog**. Prefer to review each link first? Untick **Add silently** in the extension popup.
 - Links are sent only to the desktop app on your own machine (**Settings → Browser extension & local API**, on by default). DRM/encrypted sites like YouTube aren’t supported.
 
-**Install** (store listings pending review — see [`src/browser-extension`](src/browser-extension)):
-- _Chrome Web Store / Edge Add-ons / Firefox AMO_ — links added here once published.
-- **Load it now (developer mode):** see [`src/browser-extension/README.md`](src/browser-extension/README.md) to load the unpacked extension.
+**Install it from the app** — **Settings → Browser extension & local API → Get the files**. The app finds
+the browsers installed on your computer, downloads and checks the right build for each, and shows you the
+folder plus the two or three steps to add it in your browser. It marks a browser **connected** once the
+extension actually reaches the app, so you can see it worked.
+
+A few honest caveats while the store listings are still pending review:
+- **Chrome/Edge**: added this way, the browser shows a developer-mode notice at each start and the
+  extension will not update itself. Keep the folder where the app put it — moving or deleting it removes
+  the extension.
+- **Firefox**: a manually added add-on is removed when the browser restarts, so the Firefox Add-ons
+  listing is the real answer there (submitted, awaiting Mozilla's review).
+- Once a listing is live, the same button opens it in the browser you picked instead.
+
+The app **never** installs an extension into your browser by itself, and never asks for administrator
+rights to do it — that is your browser's decision to make, not ours. Prefer to do it entirely by hand?
+[`src/browser-extension/README.md`](src/browser-extension/README.md) has the manual steps.
 
 ## Automation: local API & command line
 

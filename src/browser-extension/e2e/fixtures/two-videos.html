@@ -1,0 +1,19 @@
+<!doctype html>
+<html><body>
+<!-- Regression fixture for the v1.8.0 "every item shows the same photo" bug: a feed-like page with
+     TWO distinct videos, each fetched then played from a blob: URL — exactly how a real MSE-based
+     player's <video src> never matches the network URL that caused it. Both groups must fall through
+     to the leftover-image queue, and each must end up with its OWN captured frame, not the other's. -->
+<video id="a" autoplay muted loop playsinline width="320" height="240"></video>
+<video id="b" autoplay muted loop playsinline width="320" height="240"></video>
+<script>
+  async function play(id, url) {
+    const blob = await (await fetch(url)).blob();
+    const video = document.getElementById(id);
+    video.src = URL.createObjectURL(blob);
+    await video.play().catch(() => {});
+  }
+  play('a', '/main_video.mp4');
+  play('b', '/videos/alpha_360p.mp4');
+</script>
+</body></html>

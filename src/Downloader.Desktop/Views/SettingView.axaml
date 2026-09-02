@@ -299,6 +299,18 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- The way to actually GET the extension. Without this the only route was the
+                         README's developer-mode instructions, which is not something to ask of the
+                         non-technical audience this app is for. -->
+                    <Grid Classes="field" ColumnDefinitions="*,Auto" IsVisible="{Binding EnableBrowserIntegration}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Ext_Install_Button}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Ext_Install_Hint}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ctrl" Content="{i18n:Tr Ext_Install}"
+                                Command="{Binding InstallExtensionCommand}" />
+                    </Grid>
+
                     <!-- Check for updates → (downloading: progress) → Restart to update. The label
                          reflects UpdateFlow state; a progress bar shows during the background download. -->
                     <StackPanel Spacing="6" Margin="0 6 0 0">

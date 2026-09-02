@@ -10,15 +10,30 @@ A cross-browser **Manifest V3** extension that hands download links and detected
 - **Popup** — paste a link, send the **detected media** for the current tab, or **scan the page**
   for downloadable links, then send one or all to the app.
 - **Media capture** — watches network responses and surfaces **video / audio / HLS (`.m3u8`)**
-  streams, with a badge count on the toolbar icon.
+  streams, with a badge count on the toolbar icon. DASH (`.mpd`) is **not** listed: it can be neither
+  size-probed nor read for a quality, so it could only ever be a row with nothing to say for itself.
+  The app still downloads DASH — paste the `.mpd` link into the popup's box, or add it in the app.
 - **Size, resolution and quality picker** — each detected item is probed for its file size, and an
   HLS master playlist expands into a quality dropdown (resolution or bitrate per option) instead of
   one opaque `.m3u8` row. Probing never blocks the popup: it renders immediately, then upgrades
   rows in place as results arrive.
-- **Main media vs. Other detected** — on media-heavy pages (a social-media post with dozens of
-  segment/thumbnail requests) the video you're actually viewing is promoted to a **Main media**
-  section; everything else collapses into an expandable **Other detected (N)** — nothing is hidden,
-  just triaged.
+- **One list, best copy first** — everything detected on the page is listed together: an HLS master
+  (`.m3u8`) leads, then the highest **quality** (`1080p` above `720p`), and where a link names no
+  quality the **largest file**. A row without a quality picker shows the quality it was ranked on, so
+  the order explains itself. There is no collapsed section and nothing to expand. Ordering by file
+  type was tried first and dropped: type cannot say which copy of a video is the good one. (This
+  replaced a "Main media vs. Other detected" split that promoted a group only when a visibility hint
+  happened to be fresh at the moment the popup opened — on a feed page whose player had finished
+  autoplaying, e.g. x.com, it usually was not, so the video you were looking at ended up hidden.)
+- **Previews** — each row carries a thumbnail so you can tell which video a link is without reading a
+  signed CDN URL: a frame captured from the page's own player when the browser allows it (a
+  cross-origin video blocks that), otherwise the player's poster image, otherwise the page's
+  `og:image`, otherwise a file-type placeholder. Previews are used only to draw the popup — they are
+  never sent to the app or anywhere else.
+- **Download folder** — set one in **Settings** and every link the extension sends is saved there,
+  so the app doesn't ask. The field is prefilled with the folder the app itself is configured to use
+  (read from its local API), so you start from a correct absolute path; leave it empty to let the app
+  decide as before.
 - **Known-unsupported-site message** — on sites that stream via MSE/DRM with no fetchable file URL
   (YouTube, Netflix, …), the popup explains why nothing was found instead of showing a blank list
   that looks broken.
@@ -70,6 +85,17 @@ A cross-browser **Manifest V3** extension that hands download links and detected
    shown in the app's Settings. If the app answers on none of those ports, the popup says so and
    names the ports it probed, rather than showing an unexplained red dot.
 
+## Getting it installed
+
+The easiest route for a user is **inside the desktop app**: Settings → Browser extension & local API →
+**Get the files**. The app detects installed browsers, downloads the build for each from the matching
+GitHub Release, **verifies its sha256 before unpacking**, puts it in a stable folder under the app's own
+data directory, and shows the per-browser steps. It never writes to a browser profile, never touches
+browser policy, and never asks for elevation — see the `install-browser-extension` OpenSpec change for
+why installing into a browser programmatically is off the table.
+
+The manual route below is the same thing done by hand, and is what you want when developing.
+
 ## Load it for testing (unpacked)
 
 ### Chrome / Edge
@@ -102,6 +128,15 @@ first) to rediscover it. These are served by `Services/LocalApiService.cs` in th
 `docs/local-api.md` in the main repo for the full API). No other ports, servers or accounts are
 involved.
 
+Every one of those requests also carries **which extension is asking** — `extv` (this extension's
+version) and `extb` (a coarse browser label: `chrome`, `edge` or `firefox`), plus an
+`X-Downloader-Extension: <version>; <browser>` header; the POST form of `/api/add` carries the same
+two as JSON fields. That is what lets the app tell you your extension is out of date instead of
+leaving you on a build that quietly stopped working. It needs no extra permission and adds no extra
+request, the app keeps it in memory only (never in its config file, never in its log), and a request
+without it is served exactly as before — so an older extension, the CLI and any other local tool are
+unaffected.
+
 ## Files
 
 | File | Role |
@@ -110,18 +145,18 @@ involved.
 | `manifest.firefox.json` | Firefox MV3 manifest (scripts background + gecko id) |
 | `common.js` | Shared helpers: media detection, `sendToApp()`, size/HLS probing, grouping |
 | `background.js` | Context menus, response sniffing, badge, message handler, probing coordinator, download interception |
-| `content.js` | Tracks the visible/playing `<video>`/`<audio>` element for Main-vs-Other triage |
-| `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI (grouped cards, quality picker) |
-| `options.html` / `options.css` / `options.js` | Settings page: download-interception rules |
+| `popup.html` / `popup.css` / `popup.js` | Toolbar popup UI (one type-ordered list, previews, quality picker) |
+| `options.html` / `options.css` / `options.js` | Settings page: download folder + download-interception rules |
 | `icons/` | Toolbar/store icons (16/48/128) |
 
 Run the unit tests (pure helpers in `common.js`) with `node --test src/browser-extension/common.test.js`.
 
-## Publishing (later)
+## Publishing
 
-Store submission needs the author's developer accounts and is **not** done here:
+- **Firefox (AMO)** — automatic: `.github/workflows/extension.yml` submits the version for review
+  on every push to `develop`/`main` that touches this folder. See `PUBLISHING.md` for the failure
+  history and how the packaging bug that broke it for two months was fixed.
+- **Chrome Web Store / Edge Add-ons** — still a manual dashboard upload (needs the author's
+  developer account); zip this folder (`scripts/build-extension.sh`) and upload it.
 
-- **Chrome Web Store / Edge Add-ons** — zip this folder and upload in the respective dashboards.
-- **Firefox (AMO)** — submit the Firefox-manifest build at `addons.mozilla.org`.
-
-Bump `version` in both manifests for each release.
+Bump `version` in **both** manifests for each release — a test enforces they agree.

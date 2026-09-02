@@ -1,7 +1,7 @@
 <!doctype html>
 <html><body>
-<!-- Reproduces the exact x.com regression: a video that plays briefly then is left PAUSED on a
-     frame — must still be promoted to "Main media" (content.js's paused-but-loaded path). -->
+<!-- Reproduces the exact x.com shape: a video that plays briefly then is left PAUSED on a frame.
+     It must be listed like any other detection — playback state no longer decides anything. -->
 <video id="v" src="/main_video.mp4" muted playsinline width="320" height="240"></video>
 <script>
   const v = document.getElementById('v');

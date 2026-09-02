@@ -212,6 +212,9 @@ public static class LocalApiService
             try
             {
                 var path = ctx.Request.Url?.AbsolutePath ?? "/";
+                // Every route, /ping and the legacy endpoints included: the extension identifies itself on
+                // requests it already makes, so this is the one place it needs reading.
+                RecordExtensionIdentity(ctx.Request);
                 if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
                 {
                     await HandleApiAsync(ctx, path[5..].Trim('/').ToLowerInvariant()).ConfigureAwait(false);
@@ -263,8 +266,14 @@ public static class LocalApiService
                 case "add":
                     await HandleAddAsync(ctx, manager, config).ConfigureAwait(false);
                     break;
+                case "settings":
+                    HandleSettings(ctx, config);
+                    break;
                 case "can-handle":
                     HandleCanHandle(ctx);
+                    break;
+                case "variants":
+                    await HandleVariantsAsync(ctx).ConfigureAwait(false);
                     break;
                 case "list":
                     await HandleListAsync(ctx, manager).ConfigureAwait(false);
@@ -315,6 +324,94 @@ public static class LocalApiService
         });
     }
 
+    /// <summary>The qualities behind a page URL, so a client can offer the same picker the Add window
+    /// does — the browser extension shows them on the page's row (audio-only, 1080p, 720p…). Takes the
+    /// caller's cookies like <c>/api/add</c> does: on a site that only answers a signed-in session,
+    /// listing the qualities needs the session just as much as downloading them, so an anonymous lookup
+    /// would report "no choices" for exactly the pages this exists for. Answers 200 with an empty list
+    /// when nothing claims the link or it has no real choice; a resolver FAILURE answers 200 too, with
+    /// the reason, so the caller still shows the page as one plain download instead of an error.</summary>
+    private static async Task HandleVariantsAsync(HttpListenerContext ctx)
+    {
+        ApiAddRequest req;
+        if (ctx.Request.HttpMethod == "POST")
+        {
+            var body = await ReadBodyAsync(ctx.Request).ConfigureAwait(false);
+            req = body == null
+                ? new ApiAddRequest { Error = $"request body too large (max {MaxBodyBytes} bytes)" }
+                : ApiAddRequest.FromJson(body);
+        }
+        else
+        {
+            req = ApiAddRequest.FromQuery(ctx.Request.Url);
+        }
+
+        if (req.Error != null)
+        {
+            RespondJson(ctx, 400, new Dictionary<string, object> { ["error"] = req.Error });
+            return;
+        }
+
+        var url = req.Url.Trim();
+        string cookieFile = null;
+        if (req.Cookies is { Count: > 0 })
+        {
+            try { cookieFile = CookieFile.WriteTempFile(req.Cookies); }
+            catch (Exception ex) { AppLog.Warn($"Couldn't write temp cookie file: {ex.Message}"); }
+        }
+
+        var response = new Dictionary<string, object>
+        {
+            ["url"] = url,
+            ["by"] = Plugins?.FindResolverPluginName(url),
+        };
+        try
+        {
+            // The extraction behind this can take a few seconds (it runs the site tool); the caller
+            // renders first and upgrades when this answers, so there is no deadline here beyond the
+            // client's own.
+            var variants = Plugins == null
+                ? null
+                : await Plugins.GetVariantsAsync(url, new global::Downloader.Desktop.Plugins.ResolveOptions { CookieFilePath = cookieFile }, CancellationToken.None)
+                    .ConfigureAwait(false);
+            response["variants"] = (variants ?? Array.Empty<global::Downloader.Desktop.Plugins.LinkVariant>()).Select(v => new Dictionary<string, object>
+            {
+                ["id"] = v.Id,
+                ["label"] = v.Label,
+                ["size"] = v.ExpectedSize,
+                ["default"] = v.IsDefault,
+                ["url"] = v.SubstituteUrl,
+            }).ToArray();
+        }
+        catch (Exception ex)
+        {
+            // A lookup that fails is not a failed request: the page can still be handed over as a whole
+            // and the app will pick a stream itself. Say why, and let the caller decide what to show.
+            AppLog.Warn($"Variant lookup failed for a local-API caller: {ex.Message}");
+            response["variants"] = Array.Empty<object>();
+            response["error"] = ex.Message;
+        }
+        finally
+        {
+            try { if (cookieFile != null) File.Delete(cookieFile); } catch { /* temp file, best effort */ }
+        }
+
+        RespondJson(ctx, 200, response);
+    }
+
+    /// <summary>What a local client needs to pre-fill its own UI: where downloads go by default, and which
+    /// app it is talking to. Read-only, and deliberately just these two fields — the local API ACCEPTS
+    /// cookies, headers and credentials, so handing any of the settings object back is how a secret would
+    /// eventually leak out of it. The browser extension prefills its download-folder box from this.</summary>
+    private static void HandleSettings(HttpListenerContext ctx, Config config)
+    {
+        RespondJson(ctx, 200, new Dictionary<string, object>
+        {
+            ["defaultSavePath"] = config.Settings.DefaultSavePath,
+            ["version"] = UpdateService.CurrentVersion.ToString(),
+        });
+    }
+
     private static async Task HandleAddAsync(HttpListenerContext ctx, IDownloadManager manager, Config config)
     {
         ApiAddRequest req;
@@ -350,7 +447,8 @@ public static class LocalApiService
                 // echoed back; the caller already has them and the response is the wrong place for secrets.
                 ["cookies"] = item.Request.Cookies.Count,
                 ["headers"] = item.Request.Headers.Count,
-                ["referer"] = !string.IsNullOrEmpty(item.Referer)
+                ["referer"] = !string.IsNullOrEmpty(item.Referer),
+                ["variantId"] = item.VariantId
             };
         });
         RespondJson(ctx, 201, result);
@@ -446,6 +544,7 @@ public static class LocalApiService
             SaveFolder = string.IsNullOrWhiteSpace(req.Path) ? config.Settings.DefaultSavePath : req.Path.Trim(),
             QueueId = queue?.Id ?? config.DefaultQueue?.Id,
             FromBrowserDownload = req.FromBrowser,
+            VariantId = string.IsNullOrWhiteSpace(req.VariantId) ? null : req.VariantId.Trim(),
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
@@ -471,6 +570,97 @@ public static class LocalApiService
         }
 
         return item;
+    }
+
+    // ---------------- Which extension is talking to us ----------------
+
+    /// <summary>An extension that has contacted this app, as it last identified itself.</summary>
+    public sealed record ExtensionIdentity(string Version, string Browser, DateTimeOffset At);
+
+    private static readonly object IdentityGate = new();
+    private static readonly Dictionary<string, ExtensionIdentity> SeenExtensions =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The extensions that have contacted this app since it started, keyed by browser label.
+    ///
+    /// <para><b>In memory only.</b> It is never written to the config file and never written to the log —
+    /// same discipline as the request URL, which is not logged because the GET form of <c>/api/add</c>
+    /// carries a live session (issue #7). This exists so the app can say "your Chrome extension is out of
+    /// date", which is worth exactly one dictionary and nothing more.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<string, ExtensionIdentity> LastSeenExtensions
+    {
+        get { lock (IdentityGate) return new Dictionary<string, ExtensionIdentity>(SeenExtensions, StringComparer.OrdinalIgnoreCase); }
+    }
+
+    /// <summary>What this browser's extension last reported, or null if it has never called.</summary>
+    public static ExtensionIdentity LastSeenExtension(string browser)
+    {
+        if (string.IsNullOrWhiteSpace(browser))
+            return null;
+        lock (IdentityGate)
+            return SeenExtensions.TryGetValue(browser, out var seen) ? seen : null;
+    }
+
+    /// <summary>Test seam: the recorder is process-wide, so a test that asserts on it must start clean.</summary>
+    internal static void ClearSeenExtensions()
+    {
+        lock (IdentityGate) SeenExtensions.Clear();
+    }
+
+    private static void RecordExtensionIdentity(HttpListenerRequest request)
+    {
+        try
+        {
+            var parsed = ParseExtensionIdentity(
+                QueryParam(request?.Url, "extv"),
+                QueryParam(request?.Url, "extb"),
+                request?.Headers?["X-Downloader-Extension"]);
+            if (parsed == null)
+                return; // an older extension, the CLI, or another tool — handled exactly as before
+            lock (IdentityGate)
+                SeenExtensions[parsed.Browser] = parsed;
+        }
+        catch
+        {
+            // Never let identity bookkeeping cost a request.
+        }
+    }
+
+    /// <summary>
+    /// Reads the reported identity from the query pair (<c>extv</c>/<c>extb</c>) or, failing that, the
+    /// <c>X-Downloader-Extension: &lt;version&gt;; &lt;browser&gt;</c> header. Pure, so the shapes are
+    /// tested without a listener. Returns null when nothing usable was reported — which must read as
+    /// "an older extension", never as an error.
+    /// </summary>
+    internal static ExtensionIdentity ParseExtensionIdentity(string queryVersion, string queryBrowser, string header)
+    {
+        var version = Clean(queryVersion);
+        var browser = Clean(queryBrowser);
+
+        if (version == null && !string.IsNullOrWhiteSpace(header))
+        {
+            var parts = header.Split(';', 2);
+            version = Clean(parts[0]);
+            browser ??= parts.Length > 1 ? Clean(parts[1]) : null;
+        }
+
+        if (version == null)
+            return null;
+        return new ExtensionIdentity(version, browser ?? "unknown", DateTimeOffset.Now);
+
+        // A reported value is untrusted text: keep it short and single-line so it cannot smuggle
+        // anything into whatever renders it.
+        static string Clean(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s))
+                return null;
+            var v = s.Trim();
+            if (v.Length > 40)
+                v = v[..40];
+            return v.Contains('\n') || v.Contains('\r') ? null : v;
+        }
     }
 
     // ---------------- Small pure helpers (unit-testable, no networking) ----------------
@@ -629,6 +819,16 @@ public sealed class ApiAddRequest
     /// <summary>Optional per-download referer, overriding the global setting for this download only.</summary>
     public string Referer { get; set; }
 
+    /// <summary>
+    /// Optional stream/quality choice for a link a plugin expands into several (an HLS master's renditions,
+    /// a model's tags). The id is the resolving plugin's own — an unknown one is not an error: the resolver
+    /// falls back to its default (highest quality), which is what a caller that guessed wrong should get.
+    /// This exists so a caller can hand over a MASTER playlist plus the quality it wants, instead of the
+    /// rendition URL: a rendition of a master with a separate audio group is video-only, and downloading it
+    /// directly produces a file with no sound.
+    /// </summary>
+    public string VariantId { get; set; }
+
     /// <summary>True when the browser extension took this download over from the browser itself. Such a link
     /// was demonstrably fetchable a second ago, which changes how a first-request failure is read — see
     /// <see cref="DownloadItem.FromBrowserDownload"/>.</summary>
@@ -649,7 +849,8 @@ public sealed class ApiAddRequest
                 Filename = GetString(root, "filename"),
                 Path = GetString(root, "path"),
                 Queue = GetString(root, "queue"),
-                Referer = GetString(root, "referer")
+                Referer = GetString(root, "referer"),
+                VariantId = GetString(root, "variantId")
             };
             if (root.TryGetProperty("fromBrowser", out var fromBrowser) &&
                 fromBrowser.ValueKind is JsonValueKind.False or JsonValueKind.True)
@@ -687,7 +888,8 @@ public sealed class ApiAddRequest
             Filename = LocalApiService.QueryParam(requestUri, "filename"),
             Path = LocalApiService.QueryParam(requestUri, "path"),
             Queue = LocalApiService.QueryParam(requestUri, "queue"),
-            Referer = LocalApiService.QueryParam(requestUri, "referer")
+            Referer = LocalApiService.QueryParam(requestUri, "referer"),
+            VariantId = LocalApiService.QueryParam(requestUri, "variantId")
         };
         if (LocalApiService.QueryParam(requestUri, "fromBrowser") is { } fromBrowser)
             req.FromBrowser = !fromBrowser.Equals("false", StringComparison.OrdinalIgnoreCase) && fromBrowser != "0";
@@ -712,7 +914,8 @@ public sealed class ApiAddRequest
         ["mirrors"] = Mirrors,
         ["start"] = Start,
         // Referer travels with a forwarded CLI add (it is not a credential); cookies and headers never do.
-        ["referer"] = Referer
+        ["referer"] = Referer,
+        ["variantId"] = VariantId
     });
 
     private ApiAddRequest Validate()

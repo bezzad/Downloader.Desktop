@@ -59,12 +59,32 @@ public sealed class FfmpegBinary : IFfmpeg
             throw new InvalidOperationException($"ffmpeg exited with code {proc.ExitCode}: {Tail(stderr)}");
     }
 
+    /// <summary>
+    /// Combine a video-only and an audio-only file into one MP4 with stream copy. The maps are EXPLICIT:
+    /// relying on ffmpeg's default stream selection picks one stream per type across BOTH inputs, so a
+    /// video file that happens to carry a silent/secondary audio track can win and the real audio is
+    /// dropped — a file that plays with no sound. AAC arriving in MPEG-TS is ADTS-framed and needs
+    /// <c>aac_adtstoasc</c> to be legal inside MP4; fMP4/MP4 audio already carries its ASC and must not be
+    /// filtered.
+    /// </summary>
+    internal static string BuildMuxArgs(string videoFile, string audioFile, string outputPath)
+    {
+        var bsf = IsAdtsContainer(audioFile) ? "-bsf:a aac_adtstoasc " : string.Empty;
+        return $"-y -i \"{videoFile}\" -i \"{audioFile}\" -map 0:v:0 -map 1:a:0 -c copy {bsf}-movflags +faststart \"{outputPath}\"";
+    }
+
+    private static bool IsAdtsContainer(string file)
+    {
+        var ext = Path.GetExtension(file);
+        return ext.Equals(".ts", StringComparison.OrdinalIgnoreCase)
+               || ext.Equals(".aac", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task MuxAsync(string videoFile, string audioFile, string outputPath, CancellationToken cancellationToken)
     {
         var exe = await EnsureFfmpegAsync(cancellationToken).ConfigureAwait(false);
 
-        // Combine separate video-only + audio-only streams into one MP4: copy both, faststart for playback.
-        var args = $"-y -i \"{videoFile}\" -i \"{audioFile}\" -c copy -movflags +faststart \"{outputPath}\"";
+        var args = BuildMuxArgs(videoFile, audioFile, outputPath);
         _log.LogInformation("Running ffmpeg (mux): {Exe} {Args}", exe, args);
 
         var psi = new ProcessStartInfo(exe, args)

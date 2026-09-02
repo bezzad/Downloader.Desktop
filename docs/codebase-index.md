@@ -115,6 +115,22 @@ fail-soft and their pure parts are unit-tested, but behavior changes there need 
 | `PlanRunState.cs` | Thread-safe per-segment progress board a plan run writes to and the Details dialog polls. |
 | `UrlResolver.cs` | Name/size preview without downloading (wraps the engine's `RemoteFileResolver`; single `Range: 0-0` GET, follows redirects). Has a URL fast-path, a concurrency semaphore and an 8 s timeout so rows never hang on "Fetching name…". |
 
+**Browser-extension install** (Settings → Browser extension & local API → *Get the files*)
+
+| File | Role |
+| --- | --- |
+| `BrowserDetector.cs` | Which supported browsers are installed, from a **curated** list. Windows: `Microsoft.Win32.Registry` (`StartMenuInternet`, then `App Paths`) — never a spawned `reg.exe`. Linux: `PATH` plus snap/flatpak export dirs. macOS: known `.app` bundles. **Reads existence and executable path only** — no profile, cookie store, credential store, history or preferences file, ever. `NoShellSpawnTests` bans those path fragments outright. `DetectOverride` is the test seam. |
+| `ExtensionCatalogService.cs` | Reads `extension-catalog.json` off the latest GitHub Release (sibling of `PluginCatalogService`, same shape and same fail-soft rule: empty list, never a throw). Drops entries whose asset the release lacks or whose `minAppVersion` exceeds this app. Also owns the pure `ShouldWarnAboutExtension` decision behind the startup out-of-date check. |
+| `ExtensionInstallService.cs` (bundled) | `InstallBundled` writes the copy of the extension bundled with the app (`Assets/extension/`, an `AvaloniaResource` mirror of `src/browser-extension`). This is what makes the installer work offline, on a fresh machine, and on releases published before the catalog existed — without it the feature installs nothing. The catalog still wins when reachable. `BundledFiles` must track `COMMON` in `scripts/build-extension.sh`. |
+| `ExtensionInstallService.cs` | Download → **verify sha256 before extracting** → reject any archive entry that escapes the destination → staged unpack (`<target>.new` → swap). The destination **never moves**: a browser identifies a manually loaded extension by its absolute folder path, so a fresh path per install would reset its identity and settings. `ZipFile` only — no `tar`, no shell, no executable bit, and nothing written outside `InstallRoot`. |
+| `LocalApiService.cs` (identity) | Records which extension is talking to the app (`extv`/`extb` query pair or an `X-Downloader-Extension` header, read at the single request choke point so `/ping` and the legacy routes carry it too). **In memory only** — never persisted, never logged. A request without it behaves exactly as before. |
+
+The app **never installs into a browser**: no external-install hook, no enterprise policy, no elevation.
+The one thing elevation would buy is a browser-policy write, which is the hijacker signature and is scored
+higher for being elevated (issue #4). See the `install-browser-extension` OpenSpec change for the full
+reasoning, and `packaging/extension/targets.json` — setting a target's `storeUrl` there is the whole switch
+from the manual path to the store path, no code change.
+
 **Persistence & logging**
 
 `IFileService.cs`/`FileService.cs` (atomic temp+move write, `SemaphoreSlim`, exception-tolerant load,
@@ -247,15 +263,23 @@ version/sha256, attaching both to the same `vX.Y.Z` release. Isolation is guarde
 
 ## 5. `src/browser-extension` — browser integration
 
-Plain JS, Manifest V3, no build step (load unpacked). Version `1.2.2`. Ships for
-Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`).
+Plain JS, Manifest V3, no build step (load unpacked). Version `1.8.0`. Ships for
+Chrome/Edge (`manifest.json`) and Firefox (`manifest.firefox.json`) — **both manifests must carry the
+same version**, enforced by a test in `common.test.js`, because the two zips share their code and the
+extension catalog reads each target's version from its own manifest. There is **no content script**:
+1.7.0 removed `content.js` (its only job was a relevance hint that has been deleted), so nothing of
+the extension runs on a page except while the popup is open.
+
+Since 1.8.0 every request to the app also names the extension (`extv`/`extb` plus an
+`X-Downloader-Extension` header), which is what lets the app say "your extension is out of date". It
+needs no extra permission, adds no request, and an unreadable manifest degrades to sending nothing.
 
 | File | Role |
 | --- | --- |
-| `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS/DASH sniffing, badge, forwarding to the app. A `.mpd` is reported as `kind: "dash"` and never size-probed (its own few KB would be discarded as implausibly small media). |
-| `content.js` | Guesses which `<video>`/`<audio>` the user is looking at (a paused-on-last-frame element counts — X.com autoplay) and reports it as a hint. |
-| `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping (`computeMainGroups`). |
-| `popup.js/.html/.css` | The popup: detected media grouped by video with a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
+| `background.js` | Service worker / event page: context menus, per-tab video/audio/HLS sniffing, badge, forwarding to the app. `.mpd` (DASH) is **not** sniffed at all since 1.7.0 — unprobeable and quality-less, so it could only be a row the popup's ordering rule can say nothing about; the app still takes a pasted `.mpd`. |
+| `common.js` | Shared helpers: app port discovery over `APP_PORT_RANGE`, media grouping, list ordering (`sortDetectedGroups` = HLS first, then `qualityHeight`, then size), thumbnail mapping (`buildThumbnailIndex`/`pickThumbnail`), download folder (`getSavePath`/`fetchAppDefaultSavePath`). |
+| `popup.js/.html/.css` | The popup: ONE list of detected media, best copy first (HLS → quality → size), a preview thumbnail per row, a size/quality upgrade pass, link scan, paste-a-URL, send one/all. |
+| `options.js/.html/.css` | Settings: the download folder (prefilled from the app's `/api/settings`) and the interception rules. |
 | `common.test.js` | `node --test` unit suite. |
 | `e2e/` | Playwright suite (own `package.json`) with a fixture server and real `.m3u8`/`.mp4` fixtures. |
 
@@ -348,6 +372,8 @@ Repo-local skills live in `.claude/skills/` (`downloader-desktop`, `release`, `c
 | Add UI text | `Assets/i18n/en.json` first, then the other 15 packs; bind `{i18n:Tr Key}`. |
 | Support a new link type | A plugin `ILinkResolver` — not app code. Copy the GitHub plugin. |
 | Add an automation endpoint | `Services/LocalApiService.cs` (+ `CliParser`/`CliRunner` for a verb), and `docs/local-api.md`. |
+| Publish an extension store listing | `packaging/extension/targets.json` — set that target's `storeUrl`. Data, not code. |
+| Support another browser | `BrowserDetector.Candidates` (+ per-family steps in `ExtensionTargetRow` if it is a new family). |
 | Ship a new version | `scripts/release.sh X.Y.Z` (see the `release` skill). |
 
 ### Known rough edges (as documented)

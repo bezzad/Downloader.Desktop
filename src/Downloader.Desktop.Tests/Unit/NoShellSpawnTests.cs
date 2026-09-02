@@ -38,6 +38,24 @@ public class NoShellSpawnTests
         (@"cmd(\.exe)?\s+/c", "Don't route work through the command interpreter; call the API."),
         (@"--cookies-from-browser", "Reading browser cookie stores is textbook infostealer behavior (removed with yt-dlp in HLS 2.0.0)."),
         (@"reg(\.exe)?""?\s*\)?\s*\{?\s*(RedirectStandardOutput|UseShellExecute)", "Write the registry in-process via Microsoft.Win32.Registry, not by spawning reg.exe."),
+
+        // --- Browser data. Same family as --cookies-from-browser above: reading a browser's profile is
+        // what an infostealer does, and BrowserDetector exists to look at browsers, so this is exactly
+        // where the line gets crossed by accident. Detection reads existence and executable path only.
+        (@"Login Data", "Chromium's saved-password store. Browser detection reads existence and executable path only — never a profile."),
+        (@"Local State", "Chromium's profile state (holds the cookie-encryption key). Never read a browser profile."),
+        (@"Web Data", "Chromium's autofill store. Never read a browser profile."),
+        (@"cookies\.sqlite", "Firefox's cookie store. Never read a browser profile."),
+        (@"places\.sqlite", "Firefox's history store. Never read a browser profile."),
+        (@"profiles\.ini", "Firefox's profile index — reading it is the first step of profile access. Detection needs only the executable."),
+
+        // --- Browser policy / external-install. The ONLY thing OS elevation would buy is a write here,
+        // and it is the browser-hijacker signature — scored HIGHER when elevated, not lower. Installing
+        // the extension into a browser is the user's action, performed in the browser. See the
+        // install-browser-extension change for why this is settled.
+        (@"ExtensionInstallForcelist", "Force-installing an extension via enterprise policy is the browser-hijacker signature. The user installs it in their browser."),
+        (@"External Extensions", "The browser external-install hook. Don't register extensions behind the user's back."),
+        (@"policies\.json", "Firefox enterprise policy. Don't force-install; offer the store listing or the manual steps."),
     };
 
     /// <summary>Deliberate, reviewed exceptions: exact "relative/path.cs::pattern" keys. Empty by design —
@@ -161,6 +179,12 @@ public class NoShellSpawnTests
             "Expand-Archive -Force -LiteralPath 'x.zip'", b.Pattern, RegexOptions.IgnoreCase));
         Assert.Contains(Banned, b => Regex.IsMatch(
             "yt-dlp --cookies-from-browser chrome", b.Pattern, RegexOptions.IgnoreCase));
+        Assert.Contains(Banned, b => Regex.IsMatch(
+            @"Path.Combine(profile, ""Login Data"")", b.Pattern, RegexOptions.IgnoreCase));
+        Assert.Contains(Banned, b => Regex.IsMatch(
+            @"key.SetValue(""ExtensionInstallForcelist"", id)", b.Pattern, RegexOptions.IgnoreCase));
+        Assert.Contains(Banned, b => Regex.IsMatch(
+            @"var p = ""/etc/firefox/policies/policies.json"";", b.Pattern, RegexOptions.IgnoreCase));
     }
 
     /// <summary>The app and every plugin — i.e. everything that reaches a user's machine. The test project
