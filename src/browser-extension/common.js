@@ -252,6 +252,9 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   // Where the user told the extension to save. Deliberately NOT part of `hasContext`: a folder travels
   // fine in a query, so a plain send keeps using the GET form it always did.
   const savePath = typeof context?.savePath === "string" ? context.savePath.trim() : "";
+  // Which rendition of an expandable link (an HLS master's qualities) the user picked. Like savePath it
+  // travels fine in a query, so it is deliberately NOT part of `hasContext`.
+  const variantId = typeof context?.variantId === "string" ? context.variantId.trim() : "";
   const hasContext = (cookies && cookies.length) || referer || (headers && Object.keys(headers).length);
   if (hasContext) {
     const body = { url };
@@ -263,6 +266,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
     if (referer) body.referer = referer;
     if (headers && Object.keys(headers).length) body.headers = headers;
     if (savePath) body.path = savePath;
+    if (variantId) body.variantId = variantId;
     Object.assign(body, extensionIdentity());
     const res = await postAdd(base, body);
     if (res.ok) return "ok";
@@ -272,6 +276,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   let endpoint = `${base}/api/add?url=${encodeURIComponent(url)}`;
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
   if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
+  if (variantId) endpoint += `&variantId=${encodeURIComponent(variantId)}`;
   try {
     const res = await fetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }));
     if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link

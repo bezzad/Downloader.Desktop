@@ -485,6 +485,43 @@ test("sendToAppSilently keeps the URL-only GET path when no cookies are captured
   assert.notEqual(seen.opts && seen.opts.method, "POST");
 });
 
+test("sendToAppSilently carries the chosen quality in the GET form", async () => {
+  // An HLS master's rendition is often video-only (its audio lives in a separate #EXT-X-MEDIA group),
+  // so the popup hands over the MASTER plus the quality's id and lets the app expand it. A quality is
+  // not a secret, so it travels in the query and does not force the POST form.
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+
+  const result = await sendToAppSilently(
+    "http://127.0.0.1:15151", "https://video.twimg.com/x/pl/master.m3u8", null, [], { variantId: "4800000" });
+
+  assert.equal(result, "ok");
+  assert.match(seen.endpoint, /\/api\/add\?url=/);
+  assert.match(seen.endpoint, /[?&]variantId=4800000(&|$)/);
+  assert.notEqual(seen.opts && seen.opts.method, "POST");
+});
+
+test("sendToAppSilently carries the chosen quality in the JSON form too", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const cookies = [{ name: "auth_token", value: "v", domain: ".x.com", path: "/", secure: true }];
+
+  await sendToAppSilently(
+    "http://127.0.0.1:15151", "https://video.twimg.com/x/pl/master.m3u8", null, cookies, { variantId: "2400000" });
+
+  const body = JSON.parse(seen.opts.body);
+  assert.equal(body.variantId, "2400000");
+});
+
+test("sendToAppSilently omits the quality when none was chosen", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+
+  await sendToAppSilently("http://127.0.0.1:15151", "https://example.com/a.zip", null, []);
+
+  assert.ok(!seen.endpoint.includes("variantId"));
+});
+
 test("a DASH manifest is deliberately never surfaced", () => {
   // The app CAN download a .mpd (its streaming plugin handles DASH), but the popup cannot probe one
   // for a size or read a quality off it, so it could only ever be a nameless, sizeless row that the

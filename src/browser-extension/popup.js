@@ -71,8 +71,17 @@ function buildGroups() {
   for (const g of map.values()) {
     const probed = probedByUrl.get(g.key);
     if (g.kind === "hls" && probed?.kind === "hls" && probed.variants.length) {
+      // The row still IDENTIFIES itself by the rendition URL (that is what was probed, deduped and
+      // thumbnailed), but what gets SENT is the MASTER plus the chosen quality's id. A rendition of a
+      // master that keeps its audio in a separate #EXT-X-MEDIA group is video-only, so handing the app
+      // the rendition URL downloaded a video with no sound (reported on x.com). The app re-reads the
+      // master, picks this quality and attaches its audio track. `variantId` is the app-side id scheme
+      // (BANDWIDTH); when a variant declares none, the id is omitted and the app picks its own best —
+      // audio always beats an exact quality match.
       g.options = probed.variants.map(v => ({
         url: v.uri,
+        sendUrl: g.key,
+        variantId: v.bandwidth ? String(v.bandwidth) : null,
         label: v.resolution || (v.bandwidth ? `${Math.round(v.bandwidth / 1000)} kbps` : "Variant"),
         size: v.size,
         approx: true
@@ -180,7 +189,7 @@ function buildCard(group, thumbSrc) {
   const btn = document.createElement("button");
   btn.className = "primary";
   btn.textContent = "Download";
-  btn.onclick = () => sendOne(currentOption()?.url, btn);
+  btn.onclick = () => sendOption(currentOption(), btn);
 
   li.append(buildThumb(group, thumbSrc), meta, btn);
   return li;
@@ -233,11 +242,18 @@ function addItem(url, type) {
   rawItems.push({ url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now() });
 }
 
-async function sendOne(url, btn) {
+async function sendOne(url, btn, variantId) {
   if (!url) return;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
-  const { ok } = await send("send", { url });
+  const { ok } = await send("send", { url, variantId: variantId || null });
   if (btn) { btn.textContent = ok ? "Sent ✓" : "Failed"; }
+}
+
+// Sends one chosen option: its `sendUrl` when the option stands for a rendition of a manifest the app
+// should expand itself (see buildGroups), else its own URL.
+function sendOption(opt, btn) {
+  if (!opt) return Promise.resolve();
+  return sendOne(opt.sendUrl || opt.url, btn, opt.variantId);
 }
 
 async function refreshStatus() {
@@ -365,7 +381,7 @@ document.getElementById("sendAll").onclick = async () => {
   for (const g of currentGroups) {
     const select = selectsByGroup.get(g.key);
     const url = select ? select.value : g.options[0]?.url;
-    await sendOne(url);
+    await sendOption(g.options.find(o => o.url === url) || g.options[0]);
   }
 };
 

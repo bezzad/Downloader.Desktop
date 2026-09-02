@@ -312,7 +312,7 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (msg.type === "probeMedia") {
       sendResponse({ results: await probeMediaForTab(msg.tabId) });
     } else if (msg.type === "send") {
-      sendResponse({ ok: await sendToApp(msg.url, msg.filename) });
+      sendResponse({ ok: await sendToApp(msg.url, msg.filename, { variantId: msg.variantId }) });
     } else if (msg.type === "ping") {
       sendResponse({ ok: await pingApp() });
     } else if (msg.type === "canHandlePage") {

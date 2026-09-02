@@ -1244,3 +1244,28 @@ Two independent causes, both reported as the same symptom (file plays, no audio)
 - Tests: `Plugins/Hls/HlsSeparateAudioTests.cs` (parser → resolver → post-processor round trip → args) and
   `Plugins/SiteMedia/SiteMediaAudioSelectionTests.cs`. Versions bumped: HLS 2.2.1→**2.3.0**,
   SiteMedia 1.0.1→**1.1.0** (a stale version means the catalog never offers the fix).
+
+### …and the extension's quality picker was the OTHER half of "no sound" (2026-09-02)
+Diagnosed from the real record, not a guess: `~/.config/Downloader/config.json`'s `Downloads` entry for
+the reported x.com item held
+`https://video.twimg.com/amplify_video/<id>/pl/avc1/720x1280/<name>.m3u8` — a **rendition**, whose own
+playlist maps to `/vid/avc1/…` fMP4 segments, i.e. **video only** (verified with curl; the master's
+address cannot be guessed from a rendition's, `…/pl/<name>.m3u8` 404s). So the app never received the
+master and had nothing to attach audio from — the HLS-plugin fix alone could not have helped that item.
+Cause: `popup.js buildGroups` replaced an HLS master group's options with the parsed variants and set
+`o.value = v.uri`, so "Download" sent the **rendition** URL. Now each option keeps `url` (what was
+probed/deduped/thumbnailed) and gains `sendUrl` (the master) + `variantId`; `sendOption` sends those.
+- **`/api/add` gained `variantId`** (JSON body, GET query, and `ToJson` for a forwarded CLI add) →
+  `DownloadItem.VariantId`, which `DownloadManager.Start` already passes to the resolver. Like `path`
+  it is NOT part of the extension's `hasContext`, so a plain send keeps its GET form.
+- The id scheme is the plugin's own (`HlsResolver.UniqueId` = BANDWIDTH). The extension sends the
+  variant's `BANDWIDTH`; an unknown/absent id makes `Pick` fall back to `Best()` — **audio always beats
+  an exact quality match**, so the coupling degrades safely.
+- Still unfixable by design: a rendition sniffed with **no master anywhere** (the extension deletes
+  rendition rows only when it saw their master — `childUris`). Nothing in a media playlist says where
+  its audio group lives, and guessing x.com's `/pl/mp4a/<bitrate>/…` sibling is exactly the
+  site-specific arms race HLS 2.0.0 dropped. For those, the page URL + `com.bezzad.site-media` is the
+  answer.
+- Tests: `Unit/ApiVariantChoiceTests.cs` (6), 3 in `common.test.js`, and a real-browser e2e
+  (`e2e/tests/hls-and-quality.spec.js`) that picks 640x480 and asserts the stub app received
+  `master.m3u8` + `variantId=1200000` and NOT `high/index.m3u8`. Extension 1.8.1 → **1.9.0**.

@@ -369,7 +369,8 @@ public static class LocalApiService
                 // echoed back; the caller already has them and the response is the wrong place for secrets.
                 ["cookies"] = item.Request.Cookies.Count,
                 ["headers"] = item.Request.Headers.Count,
-                ["referer"] = !string.IsNullOrEmpty(item.Referer)
+                ["referer"] = !string.IsNullOrEmpty(item.Referer),
+                ["variantId"] = item.VariantId
             };
         });
         RespondJson(ctx, 201, result);
@@ -465,6 +466,7 @@ public static class LocalApiService
             SaveFolder = string.IsNullOrWhiteSpace(req.Path) ? config.Settings.DefaultSavePath : req.Path.Trim(),
             QueueId = queue?.Id ?? config.DefaultQueue?.Id,
             FromBrowserDownload = req.FromBrowser,
+            VariantId = string.IsNullOrWhiteSpace(req.VariantId) ? null : req.VariantId.Trim(),
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
@@ -739,6 +741,16 @@ public sealed class ApiAddRequest
     /// <summary>Optional per-download referer, overriding the global setting for this download only.</summary>
     public string Referer { get; set; }
 
+    /// <summary>
+    /// Optional stream/quality choice for a link a plugin expands into several (an HLS master's renditions,
+    /// a model's tags). The id is the resolving plugin's own — an unknown one is not an error: the resolver
+    /// falls back to its default (highest quality), which is what a caller that guessed wrong should get.
+    /// This exists so a caller can hand over a MASTER playlist plus the quality it wants, instead of the
+    /// rendition URL: a rendition of a master with a separate audio group is video-only, and downloading it
+    /// directly produces a file with no sound.
+    /// </summary>
+    public string VariantId { get; set; }
+
     /// <summary>True when the browser extension took this download over from the browser itself. Such a link
     /// was demonstrably fetchable a second ago, which changes how a first-request failure is read — see
     /// <see cref="DownloadItem.FromBrowserDownload"/>.</summary>
@@ -759,7 +771,8 @@ public sealed class ApiAddRequest
                 Filename = GetString(root, "filename"),
                 Path = GetString(root, "path"),
                 Queue = GetString(root, "queue"),
-                Referer = GetString(root, "referer")
+                Referer = GetString(root, "referer"),
+                VariantId = GetString(root, "variantId")
             };
             if (root.TryGetProperty("fromBrowser", out var fromBrowser) &&
                 fromBrowser.ValueKind is JsonValueKind.False or JsonValueKind.True)
@@ -797,7 +810,8 @@ public sealed class ApiAddRequest
             Filename = LocalApiService.QueryParam(requestUri, "filename"),
             Path = LocalApiService.QueryParam(requestUri, "path"),
             Queue = LocalApiService.QueryParam(requestUri, "queue"),
-            Referer = LocalApiService.QueryParam(requestUri, "referer")
+            Referer = LocalApiService.QueryParam(requestUri, "referer"),
+            VariantId = LocalApiService.QueryParam(requestUri, "variantId")
         };
         if (LocalApiService.QueryParam(requestUri, "fromBrowser") is { } fromBrowser)
             req.FromBrowser = !fromBrowser.Equals("false", StringComparison.OrdinalIgnoreCase) && fromBrowser != "0";
@@ -822,7 +836,8 @@ public sealed class ApiAddRequest
         ["mirrors"] = Mirrors,
         ["start"] = Start,
         // Referer travels with a forwarded CLI add (it is not a credential); cookies and headers never do.
-        ["referer"] = Referer
+        ["referer"] = Referer,
+        ["variantId"] = VariantId
     });
 
     private ApiAddRequest Validate()
