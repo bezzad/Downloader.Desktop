@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -31,6 +31,11 @@ public class RevealInFolderTests : IDisposable
         ShellLauncher.OpenOverride = null;
     }
 
+    /// <summary>Where a standard unix command actually lives on this machine, or null if nowhere we
+    /// looked. Hard-coding /bin makes a test fail over a filesystem layout rather than over our code.</summary>
+    private static string Where(string command) =>
+        new[] { "/bin/" + command, "/usr/bin/" + command }.FirstOrDefault(File.Exists);
+
     private void Arrange(bool revealSucceeds, bool openSucceeds = true)
     {
         ShellLauncher.RunOverride = (file, args) => { _ran.Add((file, args)); return revealSucceeds; };
@@ -42,10 +47,15 @@ public class RevealInFolderTests : IDisposable
     {
         Arrange(revealSucceeds: false);
 
-        ShellLauncher.RevealInFolder(Path.Combine("/home", "u", "Downloads", "file.zip"));
+        var file = Path.Combine(Path.GetTempPath(), "reveal-fallback", "file.zip");
+        ShellLauncher.RevealInFolder(file);
 
         // THE regression: before the fix this list was empty, and the user saw nothing happen.
-        Assert.Contains(Path.Combine("/home", "u", "Downloads"), _opened);
+        // The expected folder is DERIVED from the path, never written out by hand: a literal
+        // "/home/u/Downloads" survives Path.Combine on Windows as "/home\u\Downloads" while
+        // GetDirectoryName normalises the leading separator too, and the test failed on a
+        // difference that has nothing to do with the fallback (CI, windows-latest).
+        Assert.Contains(Path.GetDirectoryName(file), _opened);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -155,11 +165,24 @@ public class RevealInFolderTests : IDisposable
     public void RunChecked_reports_the_exit_code_where_Run_reports_only_that_it_started()
     {
         if (OperatingSystem.IsWindows())
-            return; // /bin/false is the portable "starts fine, fails" command on unix
+            return; // a "starts fine, fails" command is /bin/false on unix
 
-        Assert.True(ShellLauncher.Run("/bin/false"));                                  // it started
-        Assert.False(ShellLauncher.RunChecked(TimeSpan.FromSeconds(5), "/bin/false")); // …and failed
-        Assert.True(ShellLauncher.RunChecked(TimeSpan.FromSeconds(5), "/bin/true"));
+        // This test drives the REAL launcher, so it must start from clean seams — an override left
+        // behind by an earlier test would answer for the process and report whatever that test
+        // wanted (this is the likeliest reading of the macOS-only failure on CI, where the very
+        // first assertion — a process that certainly starts — came back false).
+        ShellLauncher.RunOverride = null;
+        ShellLauncher.OpenOverride = null;
+
+        // Found by path rather than assumed: "false"/"true" live in /bin on Linux and macOS, but a
+        // machine that has neither should skip, not fail on someone else's filesystem layout.
+        var no = Where("false");
+        var yes = Where("true");
+        Assert.SkipWhen(no is null || yes is null, "this machine has no 'false'/'true' command to run");
+
+        Assert.True(ShellLauncher.Run(no), $"'{no}' should have STARTED");
+        Assert.False(ShellLauncher.RunChecked(TimeSpan.FromSeconds(5), no), $"'{no}' should have FAILED");
+        Assert.True(ShellLauncher.RunChecked(TimeSpan.FromSeconds(5), yes), $"'{yes}' should have SUCCEEDED");
     }
 
     [Fact(Timeout = TestTimeouts.SlowMs)]
@@ -168,9 +191,13 @@ public class RevealInFolderTests : IDisposable
         if (OperatingSystem.IsWindows())
             return;
 
+        ShellLauncher.RunOverride = null; // the real launcher, not whatever seam ran before this
+        var sleep = Where("sleep");
+        Assert.SkipWhen(sleep is null, "this machine has no 'sleep' command to run");
+
         // Everything routed through RunChecked is a short-lived helper, so "still running" means stuck —
         // and a reveal that hangs must not block the fallback forever.
-        Assert.False(ShellLauncher.RunChecked(TimeSpan.FromMilliseconds(300), "/bin/sleep", "30"));
+        Assert.False(ShellLauncher.RunChecked(TimeSpan.FromMilliseconds(300), sleep, "30"));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
