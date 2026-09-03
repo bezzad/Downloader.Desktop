@@ -397,11 +397,27 @@ function browserUserAgent() {
 
 // A coarse label, not a fingerprint: enough for the app to say "your Chrome extension", nothing more.
 // Firefox is the one that exposes `browser`; Edge is the Chromium build whose UA names Edg.
+// The app matches a reported label against its own browser ids, so "chrome" for every Chromium browser
+// meant a Brave/Vivaldi/Opera user's version was attributed to Chrome — and their own row in the app's
+// extension dialog read "not added yet" forever. Pure so every branch is tested without that browser.
+// Order matters: a Chromium fork's user agent also carries "Chrome/", so the specific marks come first.
+function labelFromUserAgent(ua, isGecko, isBrave) {
+  const s = String(ua || "");
+  if (isGecko) return /librewolf/i.test(s) ? "librewolf" : "firefox";
+  if (isBrave) return "brave";                    // Brave hides itself in the UA; navigator.brave does not
+  if (/\bEdg\//.test(s)) return "edge";
+  if (/\bOPR\/|\bOpera\//.test(s)) return "opera";
+  if (/\bVivaldi\//.test(s)) return "vivaldi";
+  if (/\bChromium\//.test(s)) return "chromium";
+  return "chrome";
+}
+
 function browserLabel() {
   try {
-    if (typeof globalThis.browser !== "undefined" && globalThis.browser?.runtime) return "firefox";
-    if (/\bEdg\//.test(browserUserAgent())) return "edge";
-    return "chrome";
+    const isGecko = typeof globalThis.browser !== "undefined" && !!globalThis.browser?.runtime;
+    let isBrave = false;
+    try { isBrave = typeof navigator !== "undefined" && !!navigator.brave; } catch { isBrave = false; }
+    return labelFromUserAgent(browserUserAgent(), isGecko, isBrave);
   } catch {
     return "chrome";
   }
@@ -1352,7 +1368,7 @@ if (typeof module !== "undefined") {
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
     confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,
-    extensionIdentity, browserLabel, withIdentity, withIdentityHeaders,
+    extensionIdentity, browserLabel, labelFromUserAgent, withIdentity, withIdentityHeaders,
     shouldIntercept, normalizeInterceptSettings, hostMatchesSite, extOfName,
     candidateExts, isPlausiblePathExt,
     rememberResponseHeaders, recallResponseHeaders,

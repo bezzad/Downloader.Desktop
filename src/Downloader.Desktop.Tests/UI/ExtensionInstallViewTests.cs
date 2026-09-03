@@ -34,7 +34,7 @@ public class ExtensionInstallViewTests
         }),
         install: (e, _, _) => Task.FromResult(ExtensionInstallResult.Ok($"/data/extension/{e.Id}", e.Version)),
         lastSeenVersion: _ => null,
-        installedPath: _ => null);
+        readInstalled: _ => null);
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task The_dialog_renders_the_browsers_and_the_steps()
@@ -51,7 +51,7 @@ public class ExtensionInstallViewTests
         var selectable = view.GetVisualDescendants().OfType<SelectableTextBlock>().Select(t => t.Text ?? "").ToList();
         var checkboxes = view.GetVisualDescendants().OfType<CheckBox>().ToList();
 
-        Assert.Equal(2, checkboxes.Count);                                  // one per detected browser
+        Assert.Equal(2, checkboxes.Count);                                  // one per listed browser
         Assert.Contains(texts, t => t.Contains("chrome://extensions"));     // the Chromium steps rendered
         Assert.Contains(texts, t => t.Contains("about:debugging"));         // the Gecko steps rendered
         Assert.Contains(texts, t => t.Contains("restarts", StringComparison.OrdinalIgnoreCase));

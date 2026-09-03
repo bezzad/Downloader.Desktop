@@ -28,6 +28,14 @@ public sealed class DetectedBrowser
     public BrowserFamily Family { get; init; }
 
     /// <summary>Absolute path to the browser's executable. Launched by absolute path, never a bare name
-    /// PATH could hijack (CLAUDE.md, issue #4).</summary>
+    /// PATH could hijack (CLAUDE.md, issue #4). Null when this browser was not found on the machine.</summary>
     public string ExecutablePath { get; init; }
+
+    /// <summary>
+    /// Whether this browser was actually found here. It is a HINT, never a gate: detection cannot see a
+    /// browser installed outside the app's own filesystem view (a snap-confined app sees the base snap's
+    /// <c>/usr/bin</c>, not the host's), so the extension is offered for every supported browser and this
+    /// only tells the user which ones we could confirm.
+    /// </summary>
+    public bool IsInstalled { get; init; }
 }

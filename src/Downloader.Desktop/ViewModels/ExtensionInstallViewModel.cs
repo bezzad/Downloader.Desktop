@@ -16,21 +16,25 @@ namespace Downloader.Desktop.ViewModels;
 /// <summary>One browser found on this machine, and whether its extension has ever called the app.</summary>
 public class ExtensionBrowserRow : ViewModelBase
 {
-    private readonly Func<ExtensionBrowserRow, Task> _openStore;
-
-    public ExtensionBrowserRow(DetectedBrowser browser, Func<ExtensionBrowserRow, Task> openStore = null)
+    public ExtensionBrowserRow(DetectedBrowser browser)
     {
         Browser = browser;
-        _openStore = openStore;
-        IsSelected = true;   // the user opened this dialog to install; make the common case one click
-        OpenStoreCommand = ReactiveCommand.CreateFromTask(() => _openStore?.Invoke(this) ?? Task.CompletedTask);
+        // Pre-select what we could confirm; an undetected browser is still listed and still installable,
+        // it just isn't ticked by default. Reads the row's own IsInstalled so the tick and the hint can
+        // never disagree.
+        IsSelected = IsInstalled;
     }
 
     public DetectedBrowser Browser { get; }
     public string Id => Browser.Id;
     public string Name => Browser.Name;
     public BrowserFamily Family => Browser.Family;
-    public ICommand OpenStoreCommand { get; }
+
+    /// <summary>Whether detection could confirm this browser here — a hint next to the name, never a
+    /// reason to hide the row (detection cannot see a browser outside the app's filesystem view). A known
+    /// executable path counts as confirmation on its own: the two cannot disagree.</summary>
+    public bool IsInstalled =>
+        Browser?.IsInstalled == true || !string.IsNullOrWhiteSpace(Browser?.ExecutablePath);
 
     private bool _isSelected;
     public bool IsSelected
@@ -78,7 +82,9 @@ public class ExtensionBrowserRow : ViewModelBase
     }
 
     public string StatusText =>
-        !IsConnected ? Localizer.Instance["Ext_NotConnected"]
+        !IsConnected ? (IsInstalled
+            ? Localizer.Instance["Ext_NotConnected"]
+            : Localizer.Instance["Ext_NotDetected"])
         : UpdateAvailable ? string.Format(Localizer.Instance["Ext_UpdateAvailable"], ConnectedVersion, AvailableVersion)
         : string.Format(Localizer.Instance["Ext_Connected"], ConnectedVersion);
 }
@@ -110,12 +116,6 @@ public class ExtensionTargetRow : ViewModelBase
     /// <summary>True when the build on offer is the app's own copy rather than the published catalog.</summary>
     public bool IsBundled => Entry == null;
 
-    /// <summary>A published store listing turns the manual steps into a footnote. Its absence is what
-    /// makes the manual path primary — never a dead link.</summary>
-    public bool UseStore => Entry?.HasStore == true;
-
-    public string StoreUrl => Entry?.StoreUrl;
-
     /// <summary>The version that would be installed — the catalog's, or the bundled copy's.</summary>
     public string AvailableVersion => Entry?.Version ?? BundledVersion;
 
@@ -138,6 +138,29 @@ public class ExtensionTargetRow : ViewModelBase
     }
 
     public bool IsUnpacked => !string.IsNullOrWhiteSpace(InstalledPath);
+
+    private string _installedVersion;
+    /// <summary>
+    /// The version of the files currently on disk for this family, read from the install record — the
+    /// answer to "which version do I actually have?" that does not depend on the extension having called
+    /// the app. It is NOT a claim that a browser loaded it: that is <see cref="ExtensionBrowserRow"/>'s
+    /// connected state, and only the extension itself can say so.
+    /// </summary>
+    public string InstalledVersion
+    {
+        get => _installedVersion;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _installedVersion, value);
+            this.RaisePropertyChanged(nameof(HasInstalledVersion));
+            this.RaisePropertyChanged(nameof(InstalledVersionText));
+        }
+    }
+
+    public bool HasInstalledVersion => !string.IsNullOrWhiteSpace(InstalledVersion);
+
+    public string InstalledVersionText =>
+        HasInstalledVersion ? string.Format(Localizer.Instance["Ext_InstalledVersion"], InstalledVersion) : null;
 
     /// <summary>The numbered steps for this family, in the browser's own words.</summary>
     public IReadOnlyList<string> Steps => Family == BrowserFamily.Gecko
@@ -178,7 +201,7 @@ public class ExtensionInstallViewModel : ViewModelBase
     private readonly Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> _fetchCatalog;
     private readonly Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> _install;
     private readonly Func<string, string> _lastSeenVersion;
-    private readonly Func<string, string> _installedPath;
+    private readonly Func<string, InstalledExtension> _readInstalled;
     private readonly Func<string, bool, ExtensionInstallResult> _installBundled;
     private readonly Func<string> _bundledVersion;
 
@@ -190,21 +213,18 @@ public class ExtensionInstallViewModel : ViewModelBase
         Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> fetchCatalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeenVersion = null,
-        Func<string, string> installedPath = null,
+        Func<string, InstalledExtension> readInstalled = null,
         Func<string, bool, ExtensionInstallResult> installBundled = null,
         Func<string> bundledVersion = null)
     {
         _installBundled = installBundled ?? ExtensionInstallService.InstallBundled;
         _bundledVersion = bundledVersion ?? ExtensionInstallService.BundledVersion;
-        _detect = detect ?? BrowserDetector.Detect;
+        // EVERY supported browser, not only the detected ones — see BrowserDetector.All.
+        _detect = detect ?? BrowserDetector.All;
         _fetchCatalog = fetchCatalog ?? ExtensionCatalogService.FetchAsync;
         _install = install ?? ExtensionInstallService.InstallAsync;
         _lastSeenVersion = lastSeenVersion ?? (browser => LocalApiService.LastSeenExtension(browser)?.Version);
-        _installedPath = installedPath ?? (target =>
-        {
-            var installed = ExtensionInstallService.ReadInstalled(target);
-            return installed == null ? null : ExtensionInstallService.TargetPath(target);
-        });
+        _readInstalled = readInstalled ?? ExtensionInstallService.ReadInstalled;
 
         InstallCommand = ReactiveCommand.CreateFromTask(InstallSelectedAsync);
         RefreshCommand = ReactiveCommand.CreateFromTask(LoadAsync);
@@ -274,7 +294,7 @@ public class ExtensionInstallViewModel : ViewModelBase
 
     public bool HasBrowsers => Browsers.Count > 0;
 
-    public bool CanInstall => !IsBusy && Targets.Any(t => !t.UseStore);
+    public bool CanInstall => !IsBusy && Targets.Count > 0;
 
     /// <summary>Detect the browsers, read the catalog, and reconcile both against what is already
     /// installed and what has actually called us. Safe to call again — it is the Refresh command too.</summary>
@@ -287,7 +307,7 @@ public class ExtensionInstallViewModel : ViewModelBase
         {
             Browsers.Clear();
             foreach (var b in _detect() ?? Array.Empty<DetectedBrowser>())
-                Browsers.Add(new ExtensionBrowserRow(b, OpenStoreAsync));
+                Browsers.Add(new ExtensionBrowserRow(b));
 
             _catalog = await _fetchCatalog(CancellationToken.None).ConfigureAwait(true)
                        ?? Array.Empty<ExtensionCatalogEntry>();
@@ -309,22 +329,33 @@ public class ExtensionInstallViewModel : ViewModelBase
         }
     }
 
-    /// <summary>One target row per family that a detected browser actually belongs to — no point offering
-    /// a Firefox build to someone who has no Gecko browser.</summary>
+    /// <summary>
+    /// One target row per family, ALWAYS both — the folder for every browser, whatever is detected here.
+    /// Building the list from detected browsers instead meant a machine where only Firefox was found (or
+    /// only Firefox was VISIBLE, which is what a snap-confined app sees) offered no Chromium folder at
+    /// all, so there was no way to install the extension into the browser the user was actually running.
+    /// </summary>
     private void RebuildTargets()
     {
         Targets.Clear();
-        foreach (var family in Browsers.Select(b => b.Family).Distinct().OrderBy(f => f))
+        foreach (var family in new[] { BrowserFamily.Chromium, BrowserFamily.Gecko })
         {
             var entry = EntryFor(family);
-            var targetId = family == BrowserFamily.Gecko ? "firefox" : "chrome";
-            Targets.Add(new ExtensionTargetRow(family, entry, _installedPath(entry?.Id ?? targetId))
+            var targetId = entry?.Id ?? TargetIdFor(family);
+            var installed = _readInstalled(targetId);
+            Targets.Add(new ExtensionTargetRow(family, entry,
+                installed == null ? null : ExtensionInstallService.TargetPath(targetId))
             {
                 BundledVersion = _bundledVersion(),
+                InstalledVersion = installed?.Version,
             });
         }
         this.RaisePropertyChanged(nameof(CanInstall));
     }
+
+    /// <summary>The install-folder name for a family when the catalog does not name one.</summary>
+    internal static string TargetIdFor(BrowserFamily family) =>
+        family == BrowserFamily.Gecko ? "firefox" : "chrome";
 
     private ExtensionCatalogEntry EntryFor(BrowserFamily family)
     {
@@ -350,12 +381,12 @@ public class ExtensionInstallViewModel : ViewModelBase
     /// execution — a timing-based test here would be flaky on a loaded machine for no benefit.</summary>
     internal async Task InstallSelectedAsync()
     {
+        // Nothing ticked installs BOTH families rather than refusing: on a machine where detection can
+        // confirm nothing (a snap-confined app sees the base snap's /usr/bin, not the host's) no row is
+        // pre-selected, and a dialog whose only button then said "pick a browser" was a dead end.
         var families = Browsers.Where(b => b.IsSelected).Select(b => b.Family).Distinct().ToList();
         if (families.Count == 0)
-        {
-            Notice = Localizer.Instance["Ext_PickABrowser"];
-            return;
-        }
+            families = Targets.Select(t => t.Family).Distinct().ToList();
 
         IsBusy = true;
         ErrorMessage = null;
@@ -369,21 +400,23 @@ public class ExtensionInstallViewModel : ViewModelBase
                 var target = Targets.FirstOrDefault(t => t.Family == family);
                 if (target == null)
                     continue;
-                if (target.UseStore)
-                    continue;   // nothing to unpack: the store installs and updates it
 
                 // No catalog entry means the release could not be reached, or predates this feature —
                 // install the copy that ships inside the app rather than leaving the user with nothing.
                 var result = target.IsBundled
-                    ? _installBundled(target.Family == BrowserFamily.Gecko ? "firefox" : "chrome",
-                                      target.Family == BrowserFamily.Gecko)
+                    ? _installBundled(TargetIdFor(target.Family), target.Family == BrowserFamily.Gecko)
                     : await _install(target.Entry,
                         new Progress<double>(p => Progress = p), _cts.Token).ConfigureAwait(true);
 
                 if (result.Success)
+                {
                     target.InstalledPath = result.Path;
+                    target.InstalledVersion = target.AvailableVersion;
+                }
                 else
+                {
                     ErrorMessage = result.Error;
+                }
             }
         }
         finally
@@ -419,21 +452,6 @@ public class ExtensionInstallViewModel : ViewModelBase
                 string.IsNullOrWhiteSpace(path) ? "?" : path);
     }
 
-    /// <summary>
-    /// Opens the store listing in <b>that</b> browser, by absolute executable path — so the extension is
-    /// installed into the browser the user picked, not whichever one happens to be their default.
-    /// </summary>
-    private Task OpenStoreAsync(ExtensionBrowserRow row)
-    {
-        var url = Targets.FirstOrDefault(t => t.Family == row.Family)?.StoreUrl;
-        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(row.Browser.ExecutablePath))
-            return Task.CompletedTask;
-
-        if (!ShellLauncher.Run(row.Browser.ExecutablePath, url))
-            ShellLauncher.Open(url);   // fall back to the default browser rather than doing nothing
-        return Task.CompletedTask;
-    }
-
     private void OnLanguageChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         foreach (var row in Browsers)
@@ -443,6 +461,7 @@ public class ExtensionInstallViewModel : ViewModelBase
             target.RaisePropertyChanged(nameof(ExtensionTargetRow.Title));
             target.RaisePropertyChanged(nameof(ExtensionTargetRow.Steps));
             target.RaisePropertyChanged(nameof(ExtensionTargetRow.Limitations));
+            target.RaisePropertyChanged(nameof(ExtensionTargetRow.InstalledVersionText));
         }
     }
 

@@ -33,6 +33,12 @@ public class ExtensionInstallViewModelTests
         Id = "firefox", Name = "Mozilla Firefox", Family = BrowserFamily.Gecko, ExecutablePath = "/usr/bin/firefox",
     };
 
+    /// <summary>A supported browser that detection could NOT confirm on this machine.</summary>
+    private static DetectedBrowser NotInstalled(string id, string name, BrowserFamily family) => new()
+    {
+        Id = id, Name = name, Family = family, ExecutablePath = null, IsInstalled = false,
+    };
+
     private static ExtensionCatalogEntry Entry(string id, string family, string version = "1.8.0", string storeUrl = null)
         => new()
         {
@@ -47,7 +53,7 @@ public class ExtensionInstallViewModelTests
         IEnumerable<ExtensionCatalogEntry> catalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeen = null,
-        Func<string, string> installedPath = null)
+        Func<string, InstalledExtension> readInstalled = null)
         => new(
             detect: () => (browsers ?? new[] { Chrome }).ToList(),
             fetchCatalog: _ => Task.FromResult<IReadOnlyList<ExtensionCatalogEntry>>(
@@ -58,7 +64,7 @@ public class ExtensionInstallViewModelTests
                 return Task.FromResult(ExtensionInstallResult.Ok($"/data/extension/{e.Id}", e.Version));
             }),
             lastSeenVersion: lastSeen ?? (_ => null),
-            installedPath: installedPath ?? (_ => null));
+            readInstalled: readInstalled ?? (_ => null));
 
     // ---- listing ----
 
@@ -75,15 +81,51 @@ public class ExtensionInstallViewModelTests
         Assert.False(vm.HasNotice);
     }
 
+    /// <summary>
+    /// The reported bug: with only Firefox detected, the dialog offered ONLY the Gecko folder — so a user
+    /// running Chrome (which a snap-confined app cannot see at all) had no folder to install into. Both
+    /// families are always offered, whatever detection found.
+    /// </summary>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task A_family_with_no_detected_browser_gets_no_target()
+    public async Task Both_families_get_a_folder_even_when_only_one_browser_was_detected()
     {
-        // Offering a Firefox build to a machine with no Gecko browser is noise.
-        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium"), Entry("firefox", "gecko") });
+        var vm = Vm(new[] { Firefox }, new[] { Entry("chrome", "chromium"), Entry("firefox", "gecko") });
 
         await vm.LoadAsync();
 
-        Assert.Equal(new[] { BrowserFamily.Chromium }, vm.Targets.Select(t => t.Family));
+        Assert.Equal(new[] { BrowserFamily.Chromium, BrowserFamily.Gecko }, vm.Targets.Select(t => t.Family));
+        Assert.True(vm.CanInstall);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Both_families_get_a_folder_even_when_NOTHING_was_detected()
+    {
+        // What a strictly confined snap sees: no browser at all. The extension must still be installable.
+        var vm = Vm(Array.Empty<DetectedBrowser>(), Array.Empty<ExtensionCatalogEntry>());
+
+        await vm.LoadAsync();
+
+        Assert.Equal(new[] { BrowserFamily.Chromium, BrowserFamily.Gecko }, vm.Targets.Select(t => t.Family));
+        Assert.True(vm.CanInstall);
+        Assert.False(vm.HasError);
+    }
+
+    /// <summary>
+    /// EVERY supported browser is listed, with the undetected ones present but not pre-ticked — Chrome was
+    /// missing from the list entirely on the machine that reported this.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_undetected_browser_is_still_listed_just_not_preselected()
+    {
+        var vm = Vm(new[] { Firefox, NotInstalled("chrome", "Google Chrome", BrowserFamily.Chromium) });
+
+        await vm.LoadAsync();
+
+        Assert.Equal(new[] { "Mozilla Firefox", "Google Chrome" }, vm.Browsers.Select(b => b.Name));
+        Assert.True(vm.Browsers.Single(b => b.Id == "firefox").IsSelected);
+        var chrome = vm.Browsers.Single(b => b.Id == "chrome");
+        Assert.False(chrome.IsInstalled);
+        Assert.False(chrome.IsSelected);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -113,87 +155,40 @@ public class ExtensionInstallViewModelTests
         Assert.True(vm.HasNotice);        // it says which copy it is using
         Assert.False(vm.HasError);        // …but this is not a failure
         Assert.True(vm.CanInstall);
-        var target = Assert.Single(vm.Targets);
-        Assert.True(target.HasBuild);
-        Assert.True(target.IsBundled);
+        Assert.All(vm.Targets, t =>
+        {
+            Assert.True(t.HasBuild);
+            Assert.True(t.IsBundled);
+        });
     }
 
-    // ---- store path vs manual path ----
+    // ---- there is no store path ----
 
+    /// <summary>
+    /// The dialog has no "open the store page" button, and a catalog that names a listing does not change
+    /// what the dialog does: the extension ships INSIDE the app, so the files-and-folder path is the only
+    /// one — and the old button did nothing anyway, because nothing is published.
+    /// </summary>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task A_published_listing_makes_the_store_the_primary_path()
+    public async Task A_catalog_listing_url_does_not_replace_the_folder_path()
     {
         var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", storeUrl: "https://store.example/x") });
 
         await vm.LoadAsync();
 
-        var target = Assert.Single(vm.Targets);
-        Assert.True(target.UseStore);
-        Assert.Equal("https://store.example/x", target.StoreUrl);
-        Assert.False(vm.CanInstall);   // nothing to unpack: the store installs and updates it
-    }
-
-    [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task No_listing_makes_the_manual_path_primary()
-    {
-        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
-
-        await vm.LoadAsync();
-
-        var target = Assert.Single(vm.Targets);
-        Assert.False(target.UseStore);
-        Assert.Null(target.StoreUrl);   // never a dead link
         Assert.True(vm.CanInstall);
+        await vm.InstallSelectedAsync();
+        Assert.True(vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).IsUnpacked);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Opening_the_store_launches_that_browser_at_that_url()
+    public void The_browser_row_exposes_no_store_command()
     {
-        var launched = new List<(string File, string[] Args)>();
-        ShellLauncher.RunOverride = (file, args) => { launched.Add((file, args)); return true; };
-        try
-        {
-            var vm = Vm(new[] { Chrome, Firefox }, new[]
-            {
-                Entry("chrome", "chromium", storeUrl: "https://chromestore.example/x"),
-                Entry("firefox", "gecko", storeUrl: "https://amo.example/y"),
-            });
-            await vm.LoadAsync();
-
-            vm.Browsers.Single(b => b.Id == "firefox").OpenStoreCommand.Execute(null);
-
-            // Picking a browser has to mean the extension lands in THAT browser, not in whichever one
-            // happens to be the machine's default.
-            var (file, args) = Assert.Single(launched);
-            Assert.Equal("/usr/bin/firefox", file);
-            Assert.Equal(new[] { "https://amo.example/y" }, args);
-        }
-        finally
-        {
-            ShellLauncher.RunOverride = null;   // process-wide seam
-        }
-    }
-
-    [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Opening_the_store_does_nothing_when_there_is_no_listing()
-    {
-        var launched = 0;
-        ShellLauncher.RunOverride = (_, _) => { launched++; return true; };
-        ShellLauncher.OpenOverride = _ => { launched++; return true; };
-        try
-        {
-            var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
-            await vm.LoadAsync();
-
-            vm.Browsers.Single().OpenStoreCommand.Execute(null);
-
-            Assert.Equal(0, launched);
-        }
-        finally
-        {
-            ShellLauncher.RunOverride = null;
-            ShellLauncher.OpenOverride = null;
-        }
+        // Compile-time would catch a re-added property; this pins the intent for a reader too.
+        Assert.DoesNotContain("OpenStore",
+            typeof(ExtensionBrowserRow).GetProperties().Select(p => p.Name));
+        Assert.DoesNotContain("UseStore",
+            typeof(ExtensionTargetRow).GetProperties().Select(p => p.Name));
     }
 
     // ---- the steps and the limitations ----
@@ -229,7 +224,8 @@ public class ExtensionInstallViewModelTests
 
         await vm.LoadAsync();
 
-        Assert.Contains("restart", Assert.Single(vm.Targets).Limitations, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("restart", vm.Targets.Single(t => t.Family == BrowserFamily.Gecko).Limitations,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     // ---- connected / out of date ----
@@ -243,7 +239,7 @@ public class ExtensionInstallViewModelTests
 
         await vm.InstallSelectedAsync();
 
-        Assert.True(Assert.Single(vm.Targets).IsUnpacked);   // the files really are there…
+        Assert.True(vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).IsUnpacked);  // files are there…
         Assert.False(vm.Browsers.Single().IsConnected);      // …and that proves nothing about the browser
     }
 
@@ -295,6 +291,86 @@ public class ExtensionInstallViewModelTests
         Assert.False(vm.Browsers.Single().IsConnected);
     }
 
+    // ---- which version is on disk ----
+
+    /// <summary>
+    /// The reported complaint: the dialog could not say which version was installed. The per-browser tick
+    /// needs the extension to have CALLED the app, which it has not on a fresh install — so the version of
+    /// the files themselves is read from the install record and shown per family.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_version_on_disk_is_shown_without_the_extension_having_called()
+    {
+        Localizer.Instance.Load("en");
+        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", version: "1.12.0") },
+            lastSeen: _ => null,   // nothing has ever contacted the app
+            readInstalled: id => id == "chrome"
+                ? new InstalledExtension { Target = "chrome", Version = "1.11.0" }
+                : null);
+
+        await vm.LoadAsync();
+
+        var chromium = vm.Targets.Single(t => t.Family == BrowserFamily.Chromium);
+        Assert.True(chromium.HasInstalledVersion);
+        Assert.Equal("1.11.0", chromium.InstalledVersion);
+        Assert.Contains("1.11.0", chromium.InstalledVersionText);
+        Assert.DoesNotContain("Ext_InstalledVersion", chromium.InstalledVersionText);   // a real string
+        Assert.Equal("1.12.0", chromium.AvailableVersion);                              // what Install would put there
+
+        // A family with nothing unpacked says nothing rather than "v".
+        Assert.False(vm.Targets.Single(t => t.Family == BrowserFamily.Gecko).HasInstalledVersion);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Installing_updates_the_version_shown_on_disk()
+    {
+        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", version: "1.12.0") },
+            readInstalled: _ => null);
+        await vm.LoadAsync();
+        Assert.False(vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).HasInstalledVersion);
+
+        await vm.InstallSelectedAsync();
+
+        Assert.Equal("1.12.0", vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).InstalledVersion);
+    }
+
+    /// <summary>
+    /// The connected version is matched to a row by the browser id the extension reports, so every id the
+    /// extension can send has to be a browser the app lists — a Brave that reported "chrome" had its
+    /// version attributed to Chrome and its own row read "not added yet" forever (fixed in extension
+    /// 1.12.0, which reports the real browser; the label vocabulary is pinned by
+    /// BrowserDetectorTests.Every_browser_the_extension_can_report_is_a_browser_the_app_lists).
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_forks_own_row_shows_its_version_when_it_reports_its_own_id()
+    {
+        Localizer.Instance.Load("en");
+        var brave = new DetectedBrowser
+        {
+            Id = "brave", Name = "Brave", Family = BrowserFamily.Chromium, IsInstalled = true,
+        };
+        var vm = Vm(new[] { Chrome, brave }, new[] { Entry("chrome", "chromium", version: "1.12.0") },
+            lastSeen: id => id == "brave" ? "1.12.0" : null);
+
+        await vm.LoadAsync();
+
+        Assert.True(vm.Browsers.Single(b => b.Id == "brave").IsConnected);
+        Assert.False(vm.Browsers.Single(b => b.Id == "chrome").IsConnected);   // not its version to claim
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_undetected_browser_says_so_instead_of_not_added_yet()
+    {
+        Localizer.Instance.Load("en");
+        var vm = Vm(new[] { NotInstalled("chrome", "Google Chrome", BrowserFamily.Chromium) });
+
+        await vm.LoadAsync();
+
+        var status = vm.Browsers.Single().StatusText;
+        Assert.False(string.IsNullOrWhiteSpace(status));
+        Assert.DoesNotContain("Ext_Not", status);          // a real string, not a raw key
+    }
+
     // ---- installing ----
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -305,7 +381,8 @@ public class ExtensionInstallViewModelTests
 
         await vm.InstallSelectedAsync();
 
-        Assert.Equal("/data/extension/chrome", Assert.Single(vm.Targets).InstalledPath);
+        Assert.Equal("/data/extension/chrome",
+            vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).InstalledPath);
         Assert.False(vm.IsBusy);
         Assert.False(vm.HasError);
         // Deliberately NOT asserting vm.Progress here. The VM reports through System.Progress<double>,
@@ -329,7 +406,7 @@ public class ExtensionInstallViewModelTests
             var viaCommand = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
             await viaCommand.LoadAsync();
             await viaCommand.InstallCommand.Execute();
-            Assert.True(Assert.Single(viaCommand.Targets).IsUnpacked);
+            Assert.True(viaCommand.Targets.Single(t => t.Family == BrowserFamily.Chromium).IsUnpacked);
         }
         finally
         {
@@ -350,21 +427,26 @@ public class ExtensionInstallViewModelTests
         Assert.True(vm.HasError);
         Assert.Contains("verified", vm.ErrorMessage);
         Assert.False(vm.IsBusy);                            // a stuck spinner is its own bug
-        Assert.False(Assert.Single(vm.Targets).IsUnpacked);
+        Assert.All(vm.Targets, t => Assert.False(t.IsUnpacked));
     }
 
+    /// <summary>
+    /// Nothing ticked installs BOTH families rather than refusing. On a machine where detection confirms
+    /// nothing, no row is pre-ticked — and a dialog whose only button then said "pick a browser" was a
+    /// dead end.
+    /// </summary>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Installing_with_nothing_selected_asks_rather_than_failing()
+    public async Task Installing_with_nothing_selected_installs_every_family()
     {
-        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") });
+        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium"), Entry("firefox", "gecko") });
         await vm.LoadAsync();
-        vm.Browsers.Single().IsSelected = false;
+        foreach (var row in vm.Browsers)
+            row.IsSelected = false;
 
         await vm.InstallSelectedAsync();
 
-        Assert.True(vm.HasNotice);
         Assert.False(vm.HasError);
-        Assert.False(Assert.Single(vm.Targets).IsUnpacked);
+        Assert.All(vm.Targets, t => Assert.True(t.IsUnpacked));
     }
 
     /// <summary>
@@ -381,7 +463,7 @@ public class ExtensionInstallViewModelTests
             fetchCatalog: _ => Task.FromResult<IReadOnlyList<ExtensionCatalogEntry>>(Array.Empty<ExtensionCatalogEntry>()),
             install: (_, _, _) => throw new InvalidOperationException("the catalog path must not be used here"),
             lastSeenVersion: _ => null,
-            installedPath: _ => null,
+            readInstalled: _ => null,
             installBundled: (target, gecko) =>
             {
                 installedBundled.Add((target, gecko));
@@ -394,7 +476,7 @@ public class ExtensionInstallViewModelTests
 
         Assert.False(vm.HasError);
         Assert.Equal(("firefox", true), Assert.Single(installedBundled));   // and with the gecko manifest
-        Assert.True(Assert.Single(vm.Targets).IsUnpacked);
+        Assert.True(vm.Targets.Single(t => t.Family == BrowserFamily.Gecko).IsUnpacked);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -441,13 +523,16 @@ public class ExtensionInstallViewModelTests
     public async Task An_already_unpacked_build_is_reported_on_load()
     {
         var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") },
-            installedPath: id => id == "chrome" ? "/data/extension/chrome" : null);
+            readInstalled: id => id == "chrome"
+                ? new InstalledExtension { Target = "chrome", Version = "1.8.0" }
+                : null);
 
         await vm.LoadAsync();
 
         // Reopening the dialog must still show where the folder is: that path is what the user pastes
         // into their browser, and it is easy to lose.
-        Assert.Equal("/data/extension/chrome", Assert.Single(vm.Targets).InstalledPath);
+        Assert.Equal("/data/extension/chrome",
+            vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).InstalledPath);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

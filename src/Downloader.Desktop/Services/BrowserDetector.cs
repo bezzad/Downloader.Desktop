@@ -60,15 +60,31 @@ public static class BrowserDetector
             new[] { "librewolf" }, "LibreWolf"),
     };
 
-    /// <summary>Extra directories worth checking beyond <c>PATH</c> on Linux — snap and flatpak both
-    /// export launchers outside a default PATH in some shells.</summary>
+    /// <summary>
+    /// Extra directories worth checking beyond <c>PATH</c> on Linux. Three groups: the standard bin
+    /// dirs; the per-vendor install dirs a <c>.deb</c>/<c>.rpm</c> browser really lives in (Chrome is
+    /// <c>/opt/google/chrome/google-chrome</c> — its <c>/usr/bin</c> entry is only a symlink, and a
+    /// PATH that lacks <c>/usr/bin</c> or a filesystem view that lacks the host's misses it entirely);
+    /// and snap/flatpak export dirs.
+    /// </summary>
     private static string[] UnixExtraDirs => new[]
     {
         "/usr/bin", "/usr/local/bin", "/bin", "/opt/bin", "/snap/bin",
+        "/opt/google/chrome", "/opt/microsoft/msedge", "/opt/brave.com/brave",
+        "/opt/vivaldi", "/opt/opera", "/opt/chromium",
+        "/usr/lib/firefox", "/usr/lib/librewolf", "/usr/lib/chromium", "/usr/lib/chromium-browser",
         "/var/lib/flatpak/exports/bin",
         Path.Combine(Home, ".local", "share", "flatpak", "exports", "bin"),
         Path.Combine(Home, ".local", "bin"),
     };
+
+    /// <summary>
+    /// Where a snap-confined app can see the HOST's filesystem. Inside strict confinement <c>/usr/bin</c>
+    /// is the base snap's, so a browser installed as a normal package is invisible under its own path —
+    /// this prefix is the only view of the real machine, and it is read-only and best-effort (AppArmor may
+    /// simply deny it, which surfaces as "not found" and never as an error).
+    /// </summary>
+    private const string HostFsPrefix = "/var/lib/snapd/hostfs";
 
     private static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? "";
 
@@ -77,7 +93,16 @@ public static class BrowserDetector
     /// (Chromium family first, then Gecko, each in the curated order) so the dialog's list does not
     /// reshuffle between opens.
     /// </summary>
-    public static IReadOnlyList<DetectedBrowser> Detect()
+    public static IReadOnlyList<DetectedBrowser> Detect() => All().Where(b => b.IsInstalled).ToList();
+
+    /// <summary>
+    /// EVERY supported browser, each flagged with whether it was found here. This — not
+    /// <see cref="Detect"/> — is what the extension dialog lists: detection can only ever prove a
+    /// browser IS present, never that it is absent (a snap-confined app cannot see the host's
+    /// <c>/usr/bin</c> at all), so hiding the undetected ones hid the browser the user was actually
+    /// running and left them with no way to install the extension into it.
+    /// </summary>
+    public static IReadOnlyList<DetectedBrowser> All()
     {
         if (DetectOverride is { } stub)
         {
@@ -85,11 +110,14 @@ public static class BrowserDetector
             catch { return Array.Empty<DetectedBrowser>(); }
         }
 
-        var found = new List<DetectedBrowser>();
+        var all = new List<DetectedBrowser>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var c in Candidates)
         {
+            if (!seen.Add(c.Id))
+                continue;
+
             string exe = null;
             try
             {
@@ -105,20 +133,24 @@ public static class BrowserDetector
                 // A single unreadable key/directory must not lose the whole list.
             }
 
-            if (string.IsNullOrWhiteSpace(exe) || !seen.Add(c.Id))
-                continue;
-
-            found.Add(new DetectedBrowser
+            all.Add(new DetectedBrowser
             {
                 Id = c.Id,
                 Name = c.Name,
                 Family = c.Family,
-                ExecutablePath = exe,
+                ExecutablePath = string.IsNullOrWhiteSpace(exe) ? null : exe,
+                IsInstalled = !string.IsNullOrWhiteSpace(exe),
             });
         }
 
-        return found;
+        return all;
     }
+
+    /// <summary>The supported browsers, as (id, name, family) — the curated table itself, for tests that
+    /// assert every platform has a lookup for every entry.</summary>
+    internal static IReadOnlyList<(string Id, string Name, BrowserFamily Family,
+        string WindowsExe, string[] UnixNames, string MacBundle)> Supported =>
+        Candidates.Select(c => (c.Id, c.Name, c.Family, c.WindowsExe, c.UnixNames, c.MacBundle)).ToList();
 
     // ---------------- Windows ----------------
 
@@ -201,44 +233,91 @@ public static class BrowserDetector
 
     // ---------------- Linux / other Unix ----------------
 
-    private static string FindOnUnix(Candidate c)
+    private static string FindOnUnix(Candidate c) =>
+        FindUnixExecutable(c.UnixNames, UnixSearchDirs(Environment.GetEnvironmentVariable("PATH")), File.Exists);
+
+    /// <summary>
+    /// The directories to look in, in order: <c>PATH</c>, then the extra dirs, then every one of those
+    /// again under the snap host-filesystem prefix. Pure so the ordering and the snap fallback are
+    /// tested on any platform.
+    /// </summary>
+    internal static IReadOnlyList<string> UnixSearchDirs(string pathVar)
     {
         var dirs = new List<string>();
-        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
-        dirs.AddRange(pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
+        dirs.AddRange((pathVar ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
         dirs.AddRange(UnixExtraDirs);
 
+        var direct = dirs.Where(d => !string.IsNullOrWhiteSpace(d)).Distinct(StringComparer.Ordinal).ToList();
+
+        // A rooted dir under the host prefix; a relative one has no host equivalent to try.
+        var viaHost = direct.Where(d => d.StartsWith('/') && !d.StartsWith(HostFsPrefix, StringComparison.Ordinal))
+                            .Select(d => HostFsPrefix + d);
+        return direct.Concat(viaHost).ToList();
+    }
+
+    /// <summary>First existing <c>dir/name</c> pair, or null. Pure: the caller supplies the probe, so a
+    /// test can model any machine's layout — a Chrome under <c>/opt/google/chrome</c>, or one only
+    /// reachable through the snap host prefix — without installing a browser.</summary>
+    internal static string FindUnixExecutable(IReadOnlyList<string> names, IReadOnlyList<string> dirs,
+        Func<string, bool> exists)
+    {
+        if (names == null || dirs == null || exists == null)
+            return null;
         foreach (var dir in dirs)
         {
             if (string.IsNullOrWhiteSpace(dir))
                 continue;
-            foreach (var name in c.UnixNames)
+            foreach (var name in names)
             {
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
                 var candidate = Path.Combine(dir, name);
-                if (File.Exists(candidate))
+                if (Safe(() => exists(candidate)))
                     return candidate;
             }
         }
         return null;
+
+        static bool Safe(Func<bool> probe)
+        {
+            // A denied path (AppArmor under snap) must read as "not here", never throw out of detection.
+            try { return probe(); }
+            catch { return false; }
+        }
     }
 
     // ---------------- macOS ----------------
 
-    private static string FindOnMac(Candidate c)
+    private static string FindOnMac(Candidate c) =>
+        FindMacBundle(c.MacBundle, MacAppDirs, Directory.Exists, Directory.GetFiles);
+
+    internal static IReadOnlyList<string> MacAppDirs =>
+        new[] { "/Applications", Path.Combine(Home, "Applications") };
+
+    /// <summary>Locate a browser's <c>.app</c> and, inside it, the binary to launch. Pure: the caller
+    /// supplies the filesystem probes, which is the only way this path is covered from a Linux CI box.
+    /// </summary>
+    internal static string FindMacBundle(string macBundle, IReadOnlyList<string> appDirs,
+        Func<string, bool> dirExists, Func<string, string[]> listFiles)
     {
-        foreach (var apps in new[] { "/Applications", Path.Combine(Home, "Applications") })
+        if (string.IsNullOrWhiteSpace(macBundle) || appDirs == null || dirExists == null)
+            return null;
+
+        foreach (var apps in appDirs)
         {
-            var bundle = Path.Combine(apps, c.MacBundle + ".app");
-            if (!Directory.Exists(bundle))
+            if (string.IsNullOrWhiteSpace(apps))
+                continue;
+            var bundle = Path.Combine(apps, macBundle + ".app");
+            if (!Safe(() => dirExists(bundle)))
                 continue;
             // The bundle's own binary is not always named after the bundle (Chrome ships
             // "Google Chrome"), so take whatever single executable Contents/MacOS holds.
             var macOs = Path.Combine(bundle, "Contents", "MacOS");
             try
             {
-                var inner = Directory.Exists(macOs) ? Directory.GetFiles(macOs) : Array.Empty<string>();
+                var inner = dirExists(macOs) ? listFiles?.Invoke(macOs) ?? Array.Empty<string>() : Array.Empty<string>();
                 if (inner.Length > 0)
-                    return inner.FirstOrDefault(f => Path.GetFileName(f) == c.MacBundle) ?? inner[0];
+                    return inner.FirstOrDefault(f => Path.GetFileName(f) == macBundle) ?? inner[0];
             }
             catch
             {
@@ -247,5 +326,11 @@ public static class BrowserDetector
             return bundle;
         }
         return null;
+
+        static bool Safe(Func<bool> probe)
+        {
+            try { return probe(); }
+            catch { return false; }
+        }
     }
 }
