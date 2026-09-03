@@ -32,7 +32,7 @@ author), shipped together as **v2.10.0**:
 - **AUR**: `downloader-bin` **published** at 2.10.0-1 by the `aur` job (linux-x64 sha `c90d96c0…`);
   in-repo mirror bumped (`552611c`). The RPC index lags a few minutes behind the git repo.
 
-## Known red check (pre-existing, NOT caused by this release)
+## Known red check (pre-existing, NOT caused by this release) — FIXED same day
 
 `extension.yml` ("Publish to Mozilla AMO") **fails on every `main` push and succeeds on every
 `develop` push** — 2026-09-02 and 2026-09-03 both show that pattern. Its bump guard diffs
@@ -42,3 +42,13 @@ run published to AMO minutes earlier. So it reports "code changed without a vers
 that IS published. 1.13.0 did reach AMO (run `33795414435`, green). The guard needs to compare against
 what AMO actually has, or simply not run on `main`; nothing about the release artifacts depends on it —
 the extension zips are attached by `release.yml`, which was green.
+
+**Fixed** in `a84b6b6` + `b94608d`: the guard's base is now the commit that last SET the current
+manifest version, so it asks "has anything changed since the bump?" — branch-independent, and the
+question it always meant. It also runs on `workflow_dispatch`, so it can be exercised on demand
+instead of being unverifiable until the next release merge. Proven on GitHub's own runner (run
+`33815655…`, dispatch on `develop`): *"Version 1.13.0 was set in eba1907 … Nothing changed since the
+bump"*, green — the same inputs that produced the failure. Locally the extracted step script was run
+against the real v2.10.0 merge (passes), a synthetic edit-without-bump (fails, correct message), a
+docs-only change (passes) and a bump-with-changes (passes). The next release merge carries the fixed
+workflow, so it is covered.

@@ -1458,3 +1458,22 @@ the only test loop. Two things make that loop cheap:
   `~/.config/Downloader/extension/`. Stub both in every VM test, and note `Vm(...)` in
   `Unit/ExtensionInstallViewModelTests` defaults `bundledVersion` to `"0.0.1"` so catalog-focused tests
   are not steered by whatever version the app happens to ship.
+
+## A CI guard that diffs the PUSH is wrong on `main` — diff what it actually means (2026-09-04)
+- `extension.yml`'s bump guard ("extension code changed but the manifest version is already on AMO")
+  compared `github.event.before` → `GITHUB_SHA`. On `develop` that is one push's worth of commits and
+  the check is right. On **`main` the push is the release merge**, so the base is the PREVIOUS release
+  and the span covers every extension commit since then — while the manifest already carries the
+  version the `develop` run published to AMO minutes earlier. It therefore failed on EVERY release
+  (2026-09-02, -03, -04) for code that WAS published. A permanently red check is how a real AMO
+  failure goes unnoticed.
+- Fix: the base is the commit that **last SET the current manifest version** (walk
+  `git log --format=%H $GITHUB_SHA -- manifest.firefox.json` newest→oldest while the version at that
+  commit still equals the current one; the last such commit is the bump). Then the question is "has
+  anything changed since the bump?", which is branch- and event-independent. Needs `fetch-depth: 0`.
+- **Don't use `git log -S"…"` for this**: the pickaxe matches any commit where the string's COUNT
+  changed — including the commit that REMOVED that version — so it can resolve to the wrong commit.
+- Verify a workflow step without waiting for the next release: extract the step's `run` from the YAML
+  (`yaml.safe_load` → the step's `run`), and execute it locally with `GITHUB_SHA` pointed at the exact
+  commit that failed, plus synthetic commits in a throwaway `git worktree` for the negative cases. Then
+  make the step runnable on `workflow_dispatch` and dispatch it once for a real on-runner proof.
