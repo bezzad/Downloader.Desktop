@@ -1348,3 +1348,39 @@ the claiming resolver's `GetVariantsAsync` (`SiteExtractor.ListVariants`: one en
 - The app's own Add dialog still looks variants up ANONYMOUSLY (`MainViewModel` → `getVariants`), so a
   hand-pasted YouTube link shows the "needs a signed-in session" note rather than a picker. Sending the
   page from the extension is the path that has the session.
+
+
+## The extension-install dialog: detection can only prove PRESENCE (2026-09-03, reported on the snap)
+- **`BrowserDetector` returning an empty list does not mean the machine has no browsers.** Inside strict
+  snap confinement `/usr/bin` is the BASE snap's, so a `.deb` Chrome is invisible; a snap Firefox
+  (`/snap/bin`, which IS in the namespace) is not. That asymmetry is the whole bug the author reported —
+  the dialog listed Firefox only, on a machine running Chrome.
+- So the dialog lists **`BrowserDetector.All()`** (every supported browser, each with `IsInstalled`) and
+  `RebuildTargets` always builds **both families**. Building the folder list from detected browsers meant
+  a family with nothing detected got no folder, i.e. no way to install into the browser actually in use.
+  `Detect()` is now just `All().Where(IsInstalled)` and stays for callers that want confirmed browsers.
+- Linux lookup also searches the **vendor dirs** (`/opt/google/chrome`, `/opt/microsoft/msedge`,
+  `/opt/brave.com/brave`, `/opt/vivaldi`, `/opt/opera`, `/usr/lib/firefox`, …) — a `.deb` browser's
+  `/usr/bin` entry is only a symlink — and then every dir again under **`/var/lib/snapd/hostfs`**, the
+  only view a confined app has of the real machine. Un-prefixed paths are preferred (those are the ones
+  the app can execute); a denied probe reads as "not found".
+- **There is no store button and there must not be one**: no browser accepts a locally installed unsigned
+  extension, nothing is published in any store, and the extension ships inside the app — so it could only
+  ever do nothing. `Ext_OpenStore`/`UseStore`/`StoreUrl` are gone (the catalog's `storeUrl` field stays in
+  the JSON contract, unused). A test asserts neither row type re-grows a store member.
+- **Two different "versions", and conflating them is what made this look broken**: `ExtensionTargetRow.
+  InstalledVersion` = the files on disk (from `ExtensionInstallService.ReadInstalled`, no browser
+  involvement, survives a restart) and `ExtensionBrowserRow.ConnectedVersion` = what that browser's
+  extension reported (only the extension can say so). The dialog now shows both.
+- **The connected version is matched to a row by browser ID**, so the extension's `browserLabel()`
+  vocabulary MUST be a subset of `BrowserDetector.Supported`'s ids. It used to answer `chrome` for every
+  Chromium fork, so a Brave/Vivaldi/Opera row read "not added yet" for ever. `labelFromUserAgent(ua,
+  isGecko, isBrave)` (pure, unit-tested) now returns brave/vivaldi/opera/edge/chromium/librewolf/firefox —
+  order matters, every fork's UA also contains `Chrome/`, and Brave is only detectable via
+  `navigator.brave`. Pinned across the boundary by
+  `BundledExtensionTests.Every_browser_the_extension_can_report_is_a_browser_the_app_lists`, which reads
+  the BUNDLED `common.js`.
+- **This remote container has NO .NET SDK** and the egress proxy blocks `builds.dotnet.microsoft.com`
+  (403), so `dotnet build`/`dotnet test` cannot run here at all. Node/Playwright do work. When a session
+  lands in that environment: say so, push to a branch, and let CI be the verification — do not report a
+  C# task green from a code read.
