@@ -24,7 +24,8 @@ const {
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
-  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants
+  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  appFetch, APP_TIMEOUT_MS
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -1569,4 +1570,72 @@ test("a plain silent add keeps its GET form and gains the identity in the query"
   assert.equal(seen[0].init.method, "GET");
   assert.match(seen[0].url, /^http:\/\/127\.0\.0\.1:15151\/api\/add\?url=/);
   assert.match(seen[0].url, /extv=1\.7\.0/);
+});
+
+// ---------------- Deadlines on every call to the app ----------------
+// An app that accepts the connection and never answers used to leave the caller pending FOR EVER:
+// the popup's status dot never resolved and a Download button sat on "…" with no error. Reported on
+// x.com while the app was busy with a page-quality lookup it could not finish.
+
+test("appFetch gives up instead of waiting for ever on an app that never answers", async () => {
+  const saved = global.fetch;
+  global.fetch = () => new Promise(() => {}); // accepted, never answered
+  try {
+    await assert.rejects(() => appFetch("http://127.0.0.1:15151/ping", {}, 30));
+  } finally {
+    global.fetch = saved;
+  }
+});
+
+test("appFetch aborts the request it abandoned, so the socket is released", async () => {
+  const saved = global.fetch;
+  let seen = null;
+  global.fetch = (_url, init) => { seen = init?.signal; return new Promise(() => {}); };
+  try {
+    await assert.rejects(() => appFetch("http://127.0.0.1:15151/ping", {}, 30));
+    assert.equal(seen?.aborted, true);
+  } finally {
+    global.fetch = saved;
+  }
+});
+
+test("appFetch returns the response untouched when the app answers in time", async () => {
+  const saved = global.fetch;
+  global.fetch = async () => ({ ok: true, status: 200 });
+  try {
+    const res = await appFetch("http://127.0.0.1:15151/ping", {}, 1000);
+    assert.equal(res.status, 200);
+  } finally {
+    global.fetch = saved;
+  }
+});
+
+test("a hung app is reported as unreachable, not left hanging", async () => {
+  const saved = global.fetch;
+  global.fetch = () => new Promise(() => {});
+  const savedPing = APP_TIMEOUT_MS.ping;
+  APP_TIMEOUT_MS.ping = 20;
+  try {
+    // Every port probed in turn, each abandoned on its own deadline: the answer is "not found", which
+    // the popup can actually show, instead of a status that never settles.
+    const port = await discoverAppPort(undefined, 15151);
+    assert.equal(port, null);
+  } finally {
+    APP_TIMEOUT_MS.ping = savedPing;
+    global.fetch = saved;
+  }
+});
+
+test("a silent add against a hung app fails rather than hanging", async () => {
+  const saved = global.fetch;
+  global.fetch = () => new Promise(() => {});
+  const savedAdd = APP_TIMEOUT_MS.add;
+  APP_TIMEOUT_MS.add = 20;
+  try {
+    const verdict = await sendToAppSilently("http://127.0.0.1:15151", "https://cdn.example/clip.mp4", null, [], {});
+    assert.equal(verdict, "fail");
+  } finally {
+    APP_TIMEOUT_MS.add = savedAdd;
+    global.fetch = saved;
+  }
 });

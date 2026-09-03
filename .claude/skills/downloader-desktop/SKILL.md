@@ -1406,3 +1406,28 @@ the only test loop. Two things make that loop cheap:
 - Platform-separator trap worth repeating: a Unix/macOS path lookup must join with `'/'`, never
   `Path.Combine` — on the Windows leg that produces a path shape neither platform has, and the lookup's
   own tests then fail there for a reason unrelated to the lookup (`BrowserDetector.UnixJoin`).
+
+## The local API served ONE request at a time — a slow route took the whole extension down (2026-09-03)
+- **Symptom (reported on x.com)**: the popup lists the detected media fine, but clicking Download leaves
+  the button on "…" for ever and NOTHING arrives in the app. Meanwhile the same click on a YouTube page
+  works and reads "Sent". The tell that separates this from an add the app refused: a refusal says
+  **"Failed"**, and an app that is not listening says **"Downloader was not found on ports 15151–15155"**.
+  A button stuck on "…" with neither message means nothing ever answered — and so does a status dot that
+  is neither green nor accompanied by the not-found line, because `refreshStatus()` is still pending too.
+- **Cause**: `LocalApiService.AcceptLoopAsync` **awaited** each request before accepting the next. One
+  slow route therefore blocked every caller, `/ping` included. The slow route is `/api/variants`, which
+  runs the site tool (yt-dlp) and ran with `CancellationToken.None` — so a lookup started from a YouTube
+  popup could still be holding the listener minutes later, when the user had moved to another tab. Fixed
+  by dispatching each context WITHOUT awaiting (`_ = HandleContextAsync(ctx)`, which never throws) and
+  giving the variants lookup the same 90 s valve the Add window has (`VariantLookupTimeout`, an internal
+  test seam). Regression: `Integration/ConcurrentApiRequestTests` — both tests fail on the old code.
+- **The extension had no deadline of its own either**, which is what turned a stalled app into a hang
+  rather than an error: every app-facing fetch now goes through `common.js appFetch(url, init, timeoutMs)`
+  (`APP_TIMEOUT_MS` = ping 2 s / add 20 s / ask 8 s / variants 120 s). It BOTH aborts and races a timer —
+  the abort releases the socket, the race means a fetch that ignores the signal (or a stubbed one in the
+  node tests) still cannot wedge the caller.
+- **A background message handler must always answer.** `background.js`'s `onMessage` IIFE had no catch, so
+  a throw closed the channel with no response; the popup's `const { ok } = await send(...)` then threw on
+  destructuring `undefined` and left the button mid-state. Both ends are fixed: the handler always calls
+  `sendResponse`, and `sendOne` treats a missing answer as a failure and re-enables the button so a retry
+  is possible. Any new message type must keep both halves.

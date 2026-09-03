@@ -42,10 +42,39 @@ async function discoverAppPort(probe = pingPort, cachedPort = null) {
   return null;
 }
 
+// How long each kind of call to the app may take before we stop waiting. A health check has to be
+// quick (five ports are probed in turn) while a page-quality lookup legitimately runs the site tool;
+// the app abandons that one after 90s, so this only has to outlast its answer.
+const APP_TIMEOUT_MS = { ping: 2000, add: 20000, ask: 8000, variants: 120000 };
+
+// fetch() with a deadline. Without one, an app that accepts the connection and never answers leaves
+// the caller pending FOR EVER — which is what a stuck app looked like from here: the popup's status
+// dot stayed unset and a Download button sat on "…" with no error, because nothing ever resolved.
+// The abort releases the socket; the race is the belt to that braces, so a fetch that ignores the
+// signal still cannot wedge the caller (and a stubbed fetch in tests behaves the same way).
+async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask) {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  let timer = null;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      try { controller?.abort(); } catch { /* already gone */ }
+      reject(new Error("the app did not answer in time"));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      fetch(url, controller ? { ...init, signal: controller.signal } : init),
+      expired
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Does the app answer /ping on this port? Never throws.
 async function pingPort(port) {
   try {
-    const res = await fetch(withIdentity(`${APP_HOST}:${port}/ping`), withIdentityHeaders({ method: "GET" }));
+    const res = await appFetch(withIdentity(`${APP_HOST}:${port}/ping`), withIdentityHeaders({ method: "GET" }), APP_TIMEOUT_MS.ping);
     return res.status > 0;
   } catch {
     return false;
@@ -231,11 +260,11 @@ async function captureCookies(url) {
 // rather than "dropped".
 async function postAdd(base, body) {
   try {
-    const res = await fetch(`${base}/api/add`, withIdentityHeaders({
+    const res = await appFetch(`${base}/api/add`, withIdentityHeaders({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    }));
+    }), APP_TIMEOUT_MS.add);
     let json = null;
     try { json = await res.json?.(); } catch { /* an older app may answer with no/!JSON body */ }
     return { ok: !!res.ok, status: res.status, json };
@@ -278,7 +307,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
   if (variantId) endpoint += `&variantId=${encodeURIComponent(variantId)}`;
   try {
-    const res = await fetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }));
+    const res = await appFetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }), APP_TIMEOUT_MS.add);
     if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
     if (res.status === 404) return "fallback";
     return "fail";
@@ -310,7 +339,7 @@ async function sendToApp(url, filename, context) {
     // "fallback": retry through the dialog endpoint below so older apps still capture the link.
   }
   try {
-    const res = await fetch(withIdentity(`${base}/add?url=${encodeURIComponent(url)}`), withIdentityHeaders({ method: "GET" }));
+    const res = await appFetch(withIdentity(`${base}/add?url=${encodeURIComponent(url)}`), withIdentityHeaders({ method: "GET" }), APP_TIMEOUT_MS.add);
     return res.ok;
   } catch {
     return false;
@@ -357,7 +386,7 @@ async function confirmAppFetching(base, id, opts) {
   for (;;) {
     let rows = null;
     try {
-      const res = await fetch(withIdentity(`${base}/api/list`), withIdentityHeaders());
+      const res = await appFetch(withIdentity(`${base}/api/list`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
       if (res?.ok) rows = await res.json?.();
     } catch { /* the app went away mid-wait — treated as "not confirmed" below */ }
 
@@ -546,11 +575,11 @@ async function appPageVariants(url, cookies, port) {
     const body = { url };
     if (cookies && cookies.length) body.cookies = cookies;
     Object.assign(body, extensionIdentity());
-    const res = await fetch(`${appBase(port)}/api/variants`, withIdentityHeaders({
+    const res = await appFetch(`${appBase(port)}/api/variants`, withIdentityHeaders({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    }));
+    }), APP_TIMEOUT_MS.variants);
     if (!res.ok) return { variants: [], error: null };
     const json = await res.json();
     return { variants: Array.isArray(json?.variants) ? json.variants : [], error: json?.error ?? null };
@@ -740,7 +769,7 @@ const SITE_MEDIA_PLUGIN_NAME = "Video sites (YouTube and others)";
 async function appCanHandlePage(url, port) {
   if (!url || port == null) return { handled: false, by: null };
   try {
-    const res = await fetch(withIdentity(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`), withIdentityHeaders());
+    const res = await appFetch(withIdentity(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
     if (!res.ok) return { handled: false, by: null };
     const body = await res.json();
     return { handled: body?.handled === true, by: body?.by ?? null };
@@ -988,7 +1017,7 @@ async function fetchAppDefaultSavePath(port = null) {
   try {
     const p = port ?? await discoverAppPort();
     if (p == null) return null;
-    const res = await fetch(withIdentity(`${appBase(p)}/api/settings`), withIdentityHeaders());
+    const res = await appFetch(withIdentity(`${appBase(p)}/api/settings`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
     if (!res.ok) return null;
     const body = await res.json();
     const path = body?.defaultSavePath;
@@ -1366,6 +1395,7 @@ if (typeof module !== "undefined") {
     shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
+    appFetch, APP_TIMEOUT_MS,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
     confirmAppFetching, browserUserAgent, appBase, appNotFoundMessage,
     extensionIdentity, browserLabel, labelFromUserAgent, withIdentity, withIdentityHeaders,
