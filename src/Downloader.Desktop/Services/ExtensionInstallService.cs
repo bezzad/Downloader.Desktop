@@ -40,6 +40,14 @@ public sealed class InstalledExtension
 }
 
 /// <summary>
+/// The unpacked copy of a target as the install dialog needs it: WHERE it is (the folder the user hands
+/// to their browser) and WHICH version it is. Both facts behind one value so the dialog reaches the
+/// filesystem through a single seam — computing the path separately meant a test could stub the version
+/// but not the path, and the view model then read the developer's real config folder.
+/// </summary>
+public sealed record InstalledCopy(string Path, string Version);
+
+/// <summary>
 /// Downloads a browser-extension build, verifies it, and unpacks it where the user's browser can load it.
 ///
 /// <para><b>The app never installs anything into a browser</b> — no browser is capable of accepting a
@@ -297,6 +305,16 @@ public static class ExtensionInstallService
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// The unpacked copy for a target — its folder and its version — or null when nothing is installed.
+    /// One call for both, so the dialog needs exactly one seam to be testable (see <see cref="InstalledCopy"/>).
+    /// </summary>
+    public static InstalledCopy ReadInstalledCopy(string targetId)
+    {
+        var installed = ReadInstalled(targetId);
+        return installed == null ? null : new InstalledCopy(TargetPath(targetId), installed.Version);
     }
 
     /// <summary>

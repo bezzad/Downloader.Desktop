@@ -53,7 +53,7 @@ public class ExtensionInstallViewModelTests
         IEnumerable<ExtensionCatalogEntry> catalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeen = null,
-        Func<string, InstalledExtension> readInstalled = null)
+        Func<string, InstalledCopy> readInstalled = null)
         => new(
             detect: () => (browsers ?? new[] { Chrome }).ToList(),
             fetchCatalog: _ => Task.FromResult<IReadOnlyList<ExtensionCatalogEntry>>(
@@ -304,9 +304,7 @@ public class ExtensionInstallViewModelTests
         Localizer.Instance.Load("en");
         var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", version: "1.12.0") },
             lastSeen: _ => null,   // nothing has ever contacted the app
-            readInstalled: id => id == "chrome"
-                ? new InstalledExtension { Target = "chrome", Version = "1.11.0" }
-                : null);
+            readInstalled: id => id == "chrome" ? new InstalledCopy("/data/extension/chrome", "1.11.0") : null);
 
         await vm.LoadAsync();
 
@@ -523,9 +521,7 @@ public class ExtensionInstallViewModelTests
     public async Task An_already_unpacked_build_is_reported_on_load()
     {
         var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium") },
-            readInstalled: id => id == "chrome"
-                ? new InstalledExtension { Target = "chrome", Version = "1.8.0" }
-                : null);
+            readInstalled: id => id == "chrome" ? new InstalledCopy("/data/extension/chrome", "1.8.0") : null);
 
         await vm.LoadAsync();
 

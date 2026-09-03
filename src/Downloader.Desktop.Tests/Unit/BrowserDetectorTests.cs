@@ -263,23 +263,36 @@ public class BrowserDetectorTests
         Assert.Equal("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", found);
     }
 
+    /// <summary>
+    /// A browser installed for one user only lives in THEIR Applications folder, so the second root has
+    /// to be searched as well. Fixed paths, not the runner's own home, so this asserts the same thing on
+    /// every OS.
+    /// </summary>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void A_mac_bundle_in_the_users_own_Applications_folder_is_found_too()
     {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? "";
-        var bundle = Path.Combine(home, "Applications", "Firefox.app");
+        const string bundle = "/Users/me/Applications/Firefox.app";
 
-        var found = BrowserDetector.FindMacBundle("Firefox", BrowserDetector.MacAppDirs,
+        var found = BrowserDetector.FindMacBundle("Firefox",
+            new[] { "/Applications", "/Users/me/Applications" },
             dirExists: d => d == bundle, listFiles: _ => Array.Empty<string>());
 
         Assert.Equal(bundle, found);   // no readable Contents/MacOS → the bundle itself, which `open` takes
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Both_mac_application_roots_are_searched()
+    {
+        Assert.Equal(2, BrowserDetector.MacAppDirs.Count);
+        Assert.Equal("/Applications", BrowserDetector.MacAppDirs[0]);
+        Assert.EndsWith("/Applications", BrowserDetector.MacAppDirs[1], StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void A_missing_mac_bundle_is_null_not_an_exception()
     {
-        Assert.Null(BrowserDetector.FindMacBundle("Nope", BrowserDetector.MacAppDirs,
+        Assert.Null(BrowserDetector.FindMacBundle("Nope", new[] { "/Applications" },
             dirExists: _ => throw new IOException("boom"), listFiles: _ => Array.Empty<string>()));
-        Assert.Null(BrowserDetector.FindMacBundle(null, BrowserDetector.MacAppDirs, _ => true, _ => null));
+        Assert.Null(BrowserDetector.FindMacBundle(null, new[] { "/Applications" }, _ => true, _ => null));
     }
 }

@@ -74,8 +74,8 @@ public static class BrowserDetector
         "/opt/vivaldi", "/opt/opera", "/opt/chromium",
         "/usr/lib/firefox", "/usr/lib/librewolf", "/usr/lib/chromium", "/usr/lib/chromium-browser",
         "/var/lib/flatpak/exports/bin",
-        Path.Combine(Home, ".local", "share", "flatpak", "exports", "bin"),
-        Path.Combine(Home, ".local", "bin"),
+        UnixJoin(Home, ".local/share/flatpak/exports/bin"),
+        UnixJoin(Home, ".local/bin"),
     };
 
     /// <summary>
@@ -271,7 +271,7 @@ public static class BrowserDetector
             {
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
-                var candidate = Path.Combine(dir, name);
+                var candidate = UnixJoin(dir, name);
                 if (Safe(() => exists(candidate)))
                     return candidate;
             }
@@ -286,13 +286,22 @@ public static class BrowserDetector
         }
     }
 
+    /// <summary>
+    /// Joins a POSIX directory and a file name. Deliberately NOT <see cref="Path.Combine"/>: this lookup
+    /// and the macOS one below describe paths on those platforms, where the separator is always '/', while
+    /// Path.Combine uses '\\' on Windows. Using it meant the Windows CI leg exercised a path shape neither
+    /// platform ever has, so the lookups' own tests could not be trusted there.
+    /// </summary>
+    internal static string UnixJoin(string dir, string name) =>
+        string.IsNullOrEmpty(dir) ? name : dir.TrimEnd('/') + "/" + name;
+
     // ---------------- macOS ----------------
 
     private static string FindOnMac(Candidate c) =>
         FindMacBundle(c.MacBundle, MacAppDirs, Directory.Exists, Directory.GetFiles);
 
     internal static IReadOnlyList<string> MacAppDirs =>
-        new[] { "/Applications", Path.Combine(Home, "Applications") };
+        new[] { "/Applications", UnixJoin(Home, "Applications") };
 
     /// <summary>Locate a browser's <c>.app</c> and, inside it, the binary to launch. Pure: the caller
     /// supplies the filesystem probes, which is the only way this path is covered from a Linux CI box.
@@ -307,12 +316,12 @@ public static class BrowserDetector
         {
             if (string.IsNullOrWhiteSpace(apps))
                 continue;
-            var bundle = Path.Combine(apps, macBundle + ".app");
+            var bundle = UnixJoin(apps, macBundle + ".app");
             if (!Safe(() => dirExists(bundle)))
                 continue;
             // The bundle's own binary is not always named after the bundle (Chrome ships
             // "Google Chrome"), so take whatever single executable Contents/MacOS holds.
-            var macOs = Path.Combine(bundle, "Contents", "MacOS");
+            var macOs = UnixJoin(UnixJoin(bundle, "Contents"), "MacOS");
             try
             {
                 var inner = dirExists(macOs) ? listFiles?.Invoke(macOs) ?? Array.Empty<string>() : Array.Empty<string>();

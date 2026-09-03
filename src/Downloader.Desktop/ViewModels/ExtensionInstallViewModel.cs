@@ -201,7 +201,7 @@ public class ExtensionInstallViewModel : ViewModelBase
     private readonly Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> _fetchCatalog;
     private readonly Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> _install;
     private readonly Func<string, string> _lastSeenVersion;
-    private readonly Func<string, InstalledExtension> _readInstalled;
+    private readonly Func<string, InstalledCopy> _readInstalled;
     private readonly Func<string, bool, ExtensionInstallResult> _installBundled;
     private readonly Func<string> _bundledVersion;
 
@@ -213,7 +213,7 @@ public class ExtensionInstallViewModel : ViewModelBase
         Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> fetchCatalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeenVersion = null,
-        Func<string, InstalledExtension> readInstalled = null,
+        Func<string, InstalledCopy> readInstalled = null,
         Func<string, bool, ExtensionInstallResult> installBundled = null,
         Func<string> bundledVersion = null)
     {
@@ -224,7 +224,7 @@ public class ExtensionInstallViewModel : ViewModelBase
         _fetchCatalog = fetchCatalog ?? ExtensionCatalogService.FetchAsync;
         _install = install ?? ExtensionInstallService.InstallAsync;
         _lastSeenVersion = lastSeenVersion ?? (browser => LocalApiService.LastSeenExtension(browser)?.Version);
-        _readInstalled = readInstalled ?? ExtensionInstallService.ReadInstalled;
+        _readInstalled = readInstalled ?? ExtensionInstallService.ReadInstalledCopy;
 
         InstallCommand = ReactiveCommand.CreateFromTask(InstallSelectedAsync);
         RefreshCommand = ReactiveCommand.CreateFromTask(LoadAsync);
@@ -342,9 +342,10 @@ public class ExtensionInstallViewModel : ViewModelBase
         {
             var entry = EntryFor(family);
             var targetId = entry?.Id ?? TargetIdFor(family);
+            // Path AND version come from the same seam: reaching for the real TargetPath here made the
+            // dialog read the developer's own config folder in a test that had stubbed the record.
             var installed = _readInstalled(targetId);
-            Targets.Add(new ExtensionTargetRow(family, entry,
-                installed == null ? null : ExtensionInstallService.TargetPath(targetId))
+            Targets.Add(new ExtensionTargetRow(family, entry, installed?.Path)
             {
                 BundledVersion = _bundledVersion(),
                 InstalledVersion = installed?.Version,
