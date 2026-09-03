@@ -305,7 +305,10 @@
                     <Grid Classes="field" ColumnDefinitions="*,Auto" IsVisible="{Binding EnableBrowserIntegration}">
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Ext_Install_Button}" />
-                            <TextBlock Classes="hint" Text="{i18n:Tr Ext_Install_Hint}" />
+                            <!-- Turns into "out of date — vX is available" when the unpacked copy is
+                                 behind the one this app carries, so a stale extension is visible from
+                                 Settings instead of only inside the dialog. -->
+                            <TextBlock Classes="hint" Text="{Binding ExtensionHintText}" TextWrapping="Wrap" />
                         </StackPanel>
                         <Button Grid.Column="1" Classes="ctrl" Content="{i18n:Tr Ext_Install}"
                                 Command="{Binding InstallExtensionCommand}" />

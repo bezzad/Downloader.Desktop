@@ -302,29 +302,37 @@ api.tabs.onRemoved.addListener(tabId => {
 // ---------------- Messages from the popup + content script ----------------
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
-    if (msg.type === "getMedia") {
-      // Every item, in one flat list. There is no "main media" promotion any more: it depended on a
-      // visibility hint from a content script being fresh at the exact moment the popup asked, which
-      // on a feed page (x.com) it routinely was not — so the page's own video was demoted into a
-      // collapsed section. The popup orders by media type instead (common.js sortDetectedGroups).
-      const map = tabMedia.get(msg.tabId);
-      sendResponse({ media: map ? [...map.values()] : [] });
-    } else if (msg.type === "probeMedia") {
-      sendResponse({ results: await probeMediaForTab(msg.tabId) });
-    } else if (msg.type === "send") {
-      sendResponse({ ok: await sendToApp(msg.url, msg.filename, { variantId: msg.variantId }) });
-    } else if (msg.type === "ping") {
-      sendResponse({ ok: await pingApp() });
-    } else if (msg.type === "canHandlePage") {
-      // What THIS install can do decides the popup's unsupported-site message — the answer depends on
-      // which plugins the user has enabled, so only the app can give it.
-      sendResponse(await askAppCanHandlePage(msg.url));
-    } else if (msg.type === "pageVariants") {
-      // The qualities the app can get off this page. Asked from here, not the popup, because the
-      // capture of the page's session cookies lives on this side.
-      sendResponse(await askAppPageVariants(msg.url));
-    } else {
-      sendResponse({});
+    try {
+      if (msg.type === "getMedia") {
+        // Every item, in one flat list. There is no "main media" promotion any more: it depended on a
+        // visibility hint from a content script being fresh at the exact moment the popup asked, which
+        // on a feed page (x.com) it routinely was not — so the page's own video was demoted into a
+        // collapsed section. The popup orders by media type instead (common.js sortDetectedGroups).
+        const map = tabMedia.get(msg.tabId);
+        sendResponse({ media: map ? [...map.values()] : [] });
+      } else if (msg.type === "probeMedia") {
+        sendResponse({ results: await probeMediaForTab(msg.tabId) });
+      } else if (msg.type === "send") {
+        sendResponse({ ok: await sendToApp(msg.url, msg.filename, { variantId: msg.variantId }) });
+      } else if (msg.type === "ping") {
+        sendResponse({ ok: await pingApp() });
+      } else if (msg.type === "canHandlePage") {
+        // What THIS install can do decides the popup's unsupported-site message — the answer depends on
+        // which plugins the user has enabled, so only the app can give it.
+        sendResponse(await askAppCanHandlePage(msg.url));
+      } else if (msg.type === "pageVariants") {
+        // The qualities the app can get off this page. Asked from here, not the popup, because the
+        // capture of the page's session cookies lives on this side.
+        sendResponse(await askAppPageVariants(msg.url));
+      } else {
+        sendResponse({});
+      }
+    } catch (e) {
+      // ALWAYS answer. A handler that throws closes the channel with no response, and the caller in the
+      // popup then waits on a promise that never settles — a button stuck on "…" with nothing to click
+      // and no way to tell what went wrong. An explicit failure is the honest answer, and one the UI
+      // can show.
+      try { sendResponse({ ok: false, error: String((e && e.message) || e) }); } catch { /* channel gone */ }
     }
   })();
   return true; // keep the channel open for the async response

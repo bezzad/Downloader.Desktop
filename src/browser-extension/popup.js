@@ -290,8 +290,21 @@ function addItem(url, type) {
 async function sendOne(url, btn, variantId) {
   if (!url) return;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
-  const { ok } = await send("send", { url, variantId: variantId || null });
-  if (btn) { btn.textContent = ok ? "Sent ✓" : "Failed"; }
+  // The answer can be missing entirely, not just negative: the background worker is torn down (or the
+  // message channel closes) and the callback fires with `undefined`. Destructuring that threw, which
+  // left the button reading "…" for ever with nothing to click — the shape of a hang, for what is
+  // really just a failed send. A retry has to stay possible, so the button is re-enabled either way.
+  let ok = false;
+  try {
+    const answer = await send("send", { url, variantId: variantId || null });
+    ok = !!(answer && answer.ok);
+  } catch {
+    ok = false;
+  }
+  if (btn) {
+    btn.textContent = ok ? "Sent ✓" : "Failed";
+    btn.disabled = ok; // a failure is worth trying again; a sent item is not
+  }
 }
 
 // Sends one chosen option: its `sendUrl` when the option stands for a rendition of a manifest the app

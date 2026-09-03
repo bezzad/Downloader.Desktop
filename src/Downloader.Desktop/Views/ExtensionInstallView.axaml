@@ -49,8 +49,9 @@
         <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="12" Margin="0 0 0 6">
 
-                <!-- The browsers we found. Detection reads only whether a browser exists and where its
-                     executable is — never a profile. -->
+                <!-- EVERY supported browser, with the ones we could confirm marked. Detection reads only
+                     whether a browser exists and where its executable is — never a profile — and it can
+                     never prove absence, so an unconfirmed browser is listed and installable too. -->
                 <Border Classes="card" IsVisible="{Binding HasBrowsers}">
                     <StackPanel Spacing="10">
                         <TextBlock Text="{i18n:Tr Ext_Browsers}"
@@ -58,7 +59,7 @@
                         <ItemsControl ItemsSource="{Binding Browsers}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ExtensionBrowserRow">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 3">
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0 3">
                                         <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"
                                                   Content="{Binding Name}" VerticalAlignment="Center" />
                                         <!-- Connected comes from the extension having actually called the
@@ -72,8 +73,6 @@
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                        Foreground="{DynamicResource SystemBaseMediumColor}" />
                                         </StackPanel>
-                                        <Button Grid.Column="2" Content="{i18n:Tr Ext_OpenStore}"
-                                                Command="{Binding OpenStoreCommand}" Padding="12 5" FontSize="12" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -96,6 +95,21 @@
                                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                                     </Grid>
 
+                                    <!-- Which version is actually on disk for this family, and whether it
+                                         is behind. Both numbers were shown before without ever saying which
+                                         way round they were, so a stale copy looked like a healthy one. -->
+                                    <StackPanel Spacing="2" IsVisible="{Binding HasInstalledVersion}">
+                                        <TextBlock Text="{Binding InstalledVersionText}" FontSize="12"
+                                                   Foreground="{DynamicResource SystemAccentColor}" />
+                                        <TextBlock Text="{Binding UpdateText}" FontSize="12" TextWrapping="Wrap"
+                                                   IsVisible="{Binding UpdateAvailable}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SystemErrorTextColor}" />
+                                        <TextBlock Text="{Binding UpdateText}" FontSize="12" TextWrapping="Wrap"
+                                                   IsVisible="{Binding !UpdateAvailable}"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                    </StackPanel>
+
                                     <!-- The folder is the thing the user has to hand to their browser, so
                                          it is selectable and copyable, never just printed. -->
                                     <StackPanel Spacing="6" IsVisible="{Binding IsUnpacked}">
@@ -117,9 +131,10 @@
                                         </Grid>
                                     </StackPanel>
 
-                                    <!-- Steps only matter for the manual path; a published listing makes
-                                         them unnecessary. -->
-                                    <StackPanel Spacing="4" IsVisible="{Binding !UseStore}">
+                                    <!-- The manual steps are the only path: no browser accepts a locally
+                                         installed unsigned extension, so there is never a store button
+                                         here (removed 2026-09-03 — the extension ships with the app). -->
+                                    <StackPanel Spacing="4">
                                         <TextBlock Text="{i18n:Tr Ext_StepsTitle}" FontSize="12"
                                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                                         <ItemsControl ItemsSource="{Binding Steps}">
@@ -135,7 +150,6 @@
                                     <!-- Said plainly, not hidden: the manual path has real drawbacks on
                                          both families, and a user who is not told reports them as bugs. -->
                                     <TextBlock Text="{Binding Limitations}" TextWrapping="Wrap" FontSize="12"
-                                               IsVisible="{Binding !UseStore}"
                                                Foreground="{DynamicResource SystemBaseMediumColor}" />
                                 </StackPanel>
                             </Border>
@@ -157,7 +171,9 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Content="{i18n:Tr Ext_Refresh}" Padding="14 7" Command="{Binding RefreshCommand}" />
-                <Button Content="{i18n:Tr Ext_Install}" Padding="18 7" Classes="accent"
+                <!-- Says "Update the files" as soon as anything on disk is behind: the same button, but
+                     "Get the files" on a machine that already has them reads as "nothing to do". -->
+                <Button Content="{Binding InstallButtonText}" Padding="18 7" Classes="accent"
                         Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}" />
                 <Button Content="{i18n:Tr Btn_Close}" Padding="18 7" Click="OnCloseClick" />
             </StackPanel>

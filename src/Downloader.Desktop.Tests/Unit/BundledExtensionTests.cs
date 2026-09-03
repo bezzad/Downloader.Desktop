@@ -29,6 +29,35 @@ public class BundledExtensionTests : IDisposable
         try { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); } catch { }
     }
 
+    /// <summary>
+    /// The two sides of the "which version is installed in which browser?" answer have to speak the same
+    /// vocabulary: the extension reports a browser label, and the app looks that label up among its own
+    /// browser ids. When they drift, a browser's row silently stays empty forever — which is what a Brave
+    /// or Vivaldi user saw while the extension could only ever say "chrome". Read from the BUNDLED copy,
+    /// so this is the code the app actually ships.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Every_browser_the_extension_can_report_is_a_browser_the_app_lists()
+    {
+        var result = ExtensionInstallService.InstallBundled("chrome", gecko: false);
+        Assert.True(result.Success, result.Error);
+
+        var common = File.ReadAllText(Path.Combine(result.Path, "common.js"));
+        var body = Regex.Match(common, @"function labelFromUserAgent\([^)]*\)\s*\{(.*?)\n\}", RegexOptions.Singleline);
+        Assert.True(body.Success, "labelFromUserAgent is gone from the bundled extension");
+
+        var labels = Regex.Matches(body.Groups[1].Value, @"return\s+(?:/[^/]+/i\.test\([^)]*\)\s*\?\s*)?""([a-z]+)""(?:\s*:\s*""([a-z]+)"")?")
+            .SelectMany(m => new[] { m.Groups[1].Value, m.Groups[2].Value })
+            .Where(v => !string.IsNullOrEmpty(v))
+            .Distinct()
+            .ToList();
+
+        Assert.NotEmpty(labels);
+        var ids = BrowserDetector.Supported.Select(c => c.Id).ToList();
+        foreach (var label in labels)
+            Assert.Contains(label, ids);
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void The_bundled_copy_installs_without_a_catalog_or_a_network()
     {

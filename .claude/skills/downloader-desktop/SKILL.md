@@ -1348,3 +1348,113 @@ the claiming resolver's `GetVariantsAsync` (`SiteExtractor.ListVariants`: one en
 - The app's own Add dialog still looks variants up ANONYMOUSLY (`MainViewModel` → `getVariants`), so a
   hand-pasted YouTube link shows the "needs a signed-in session" note rather than a picker. Sending the
   page from the extension is the path that has the session.
+
+
+## The extension-install dialog: detection can only prove PRESENCE (2026-09-03, reported on the snap)
+- **`BrowserDetector` returning an empty list does not mean the machine has no browsers.** Inside strict
+  snap confinement `/usr/bin` is the BASE snap's, so a `.deb` Chrome is invisible; a snap Firefox
+  (`/snap/bin`, which IS in the namespace) is not. That asymmetry is the whole bug the author reported —
+  the dialog listed Firefox only, on a machine running Chrome.
+- So the dialog lists **`BrowserDetector.All()`** (every supported browser, each with `IsInstalled`) and
+  `RebuildTargets` always builds **both families**. Building the folder list from detected browsers meant
+  a family with nothing detected got no folder, i.e. no way to install into the browser actually in use.
+  `Detect()` is now just `All().Where(IsInstalled)` and stays for callers that want confirmed browsers.
+- Linux lookup also searches the **vendor dirs** (`/opt/google/chrome`, `/opt/microsoft/msedge`,
+  `/opt/brave.com/brave`, `/opt/vivaldi`, `/opt/opera`, `/usr/lib/firefox`, …) — a `.deb` browser's
+  `/usr/bin` entry is only a symlink — and then every dir again under **`/var/lib/snapd/hostfs`**, the
+  only view a confined app has of the real machine. Un-prefixed paths are preferred (those are the ones
+  the app can execute); a denied probe reads as "not found".
+- **There is no store button and there must not be one**: no browser accepts a locally installed unsigned
+  extension, nothing is published in any store, and the extension ships inside the app — so it could only
+  ever do nothing. `Ext_OpenStore`/`UseStore`/`StoreUrl` are gone (the catalog's `storeUrl` field stays in
+  the JSON contract, unused). A test asserts neither row type re-grows a store member.
+- **Two different "versions", and conflating them is what made this look broken**: `ExtensionTargetRow.
+  InstalledVersion` = the files on disk (from `ExtensionInstallService.ReadInstalled`, no browser
+  involvement, survives a restart) and `ExtensionBrowserRow.ConnectedVersion` = what that browser's
+  extension reported (only the extension can say so). The dialog now shows both.
+- **The connected version is matched to a row by browser ID**, so the extension's `browserLabel()`
+  vocabulary MUST be a subset of `BrowserDetector.Supported`'s ids. It used to answer `chrome` for every
+  Chromium fork, so a Brave/Vivaldi/Opera row read "not added yet" for ever. `labelFromUserAgent(ua,
+  isGecko, isBrave)` (pure, unit-tested) now returns brave/vivaldi/opera/edge/chromium/librewolf/firefox —
+  order matters, every fork's UA also contains `Chrome/`, and Brave is only detectable via
+  `navigator.brave`. Pinned across the boundary by
+  `BundledExtensionTests.Every_browser_the_extension_can_report_is_a_browser_the_app_lists`, which reads
+  the BUNDLED `common.js`.
+- **This remote container has NO .NET SDK** and the egress proxy blocks `builds.dotnet.microsoft.com`
+  (403), so `dotnet build`/`dotnet test` cannot run here at all. Node/Playwright do work. When a session
+  lands in that environment: say so, push to a branch, and let CI be the verification — do not report a
+  C# task green from a code read.
+
+
+## Reading a CI failure from a box with no .NET SDK (2026-09-03)
+The remote/web container has NO .NET SDK and the egress proxy blocks
+`builds.dotnet.microsoft.com` (403), so `dotnet build`/`dotnet test` cannot run at all there and CI is
+the only test loop. Two things make that loop cheap:
+- **Get failure NAMES from the log, not the artifact.** `test-results.trx` lives in an artifact whose
+  blob-storage URL the proxy also blocks. Instead call `get_job_logs` with `return_content: true` and
+  `tail_lines: 2100`: the result EXCEEDS the context limit, so the tool SAVES IT TO A FILE and prints the
+  path — then grep that file (`s.replace('\\n','\n')` first; the log arrives as one long line) for
+  `[FAIL]`. A [FAIL] block carries the assertion, the expected/actual and the source line. Do NOT page
+  through `tail_lines` guessing: the block sits wherever the test ran, often >300 lines from the end.
+- **Read the other legs before theorising.** `list_workflow_jobs` with `filter: latest` shows all six at
+  once; "4 green, 2 red on one OS" points somewhere completely different from "6 red".
+- **`Total tests: Unknown` + `Passed: N` + a `hangdump.dmp` is the KNOWN in-host crash, not a test
+  failure** (see the notes above). It aborts the run wherever it happens to be — 2026-09-03 it named
+  `TransferPathTests.Transfer_backed_item_completes_with_the_produced_file` on both Windows legs while
+  ubuntu×2 and macOS×2 were fully green, and the base commit (`develop` 6cda586) carried the same
+  crashdump. The log says it itself: "This test may, or may not be the source of the crash."
+- Platform-separator trap worth repeating: a Unix/macOS path lookup must join with `'/'`, never
+  `Path.Combine` — on the Windows leg that produces a path shape neither platform has, and the lookup's
+  own tests then fail there for a reason unrelated to the lookup (`BrowserDetector.UnixJoin`).
+
+## The local API served ONE request at a time — a slow route took the whole extension down (2026-09-03)
+- **Symptom (reported on x.com)**: the popup lists the detected media fine, but clicking Download leaves
+  the button on "…" for ever and NOTHING arrives in the app. Meanwhile the same click on a YouTube page
+  works and reads "Sent". The tell that separates this from an add the app refused: a refusal says
+  **"Failed"**, and an app that is not listening says **"Downloader was not found on ports 15151–15155"**.
+  A button stuck on "…" with neither message means nothing ever answered — and so does a status dot that
+  is neither green nor accompanied by the not-found line, because `refreshStatus()` is still pending too.
+- **Cause**: `LocalApiService.AcceptLoopAsync` **awaited** each request before accepting the next. One
+  slow route therefore blocked every caller, `/ping` included. The slow route is `/api/variants`, which
+  runs the site tool (yt-dlp) and ran with `CancellationToken.None` — so a lookup started from a YouTube
+  popup could still be holding the listener minutes later, when the user had moved to another tab. Fixed
+  by dispatching each context WITHOUT awaiting (`_ = HandleContextAsync(ctx)`, which never throws) and
+  giving the variants lookup the same 90 s valve the Add window has (`VariantLookupTimeout`, an internal
+  test seam). Regression: `Integration/ConcurrentApiRequestTests` — both tests fail on the old code.
+- **The extension had no deadline of its own either**, which is what turned a stalled app into a hang
+  rather than an error: every app-facing fetch now goes through `common.js appFetch(url, init, timeoutMs)`
+  (`APP_TIMEOUT_MS` = ping 2 s / add 20 s / ask 8 s / variants 120 s). It BOTH aborts and races a timer —
+  the abort releases the socket, the race means a fetch that ignores the signal (or a stubbed one in the
+  node tests) still cannot wedge the caller.
+- **A background message handler must always answer.** `background.js`'s `onMessage` IIFE had no catch, so
+  a throw closed the channel with no response; the popup's `const { ok } = await send(...)` then threw on
+  destructuring `undefined` and left the button mid-state. Both ends are fixed: the handler always calls
+  `sendResponse`, and `sendOne` treats a missing answer as a failure and re-enables the button so a retry
+  is possible. Any new message type must keep both halves.
+
+## "Available" for the extension = catalog OR the app's own bundled copy (2026-09-04)
+- **The reported gap**: the install dialog printed "Files installed: v1.11.0" beside the available version
+  and never drew the conclusion, so a stale copy looked identical to a current one; and the startup check
+  (`MainViewModel.CheckExtensionUpdateAsync`) returned early on an empty catalog — which is EVERY machine
+  today, since no published release carries `extension-catalog.json`. Net effect: nothing anywhere could
+  ever say "your extension is out of date".
+- **Fix**: `ExtensionCatalogService.Newer(a, b)` / `BestAvailable(catalog, bundledVersion)` — the bundled
+  copy is a first-class source of "what could be installed", not just a fallback for a missing catalog.
+  `ShouldWarnAboutExtension` now takes the bundled version; `ExtensionTargetRow` gained `UpdateAvailable`
+  /`UpdateText` (files on disk vs best available, independent of any browser having called), the footer
+  button switches to `Ext_Update` ("Update the files"), and `SettingViewModel.ExtensionHintText` says it
+  from the Settings row without opening the dialog.
+- **`ExtensionTargetRow.IsBundled` now also means "the bundled copy is NEWER than the catalog entry"** —
+  right after an app update it routinely is, and installing the catalog's older build over it would be a
+  downgrade dressed up as an install.
+- **Updating IS re-installing into the SAME folder** (`InstallBundled` stages `<target>.new` and swaps),
+  and that path must never move: a browser derives an unpacked extension's identity from its absolute
+  path, so a new folder = a different extension with an empty settings store. What the app CANNOT do is
+  make the browser re-read it — an unpacked extension stays loaded until it is reloaded or the browser
+  restarts — so a successful update sets `Notice = Ext_ReloadAfterUpdate` saying exactly that.
+- **TEST TRAP, and it bit for real**: a test that builds an `ExtensionInstallViewModel` without stubbing
+  BOTH `bundledVersion` and `installBundled` can take the bundled path (the real app copy outranks a
+  stubbed catalog) and run the REAL installer — which wrote into the developer's own
+  `~/.config/Downloader/extension/`. Stub both in every VM test, and note `Vm(...)` in
+  `Unit/ExtensionInstallViewModelTests` defaults `bundledVersion` to `"0.0.1"` so catalog-focused tests
+  are not steered by whatever version the app happens to ship.

@@ -346,14 +346,16 @@ public class MainViewModel : ViewModelBase
             if (seen.Count == 0)
                 return;   // nothing has called us — nothing to be out of date
 
+            // An empty catalog is NOT the end of the check: the app carries its own copy of the extension,
+            // and that copy is what a browser running an older one is behind. Returning here meant the
+            // check could never fire on any machine today, since no published release carries a catalog.
             var catalog = await ExtensionCatalogService.FetchAsync().ConfigureAwait(true);
-            if (catalog.Count == 0)
-                return;
 
             // One pointer per run, however many browsers are behind: the action lives in the window
             // (Settings → Install browser extension), because a native notification cannot carry a click.
             if (ExtensionCatalogService.ShouldWarnAboutExtension(
-                    seen.Values.Select(id => id.Version), catalog, out var reported, out var available))
+                    seen.Values.Select(id => id.Version), catalog, ExtensionInstallService.BundledVersion(),
+                    out var reported, out var available))
             {
                 NotificationService.Notify(
                     Localizer.Instance["Ext_Install_Button"],

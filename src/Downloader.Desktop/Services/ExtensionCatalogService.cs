@@ -153,6 +153,26 @@ public static class ExtensionCatalogService
     public static bool IsNewer(string catalogVersion, string installedVersion)
         => PluginCatalogService.IsNewer(catalogVersion, installedVersion);
 
+    /// <summary>The newer of two versions, ignoring blanks. Null only when both are blank.</summary>
+    public static string Newer(string a, string b)
+    {
+        if (string.IsNullOrWhiteSpace(a)) return string.IsNullOrWhiteSpace(b) ? null : b;
+        if (string.IsNullOrWhiteSpace(b)) return a;
+        return IsNewer(b, a) ? b : a;
+    }
+
+    /// <summary>
+    /// The newest build this app could actually install: the published catalog, or the copy bundled
+    /// inside the app, whichever is newer.
+    ///
+    /// <para>Both halves matter. The catalog is empty on every machine whose app predates it — and on any
+    /// machine that is simply offline — so a check that only consulted the catalog could never say "your
+    /// extension is out of date", which is exactly what it was for. The bundled copy, meanwhile, ships
+    /// with the app and is frequently the newer of the two right after an app update.</para>
+    /// </summary>
+    public static string BestAvailable(IEnumerable<ExtensionCatalogEntry> catalog, string bundledVersion)
+        => Newer(NewestVersion(catalog), bundledVersion);
+
     /// <summary>The newest version any published build carries, or null when the catalog says nothing.</summary>
     public static string NewestVersion(IEnumerable<ExtensionCatalogEntry> catalog)
         => catalog?
@@ -166,17 +186,23 @@ public static class ExtensionCatalogService
     ///
     /// <para>Pure on purpose — this is the decision the startup check exists to make, and a check like
     /// this is only worth having if it never cries wolf. It says nothing when no extension has reported
-    /// (an extension that never called is not out of date, it is not installed), when the catalog is
-    /// empty or unreachable, or when everything reported is current or newer than the release.</para>
+    /// (an extension that never called is not out of date, it is not installed), when neither the catalog
+    /// nor the app carries a version to compare against, or when everything reported is current.</para>
+    ///
+    /// <para><paramref name="bundledVersion"/> is what makes this answerable at all today: no published
+    /// release carries an extension catalog yet, so with the catalog alone this always said "no" and a
+    /// browser running an old copy was never told (reported 2026-09-04, with v1.11.0 loaded in Chrome
+    /// against a newer copy inside the app).</para>
     ///
     /// <para><paramref name="reportedVersion"/> is the oldest version reported, so a user with two
     /// browsers is told about the one that actually needs attention.</para>
     /// </summary>
     public static bool ShouldWarnAboutExtension(IEnumerable<string> reportedVersions,
-        IEnumerable<ExtensionCatalogEntry> catalog, out string reportedVersion, out string availableVersion)
+        IEnumerable<ExtensionCatalogEntry> catalog, string bundledVersion,
+        out string reportedVersion, out string availableVersion)
     {
         reportedVersion = null;
-        var newest = NewestVersion(catalog);
+        var newest = BestAvailable(catalog, bundledVersion);
         availableVersion = newest;
         if (string.IsNullOrWhiteSpace(newest) || reportedVersions == null)
             return false;

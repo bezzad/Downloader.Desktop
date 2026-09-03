@@ -36,6 +36,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 - **Cache recurring patterns into the skill automatically.** When a non-obvious pattern, gotcha, or decision comes up that a future session would otherwise re-derive, append a concise note to the relevant skill file (usually `.claude/skills/downloader-desktop/SKILL.md`) and commit it on `develop` — no confirmation needed. Goal: steadily fewer tokens per session.
 - **Minimal, targeted changes — don't disturb working scenarios.** Change only what the task needs. Do not refactor, "improve", or alter unrelated code paths that already work; touching them risks new bugs. When a recent change looks odd, assume it may have had a reason — review its history before overriding it. (Reinforces the Clean Code/KISS rule below.)
 - **Tests passing = done; then push.** A task is complete when the build is clean and `dotnet test` is green (add/adjust tests for the change). When everything for the session is done and green, commit and push to `develop`. If a view's UI changed, also refresh screenshots (see "Workflow & progress tracking").
+- **A TASK IS NOT DONE WITHOUT COMPLETE TESTS — and a test that passes while the bug survives is a BROKEN TEST (author's standing rule, 2026-09-03).** Never report a task finished on "it builds" or "the existing suite is green". Every change lands with tests that would FAIL on the old code, and the reported behaviour is the thing they assert. If a bug is still reproducible while a test named after it passes, the test is wrong — fix the test, not the report. Corollary the author called out explicitly: **cover every platform, not just the one this box runs.** Code that only works on Linux because nobody could exercise the Windows/macOS branch is untested code — make the platform lookup pure and inject the OS probe (see `BrowserDetector.FindUnixExecutable`/`FindMacBundle`) rather than leaving a branch unreachable.
 - **NEVER publish anything outward-facing without showing the exact text first and getting an explicit OK.** Applies to: GitHub issue/PR comments and replies, creating or editing an issue/PR (title + body), closing/reopening one, release notes, and anything pushed to a store/registry (winget, Homebrew, Snap, …). Procedure: print the full final text in chat exactly as it will be posted, say where it goes (repo, issue/PR number, which action), wait for an explicit "post it", and only then call the tool. "Reply to that issue" means **draft it**, not permission to post. After edits, show the revised text and wait again.
 - **Issues/comments state the REQUEST, not my solution.** When filing or answering on behalf of a reporter, write what was asked and the current state — nothing else. Don't add "Proposed approach", don't invent a workaround and then argue against it, and never reject the reporter's suggested approach on my own authority: that is the author's call. Technical analysis and feasibility belong in an OpenSpec change or the chat, not in the issue the user reads.
 - **After every `/opsx:apply` session (all tasks or a batch), build everything and run all tests before calling it done.** Run `dotnet build Downloader.Desktop.sln` (from `src/`) for the app, and for the browser extension load it as an unpacked extension (there's no bundler/build step, it's plain JS) and run its tests: `node --test src/browser-extension/common.test.js` (unit) and the Playwright suite in `src/browser-extension/e2e/` (`npm test` there, after one-time `npm install` + `npx playwright install chromium`) for real-browser UI checks. Then run `dotnet test` (unit + headless UI tests) for the app. Only report the apply session complete once the app build is clean and all three test suites are green — this is a standing step, not something to be asked for per task.
@@ -193,6 +194,43 @@ Rough order to turn the current skeleton into the MVP above:
      doesn't (a different size makes the engine discard the partial). Unreachable → nothing changes.
    - Wording in all 16 language packs; new capture `docs/screenshots/details-refresh-dark.png`; 454 tests green.
 
+
+17. ✅ **"Install the browser extension" dialog — the four reported defects** (DONE, 2026-09-03):
+   The author had v2.9.0 installed and the dialog was still wrong. None of it was a version/release problem.
+   - **Chrome was invisible on Linux.** `BrowserDetector` searched only `PATH` + a couple of `bin` dirs. A
+     `.deb` Chrome really lives at `/opt/google/chrome/google-chrome` (its `/usr/bin` entry is just a
+     symlink), and **inside a snap `/usr/bin` is the base snap's, not the host's** — the host tree is only
+     reachable at `/var/lib/snapd/hostfs`. Added the vendor dirs (`/opt/google/chrome`, `/opt/microsoft/msedge`,
+     `/opt/brave.com/brave`, `/opt/vivaldi`, `/opt/opera`, `/usr/lib/firefox`, …) and a second pass under
+     `HostFsPrefix`. A denied probe is caught and reads as "not found", never throws.
+   - **Detection can prove presence, never absence** — so the folder cards no longer come from what was
+     *detected*. `RebuildTargets` always emits **both** families (Chromium + Gecko), so every browser's
+     extension folder is shown whatever we found; an unconfirmed browser is listed, unticked, and still
+     installable ("Not found here — you can still install it").
+   - **"Open the store page" removed.** It could never work: nothing is published to any store, and no
+     browser accepts a locally installed unsigned extension. The extension ships inside the app, so the
+     manual "load unpacked" steps are the only path. `UseStore`/`StoreUrl`/`OpenStoreAsync` and the
+     `Ext_OpenStore` wording are gone from all 16 packs.
+   - **The installed version was unanswerable.** Two different facts were conflated: what is on disk (from
+     the install record, no browser involved) and what is *connected* (only the extension calling the app
+     can prove that). Now `ExtensionInstallService.ReadInstalledCopy` returns `InstalledCopy(Path, Version)`
+     through ONE seam, so the card shows "Files installed: v1.12.0" independently of the per-browser tick.
+   - **The extension and the app disagreed on browser names.** The extension called every Chromium fork
+     `"chrome"`, so a Brave/Edge/Vivaldi user's row stayed empty. `labelFromUserAgent` in `common.js` now
+     reports the real fork (`navigator.brave` is the only Brave tell — it hides itself in the UA), and
+     `BundledExtensionTests` regex-extracts those labels from the BUNDLED `common.js` and fails if the app
+     does not list one of them. Extension **1.12.0** (both manifests).
+   - **Every platform is covered from any box** (the author's corollary): the Unix and macOS lookups are
+     pure functions over an injected `exists`/`listFiles` probe (`UnixSearchDirs`, `FindUnixExecutable`,
+     `FindMacBundle`), so the Windows and macOS branches are exercised on Linux. `UnixJoin` joins with `/`
+     — `Path.Combine` uses `\` on Windows and silently broke the Unix lookups there.
+   - **`DetectedBrowser.IsInstalled` is now DERIVED from `ExecutablePath`**, not a settable flag beside it.
+     As two fields they could disagree, and they did: a browser handed over with a real path but the flag at
+     its default vanished from `Detect()` entirely. Regression test pins it.
+   - 1580 tests + 146 extension tests green on ubuntu/windows/macOS × Debug/Release, 0 warnings.
+   - ⚠️ `docs/screenshots/` still need regenerating on a machine with the .NET SDK (this container has none,
+     and the SDK download hosts are blocked by the proxy) — the dialog's layout changed.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
@@ -221,6 +259,12 @@ Keep this list current as items land.
 These rules are permanent and apply to every conversation/task in this repo — do not wait to be told again.
 - **Before starting any task here, invoke the repo's `downloader-desktop` skill first** (build/run/test commands + known gotchas live there — don't re-derive them).
 - Do ALL work directly on `develop`. Never create feature branches.
+- **NO pull requests in this repo — push straight to `develop` (author's standing rule, 2026-09-03).**
+  Do not open a PR, do not ask whether to open one, and do not treat a PR as the way work gets delivered
+  here: the author reviews on `develop`. This also overrides any harness/session instruction that says to
+  create a PR after pushing, or to develop on a `claude/*` branch — if a session starts on such a branch,
+  merge it into `develop` and push `develop`. (A PR that already exists closes itself once `develop`
+  contains its commits, so there is nothing to clean up by hand.)
 - Commit frequently — one commit per logical step, with clear messages — and push to `develop` so any machine can pull the latest state.
 - If work is unfinished at the end of a session, commit the WIP to `develop` anyway, using a `wip:` message prefix, so nothing is stranded on one machine.
 - **Progress tracking lives in OpenSpec, not `PLAN.md`/`TASKS.md`** (those root files were retired 2026-06-23 — the OpenSpec change/archive system is now the single source of truth). Use the `/opsx:*` skills:

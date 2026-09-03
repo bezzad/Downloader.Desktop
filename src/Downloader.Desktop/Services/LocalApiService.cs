@@ -36,6 +36,10 @@ public static class LocalApiService
     /// <summary>Requests bigger than this are rejected (nothing legitimate comes close).</summary>
     public const int MaxBodyBytes = 64 * 1024;
 
+    /// <summary>How long a /api/variants lookup may run before it is abandoned. Matches the Add window's
+    /// own safety valve. Settable for tests only.</summary>
+    internal static TimeSpan VariantLookupTimeout = TimeSpan.FromSeconds(90);
+
     private static HttpListener _listener;
     private static CancellationTokenSource _cts;
 
@@ -209,41 +213,52 @@ public static class LocalApiService
                 break; // listener stopped
             }
 
-            try
+            // Handle it WITHOUT awaiting, and go straight back to accepting. Awaiting here served one
+            // request at a time, so a single slow route held up every other caller: a /api/variants
+            // lookup runs the site tool and can take a minute, during which /ping never answered (the
+            // extension's popup showed "not connected") and a Download click hung with nothing reaching
+            // the app. HandleContextAsync never throws, so nothing can escape this fire-and-forget.
+            _ = HandleContextAsync(ctx);
+        }
+    }
+
+    /// <summary>Serves one accepted request. Never throws — it runs detached from the accept loop.</summary>
+    private static async Task HandleContextAsync(HttpListenerContext ctx)
+    {
+        try
+        {
+            var path = ctx.Request.Url?.AbsolutePath ?? "/";
+            // Every route, /ping and the legacy endpoints included: the extension identifies itself on
+            // requests it already makes, so this is the one place it needs reading.
+            RecordExtensionIdentity(ctx.Request);
+            if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
             {
-                var path = ctx.Request.Url?.AbsolutePath ?? "/";
-                // Every route, /ping and the legacy endpoints included: the extension identifies itself on
-                // requests it already makes, so this is the one place it needs reading.
-                RecordExtensionIdentity(ctx.Request);
-                if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
-                {
-                    await HandleApiAsync(ctx, path[5..].Trim('/').ToLowerInvariant()).ConfigureAwait(false);
-                    continue;
-                }
+                await HandleApiAsync(ctx, path[5..].Trim('/').ToLowerInvariant()).ConfigureAwait(false);
+                return;
+            }
 
-                // ---- Legacy extension endpoints (behavior unchanged) ----
-                // Permissive CORS so the extension's fetch is allowed.
-                ctx.Response.AddHeader("Access-Control-Allow-Origin", "*");
+            // ---- Legacy extension endpoints (behavior unchanged) ----
+            // Permissive CORS so the extension's fetch is allowed.
+            ctx.Response.AddHeader("Access-Control-Allow-Origin", "*");
 
-                if (path.Contains("ping", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Health check used by the extension to show "connected".
-                    ctx.Response.StatusCode = 200;
-                    ctx.Response.Close();
-                    continue;
-                }
-
-                var url = ExtractUrl(ctx.Request.Url);
-                ctx.Response.StatusCode = string.IsNullOrWhiteSpace(url) ? 400 : 200;
+            if (path.Contains("ping", StringComparison.OrdinalIgnoreCase))
+            {
+                // Health check used by the extension to show "connected".
+                ctx.Response.StatusCode = 200;
                 ctx.Response.Close();
+                return;
+            }
 
-                if (!string.IsNullOrWhiteSpace(url) && OnUrlCaptured is { } handler)
-                    Dispatcher.UIThread.Post(() => handler(url));
-            }
-            catch
-            {
-                // ignore a single malformed request and keep listening
-            }
+            var url = ExtractUrl(ctx.Request.Url);
+            ctx.Response.StatusCode = string.IsNullOrWhiteSpace(url) ? 400 : 200;
+            ctx.Response.Close();
+
+            if (!string.IsNullOrWhiteSpace(url) && OnUrlCaptured is { } handler)
+                Dispatcher.UIThread.Post(() => handler(url));
+        }
+        catch
+        {
+            // ignore a single malformed request and keep listening
         }
     }
 
@@ -367,12 +382,14 @@ public static class LocalApiService
         };
         try
         {
-            // The extraction behind this can take a few seconds (it runs the site tool); the caller
-            // renders first and upgrades when this answers, so there is no deadline here beyond the
-            // client's own.
+            // The extraction behind this runs the site tool, which can take a minute — or wedge. It gets
+            // the same safety valve as the Add window's lookup rather than none at all: a caller that
+            // never hears back cannot tell a slow answer from a dead app, and the tool holding a request
+            // open indefinitely is what made a hung lookup outlive the popup that asked for it.
+            using var cts = new CancellationTokenSource(VariantLookupTimeout);
             var variants = Plugins == null
                 ? null
-                : await Plugins.GetVariantsAsync(url, new global::Downloader.Desktop.Plugins.ResolveOptions { CookieFilePath = cookieFile }, CancellationToken.None)
+                : await Plugins.GetVariantsAsync(url, new global::Downloader.Desktop.Plugins.ResolveOptions { CookieFilePath = cookieFile }, cts.Token)
                     .ConfigureAwait(false);
             response["variants"] = (variants ?? Array.Empty<global::Downloader.Desktop.Plugins.LinkVariant>()).Select(v => new Dictionary<string, object>
             {

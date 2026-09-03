@@ -16,7 +16,7 @@ const {
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
-  extensionIdentity, browserLabel, withIdentity, withIdentityHeaders,
+  extensionIdentity, browserLabel, labelFromUserAgent, withIdentity, withIdentityHeaders,
   isManifest, MEDIA_EXTENSIONS, looksLikeMedia, isMediaContentType,
   shouldIntercept, normalizeInterceptSettings, hostMatchesSite,
   filenameFromContentDisposition, filenameFromUrlQuery, extFromMime, resolveDownloadExt,
@@ -24,7 +24,8 @@ const {
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
-  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants
+  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  appFetch, APP_TIMEOUT_MS
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -1464,6 +1465,40 @@ test("Firefox is labelled by its own browser namespace", () => {
   }
 });
 
+test("every Chromium fork reports ITSELF, not chrome", () => {
+  // The app matches this label against its own browser ids: a fork that says "chrome" has its version
+  // attributed to Chrome, and its own row in the extension dialog stays empty. Each fork's user agent
+  // also contains "Chrome/", which is why the specific marks are tested against the real strings.
+  const chrome  = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+  const edge    = chrome + " Edg/128.0.0.0";
+  const opera   = chrome + " OPR/114.0.0.0";
+  const vivaldi = chrome + " Vivaldi/6.8";
+  const chromium = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chromium/128.0.0.0 Chrome/128.0.0.0 Safari/537.36";
+
+  assert.equal(labelFromUserAgent(chrome, false, false), "chrome");
+  assert.equal(labelFromUserAgent(edge, false, false), "edge");
+  assert.equal(labelFromUserAgent(opera, false, false), "opera");
+  assert.equal(labelFromUserAgent(vivaldi, false, false), "vivaldi");
+  assert.equal(labelFromUserAgent(chromium, false, false), "chromium");
+  // Brave deliberately looks exactly like Chrome in the user agent; navigator.brave is the only tell.
+  assert.equal(labelFromUserAgent(chrome, false, true), "brave");
+});
+
+test("a Gecko browser reports firefox, and LibreWolf reports itself", () => {
+  const firefox = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0";
+  const librewolf = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0 LibreWolf/130.0";
+  assert.equal(labelFromUserAgent(firefox, true, false), "firefox");
+  assert.equal(labelFromUserAgent(librewolf, true, false), "librewolf");
+  // Gecko wins over every Chromium mark — a Firefox fork must never be labelled a Chromium one.
+  assert.equal(labelFromUserAgent(firefox + " Edg/128.0.0.0", true, false), "firefox");
+});
+
+test("an unreadable user agent still yields a usable label", () => {
+  assert.equal(labelFromUserAgent(undefined, false, false), "chrome");
+  assert.equal(labelFromUserAgent("", false, false), "chrome");
+  assert.equal(labelFromUserAgent(null, true, false), "firefox");
+});
+
 test("withIdentity appends to a URL with or without an existing query", () => {
   withRuntime({ version: "1.7.0" }, () => {
     assert.match(withIdentity("http://127.0.0.1:15151/ping"), /\/ping\?extv=1\.7\.0&extb=/);
@@ -1535,4 +1570,72 @@ test("a plain silent add keeps its GET form and gains the identity in the query"
   assert.equal(seen[0].init.method, "GET");
   assert.match(seen[0].url, /^http:\/\/127\.0\.0\.1:15151\/api\/add\?url=/);
   assert.match(seen[0].url, /extv=1\.7\.0/);
+});
+
+// ---------------- Deadlines on every call to the app ----------------
+// An app that accepts the connection and never answers used to leave the caller pending FOR EVER:
+// the popup's status dot never resolved and a Download button sat on "…" with no error. Reported on
+// x.com while the app was busy with a page-quality lookup it could not finish.
+
+test("appFetch gives up instead of waiting for ever on an app that never answers", async () => {
+  const saved = global.fetch;
+  global.fetch = () => new Promise(() => {}); // accepted, never answered
+  try {
+    await assert.rejects(() => appFetch("http://127.0.0.1:15151/ping", {}, 30));
+  } finally {
+    global.fetch = saved;
+  }
+});
+
+test("appFetch aborts the request it abandoned, so the socket is released", async () => {
+  const saved = global.fetch;
+  let seen = null;
+  global.fetch = (_url, init) => { seen = init?.signal; return new Promise(() => {}); };
+  try {
+    await assert.rejects(() => appFetch("http://127.0.0.1:15151/ping", {}, 30));
+    assert.equal(seen?.aborted, true);
+  } finally {
+    global.fetch = saved;
+  }
+});
+
+test("appFetch returns the response untouched when the app answers in time", async () => {
+  const saved = global.fetch;
+  global.fetch = async () => ({ ok: true, status: 200 });
+  try {
+    const res = await appFetch("http://127.0.0.1:15151/ping", {}, 1000);
+    assert.equal(res.status, 200);
+  } finally {
+    global.fetch = saved;
+  }
+});
+
+test("a hung app is reported as unreachable, not left hanging", async () => {
+  const saved = global.fetch;
+  global.fetch = () => new Promise(() => {});
+  const savedPing = APP_TIMEOUT_MS.ping;
+  APP_TIMEOUT_MS.ping = 20;
+  try {
+    // Every port probed in turn, each abandoned on its own deadline: the answer is "not found", which
+    // the popup can actually show, instead of a status that never settles.
+    const port = await discoverAppPort(undefined, 15151);
+    assert.equal(port, null);
+  } finally {
+    APP_TIMEOUT_MS.ping = savedPing;
+    global.fetch = saved;
+  }
+});
+
+test("a silent add against a hung app fails rather than hanging", async () => {
+  const saved = global.fetch;
+  global.fetch = () => new Promise(() => {});
+  const savedAdd = APP_TIMEOUT_MS.add;
+  APP_TIMEOUT_MS.add = 20;
+  try {
+    const verdict = await sendToAppSilently("http://127.0.0.1:15151", "https://cdn.example/clip.mp4", null, [], {});
+    assert.equal(verdict, "fail");
+  } finally {
+    APP_TIMEOUT_MS.add = savedAdd;
+    global.fetch = saved;
+  }
 });

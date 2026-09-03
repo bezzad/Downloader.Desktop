@@ -98,6 +98,41 @@ public class ExtensionInstallServiceTests : IDisposable
         Assert.Equal("chrome", installed.Target);
     }
 
+    /// <summary>
+    /// The seam the dialog reads BOTH facts through. It exists because they used to come from two places:
+    /// the version from a stubbable call and the folder from a real static one, so a test could stub the
+    /// version and still have the dialog print the developer's own app-data path. Stubbing the seam in the
+    /// view-model tests cannot prove the seam itself is right, so this exercises the real implementation.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_installed_copy_reports_the_folder_and_the_version_together()
+    {
+        var zip = BuildZip(GoodFiles);
+        using var server = new LoopbackServer();
+        server.MapBytes("/ext.zip", zip, "application/zip");
+
+        var result = await ExtensionInstallService.InstallAsync(Entry(server, Sha256(zip), version: "1.12.0"),
+            null, TestContext.Current.CancellationToken);
+        Assert.True(result.Success, result.Error);
+
+        var copy = ExtensionInstallService.ReadInstalledCopy("chrome");
+        Assert.NotNull(copy);
+        // The SAME folder the install actually wrote to — not a recomputed guess from another root.
+        Assert.Equal(result.Path, copy.Path);
+        Assert.Equal("1.12.0", copy.Version);
+        Assert.StartsWith(_root, copy.Path);
+    }
+
+    /// <summary>Nothing installed must be null, not an empty-versioned copy: the dialog shows the
+    /// "Files installed: v…" line off this, so a non-null placeholder would claim an install that
+    /// is not there.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void With_nothing_unpacked_there_is_no_installed_copy()
+    {
+        Assert.Null(ExtensionInstallService.ReadInstalledCopy("chrome"));
+        Assert.Null(ExtensionInstallService.ReadInstalledCopy("firefox"));
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Reporting_progress_reaches_one_hundred_percent()
     {
