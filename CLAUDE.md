@@ -194,6 +194,43 @@ Rough order to turn the current skeleton into the MVP above:
      doesn't (a different size makes the engine discard the partial). Unreachable → nothing changes.
    - Wording in all 16 language packs; new capture `docs/screenshots/details-refresh-dark.png`; 454 tests green.
 
+
+17. ✅ **"Install the browser extension" dialog — the four reported defects** (DONE, 2026-09-03):
+   The author had v2.9.0 installed and the dialog was still wrong. None of it was a version/release problem.
+   - **Chrome was invisible on Linux.** `BrowserDetector` searched only `PATH` + a couple of `bin` dirs. A
+     `.deb` Chrome really lives at `/opt/google/chrome/google-chrome` (its `/usr/bin` entry is just a
+     symlink), and **inside a snap `/usr/bin` is the base snap's, not the host's** — the host tree is only
+     reachable at `/var/lib/snapd/hostfs`. Added the vendor dirs (`/opt/google/chrome`, `/opt/microsoft/msedge`,
+     `/opt/brave.com/brave`, `/opt/vivaldi`, `/opt/opera`, `/usr/lib/firefox`, …) and a second pass under
+     `HostFsPrefix`. A denied probe is caught and reads as "not found", never throws.
+   - **Detection can prove presence, never absence** — so the folder cards no longer come from what was
+     *detected*. `RebuildTargets` always emits **both** families (Chromium + Gecko), so every browser's
+     extension folder is shown whatever we found; an unconfirmed browser is listed, unticked, and still
+     installable ("Not found here — you can still install it").
+   - **"Open the store page" removed.** It could never work: nothing is published to any store, and no
+     browser accepts a locally installed unsigned extension. The extension ships inside the app, so the
+     manual "load unpacked" steps are the only path. `UseStore`/`StoreUrl`/`OpenStoreAsync` and the
+     `Ext_OpenStore` wording are gone from all 16 packs.
+   - **The installed version was unanswerable.** Two different facts were conflated: what is on disk (from
+     the install record, no browser involved) and what is *connected* (only the extension calling the app
+     can prove that). Now `ExtensionInstallService.ReadInstalledCopy` returns `InstalledCopy(Path, Version)`
+     through ONE seam, so the card shows "Files installed: v1.12.0" independently of the per-browser tick.
+   - **The extension and the app disagreed on browser names.** The extension called every Chromium fork
+     `"chrome"`, so a Brave/Edge/Vivaldi user's row stayed empty. `labelFromUserAgent` in `common.js` now
+     reports the real fork (`navigator.brave` is the only Brave tell — it hides itself in the UA), and
+     `BundledExtensionTests` regex-extracts those labels from the BUNDLED `common.js` and fails if the app
+     does not list one of them. Extension **1.12.0** (both manifests).
+   - **Every platform is covered from any box** (the author's corollary): the Unix and macOS lookups are
+     pure functions over an injected `exists`/`listFiles` probe (`UnixSearchDirs`, `FindUnixExecutable`,
+     `FindMacBundle`), so the Windows and macOS branches are exercised on Linux. `UnixJoin` joins with `/`
+     — `Path.Combine` uses `\` on Windows and silently broke the Unix lookups there.
+   - **`DetectedBrowser.IsInstalled` is now DERIVED from `ExecutablePath`**, not a settable flag beside it.
+     As two fields they could disagree, and they did: a browser handed over with a real path but the flag at
+     its default vanished from `Detect()` entirely. Regression test pins it.
+   - 1580 tests + 146 extension tests green on ubuntu/windows/macOS × Debug/Release, 0 warnings.
+   - ⚠️ `docs/screenshots/` still need regenerating on a machine with the .NET SDK (this container has none,
+     and the SDK download hosts are blocked by the proxy) — the dialog's layout changed.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
