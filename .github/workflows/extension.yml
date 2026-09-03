@@ -64,7 +64,9 @@ jobs:
       # The version bump is manual (bump BOTH manifests). This guard catches the mistake that
       # silently strands users on an old build: extension CODE has changed since the manifest version
       # was last bumped, and that version is already published on AMO → fail with instructions.
-      # Doc-only edits (*.md) stay green; manual dispatches skip it (there is nothing being pushed).
+      # Doc-only edits (*.md) stay green. It runs on a manual dispatch too, so the guard itself can be
+      # exercised on demand against any ref — a check that had been silently wrong for three releases
+      # should not be unverifiable until the next one.
       #
       # The base is the commit that LAST SET the current version, not the push's 'before' commit.
       # Using 'before' made this step fail on every single release (2026-09-02, -03, -04): on `main`
@@ -75,7 +77,7 @@ jobs:
       # would go unnoticed. Asking "has anything changed since the bump?" is branch-independent and
       # is the question the guard actually wants answered.
       - name: Fail if code changed without a version bump
-        if: github.event_name == 'push' && steps.gate.outputs.submit == 'no'
+        if: steps.gate.outputs.submit == 'no'
         run: |
           VER="${{ steps.ver.outputs.version }}"
           MF="src/browser-extension/manifest.firefox.json"
