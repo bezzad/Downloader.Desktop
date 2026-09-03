@@ -31,10 +31,8 @@ public class ExtensionBrowserRow : ViewModelBase
     public BrowserFamily Family => Browser.Family;
 
     /// <summary>Whether detection could confirm this browser here — a hint next to the name, never a
-    /// reason to hide the row (detection cannot see a browser outside the app's filesystem view). A known
-    /// executable path counts as confirmation on its own: the two cannot disagree.</summary>
-    public bool IsInstalled =>
-        Browser?.IsInstalled == true || !string.IsNullOrWhiteSpace(Browser?.ExecutablePath);
+    /// reason to hide the row (detection cannot see a browser outside the app's filesystem view).</summary>
+    public bool IsInstalled => Browser?.IsInstalled == true;
 
     private bool _isSelected;
     public bool IsSelected

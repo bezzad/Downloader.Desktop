@@ -33,10 +33,11 @@ public class ExtensionInstallViewModelTests
         Id = "firefox", Name = "Mozilla Firefox", Family = BrowserFamily.Gecko, ExecutablePath = "/usr/bin/firefox",
     };
 
-    /// <summary>A supported browser that detection could NOT confirm on this machine.</summary>
+    /// <summary>A supported browser that detection could NOT confirm on this machine — no path found,
+    /// which is exactly what "not installed" means (DetectedBrowser.IsInstalled derives from it).</summary>
     private static DetectedBrowser NotInstalled(string id, string name, BrowserFamily family) => new()
     {
-        Id = id, Name = name, Family = family, ExecutablePath = null, IsInstalled = false,
+        Id = id, Name = name, Family = family, ExecutablePath = null,
     };
 
     private static ExtensionCatalogEntry Entry(string id, string family, string version = "1.8.0", string storeUrl = null)
@@ -345,7 +346,8 @@ public class ExtensionInstallViewModelTests
         Localizer.Instance.Load("en");
         var brave = new DetectedBrowser
         {
-            Id = "brave", Name = "Brave", Family = BrowserFamily.Chromium, IsInstalled = true,
+            Id = "brave", Name = "Brave", Family = BrowserFamily.Chromium,
+            ExecutablePath = "/usr/bin/brave-browser",
         };
         var vm = Vm(new[] { Chrome, brave }, new[] { Entry("chrome", "chromium", version: "1.12.0") },
             lastSeen: id => id == "brave" ? "1.12.0" : null);

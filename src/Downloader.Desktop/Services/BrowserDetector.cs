@@ -138,8 +138,8 @@ public static class BrowserDetector
                 Id = c.Id,
                 Name = c.Name,
                 Family = c.Family,
+                // IsInstalled is derived from this, so there is nothing else to set.
                 ExecutablePath = string.IsNullOrWhiteSpace(exe) ? null : exe,
-                IsInstalled = !string.IsNullOrWhiteSpace(exe),
             });
         }
 

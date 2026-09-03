@@ -141,6 +141,36 @@ public class BrowserDetectorTests
     }
 
     /// <summary>
+    /// Regression: <c>IsInstalled</c> was briefly a settable flag ALONGSIDE the path, so a browser handed
+    /// over with a real executable and the flag left at its default disappeared from
+    /// <see cref="BrowserDetector.Detect"/> — silently, since both look fine on their own. Having a path
+    /// IS what installed means, and this pins that the two can no longer disagree.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_browser_that_carries_a_path_counts_as_installed()
+    {
+        Assert.True(new DetectedBrowser { Id = "chrome", ExecutablePath = "/x/chrome" }.IsInstalled);
+        Assert.False(new DetectedBrowser { Id = "chrome", ExecutablePath = null }.IsInstalled);
+        Assert.False(new DetectedBrowser { Id = "chrome", ExecutablePath = "  " }.IsInstalled);
+
+        try
+        {
+            BrowserDetector.DetectOverride = () => new List<DetectedBrowser>
+            {
+                new() { Id = "chrome", Name = "Google Chrome", Family = BrowserFamily.Chromium, ExecutablePath = "/x/chrome" },
+                new() { Id = "firefox", Name = "Mozilla Firefox", Family = BrowserFamily.Gecko },
+            };
+
+            Assert.Equal(new[] { "chrome", "firefox" }, BrowserDetector.All().Select(b => b.Id));
+            Assert.Equal("chrome", Assert.Single(BrowserDetector.Detect()).Id);
+        }
+        finally
+        {
+            BrowserDetector.DetectOverride = null;   // process-wide
+        }
+    }
+
+    /// <summary>
     /// A lookup on every platform for every browser — the author's point that "it surely breaks somewhere
     /// else". A missing Windows exe or macOS bundle name is a browser that can never be found on that OS,
     /// and neither can be reproduced from this box any other way.

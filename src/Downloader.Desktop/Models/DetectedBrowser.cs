@@ -36,6 +36,11 @@ public sealed class DetectedBrowser
     /// browser installed outside the app's own filesystem view (a snap-confined app sees the base snap's
     /// <c>/usr/bin</c>, not the host's), so the extension is offered for every supported browser and this
     /// only tells the user which ones we could confirm.
+    ///
+    /// <para>DERIVED from <see cref="ExecutablePath"/> on purpose, not a second field: as a settable flag
+    /// the two could disagree, and they did — a browser handed over with a real path but the flag left at
+    /// its default vanished from <see cref="Services.BrowserDetector.Detect"/> entirely. Having found a
+    /// path IS what "installed" means here.</para>
     /// </summary>
-    public bool IsInstalled { get; init; }
+    public bool IsInstalled => !string.IsNullOrWhiteSpace(ExecutablePath);
 }
