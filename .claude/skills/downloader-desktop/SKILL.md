@@ -1384,3 +1384,25 @@ the claiming resolver's `GetVariantsAsync` (`SiteExtractor.ListVariants`: one en
   (403), so `dotnet build`/`dotnet test` cannot run here at all. Node/Playwright do work. When a session
   lands in that environment: say so, push to a branch, and let CI be the verification — do not report a
   C# task green from a code read.
+
+
+## Reading a CI failure from a box with no .NET SDK (2026-09-03)
+The remote/web container has NO .NET SDK and the egress proxy blocks
+`builds.dotnet.microsoft.com` (403), so `dotnet build`/`dotnet test` cannot run at all there and CI is
+the only test loop. Two things make that loop cheap:
+- **Get failure NAMES from the log, not the artifact.** `test-results.trx` lives in an artifact whose
+  blob-storage URL the proxy also blocks. Instead call `get_job_logs` with `return_content: true` and
+  `tail_lines: 2100`: the result EXCEEDS the context limit, so the tool SAVES IT TO A FILE and prints the
+  path — then grep that file (`s.replace('\\n','\n')` first; the log arrives as one long line) for
+  `[FAIL]`. A [FAIL] block carries the assertion, the expected/actual and the source line. Do NOT page
+  through `tail_lines` guessing: the block sits wherever the test ran, often >300 lines from the end.
+- **Read the other legs before theorising.** `list_workflow_jobs` with `filter: latest` shows all six at
+  once; "4 green, 2 red on one OS" points somewhere completely different from "6 red".
+- **`Total tests: Unknown` + `Passed: N` + a `hangdump.dmp` is the KNOWN in-host crash, not a test
+  failure** (see the notes above). It aborts the run wherever it happens to be — 2026-09-03 it named
+  `TransferPathTests.Transfer_backed_item_completes_with_the_produced_file` on both Windows legs while
+  ubuntu×2 and macOS×2 were fully green, and the base commit (`develop` 6cda586) carried the same
+  crashdump. The log says it itself: "This test may, or may not be the source of the crash."
+- Platform-separator trap worth repeating: a Unix/macOS path lookup must join with `'/'`, never
+  `Path.Combine` — on the Windows leg that produces a path shape neither platform has, and the lookup's
+  own tests then fail there for a reason unrelated to the lookup (`BrowserDetector.UnixJoin`).
