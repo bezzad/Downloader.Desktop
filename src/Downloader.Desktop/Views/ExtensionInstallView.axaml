@@ -95,11 +95,20 @@
                                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                                     </Grid>
 
-                                    <!-- Which version is actually on disk for this family. Independent of
-                                         the extension having called us — that is the per-browser tick. -->
-                                    <TextBlock Text="{Binding InstalledVersionText}" FontSize="12"
-                                               IsVisible="{Binding HasInstalledVersion}"
-                                               Foreground="{DynamicResource SystemAccentColor}" />
+                                    <!-- Which version is actually on disk for this family, and whether it
+                                         is behind. Both numbers were shown before without ever saying which
+                                         way round they were, so a stale copy looked like a healthy one. -->
+                                    <StackPanel Spacing="2" IsVisible="{Binding HasInstalledVersion}">
+                                        <TextBlock Text="{Binding InstalledVersionText}" FontSize="12"
+                                                   Foreground="{DynamicResource SystemAccentColor}" />
+                                        <TextBlock Text="{Binding UpdateText}" FontSize="12" TextWrapping="Wrap"
+                                                   IsVisible="{Binding UpdateAvailable}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SystemErrorTextColor}" />
+                                        <TextBlock Text="{Binding UpdateText}" FontSize="12" TextWrapping="Wrap"
+                                                   IsVisible="{Binding !UpdateAvailable}"
+                                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                    </StackPanel>
 
                                     <!-- The folder is the thing the user has to hand to their browser, so
                                          it is selectable and copyable, never just printed. -->
@@ -162,7 +171,9 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Content="{i18n:Tr Ext_Refresh}" Padding="14 7" Command="{Binding RefreshCommand}" />
-                <Button Content="{i18n:Tr Ext_Install}" Padding="18 7" Classes="accent"
+                <!-- Says "Update the files" as soon as anything on disk is behind: the same button, but
+                     "Get the files" on a machine that already has them reads as "nothing to do". -->
+                <Button Content="{Binding InstallButtonText}" Padding="18 7" Classes="accent"
                         Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}" />
                 <Button Content="{i18n:Tr Btn_Close}" Padding="18 7" Click="OnCloseClick" />
             </StackPanel>

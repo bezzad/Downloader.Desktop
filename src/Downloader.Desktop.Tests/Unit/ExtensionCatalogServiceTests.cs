@@ -190,7 +190,7 @@ public class ExtensionUpdateWarningTests
     public void An_older_reported_version_is_warned_about()
     {
         var warn = ExtensionCatalogService.ShouldWarnAboutExtension(
-            new[] { "1.7.0" }, new[] { Build("chrome", "1.8.0") }, out var reported, out var available);
+            new[] { "1.7.0" }, new[] { Build("chrome", "1.8.0") }, null, out var reported, out var available);
 
         Assert.True(warn);
         Assert.Equal("1.7.0", reported);
@@ -203,32 +203,70 @@ public class ExtensionUpdateWarningTests
         // An extension that has never called is not out of date — it is not installed. Nagging here
         // would be pure noise for someone who does not use the extension at all.
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            Array.Empty<string>(), new[] { Build("chrome", "1.8.0") }, out _, out _));
+            Array.Empty<string>(), new[] { Build("chrome", "1.8.0") }, null, out _, out _));
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            null, new[] { Build("chrome", "1.8.0") }, out _, out _));
+            null, new[] { Build("chrome", "1.8.0") }, null, out _, out _));
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            new string[] { null }, new[] { Build("chrome", "1.8.0") }, out _, out _));
+            new string[] { null }, new[] { Build("chrome", "1.8.0") }, null, out _, out _));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public void An_unreachable_or_empty_catalog_is_never_warned_about()
+    public void With_nothing_to_compare_against_nothing_is_warned_about()
     {
-        // Offline must be silent, not "you are out of date".
+        // Offline AND no bundled copy must be silent, not "you are out of date". (A bundled copy IS
+        // something to compare against — see The_apps_own_bundled_copy_is_enough_to_warn.)
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            new[] { "1.7.0" }, Array.Empty<ExtensionCatalogEntry>(), out _, out _));
-        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(new[] { "1.7.0" }, null, out _, out _));
+            new[] { "1.7.0" }, Array.Empty<ExtensionCatalogEntry>(), null, out _, out _));
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(new[] { "1.7.0" }, null, null, out _, out _));
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            new[] { "1.7.0" }, new[] { Build("chrome", "") }, out _, out _));
+            new[] { "1.7.0" }, new[] { Build("chrome", "") }, null, out _, out _));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void A_current_or_newer_extension_is_never_warned_about()
     {
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            new[] { "1.8.0" }, new[] { Build("chrome", "1.8.0") }, out _, out _));
+            new[] { "1.8.0" }, new[] { Build("chrome", "1.8.0") }, null, out _, out _));
         // A developer running an unpacked build ahead of the release must not be nagged.
         Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
-            new[] { "1.9.0" }, new[] { Build("chrome", "1.8.0") }, out _, out _));
+            new[] { "1.9.0" }, new[] { Build("chrome", "1.8.0") }, null, out _, out _));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_apps_own_bundled_copy_is_enough_to_warn()
+    {
+        // The case that was silently broken: NO published release carries an extension catalog yet, so a
+        // check that only consulted the catalog answered "no" on every machine — a Chrome running v1.11.0
+        // against a newer copy inside the app was never told (reported 2026-09-04).
+        var warn = ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.11.0" }, Array.Empty<ExtensionCatalogEntry>(), "1.13.0",
+            out var reported, out var available);
+
+        Assert.True(warn);
+        Assert.Equal("1.11.0", reported);
+        Assert.Equal("1.13.0", available);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_newer_of_the_catalog_and_the_bundled_copy_is_the_one_offered()
+    {
+        // Right after an app update the copy inside the app is routinely ahead of the last release's
+        // catalog. Offering the catalog's older build there would be a downgrade.
+        Assert.True(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.9.0" }, new[] { Build("chrome", "1.10.0") }, "1.13.0", out _, out var available));
+        Assert.Equal("1.13.0", available);
+
+        // …and the other way round: a catalog ahead of the bundled copy wins.
+        Assert.True(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.9.0" }, new[] { Build("chrome", "1.14.0") }, "1.13.0", out _, out available));
+        Assert.Equal("1.14.0", available);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_browser_running_exactly_the_bundled_copy_is_left_alone()
+    {
+        Assert.False(ExtensionCatalogService.ShouldWarnAboutExtension(
+            new[] { "1.13.0" }, Array.Empty<ExtensionCatalogEntry>(), "1.13.0", out _, out _));
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -236,7 +274,7 @@ public class ExtensionUpdateWarningTests
     {
         // The point of naming a version is to tell the user which install needs attention.
         var warn = ExtensionCatalogService.ShouldWarnAboutExtension(
-            new[] { "1.8.0", "1.6.0", "1.7.0" }, new[] { Build("chrome", "1.8.0") }, out var reported, out _);
+            new[] { "1.8.0", "1.6.0", "1.7.0" }, new[] { Build("chrome", "1.8.0") }, null, out var reported, out _);
 
         Assert.True(warn);
         Assert.Equal("1.6.0", reported);

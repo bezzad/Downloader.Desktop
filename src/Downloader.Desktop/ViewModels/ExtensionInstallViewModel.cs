@@ -111,14 +111,35 @@ public class ExtensionTargetRow : ViewModelBase
     /// </summary>
     public bool HasBuild => true;
 
-    /// <summary>True when the build on offer is the app's own copy rather than the published catalog.</summary>
-    public bool IsBundled => Entry == null;
+    /// <summary>
+    /// True when the build on offer is the app's own copy rather than the published catalog — either
+    /// because there is no catalog entry, or because the bundled copy is the NEWER of the two. That second
+    /// case matters right after an app update: installing the catalog's older build over it would be a
+    /// downgrade dressed up as an install.
+    /// </summary>
+    public bool IsBundled =>
+        Entry == null || ExtensionCatalogService.IsNewer(BundledVersion, Entry.Version);
 
-    /// <summary>The version that would be installed — the catalog's, or the bundled copy's.</summary>
-    public string AvailableVersion => Entry?.Version ?? BundledVersion;
+    /// <summary>The version that would be installed — the newer of the catalog's and the bundled copy's.</summary>
+    public string AvailableVersion => ExtensionCatalogService.Newer(Entry?.Version, BundledVersion) ?? "";
 
     /// <summary>Set by the view model so the row can report the bundled version without reaching out.</summary>
     public string BundledVersion { get; init; } = "";
+
+    /// <summary>
+    /// Whether the files on disk are older than what this app could put there. Answered from the install
+    /// record alone, so it holds whether or not any browser has ever loaded them — a user asked to be able
+    /// to see that the copy in their Chrome folder was stale, and the dialog previously printed both
+    /// version numbers without ever drawing the conclusion (2026-09-04).
+    /// </summary>
+    public bool UpdateAvailable =>
+        HasInstalledVersion && ExtensionCatalogService.IsNewer(AvailableVersion, InstalledVersion);
+
+    /// <summary>Where this family stands: nothing installed yet, up to date, or behind.</summary>
+    public string UpdateText =>
+        !HasInstalledVersion ? null
+        : UpdateAvailable ? string.Format(Localizer.Instance["Ext_FilesOutdated"], AvailableVersion)
+        : Localizer.Instance["Ext_FilesUpToDate"];
 
     public string Title => Entry?.Name ?? (Family == BrowserFamily.Gecko
         ? Localizer.Instance["Ext_Family_Gecko"]
@@ -152,6 +173,8 @@ public class ExtensionTargetRow : ViewModelBase
             this.RaiseAndSetIfChanged(ref _installedVersion, value);
             this.RaisePropertyChanged(nameof(HasInstalledVersion));
             this.RaisePropertyChanged(nameof(InstalledVersionText));
+            this.RaisePropertyChanged(nameof(UpdateAvailable));
+            this.RaisePropertyChanged(nameof(UpdateText));
         }
     }
 
@@ -294,6 +317,17 @@ public class ExtensionInstallViewModel : ViewModelBase
 
     public bool CanInstall => !IsBusy && Targets.Count > 0;
 
+    /// <summary>True when any family's unpacked files are older than what this app can install.</summary>
+    public bool AnyUpdateAvailable => Targets.Any(t => t.UpdateAvailable);
+
+    /// <summary>
+    /// The action button's label. It says UPDATE once anything on disk is behind, because "Get the files"
+    /// on a machine that already has them reads as "nothing to do here" — which is how a stale copy went
+    /// unnoticed. Same button either way: an update IS a re-install into the same folder.
+    /// </summary>
+    public string InstallButtonText =>
+        Localizer.Instance[AnyUpdateAvailable ? "Ext_Update" : "Ext_Install"];
+
     /// <summary>Detect the browsers, read the catalog, and reconcile both against what is already
     /// installed and what has actually called us. Safe to call again — it is the Refresh command too.</summary>
     public async Task LoadAsync()
@@ -350,6 +384,14 @@ public class ExtensionInstallViewModel : ViewModelBase
             });
         }
         this.RaisePropertyChanged(nameof(CanInstall));
+        RaiseUpdateState();
+    }
+
+    /// <summary>Re-reads the aggregates the footer button depends on.</summary>
+    private void RaiseUpdateState()
+    {
+        this.RaisePropertyChanged(nameof(AnyUpdateAvailable));
+        this.RaisePropertyChanged(nameof(InstallButtonText));
     }
 
     /// <summary>The install-folder name for a family when the catalog does not name one.</summary>
@@ -369,10 +411,13 @@ public class ExtensionInstallViewModel : ViewModelBase
         foreach (var row in Browsers)
         {
             var reported = _lastSeenVersion(row.Id);
-            var published = EntryFor(row.Family)?.Version;
+            // What this app could actually put on disk — the catalog's build or its own bundled copy,
+            // whichever is newer. Comparing against the catalog alone meant a browser running an old
+            // extension was never told, because no published release carries a catalog yet.
+            var available = ExtensionCatalogService.Newer(EntryFor(row.Family)?.Version, _bundledVersion());
             row.ConnectedVersion = reported;
-            row.AvailableVersion = published;
-            row.UpdateAvailable = reported != null && ExtensionCatalogService.IsNewer(published, reported);
+            row.AvailableVersion = available;
+            row.UpdateAvailable = reported != null && ExtensionCatalogService.IsNewer(available, reported);
         }
     }
 
@@ -391,6 +436,7 @@ public class ExtensionInstallViewModel : ViewModelBase
         ErrorMessage = null;
         Notice = null;
         Progress = 0;
+        var updated = false;
         _cts = new CancellationTokenSource();
         try
         {
@@ -402,6 +448,13 @@ public class ExtensionInstallViewModel : ViewModelBase
 
                 // No catalog entry means the release could not be reached, or predates this feature —
                 // install the copy that ships inside the app rather than leaving the user with nothing.
+                //
+                // An UPDATE is this same operation: the files are written back into the SAME folder
+                // (ExtensionInstallService stages a copy and swaps it in). Keeping that path fixed is what
+                // lets the browser keep the extension it already has — a browser derives an unpacked
+                // extension's identity from its absolute path, so installing to a new folder would read as
+                // a different extension with an empty settings store.
+                var wasUpdate = target.UpdateAvailable;
                 var result = target.IsBundled
                     ? _installBundled(TargetIdFor(target.Family), target.Family == BrowserFamily.Gecko)
                     : await _install(target.Entry,
@@ -411,18 +464,27 @@ public class ExtensionInstallViewModel : ViewModelBase
                 {
                     target.InstalledPath = result.Path;
                     target.InstalledVersion = target.AvailableVersion;
+                    if (wasUpdate)
+                        updated = true;
                 }
                 else
                 {
                     ErrorMessage = result.Error;
                 }
             }
+
+            // Writing new files is not the same as the browser reading them: a browser loads an unpacked
+            // extension once and keeps that copy until it is reloaded or the browser restarts. Say so, or
+            // the user updates the folder and wonders why their browser still reports the old version.
+            if (updated && !HasError)
+                Notice = Localizer.Instance["Ext_ReloadAfterUpdate"];
         }
         finally
         {
             _cts?.Dispose();
             _cts = null;
             IsBusy = false;
+            RaiseUpdateState();
         }
     }
 
@@ -461,7 +523,9 @@ public class ExtensionInstallViewModel : ViewModelBase
             target.RaisePropertyChanged(nameof(ExtensionTargetRow.Steps));
             target.RaisePropertyChanged(nameof(ExtensionTargetRow.Limitations));
             target.RaisePropertyChanged(nameof(ExtensionTargetRow.InstalledVersionText));
+            target.RaisePropertyChanged(nameof(ExtensionTargetRow.UpdateText));
         }
+        this.RaisePropertyChanged(nameof(InstallButtonText));
     }
 
     /// <summary>Unsubscribes from the language change — a dialog that leaks this keeps the whole VM alive

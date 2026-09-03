@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -34,7 +35,12 @@ public class ExtensionInstallViewTests
         }),
         install: (e, _, _) => Task.FromResult(ExtensionInstallResult.Ok($"/data/extension/{e.Id}", e.Version)),
         lastSeenVersion: _ => null,
-        readInstalled: _ => null);
+        readInstalled: _ => null,
+        // Both bundled seams are stubbed even though this test is about the catalog path: the app's own
+        // copy can be NEWER than a stubbed catalog, and the VM rightly prefers the newer build — which
+        // without these ran the real installer and wrote into the developer's own ~/.config folder.
+        installBundled: (id, _) => ExtensionInstallResult.Ok($"/data/extension/{id}", "1.8.0"),
+        bundledVersion: () => "0.0.1");
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task The_dialog_renders_the_browsers_and_the_steps()
@@ -143,5 +149,48 @@ public class ExtensionInstallViewTests
 
         dialog.Close();
         DesktopLifetimeScope.Pump();
+    }
+
+    /// <summary>
+    /// Settings says an extension update is waiting WITHOUT the user opening the dialog to find out. The
+    /// reported state (2026-09-04) was a Chrome folder holding v1.11.0 while the app carried a newer copy,
+    /// with nothing anywhere saying so.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void Settings_says_when_the_unpacked_extension_is_behind_the_app()
+    {
+        Localizer.Instance.Load("en");
+        var root = Path.Combine(Path.GetTempPath(), "dldesktop-ext-hint-" + Guid.NewGuid().ToString("N"));
+        var restore = ExtensionInstallService.InstallRootOverride;
+        ExtensionInstallService.InstallRootOverride = root;   // never the developer's own config folder
+        try
+        {
+            var manager = new DownloadManager();
+            var config = Config.New();
+            config.DisabledPlugins ??= new System.Collections.Generic.List<string>();
+            config.DefaultQueue.IsRunning = false;
+            manager.Initialize(config);
+
+            // Nothing unpacked yet: there is nothing to be out of date, and the hint stays the plain one.
+            var fresh = new SettingViewModel(config, manager);
+            Assert.False(fresh.HasExtensionUpdate);
+            Assert.Equal(Localizer.Instance["Ext_Install_Hint"], fresh.ExtensionHintText);
+
+            // An old copy on disk — the version the app itself carries is by definition newer.
+            var chrome = Path.Combine(root, "chrome");
+            Directory.CreateDirectory(chrome);
+            File.WriteAllText(Path.Combine(chrome, "installed.json"),
+                """{"Target":"chrome","Version":"0.0.1","InstalledAt":"2026-01-01T00:00:00+00:00"}""");
+
+            var stale = new SettingViewModel(config, manager);
+            Assert.True(stale.HasExtensionUpdate);
+            Assert.Contains(ExtensionInstallService.BundledVersion(), stale.ExtensionHintText);
+            Assert.NotEqual(Localizer.Instance["Ext_Install_Hint"], stale.ExtensionHintText);
+        }
+        finally
+        {
+            ExtensionInstallService.InstallRootOverride = restore;
+            try { Directory.Delete(root, recursive: true); } catch { /* temp */ }
+        }
     }
 }

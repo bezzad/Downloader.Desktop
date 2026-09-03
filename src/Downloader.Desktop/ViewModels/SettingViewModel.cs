@@ -41,7 +41,11 @@ public class SettingViewModel : ViewModelBase
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
-        InstallExtensionCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowExtensionInstall);
+        InstallExtensionCommand = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await DialogHelper.ShowExtensionInstall();
+            RefreshExtensionState();   // the dialog may have just installed or updated it
+        });
         // "Check for updates" while Idle → "Download update" once a version is available → "Restart to
         // update" once it's downloaded. The same button drives the whole flow from Settings.
         CheckUpdateCommand = ReactiveCommand.CreateFromTask(async () =>
@@ -52,6 +56,32 @@ public class SettingViewModel : ViewModelBase
         });
         CancelUpdateDownloadCommand = ReactiveCommand.Create(UpdateFlow.CancelDownload);
         UpdateFlow.Changed += OnUpdateStateChanged;
+        RefreshExtensionState();
+    }
+
+    /// <summary>
+    /// Whether the extension files this app unpacked are older than the copy it now carries — answered
+    /// from disk, with no browser and no network involved, so it holds on a machine that has never had the
+    /// extension call in. Settings says it without the user opening the dialog to find out (2026-09-04:
+    /// a stale v1.11.0 copy was invisible from here).
+    /// </summary>
+    public bool HasExtensionUpdate { get; private set; }
+
+    /// <summary>The hint under the install button: what to do, or that an update is waiting.</summary>
+    public string ExtensionHintText => HasExtensionUpdate
+        ? string.Format(Localizer.Instance["Ext_FilesOutdated"], ExtensionInstallService.BundledVersion())
+        : Localizer.Instance["Ext_Install_Hint"];
+
+    /// <summary>Recomputed rather than cached at construction: the dialog can change it while Settings is
+    /// open, and an "update available" line that survives the update is worse than none.</summary>
+    public void RefreshExtensionState()
+    {
+        var bundled = ExtensionInstallService.BundledVersion();
+        HasExtensionUpdate = new[] { "chrome", "firefox" }
+            .Select(ExtensionInstallService.ReadInstalledCopy)
+            .Any(copy => copy != null && ExtensionCatalogService.IsNewer(bundled, copy.Version));
+        this.RaisePropertyChanged(nameof(HasExtensionUpdate));
+        this.RaisePropertyChanged(nameof(ExtensionHintText));
     }
 
     private void OnUpdateStateChanged()

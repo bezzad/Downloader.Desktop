@@ -1431,3 +1431,30 @@ the only test loop. Two things make that loop cheap:
   destructuring `undefined` and left the button mid-state. Both ends are fixed: the handler always calls
   `sendResponse`, and `sendOne` treats a missing answer as a failure and re-enables the button so a retry
   is possible. Any new message type must keep both halves.
+
+## "Available" for the extension = catalog OR the app's own bundled copy (2026-09-04)
+- **The reported gap**: the install dialog printed "Files installed: v1.11.0" beside the available version
+  and never drew the conclusion, so a stale copy looked identical to a current one; and the startup check
+  (`MainViewModel.CheckExtensionUpdateAsync`) returned early on an empty catalog — which is EVERY machine
+  today, since no published release carries `extension-catalog.json`. Net effect: nothing anywhere could
+  ever say "your extension is out of date".
+- **Fix**: `ExtensionCatalogService.Newer(a, b)` / `BestAvailable(catalog, bundledVersion)` — the bundled
+  copy is a first-class source of "what could be installed", not just a fallback for a missing catalog.
+  `ShouldWarnAboutExtension` now takes the bundled version; `ExtensionTargetRow` gained `UpdateAvailable`
+  /`UpdateText` (files on disk vs best available, independent of any browser having called), the footer
+  button switches to `Ext_Update` ("Update the files"), and `SettingViewModel.ExtensionHintText` says it
+  from the Settings row without opening the dialog.
+- **`ExtensionTargetRow.IsBundled` now also means "the bundled copy is NEWER than the catalog entry"** —
+  right after an app update it routinely is, and installing the catalog's older build over it would be a
+  downgrade dressed up as an install.
+- **Updating IS re-installing into the SAME folder** (`InstallBundled` stages `<target>.new` and swaps),
+  and that path must never move: a browser derives an unpacked extension's identity from its absolute
+  path, so a new folder = a different extension with an empty settings store. What the app CANNOT do is
+  make the browser re-read it — an unpacked extension stays loaded until it is reloaded or the browser
+  restarts — so a successful update sets `Notice = Ext_ReloadAfterUpdate` saying exactly that.
+- **TEST TRAP, and it bit for real**: a test that builds an `ExtensionInstallViewModel` without stubbing
+  BOTH `bundledVersion` and `installBundled` can take the bundled path (the real app copy outranks a
+  stubbed catalog) and run the REAL installer — which wrote into the developer's own
+  `~/.config/Downloader/extension/`. Stub both in every VM test, and note `Vm(...)` in
+  `Unit/ExtensionInstallViewModelTests` defaults `bundledVersion` to `"0.0.1"` so catalog-focused tests
+  are not steered by whatever version the app happens to ship.

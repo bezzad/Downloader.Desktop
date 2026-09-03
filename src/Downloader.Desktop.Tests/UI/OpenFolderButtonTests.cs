@@ -135,7 +135,9 @@ public class OpenFolderButtonTests : IDisposable
             }),
             install: (e, _, _) => Task.FromResult(ExtensionInstallResult.Ok("/data/extension/chrome", e.Version)),
             lastSeenVersion: _ => null,
-            readInstalled: _ => new InstalledCopy("/data/extension/chrome", "1.8.0"));
+            readInstalled: _ => new InstalledCopy("/data/extension/chrome", "1.8.0"),
+            installBundled: (id, _) => ExtensionInstallResult.Ok($"/data/extension/{id}", "1.8.0"),
+            bundledVersion: () => "0.0.1");
         await vm.LoadAsync();
 
         var view = new ExtensionInstallView { DataContext = vm };

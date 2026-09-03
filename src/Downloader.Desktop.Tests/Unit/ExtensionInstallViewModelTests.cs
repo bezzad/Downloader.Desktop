@@ -48,13 +48,21 @@ public class ExtensionInstallViewModelTests
             Sha256 = new string('a', 64), MinAppVersion = "1.0.0", StoreUrl = storeUrl,
         };
 
-    /// <summary>A VM with every OS/network edge stubbed; `install` defaults to succeeding.</summary>
+    /// <summary>
+    /// A VM with every OS/network edge stubbed; `install` defaults to succeeding.
+    ///
+    /// <para><paramref name="bundledVersion"/> defaults to a version older than anything else here, so a
+    /// test that is about the CATALOG is not silently steered by whatever copy this app happens to ship
+    /// (the app's own build is a real input to "what is available" — see the tests at the end).</para>
+    /// </summary>
     private static ExtensionInstallViewModel Vm(
         IEnumerable<DetectedBrowser> browsers = null,
         IEnumerable<ExtensionCatalogEntry> catalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeen = null,
-        Func<string, InstalledCopy> readInstalled = null)
+        Func<string, InstalledCopy> readInstalled = null,
+        string bundledVersion = "0.0.1",
+        Func<string, bool, ExtensionInstallResult> installBundled = null)
         => new(
             detect: () => (browsers ?? new[] { Chrome }).ToList(),
             fetchCatalog: _ => Task.FromResult<IReadOnlyList<ExtensionCatalogEntry>>(
@@ -65,7 +73,10 @@ public class ExtensionInstallViewModelTests
                 return Task.FromResult(ExtensionInstallResult.Ok($"/data/extension/{e.Id}", e.Version));
             }),
             lastSeenVersion: lastSeen ?? (_ => null),
-            readInstalled: readInstalled ?? (_ => null));
+            readInstalled: readInstalled ?? (_ => null),
+            installBundled: installBundled ?? ((id, _) =>
+                ExtensionInstallResult.Ok($"/data/extension/{id}", bundledVersion)),
+            bundledVersion: () => bundledVersion);
 
     // ---- listing ----
 
@@ -556,5 +567,165 @@ public class ExtensionInstallViewModelTests
 
         vm.Detach();   // a dialog that leaks this keeps the VM alive for the life of the process
         vm.Detach();   // idempotent
+    }
+
+    // ---- is what is on disk out of date, and can it be updated in place? ----
+
+    /// <summary>
+    /// The reported complaint (2026-09-04): the dialog showed "Files installed: v1.11.0" next to the
+    /// available version and left the user to work out which was which — so a Chrome running a stale copy
+    /// looked exactly like a healthy one. The comparison is now drawn for them.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Files_older_than_the_build_on_offer_are_called_out_as_out_of_date()
+    {
+        Localizer.Instance.Load("en");   // asserts on real text, not raw keys
+        var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>(),
+            readInstalled: _ => new InstalledCopy("/data/extension/chrome", "1.11.0"),
+            bundledVersion: "1.13.0");
+
+        await vm.LoadAsync();
+
+        var target = vm.Targets.Single(t => t.Family == BrowserFamily.Chromium);
+        Assert.True(target.UpdateAvailable);
+        Assert.Equal("1.13.0", target.AvailableVersion);
+        Assert.Contains("1.13.0", target.UpdateText);
+        Assert.True(vm.AnyUpdateAvailable);
+        // The button has to say so too — "Get the files" on a machine that already has them reads as
+        // "nothing to do here", which is how the stale copy went unnoticed.
+        Assert.Equal(Localizer.Instance["Ext_Update"], vm.InstallButtonText);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Files_that_match_the_build_on_offer_say_so_instead()
+    {
+        Localizer.Instance.Load("en");
+        var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>(),
+            readInstalled: _ => new InstalledCopy("/data/extension/chrome", "1.13.0"),
+            bundledVersion: "1.13.0");
+
+        await vm.LoadAsync();
+
+        var target = vm.Targets.Single(t => t.Family == BrowserFamily.Chromium);
+        Assert.False(target.UpdateAvailable);
+        Assert.Equal(Localizer.Instance["Ext_FilesUpToDate"], target.UpdateText);
+        Assert.False(vm.AnyUpdateAvailable);
+        Assert.Equal(Localizer.Instance["Ext_Install"], vm.InstallButtonText);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Nothing_installed_is_not_out_of_date()
+    {
+        // "Not installed" and "out of date" are different states, and only one of them is a problem.
+        var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>(), bundledVersion: "1.13.0");
+
+        await vm.LoadAsync();
+
+        Assert.All(vm.Targets, t => Assert.False(t.UpdateAvailable));
+        Assert.All(vm.Targets, t => Assert.Null(t.UpdateText));
+        Assert.False(vm.AnyUpdateAvailable);
+    }
+
+    /// <summary>
+    /// The user's second question: once installed from here, can a new version just replace the folder's
+    /// contents? Yes — and the path staying identical is the whole point. A browser derives an unpacked
+    /// extension's identity from its absolute folder path, so installing an update anywhere else would
+    /// read as a DIFFERENT extension with an empty settings store.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_update_rewrites_the_same_folder_and_clears_the_out_of_date_state()
+    {
+        Localizer.Instance.Load("en");
+        var installedInto = new List<string>();
+        var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>(),
+            // Only Chrome has files on disk here — the Gecko folder is empty, which is the ordinary
+            // state for someone who installed into one browser.
+            readInstalled: id => id == "chrome" ? new InstalledCopy("/data/extension/chrome", "1.11.0") : null,
+            bundledVersion: "1.13.0",
+            installBundled: (id, _) =>
+            {
+                installedInto.Add(id);
+                return ExtensionInstallResult.Ok($"/data/extension/{id}", "1.13.0");
+            });
+
+        await vm.LoadAsync();
+        var target = vm.Targets.Single(t => t.Family == BrowserFamily.Chromium);
+        var pathBefore = target.InstalledPath;
+
+        await vm.InstallSelectedAsync();
+
+        Assert.Equal(pathBefore, target.InstalledPath);      // same folder — the browser keeps its extension
+        Assert.Equal("1.13.0", target.InstalledVersion);
+        Assert.False(target.UpdateAvailable);
+        Assert.False(vm.AnyUpdateAvailable);
+        Assert.Contains("chrome", installedInto);
+        // Writing the files is not the same as the browser reading them, and the user has to be told:
+        // an unpacked extension stays loaded until it is reloaded or the browser restarts.
+        Assert.True(vm.HasNotice);
+        Assert.Equal(Localizer.Instance["Ext_ReloadAfterUpdate"], vm.Notice);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_FIRST_install_does_not_tell_the_user_to_reload_anything()
+    {
+        // There is nothing loaded to reload — the reload notice belongs to an update, or it is noise.
+        var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>(), bundledVersion: "1.13.0");
+
+        await vm.LoadAsync();
+        await vm.InstallSelectedAsync();
+
+        Assert.False(vm.HasNotice);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_bundled_copy_is_installed_when_it_is_NEWER_than_the_catalog()
+    {
+        // Right after an app update the copy inside the app is routinely ahead of the last release's
+        // catalog; installing the catalog's build there would be a downgrade dressed up as an install.
+        var bundledUsed = false;
+        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", version: "1.10.0") },
+            bundledVersion: "1.13.0",
+            installBundled: (id, _) => { bundledUsed = true; return ExtensionInstallResult.Ok($"/data/extension/{id}", "1.13.0"); });
+
+        await vm.LoadAsync();
+        var target = vm.Targets.Single(t => t.Family == BrowserFamily.Chromium);
+        Assert.True(target.IsBundled);
+        Assert.Equal("1.13.0", target.AvailableVersion);
+
+        await vm.InstallSelectedAsync();
+        Assert.True(bundledUsed);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_catalog_newer_than_the_bundled_copy_still_wins()
+    {
+        var vm = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", version: "1.14.0") },
+            bundledVersion: "1.13.0");
+
+        await vm.LoadAsync();
+
+        var target = vm.Targets.Single(t => t.Family == BrowserFamily.Chromium);
+        Assert.False(target.IsBundled);
+        Assert.Equal("1.14.0", target.AvailableVersion);
+    }
+
+    /// <summary>
+    /// A browser's own reported version is compared against the app's bundled copy too. With the catalog
+    /// alone this could never fire, because no published release carries an extension catalog yet — which
+    /// is why a Chrome sitting on v1.11.0 was never told anything was newer.
+    /// </summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_connected_browser_is_told_it_is_behind_the_apps_own_copy()
+    {
+        Localizer.Instance.Load("en");
+        var vm = Vm(new[] { Chrome }, Array.Empty<ExtensionCatalogEntry>(),
+            lastSeen: _ => "1.11.0", bundledVersion: "1.13.0");
+
+        await vm.LoadAsync();
+
+        var row = vm.Browsers.Single();
+        Assert.True(row.UpdateAvailable);
+        Assert.Equal("1.13.0", row.AvailableVersion);
+        Assert.Contains("1.13.0", row.StatusText);
     }
 }
