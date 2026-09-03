@@ -35,7 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history so the bump guard can diff against the push's 'before' commit.
+          # Full history: the bump guard walks the manifest's own commits to find where the
+          # current version was set.
           fetch-depth: 0
 
       - name: Read extension version
@@ -61,24 +62,43 @@ jobs:
           fi
 
       # The version bump is manual (bump BOTH manifests). This guard catches the mistake that
-      # silently strands users on an old build: extension CODE changed in this push but the manifest
-      # still carries a version that is already published on AMO → fail with instructions.
-      # Doc-only edits (*.md) stay green; manual dispatches skip the diff check (no 'before' SHA).
+      # silently strands users on an old build: extension CODE has changed since the manifest version
+      # was last bumped, and that version is already published on AMO → fail with instructions.
+      # Doc-only edits (*.md) stay green; manual dispatches skip it (there is nothing being pushed).
+      #
+      # The base is the commit that LAST SET the current version, not the push's 'before' commit.
+      # Using 'before' made this step fail on every single release (2026-09-02, -03, -04): on `main`
+      # the push is the release merge, whose base is the PREVIOUS release, so the diff spanned every
+      # extension commit since then while the manifest already carried the version that `develop`
+      # had published to AMO minutes earlier. It reported "code changed without a version bump" for
+      # code that WAS published — a permanently red check, which is exactly how a real AMO failure
+      # would go unnoticed. Asking "has anything changed since the bump?" is branch-independent and
+      # is the question the guard actually wants answered.
       - name: Fail if code changed without a version bump
         if: github.event_name == 'push' && steps.gate.outputs.submit == 'no'
         run: |
-          BEFORE="${{ github.event.before }}"
-          # New branch or force-push edge: no usable base — skip the check rather than false-alarm.
-          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
-            echo "No diff base available — skipping the bump check."; exit 0
+          VER="${{ steps.ver.outputs.version }}"
+          MF="src/browser-extension/manifest.firefox.json"
+          verat() { git show "$1:$MF" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null || true; }
+          # Walk newest → oldest over commits touching the manifest; the last one still carrying this
+          # version is the commit that introduced it.
+          base=""
+          for c in $(git log --format=%H "$GITHUB_SHA" -- "$MF"); do
+            [ "$(verat "$c")" = "$VER" ] || break
+            base="$c"
+          done
+          if [ -z "$base" ]; then
+            echo "Could not locate the commit that set $VER — skipping the bump check rather than false-alarm."
+            exit 0
           fi
-          changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- src/browser-extension | grep -v '\.md$' || true)
+          echo "Version $VER was set in $(git log --oneline -1 "$base")"
+          changed=$(git diff --name-only "$base" "$GITHUB_SHA" -- src/browser-extension | grep -v '\.md$' || true)
           if [ -n "$changed" ]; then
-            echo "Extension code changed without a version bump:"; echo "$changed" | sed 's/^/  /'
-            echo "::error::src/browser-extension code changed but manifest version ${{ steps.ver.outputs.version }} is already published on AMO — bump \"version\" in BOTH manifest.json and manifest.firefox.json so the change actually ships."
+            echo "Extension code changed after the last version bump:"; echo "$changed" | sed 's/^/  /'
+            echo "::error::src/browser-extension code changed but manifest version $VER is already published on AMO — bump \"version\" in BOTH manifest.json and manifest.firefox.json so the change actually ships."
             exit 1
           fi
-          echo "Only docs changed — nothing to ship."
+          echo "Nothing changed since the bump — nothing to ship."
 
       - name: Check AMO credentials
         id: creds
