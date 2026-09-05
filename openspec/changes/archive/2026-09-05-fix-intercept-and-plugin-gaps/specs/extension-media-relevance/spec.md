@@ -1,10 +1,10 @@
 ## MODIFIED Requirements
 
 ### Requirement: Known-unsupported sites always show an explanatory state
-On a page whose hostname streams via a protected/adaptive mechanism the extension cannot capture, and
-which the desktop app cannot handle either, the popup SHALL always show a message explaining that the
-site is not supported and SHALL suppress the detected-media list, regardless of whether unrelated
-resources were incidentally sniffed.
+The popup SHALL always show a message explaining that the site is not supported, and SHALL suppress the
+detected-media list, on a page whose hostname streams via a protected/adaptive mechanism the extension
+cannot capture and which the desktop app cannot handle either — regardless of whether unrelated resources
+were incidentally sniffed.
 
 That state SHALL reflect what the app can actually do, not a fixed list: when the running app reports
 that it can extract media from the page's site — because the user installed the plugin that does so —
