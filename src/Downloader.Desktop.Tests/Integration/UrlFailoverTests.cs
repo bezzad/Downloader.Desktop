@@ -65,7 +65,7 @@ public class UrlFailoverTests
         await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
                             || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)),
             () => $"never settled: status={vm.Status} attempt={vm.UrlAttempt} err={vm.ErrorMessage} "
-                  + $"gen={vm.AttemptGeneration} single={vm.ForceSingleConnection} engine={(vm.Download is null ? "none" : vm.Download.Status.ToString())} "
+                  + $"gen={vm.AttemptGeneration} connections={vm.AttemptConnections} engine={(vm.Download is null ? "none" : vm.Download.Status.ToString())} "
                   + $"pkg={vm.Download?.Package?.ReceivedBytesSize}/{vm.Download?.Package?.TotalFileSize} stage={vm.PlanStage} "
                   + $"saved={File.Exists(saved)} folder=[{string.Join(",", Directory.GetFiles(folder).Select(Path.GetFileName))}] "
                   + $"requests=[{string.Join(" ; ", server.Log)}]");
@@ -114,7 +114,7 @@ public class UrlFailoverTests
             var saved = Path.Combine(folder, "picky.bin");
             await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed
                                 || (vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved)),
-                () => $"never settled: status={vm.Status} single={vm.ForceSingleConnection} "
+                () => $"never settled: status={vm.Status} connections={vm.AttemptConnections} "
                       + $"err={vm.ErrorMessage} requests=[{string.Join(" ; ", server.Log)}]");
 
             // The shape that proves it: ranged requests were made and refused, and the file only arrived
@@ -285,7 +285,7 @@ public class UrlFailoverTests
 
         await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Failed);
 
-        Assert.True(vm.ForceSingleConnection, "the single-connection retry must have been spent");
+        Assert.True(vm.ReducedAttempts > 0, "the reduced-connection retries must have been spent");
         Assert.Equal(Localizer.Instance["Error_ServerRefusedConnections"], vm.ErrorMessage);
         Assert.DoesNotContain("expired", vm.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
@@ -314,7 +314,9 @@ public class UrlFailoverTests
         Assert.True(manager.RaiseFailedForTest(vm, Forbidden()),
             "a refusal of several connections must earn another attempt, not a Failed row");
 
-        Assert.True(vm.ForceSingleConnection, "the retry must be the one that was proven to work: one connection");
+        // Half, not one: a server that refused eight may well serve four, and collapsing straight to a
+        // single connection made such a download four times slower than it had to be (issue #14).
+        Assert.Equal(4, vm.AttemptConnections);
         Assert.Equal(0, vm.UrlAttempt); // …to the SAME address, which is the only one known to answer
     }
 
@@ -335,7 +337,7 @@ public class UrlFailoverTests
 
         Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
 
-        Assert.False(vm.ForceSingleConnection, "there was nothing to back off from");
+        Assert.Null(vm.AttemptConnections); // there was nothing to back off from
         Assert.Equal(1, vm.UrlAttempt);
     }
 
@@ -362,7 +364,7 @@ public class UrlFailoverTests
 
         Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
 
-        Assert.False(vm.ForceSingleConnection, "a resume must not spend the backoff that deletes the file");
+        Assert.Null(vm.AttemptConnections); // a resume must not spend the backoff that deletes the file
         Assert.True(File.Exists(partial), "the partial file was thrown away on a resume");
     }
 
@@ -394,7 +396,7 @@ public class UrlFailoverTests
 
             var saved = Path.Combine(folder, "picky-mirror.bin");
             await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved),
-                () => $"never arrived: status={vm.Status} single={vm.ForceSingleConnection} "
+                () => $"never arrived: status={vm.Status} connections={vm.AttemptConnections} "
                       + $"url={vm.UrlAttempt} err={vm.ErrorMessage} requests=[{string.Join(" ; ", server.Log)}]");
 
             Assert.Equal(Bytes(2 * 1024 * 1024), File.ReadAllBytes(saved));
@@ -422,24 +424,70 @@ public class UrlFailoverTests
         }, autoStart: false);
         vm.PlannedConnections = 8;
 
-        // First address: refused at eight, then refused alone as well.
-        Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
-        Assert.True(vm.ForceSingleConnection);
+        // First address: refused at eight, then at four, then at two, and finally alone as well. Each
+        // failure is raised with what THAT attempt had open, which is what Start captures for real.
+        foreach (var expected in new int?[] { 4, 2, 1 })
+        {
+            Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
+            Assert.Equal(expected, vm.AttemptConnections);
+            Assert.Equal(0, vm.UrlAttempt); // still the same address: it is the only one known to answer
+            vm.PlannedConnections = expected!.Value;
+        }
         Assert.True(manager.RaiseFailedForTest(vm, Forbidden()));
 
         Assert.Equal(1, vm.UrlAttempt);
-        Assert.False(vm.ForceSingleConnection, "the second address must not inherit the first one's backoff");
+        Assert.Null(vm.AttemptConnections); // the second address must not inherit the first one's backoff
+        Assert.Equal(0, vm.ReducedAttempts);
+    }
+
+    /// <summary>The whole point of issue #14, end to end: a server that serves the file over four
+    /// connections and refuses eight must be downloaded over FOUR — not over one, which is what the old
+    /// all-or-nothing backoff did and which made such a download four times slower than it needed to be.
+    /// The bytes are asserted, and so is the fact that two and one were never attempted.</summary>
+    [AvaloniaFact(Timeout = 300_000)] // a real download on a small CI runner; see WaitFor
+    public async Task A_download_settles_at_the_highest_count_the_server_accepts()
+    {
+        Localizer.Instance.Load("en");
+        var payload = Bytes(2 * 1024 * 1024); // big enough that the engine really splits it
+        using var server = new PickyServer { MinRangeBytes = 400_000 }; // ⇒ 4 connections yes, 8 no
+        server.Serve("/file", payload);
+
+        var folder = TempDir();
+        var manager = NewManager(chunkCount: 8, out var config);
+        manager.Add(new DownloadItem
+        {
+            Urls = new List<string> { server.Url + "file" },
+            SaveFolder = folder,
+            FileName = "stepped.bin",
+        }, autoStart: true);
+        var vm = manager.Items[0];
+
+        var saved = Path.Combine(folder, "stepped.bin");
+        await WaitFor(() => vm.Status == global::Downloader.DownloadStatus.Completed && File.Exists(saved),
+            () => $"never arrived: status={vm.Status} connections={vm.AttemptConnections} "
+                  + $"planned={vm.PlannedConnections} err={vm.ErrorMessage} "
+                  + $"requests=[{string.Join(" ; ", server.Log)}]");
+
+        Assert.Equal(payload, File.ReadAllBytes(saved));
+        // Four is where it settled — a single step from eight. Had it gone on to two or one, this is the
+        // count that would say so: the server serves those happily, so the download would have finished
+        // there instead. (ReducedAttempts is not the witness: a completion resets the budgets.)
+        Assert.Equal(4, vm.PlannedConnections);
+        // …and what it cost to learn that is remembered, so the next download from this host starts at four.
+        Assert.Equal(4, config.ServerConnectionLimits[ServerLimits.HostOf(server.Url)].Connections);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-    private static DownloadManager NewManager(int chunkCount = 1)
+    private static DownloadManager NewManager(int chunkCount = 1) => NewManager(chunkCount, out _);
+
+    private static DownloadManager NewManager(int chunkCount, out Config config)
     {
         // Row view-models format their status through the Localizer; loading it here rather than relying on
         // whichever earlier test happened to do it keeps each test in this file self-contained.
         Localizer.Instance.Load("en");
         var manager = new DownloadManager();
-        var config = Config.New();
+        config = Config.New();
         // ONE, never zero. This suite wants as little engine-level retrying as possible — it is about
         // which ADDRESS is used and over how many connections — but a setting of 0 makes the engine issue
         // no request at all and never finish: the loopback server saw an empty request log while the row
@@ -505,6 +553,13 @@ public class UrlFailoverTests
         /// nothing.</summary>
         public bool RefuseRangeRequests { get; init; }
 
+        /// <summary>Refuse a ranged body smaller than this many bytes — a deterministic stand-in for a
+        /// server that accepts only a few simultaneous connections. The engine slices a file into equal
+        /// chunks, so "at most four connections" is exactly "no slice smaller than a quarter of the file",
+        /// and phrasing it as request SHAPE keeps the test honest on a runner where chunks never actually
+        /// overlap (see RefuseRangeRequests).</summary>
+        public int MinRangeBytes { get; init; }
+
         /// <summary>Answer the size probe normally but refuse every body — a server the download can
         /// measure and then not fetch, at any number of connections.</summary>
         public bool RefuseBodies { get; init; }
@@ -523,6 +578,18 @@ public class UrlFailoverTests
         }
 
         public void Serve(string path, byte[] body) => _files[path] = body;
+
+        /// <summary>How many bytes a Range header asks for, given the file it asks about.</summary>
+        private int RangeLength(string range, string path)
+        {
+            var total = _files.TryGetValue(path, out var body) ? body.Length : int.MaxValue;
+            if (string.IsNullOrEmpty(range) || !range.StartsWith("bytes=", StringComparison.Ordinal))
+                return total;
+            var span = range[6..].Split('-');
+            var start = int.TryParse(span[0], out var s) ? s : 0;
+            var end = span.Length > 1 && int.TryParse(span[1], out var e) ? Math.Min(e, total - 1) : total - 1;
+            return end - start + 1;
+        }
 
         /// <summary>An address on a port with nothing listening: every request to it is refused at once,
         /// with no waiting for a timeout.</summary>
@@ -568,6 +635,12 @@ public class UrlFailoverTests
                 Log.Enqueue($"{ctx.Request.HttpMethod} {path} {rangeHeader ?? "-"}");
                 try
                 {
+                    if (MinRangeBytes > 0 && isRangedBody && RangeLength(rangeHeader, path) < MinRangeBytes)
+                    {
+                        ctx.Response.StatusCode = 403;
+                        ctx.Response.Close();
+                        return;
+                    }
                     if (RefuseRangeRequests && isRangedBody)
                     {
                         ctx.Response.StatusCode = 403;

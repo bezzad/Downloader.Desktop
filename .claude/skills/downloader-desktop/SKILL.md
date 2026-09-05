@@ -1052,6 +1052,35 @@ download survives:
    demoted to one connection by the previous address's punishment. Bound: ≤ 2 attempts per address.
 3. **`TryAutoRefreshLink` — a fresh signature for the current address.**
 
+### The count is STEPPED and cached per host (issue #14, supersedes "one single-connection retry")
+`TryReduceConnections` no longer latches to one connection: it HALVES `vm.PlannedConnections`
+(8 → 4 → 2 → 1, `DownloadManager.NextConnectionCount`, capped by `MaxReducedConnectionAttempts`) and
+writes the result to `vm.AttemptConnections` (`int?`, null = use the ceiling — the old
+`ForceSingleConnection` bool is gone). A server that refused eight may serve four, and collapsing to one
+made that download four times slower than it had to be.
+- **Every step still discards the partial file**, for the reason it always did: a resumed download keeps
+  the chunk layout its package was created with, so asking for four connections while an eight-chunk
+  partial is on disk re-opens the same eight ranges and is refused again. That is also why the resume
+  guard (`vm.PreAttemptSize is not null` ⇒ no step down) must stay — a 403 on a resume is the
+  expired-link shape, and that path SAVES the partial.
+- **Where a download settles is remembered per HOST** (`Config.ServerConnectionLimits` +
+  `Services/ServerLimits`, pure over the dictionary). `Start` begins at
+  `ChooseStartingCount(host, ceiling, now)`, always clamped by the configured count — the Settings number
+  is a ceiling, and a remembered 8 must never beat a user who has since chosen 2. `MarkCompleted` records
+  a count below the ceiling and CLEARS the entry when the ceiling itself succeeded; entries expire after
+  `ServerLimits.RetestAfter` (7 days, settable in tests) so one bad minute on a CDN is not permanent.
+- **`ApplyConnectionCount` must also lower `ParallelCount`** when it is non-zero: it overrides
+  `ChunkCount` in the engine (0 means "same as ChunkCount"), so a leftover ceiling value would re-open
+  exactly the concurrency just backed off.
+- A stepped-down row says so (`IsReducingConnections` → `State_FewerConnections`, in all 16 packs) while
+  it is queued AND while it runs, and `Error_ServerRefusedConnections` no longer tells users to lower a
+  setting the app now manages. Decision tests: `Integration/AdaptiveConnectionTests`,
+  `Integration/UrlFailoverTests`, `Unit/ServerLimitsTests`.
+- **A loopback "accepts at most N connections" server is modelled on request SHAPE**, not on requests
+  actually overlapping: `PickyServer.MinRangeBytes` refuses any ranged body smaller than a threshold,
+  which is exactly "no slice smaller than 1/N of the file". Counting real overlap depends on core count
+  and passes while proving nothing on a two-core runner.
+
 Two traps worth keeping:
 
 - The connection backoff **deletes the partial file** (a resumed download keeps the chunk layout its

@@ -436,14 +436,17 @@ public partial class DownloadManager : IDownloadManager
         AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
-        // A server that refused several simultaneous requests gets exactly one, this attempt only. The
-        // configured maximum stays what it is: it is a ceiling for downloads that can use it, not a number
-        // every server must accept (issue #9).
-        if (vm.ForceSingleConnection)
-        {
-            configuration.ChunkCount = 1;
-            configuration.ParallelDownload = false;
-        }
+        // The configured maximum is a CEILING, not a number every server must accept (issues #9, #14).
+        // This attempt uses the fewest of: what a refusal already stepped this download down to, what the
+        // host is remembered to accept, and the ceiling itself. A host with no history and no refusal is
+        // untouched — same count, same requests as before any of this existed.
+        vm.ConnectionCeiling = ConnectionsInFlight(configuration);
+        vm.AttemptHost = ServerLimits.HostOf(urls[0]);
+        var connections = vm.AttemptConnections
+                          ?? ChooseStartingCount(vm.AttemptHost, vm.ConnectionCeiling, DateTime.UtcNow);
+        vm.IsReducingConnections = connections < vm.ConnectionCeiling;
+        if (connections < vm.ConnectionCeiling)
+            ApplyConnectionCount(configuration, connections);
         // A per-item speed cap set in the details dialog wins over the global limit and survives restarts.
         if (item.HasCustomSpeedLimit)
             configuration.MaximumBytesPerSecond = item.CustomSpeedLimitBytesPerSecond <= 0
@@ -1003,7 +1006,7 @@ public partial class DownloadManager : IDownloadManager
         // the link itself is gone. Once the app has re-resolved the address even once and still been
         // refused, the link is the story — telling that user to lower a setting sends them after something
         // that was never the problem.
-        var refusedEvenAlone = vm.ForceSingleConnection && vm.LinkRefreshAttempts == 0;
+        var refusedEvenAlone = vm.ReducedAttempts > 0 && vm.LinkRefreshAttempts == 0;
         vm.ErrorMessage = error != null
             ? DescribeFailure(error, vm.GetItem(), refusedEvenAlone)
             : fallbackMessage;
@@ -1087,7 +1090,7 @@ public partial class DownloadManager : IDownloadManager
         // capable mirror into a one-connection download — the usual browser hand-off is a spent signed link
         // followed by a good one. Each address can still earn its own backoff (bounded: at most a full and
         // a single-connection attempt per address).
-        vm.ForceSingleConnection = false;
+        ResetConnectionBackoff(vm);
         vm.Speed = 0;
         vm.Status = DownloadStatus.Created; // queued, not failed: the app is still working on it
         AppLog.Info($"Address {vm.UrlAttempt} of {urls.Count} was refused; trying the next one");
@@ -1151,14 +1154,61 @@ public partial class DownloadManager : IDownloadManager
         return configuration.ParallelCount > 0 ? configuration.ParallelCount : Math.Max(1, configuration.ChunkCount);
     }
 
-    /// <summary>Queue one more attempt over a single connection, against the SAME address. Bounded to
-    /// once per ADDRESS: if a lone request is refused too, that server means it, and the download moves on
-    /// to its next address — which starts fresh at full concurrency, because one refusing mirror says
-    /// nothing about the next one.</summary>
+    /// <summary>How many reduced attempts one download may spend. Halving reaches a single connection in
+    /// three steps from the default eight; the cap keeps the sequence finite whatever the ceiling is.</summary>
+    internal const int MaxReducedConnectionAttempts = 4;
+
+    /// <summary>Pure helper (testable): the count to try after this one was refused, or null when there is
+    /// nothing left to step down to. Halving costs at most log2(ceiling) attempts and lands within a factor
+    /// of two of the server's real limit — a linear walk would find the exact number at the price of up to
+    /// seven discarded partial files, for a value the app caches anyway.</summary>
+    internal static int? NextConnectionCount(int planned)
+        => planned <= 1 ? null : Math.Max(1, planned / 2);
+
+    /// <summary>Apply a connection count to a configuration the engine has not seen yet.</summary>
+    private static void ApplyConnectionCount(DownloadConfiguration configuration, int connections)
+    {
+        connections = Math.Max(1, connections);
+        configuration.ChunkCount = connections;
+        configuration.ParallelDownload = connections > 1;
+        // ParallelCount overrides ChunkCount when it is set (0 means "same as ChunkCount"), so a settings
+        // value left over from the ceiling would otherwise re-open exactly the concurrency we backed off.
+        if (configuration.ParallelCount > 0)
+            configuration.ParallelCount = connections;
+    }
+
+    /// <summary>Where a download from this host should start, given the user's ceiling.</summary>
+    internal int ChooseStartingCount(string host, int ceiling, DateTime nowUtc)
+        => ServerLimits.ChooseStartingCount(_config?.ServerConnectionLimits, host, ceiling, nowUtc);
+
+    /// <summary>Record (or release) the host's limit from a download that just finished.</summary>
+    private void RememberConnectionLimit(DownloadItemViewModel vm)
+    {
+        if (_config == null || string.IsNullOrEmpty(vm.AttemptHost))
+            return;
+        _config.ServerConnectionLimits ??= new Dictionary<string, ServerConnectionLimit>();
+        ServerLimits.Record(_config.ServerConnectionLimits, vm.AttemptHost,
+            vm.PlannedConnections, vm.ConnectionCeiling, DateTime.UtcNow);
+    }
+
+    /// <summary>Give a download its full share of connections back. Used by the paths that already restart
+    /// the other automatic budgets — a user Retry/Resume, moving to the next address, and a completion.</summary>
+    private static void ResetConnectionBackoff(DownloadItemViewModel vm)
+    {
+        vm.AttemptConnections = null;
+        vm.ReducedAttempts = 0;
+        vm.IsReducingConnections = false;
+    }
+
+    /// <summary>Queue one more attempt with HALF the connections, against the SAME address (issue #14).
+    /// A server that refused eight may well serve four, and dropping straight to one made such a download
+    /// four times slower than it needed to be. Bounded by <see cref="MaxReducedConnectionAttempts"/>: when
+    /// even a lone request is refused, that server means it, and the download moves on to its next address
+    /// — which starts fresh at full concurrency, because one refusing mirror says nothing about the next.</summary>
     /// <returns>True when another attempt was queued (the caller must then NOT mark the row Failed).</returns>
     private bool TryReduceConnections(DownloadItemViewModel vm, Exception error)
     {
-        if (vm.ForceSingleConnection) // already tried; a second refusal is the server's real answer
+        if (vm.ReducedAttempts >= MaxReducedConnectionAttempts)
             return false;
         // Only on a download that has not yet been through the expired-link machinery. The two explanations
         // for a 403 — "too many connections" and "this address is gone" — are indistinguishable in the
@@ -1176,7 +1226,13 @@ public partial class DownloadManager : IDownloadManager
         if (!LooksLikeConcurrencyRefusal(error, vm.PlannedConnections))
             return false;
 
-        vm.ForceSingleConnection = true;
+        var next = NextConnectionCount(vm.PlannedConnections);
+        if (next is null) // already down to one connection; there is nothing politer to ask
+            return false;
+
+        vm.AttemptConnections = next;
+        vm.ReducedAttempts++;
+        vm.IsReducingConnections = true; // the row explains itself instead of looking stalled
         vm.Speed = 0;
         vm.Status = DownloadStatus.Created;
         // The partial file has to go with it. A resumed download keeps the chunk layout its package was
@@ -1184,7 +1240,7 @@ public partial class DownloadManager : IDownloadManager
         // changes nothing — the retry would re-open the same eight ranges and be refused again. What is
         // discarded is whatever the refusing server let through, which is nothing anyone can use.
         DiscardPartialFile(vm);
-        AppLog.Info("The server refused several connections at once; retrying with one");
+        AppLog.Info($"The server refused {vm.PlannedConnections} connections at once; retrying with {next}");
         ReleaseEngine(vm);
         Dispatcher.UIThread.Post(() => RequeueForRefresh(vm));
         return true;
@@ -1236,7 +1292,7 @@ public partial class DownloadManager : IDownloadManager
         // was dead yesterday may well be fine today, and so may the address that was refused.
         vm.LinkRefreshAttempts = 0;
         vm.UrlAttempt = 0;
-        vm.ForceSingleConnection = false;
+        ResetConnectionBackoff(vm);
 
         // Mark the item as wanting to run, then let the queue decide whether a slot is free. This is
         // what makes bulk "Start" honor the concurrency cap: a stopped/failed item becomes "queued"
@@ -1293,7 +1349,7 @@ public partial class DownloadManager : IDownloadManager
             return;
         vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic budgets (#6)
         vm.UrlAttempt = 0;          // …including which address leads, so Retry starts from the first again
-        vm.ForceSingleConnection = false;
+        ResetConnectionBackoff(vm);
         // Re-resolve on retry: a multi-part plan's segment URLs may have expired (signed HLS links), so
         // clear the saved plan and let the next Start ask the resolver again. Completed parts still on
         // disk are reused only when the fresh plan's part paths match (same url → same part file).
@@ -1819,7 +1875,10 @@ public partial class DownloadManager : IDownloadManager
         vm.Progress = 100;
         vm.LinkRefreshAttempts = 0; // it worked — the budgets are spent only on live trouble
         vm.UrlAttempt = 0;
-        vm.ForceSingleConnection = false;
+        // What this download settled at is the useful thing to remember: below the ceiling records the
+        // host's limit, at the ceiling clears any entry it had (this host no longer refuses).
+        RememberConnectionLimit(vm);
+        ResetConnectionBackoff(vm);
         vm.Status = DownloadStatus.Completed;
         AppLog.Info($"Completed: {vm.FileName}");
         if (NotifyCompleteEnabled)

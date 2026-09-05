@@ -308,11 +308,25 @@ public class DownloadItemViewModel : ViewModelBase
     /// waited on. Session-only, and reset whenever the user starts the download themselves.</summary>
     public int UrlAttempt { get; set; }
 
-    /// <summary>Whether this attempt must use a single connection. Some servers serve a file happily over
-    /// one or two connections and answer 403 to the fourth — the user's maximum is a ceiling the download
-    /// may use, not a number every server has agreed to. Set for one retry after a refusal that looks like
-    /// it was about concurrency, and session-only like the counters above.</summary>
-    public bool ForceSingleConnection { get; set; }
+    /// <summary>How many connections THIS attempt may use, or null to use the configured ceiling. Some
+    /// servers serve a file happily over one or two connections and answer 403 to the fourth — the user's
+    /// maximum is a ceiling the download may use, not a number every server has agreed to. A refusal halves
+    /// it (8 → 4 → 2 → 1) so the download settles at the highest count the host accepts instead of paying
+    /// the single-connection price. Session-only, like the counters above.</summary>
+    public int? AttemptConnections { get; set; }
+
+    /// <summary>How many reduced attempts this download has already spent. Bounds the step down, and is
+    /// reset by the same paths that reset the other budgets (a user Retry/Resume, the next address, and a
+    /// completion).</summary>
+    public int ReducedAttempts { get; set; }
+
+    /// <summary>The configured maximum this attempt was allowed (before any reduction). Kept so a finished
+    /// download can say whether it settled BELOW the user's ceiling, which is what gets remembered.</summary>
+    public int ConnectionCeiling { get; set; } = 1;
+
+    /// <summary>Host of the address leading the current attempt — the key a learned connection limit is
+    /// stored under. Session-only; the memory itself lives in the config.</summary>
+    public string AttemptHost { get; set; }
 
     /// <summary>This row's current (or last) attempt, as a task. The next attempt waits on it before
     /// building an engine: the engine raises its completion BEFORE the file is in place and is disposed
@@ -349,6 +363,23 @@ public class DownloadItemViewModel : ViewModelBase
         {
             if (_isRefreshingLink == value) return;
             _isRefreshingLink = value;
+            this.RaisePropertyChanged(nameof(StatusText));
+        }
+    }
+
+    private bool _isReducingConnections;
+
+    /// <summary>True once the app has stepped this download down to fewer connections than the configured
+    /// maximum because the server refused them (issue #14). Unlike <see cref="IsRefreshingLink"/> it stays
+    /// set while the reduced attempt runs, so a download that is slower than the settings suggest explains
+    /// itself instead of looking stalled.</summary>
+    public bool IsReducingConnections
+    {
+        get => _isReducingConnections;
+        set
+        {
+            if (_isReducingConnections == value) return;
+            _isReducingConnections = value;
             this.RaisePropertyChanged(nameof(StatusText));
         }
     }
@@ -491,8 +522,12 @@ public class DownloadItemViewModel : ViewModelBase
     {
         // A queued row that is waiting on a freshly resolved link says so instead of a bare "Queued".
         DownloadStatus.None or DownloadStatus.Created when _isRefreshingLink => L("State_RefreshingLink"),
+        // A download the app has stepped down says so rather than sitting at a mystery "Queued", and keeps
+        // saying it while it runs — that is why a server it was told to use 8 connections on is slower.
+        DownloadStatus.None or DownloadStatus.Created when _isReducingConnections => L("State_FewerConnections"),
         DownloadStatus.None or DownloadStatus.Created => L("State_Queued"),
         DownloadStatus.Running when !string.IsNullOrEmpty(_planStage) => $"{_planStage} · {Progress:0}%",
+        DownloadStatus.Running when _isReducingConnections => $"{Progress:0}% · {L("State_FewerConnections")}",
         DownloadStatus.Running => $"{Progress:0}%",
         // Keep the percentage visible (and the bar filled) when paused/stopped, not just a state word.
         DownloadStatus.Paused => $"{Progress:0}% · {L("State_Paused")}",
