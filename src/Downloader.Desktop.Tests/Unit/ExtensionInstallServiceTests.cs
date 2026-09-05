@@ -139,13 +139,16 @@ public class ExtensionInstallServiceTests : IDisposable
         var zip = BuildZip(GoodFiles);
         using var server = new LoopbackServer();
         server.MapBytes("/ext.zip", zip, "application/zip");
-        var seen = new System.Collections.Generic.List<double>();
+        // SyncProgress, not Progress<double>: the latter POSTS to whatever SynchronizationContext an
+        // earlier [AvaloniaFact] left on this thread, nothing pumps it, and the assertion then sees an
+        // empty list — a real macOS CI failure that had nothing to do with the code under test.
+        var seen = new SyncProgress<double>();
 
         await ExtensionInstallService.InstallAsync(Entry(server, Sha256(zip)),
-            new Progress<double>(p => seen.Add(p)), TestContext.Current.CancellationToken);
+            seen, TestContext.Current.CancellationToken);
 
         // Progress is what the dialog's bar binds to; never reaching 1.0 leaves it visibly stuck.
-        Assert.Contains(1.0, seen);
+        Assert.Contains(1.0, seen.Reports);
     }
 
     /// <summary>The stable-path rule: a browser keys a manually loaded extension on this folder.</summary>

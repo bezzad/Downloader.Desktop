@@ -755,6 +755,18 @@ broke it", and takes seconds. The `Sequence_*.xml` is worth reading: parse it fo
 `Completed="False"` (`re.findall(r'<Test Name="([^"]+)"[^>]*Completed="(\w+)"', xml)`) and you get
 both the culprit and the exact count of tests that did run.
 
+**The one-command way to prove a CI failure is the hang and not your change (2026-09-05).** It struck both
+Windows legs on `8fbf59c` while ubuntu×2 and macOS×2 were green. Do NOT start by reading your diff — start
+with `gh api "repos/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml/runs?branch=develop&per_page=12"
+--jq '.workflow_runs[] | "\(.conclusion)\t\(.head_sha[0:7])\t\(.id)"'` and look for two commits whose code
+is IDENTICAL with different outcomes. Here `77233df` (sync) and `8fbf59c` (archive) are both docs-only, zero
+code delta: one passed all six legs, the other failed two. That is conclusive in one step, and the author's
+own `0c6ca1d` had already failed before any of the session's work. Confirm the signature in the job log
+(`Test Run Aborted` + `Total tests: Unknown` + `0 Error(s)` + an inactivity-triggered `hangdump.dmp`, with
+the two legs blaming DIFFERENT tests at wildly different counts — 150 vs 476), then `gh run rerun <id>
+--failed`; it went green. **Grab artifacts BEFORE re-running** (a re-run replaces them) — though note the
+Windows ones are ~400 MB because they carry the dumps, so usually the log alone is enough.
+
 **Never conditionally restore `LocalApiService`.** Three tests used the "remember whether it was running,
 only stop it if it wasn't" pattern, which PRESERVES another test's leak instead of clearing it — one leak
 then reached `AppShellStartupTests.Starting_up_builds_the_pages_and_re_applies_the_saved_choices`
@@ -1213,6 +1225,19 @@ context. Keep `Progress<T>` in the VM — it is what stops a bound property bein
 background thread — and assert the progress contract against the SERVICE, where reports are collected
 synchronously. Same family as the two other timing traps above; the tell is "passes alone, fails in the
 full run, passes on re-run".
+
+**Now there is a helper — use `TestSupport/SyncProgress<T>`, not `new Progress<T>(…)`, in any test that
+ASSERTS on what was reported.** It implements `IProgress<T>` and records synchronously on the reporting
+thread (`.Reports` for the snapshot). This recurred on macOS CI 2026-09-05 as
+`ExtensionInstallServiceTests.Reporting_progress_reaches_one_hundred_percent` → `Assert.Contains() …
+Collection: []` — not "a wrong value", **no reports at all**, which is the signature. `Unit/SyncProgressTests`
+pins the mechanism with a deliberately non-pumping `SynchronizationContext`. Two other tests pass a
+`Progress<T>` but never assert on it, so they are fine as they are.
+Two gotchas met while writing that test: (a) do NOT `await` anything while a non-pumping context is
+current — the continuation is queued into it and the test hangs to its `Timeout` rather than failing (the
+same mechanism, from the other side), so make such a test non-async; (b) `Task.Run(...).GetAwaiter()
+.GetResult()` in a test trips `xUnit1031`/`xUnit1051` — unnecessary anyway, since `Progress<T>.Report`
+posts to the captured context no matter which thread calls it.
 
 ## Awaiting a `ReactiveCommand` from a plain `[Fact]` hangs
 `ReactiveCommand` delivers on `RxApp.MainThreadScheduler`, which in a plain `[Fact]` is whatever the last
