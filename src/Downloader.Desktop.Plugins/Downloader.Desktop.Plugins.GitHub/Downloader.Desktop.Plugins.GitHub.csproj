@@ -14,4 +14,11 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The link parser and the "which asset is for this machine" rule are pure, and are unit-tested
+         directly (Plugins/GitHubLinkTests.cs) rather than through the network. -->
+    <InternalsVisibleTo Include="Downloader.Desktop.Tests" />
+  </ItemGroup>
+
 </Project>

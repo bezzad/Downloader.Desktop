@@ -825,6 +825,44 @@ executed `OpenFolderCommand` with no seam, so on CI it actually ran `xdg-open` �
 which is a great way to spend an hour blaming the wrong thing. Set `ShellLauncher.OpenOverride` (or
 `RunOverride`) and assert the target instead; both are `internal` seams visible to the test project.
 
+## The GitHub resolver claims by link SHAPE, and offers the release's assets (issue #14 follow-up, 2026-09-05)
+Reported as "it can't find any linux app link" from a pasted
+`github.com/<owner>/<repo>/releases#release-v2.10.0`. A live probe of the SHIPPED plugin proved the
+resolver *did* return `Downloader-linux-x64.tar.gz` — the Add window simply never said so, and that is the
+whole lesson: **a resolver that offers no variants hands the "Choose what to download" slot to the fallback
+plugin**, so the dialog showed the Website plugin's "Offline copy (.zip)" and nothing about the release.
+Diagnose this class of report by probing `FindResolver`/`GetVariantsAsync`/`ResolveAsync` directly (a
+throwaway gated `[Fact]` writing to a file — xunit v3 swallows `Console.WriteLine` under `-v q`), not by
+reading the resolver and assuming.
+- **`CanResolve` used to claim any `github.com/<owner>/<repo>/…` path while `ResolveAsync` always asked for
+  `releases/latest`.** So `/releases/tag/v2.9.0`, a DIRECT `/releases/download/v2.9.0/<file>` asset link,
+  `/issues/14` and `/blob/main/README.md` ALL downloaded v2.10.0's tarball. Now one pure
+  `GitHubLink.Parse` answers all three call sites (`GitHubLinkKind`: LatestRelease / TaggedRelease /
+  RawFile / NotClaimed). **Claiming a link you cannot improve is worse than not claiming it** — the app
+  downloads a plain URL correctly on its own, and a wrong claim silently substitutes a different file.
+- The tag comes from `/releases/tag/<tag>` **or the `#release-<tag>` anchor** GitHub puts on each entry of
+  its own releases page (that anchor was the only thing naming the release the reporter was looking at).
+- Assets are offered as variants with **`SubstituteUrl` = the asset's own download URL** — the SDK
+  documents release assets as exactly that case. The download's address becomes the asset, so a retry
+  re-fetches it without touching the API, and it composes with the narrower claim (a direct asset URL is
+  no longer claimed, so it downloads as itself).
+- **`name.Contains("win")` also matches `darwin`.** The OS match is a pure `PickAsset(assets, os, arch)`
+  over an injected OS/arch (so Windows and macOS are exercised from Linux) and prefers an architecture
+  match, which is what separates `osx-arm64` from `osx-x64`.
+- `GitHubReleasesResolver.ApiBase` + `ClearCache()` are internal test seams: `Plugins/GitHubVariantTests`
+  runs the whole listing/tag/failure surface against a loopback stand-in for the API, spending none of the
+  anonymous 60-requests-an-hour limit. The release lookup is cached 5 min so listing + resolving is ONE
+  request per user action.
+- The GitHub plugin is now **compile-referenced** by the test project (like Hls/Website/SiteMedia) for its
+  pure internals, and is STILL staged into `<testout>/plugins-sample` for the external-DLL loader test —
+  the ALC loads its own image from a stream, so the two uses don't interfere.
+- **A stale `Downloader.Desktop.SamplePlugin.dll` can linger in `<testout>/plugins-sample`** from before the
+  rename; `LoadFromDirectory` loads it too, and its OLD greedy `CanResolve` fails the new claim test. Delete
+  it — the folder is not cleaned by a rebuild. (It also means an old probe can be answered by the ancestor
+  plugin rather than the one you just built.)
+- It is a BUILT-IN plugin: its version is the `Version` string in code (1.0.0 → **1.1.0**), not a catalog
+  csproj.
+
 ## Two plugins cannot share source, and other lessons from adding SiteMedia (2026-08-30)
 - **Never link the same `.cs` into two plugin projects.** The obvious way to give the new site-media
   plugin the HLS plugin's segment pipeline + ffmpeg provisioning was `<Compile Include="..\Hls\*.cs"

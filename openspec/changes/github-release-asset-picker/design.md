@@ -47,11 +47,19 @@ app downloads the pasted URL correctly on its own, and a wrong claim silently su
 `#release-v2.10.0`, which is what the author pasted, so the fragment is read when the path says only
 `/releases`. An unrecognised fragment is ignored rather than guessed at, leaving "latest".
 
-**A variant per asset, OS-matched pre-selected.** `LinkVariant.Id` is the asset id (stable, unlike a name),
-`Label` the asset name, `Description` its size, `IsDefault` set on the OS match — so the default download is
-byte-for-byte what the plugin does today, and the picker only ever *adds* the ability to choose. The
-OS-matching rule is extracted as a pure helper so "which asset is for this machine" is testable without a
-network call, on every platform (a Windows-only branch that no test can reach is untested code).
+**A variant per asset, OS-matched pre-selected, carrying the asset's own URL.** `LinkVariant.Id` is the
+asset id (stable, unlike a name), `Label` the asset name, `ExpectedSize` its size, `IsDefault` set on the OS
+match — so the default download is byte-for-byte what the plugin does today, and the picker only ever *adds*
+the ability to choose. Each variant also sets **`SubstituteUrl` to the asset's own download URL**, which the
+SDK documents as exactly this case ("an Ollama tag, a release asset"): the created download's address IS the
+asset, so a retry re-fetches that asset without asking the API again, and it composes with the narrower
+claim — a direct asset URL is no longer claimed, so it is downloaded as itself. `ResolveOptions.VariantId` is
+still honoured (an id or an asset name) for a host that passes it back instead.
+
+**The OS-matching rule is a pure function over an injected OS and architecture**, so the Windows and macOS
+answers are exercised on any box (a branch no test can reach is untested code). It also has to be more than
+`name.Contains("win")` — that matches `darwin` — and prefers an architecture match, which is what tells
+`osx-arm64` from `osx-x64`.
 
 **A tag that does not exist is a plain, quotable failure.** `releases/tags/<tag>` 404s; the message names
 the tag rather than surfacing `EnsureSuccessStatusCode`'s wording, because a claiming resolver's failure now

@@ -31,9 +31,11 @@
     <ItemGroup>
         <ProjectReference Include="..\Downloader.Desktop\Downloader.Desktop.csproj" />
         <ProjectReference Include="..\Downloader.Desktop.Plugins.Abstractions\Downloader.Desktop.Plugins.Abstractions.csproj" />
-        <!-- Build the GitHub plugin (but DON'T reference it for compilation) so the loader integration
-             test can load it from disk as a real external DLL. -->
-        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj" ReferenceOutputAssembly="false" Private="false" />
+        <!-- The GitHub plugin is compile-referenced for its pure internals (the link parser, the asset
+             pick), AND still staged into <testout>/plugins-sample by StageSamplePlugin below so the loader
+             integration test keeps loading it from disk as a real external DLL — the ALC loads its own
+             image from a stream, so the two uses do not interfere. -->
+        <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.GitHub\Downloader.Desktop.Plugins.GitHub.csproj" />
         <!-- The Ollama plugin IS compile-referenced: its pure logic (claim parsing, manifest parsing,
              installer) is unit-tested directly. ALC loading is already covered by the GitHub plugin test. -->
         <ProjectReference Include="..\Downloader.Desktop.Plugins\Downloader.Desktop.Plugins.Ollama\Downloader.Desktop.Plugins.Ollama.csproj" />

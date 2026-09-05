@@ -177,7 +177,7 @@ public class PluginTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public void GitHub_resolver_claims_only_owner_repo_links()
+    public void GitHub_resolver_claims_only_links_it_can_improve()
     {
         // CanResolve gating for the real sample resolver (pure, no network): owner/repo on github.com only.
         var dir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins-sample");
@@ -186,7 +186,15 @@ public class PluginTests
         pm.LoadFromDirectory(dir);
 
         Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop"));
-        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop/releases")); // extra path ok
+        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop/releases"));
+        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop/releases/tag/v2.9.0"));
+        Assert.NotNull(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop/blob/main/README.md"));
+        // Not every github.com path is ours. A link that already IS the asset, and a page that is not
+        // about downloading anything, are downloaded as given — claiming them substituted the latest
+        // release's tarball for whatever the user actually pasted.
+        Assert.Null(pm.FindResolver(
+            "https://github.com/bezzad/Downloader.Desktop/releases/download/v2.9.0/Downloader-linux-x64.tar.gz"));
+        Assert.Null(pm.FindResolver("https://github.com/bezzad/Downloader.Desktop/issues/14"));
         Assert.Null(pm.FindResolver("https://github.com/bezzad"));        // owner only -> not claimed
         Assert.Null(pm.FindResolver("https://gitlab.com/bezzad/repo"));   // wrong host -> not claimed
         Assert.Null(pm.FindResolver("not a url"));
@@ -212,5 +220,18 @@ public class PluginTests
         Assert.NotEmpty(plan.Parts);
         Assert.StartsWith("https://", plan.Parts[0].Url);
         Assert.False(string.IsNullOrWhiteSpace(plan.SuggestedFileName));
+
+        // The reported link (issue #14 follow-up): the releases page with the anchor GitHub puts on one
+        // entry. It must list that release's assets — the dialog offering nothing is what made this look
+        // like "it can't find any linux link" — and resolve to the asset for THIS machine.
+        const string reported = "https://github.com/bezzad/Downloader.Desktop/releases#release-v2.10.0";
+        var variants = await resolver.GetVariantsAsync(reported, null, CancellationToken.None);
+        Assert.NotNull(variants);
+        Assert.NotEmpty(variants!);
+        Assert.Contains(variants!, v => v.Label.Contains("linux", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Single(variants!, v => v.IsDefault);
+
+        var anchored = await resolver.ResolveAsync(reported, CancellationToken.None);
+        Assert.Contains("/download/v2.10.0/", anchored.Parts[0].Url);
     }
 }
