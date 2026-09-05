@@ -755,6 +755,43 @@ broke it", and takes seconds. The `Sequence_*.xml` is worth reading: parse it fo
 `Completed="False"` (`re.findall(r'<Test Name="([^"]+)"[^>]*Completed="(\w+)"', xml)`) and you get
 both the culprit and the exact count of tests that did run.
 
+## THE "test host hung" CI ABORT — root-caused and fixed (2026-09-05). Read this before blaming flake.
+The intermittent abort (`Test Run Aborted` + `Total tests: Unknown` + `0 Error(s)` + an inactivity
+`hangdump.dmp`, blaming a random `UI.AppTests` test at wildly varying counts) was **a real deadlock in
+the app**, not test infrastructure. It had been written off as flake here since July.
+
+- **Cause:** the engine's `Dispose()` is `Clear().Wait()`, and `Clear()` awaits the semaphore that the
+  running `StartDownload` holds until it returns. `DownloadManager.ReleaseEngine` called that synchronous
+  `Dispose()` — and nearly every caller of it (`FinishTerminal`, `TryAutoRefreshLink`, `TryNextUrl`,
+  `TryReduceConnections`, plus the stall watchdog) is reached FROM the engine's own completion event via
+  `OnUi`. So it waited for the operation that was waiting for it, **on the UI thread**. Stack from the dump:
+  `Task.Wait() ← AbstractDownloadService.Dispose() ← ReleaseEngine ← FinishTerminal ← OnUi ←
+  <Attach>b__3 ← OnDownloadFileCompleted ← SendDownloadCompletionSignal ← StartDownload`.
+- **In the app this froze the window** when a download finished — it was never only a test problem. It
+  got more frequent after `0c6ca1d` added the connection-backoff retry paths (more `ReleaseEngine` calls).
+- **Fix:** `DownloadManager.DisposeOffStack` — `Task.Run` + `DisposeAsync`, so the callback returns, which
+  is what lets the operation release the semaphore. **Never call `engine.Dispose()` from a manager path
+  again**; anything reachable from an engine event must dispose off that stack.
+- **Why xunit's `Timeout` never fired:** it cannot time out a test whose dispatcher is the deadlocked
+  thing. That is why the blame landed on an innocent later test and why it looked random.
+- **Regression test:** `Integration/EngineReleaseBlockingTests.Releasing_from_inside_the_engines_own_
+  completion_does_not_deadlock` — releases from inside the engine's real `DownloadFileCompleted`, hopping
+  to the UI thread the way the app does. Verified: **hangs** on the old code (killed by an outer timeout,
+  exit 124/143, blowing past its own 180s Timeout) and passes in <0.5s with the fix. The weaker sibling
+  test ("does releasing a busy engine return quickly") passes EITHER way — `Clear()` cancels first when
+  the release is not nested in the callback — so do not treat it as the guard.
+- **How to catch this class of thing:** run the EXACT CI command locally (`--settings
+  src/coverlet.runsettings --blame-hang --blame-hang-timeout 180s --blame-crash`, under
+  `taskset -c 0,1`). It writes a `crashdump.dmp` even on a passing run; `dotnet-dump analyze <dmp> -c
+  pstacks` is what exposed this in one look. A healthy dump is ~36 lines (just coverlet's `UnloadModule`
+  at exit); the deadlocked one was 284.
+
+**`dotnet build` on this box intermittently prints `Internal CLR error. (0x80131506)`, exits 0, and does
+NOT recompile.** Two "verification" runs silently tested a stale binary because of it. After any build you
+intend to draw a conclusion from, prove the change is in the output — e.g.
+`strings …/bin/Debug/net10.0/linux-x64/Downloader.Desktop.dll | grep -c <NewSymbolName>` — and pick a
+symbol that only exists in the new code (a method you renamed, not one whose definition still exists).
+
 **The one-command way to prove a CI failure is the hang and not your change (2026-09-05).** It struck both
 Windows legs on `8fbf59c` while ubuntu×2 and macOS×2 were green. Do NOT start by reading your diff — start
 with `gh api "repos/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml/runs?branch=develop&per_page=12"

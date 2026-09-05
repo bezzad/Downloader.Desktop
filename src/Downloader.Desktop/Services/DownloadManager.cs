@@ -2052,8 +2052,34 @@ public partial class DownloadManager : IDownloadManager
         if (engine == null)
             return;
         vm.Download = null; // drop the reference first so no late staged flush touches a disposed instance
-        try { engine.Dispose(); }
-        catch { /* best-effort — releasing memory must never surface an error to the user */ }
+        DisposeOffStack(engine);
+    }
+
+    /// <summary>
+    /// Disposes a finished engine WITHOUT blocking the caller — never call <c>engine.Dispose()</c> here.
+    ///
+    /// The engine's synchronous <c>Dispose()</c> is <c>Clear().Wait()</c>, and <c>Clear()</c> waits on the
+    /// semaphore that the still-running <c>StartDownload</c> holds until it returns. Almost every caller of
+    /// <see cref="ReleaseEngine"/> is reached FROM that operation's own completion event
+    /// (<c>FinishTerminal</c>, <c>TryAutoRefreshLink</c>, <c>TryNextUrl</c>, <c>TryReduceConnections</c>),
+    /// so disposing inline waits for the operation that is waiting for us — a self-deadlock. Because those
+    /// handlers run through <c>OnUi</c>, the thread it deadlocks is the UI thread: the window freezes, and
+    /// under the headless test runtime the whole suite stops (that is the intermittent "test host hung for
+    /// 3 minutes" that aborted CI runs at random points, blaming whichever test came next).
+    ///
+    /// Diagnosed from a hang dump: <c>Task.Wait() ← AbstractDownloadService.Dispose() ← ReleaseEngine ←
+    /// FinishTerminal ← OnUi ← the engine's DownloadFileCompleted ← StartDownload</c>.
+    ///
+    /// Running it on the pool lets this callback return, which is exactly what lets the operation finish and
+    /// release the semaphore. The row already dropped its reference, so nothing observes the engine again.
+    /// </summary>
+    private static void DisposeOffStack(DownloadService engine)
+    {
+        _ = Task.Run(async () =>
+        {
+            try { await engine.DisposeAsync().ConfigureAwait(false); }
+            catch { /* best-effort — releasing memory must never surface an error to the user */ }
+        });
     }
 
     /// <summary>If the resolving plugin offers an action for this completed item (e.g. "Add to Ollama"),
