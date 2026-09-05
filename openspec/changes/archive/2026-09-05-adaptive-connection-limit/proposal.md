@@ -47,3 +47,12 @@ setting to behave as a ceiling rather than a fixed number ([#14](https://github.
   decision tests pin the current one-shot behaviour and must be updated with it.
 - Wording: a row that is stepping down needs an honest status string, so all 16 language packs gain a key.
 - No engine change: the count is applied through `DownloadConfiguration` exactly as it is today.
+
+## Archive note (2026-09-05)
+
+Shipped on `develop` as `0c6ca1d`. Build clean (0 warnings), 1621/1621 app tests, 151/151 extension
+unit tests, 29/29 Playwright specs. The delta specs were synced into `openspec/specs/link-refresh` and the
+new `openspec/specs/server-connection-limits` before archiving.
+
+Task **5.3 (reply on issue #14) was deliberately dropped** at the author's decision — the release notes
+cover what shipped, so no comment was posted on the issue. Everything else is complete.
