@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Malŝaltas 30 sekundojn post la lasta finita elŝuto (nuligebla).",
   "Set_BrowserIntegration": "Retumila integriĝo",
   "Set_BrowserIntegration_Hint": "Permesas al retumila kromaĵo sendi ligilojn al ĉi tiu aplikaĵo per loka konekto.",
+  "Set_ConfirmProgrammaticAdds": "Demandi antaŭ aldono de programaj elŝutoj",
+  "Set_ConfirmProgrammaticAdds_Hint": "Malfermu la aldonan fenestron por elŝutoj senditaj de la retumila kromprogramo aŭ alia ilo uzanta la lokan API de ĉi tiu aplikaĵo, por ke vi unue kontrolu ilin. Elŝutoj kiujn vi mem aldonas kaj aldonoj per komandlinio ne estas tuŝataj.",
   "Set_LocalApiStatus": "Adreso de loka API",
   "Set_LocalApiConnected": "konektita",
   "Set_LocalApiOffline": "ne funkcias",

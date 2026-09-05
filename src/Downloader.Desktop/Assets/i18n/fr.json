@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "S'éteint 30 secondes après le dernier téléchargement terminé (annulable).",
   "Set_BrowserIntegration": "Intégration au navigateur",
   "Set_BrowserIntegration_Hint": "Permet à une extension de navigateur d'envoyer des liens à cette application via une connexion locale.",
+  "Set_ConfirmProgrammaticAdds": "Demander avant d'ajouter des téléchargements automatiques",
+  "Set_ConfirmProgrammaticAdds_Hint": "Ouvre la fenêtre d'ajout pour les téléchargements envoyés par l'extension du navigateur ou un autre outil utilisant l'API locale de cette application, afin que vous puissiez les vérifier d'abord. Les téléchargements que vous ajoutez vous-même et ceux en ligne de commande ne sont pas concernés.",
   "Set_LocalApiStatus": "Adresse de l'API locale",
   "Set_LocalApiConnected": "connecté",
   "Set_LocalApiOffline": "non actif",

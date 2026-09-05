@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Powers off 30 seconds after the last download completes (cancelable).",
   "Set_BrowserIntegration": "Browser extension & local API",
   "Set_BrowserIntegration_Hint": "Lets the browser extension, scripts and the command line add and control downloads over a local-only connection (nothing is exposed to the network).",
+  "Set_ConfirmProgrammaticAdds": "Ask before adding programmatic downloads",
+  "Set_ConfirmProgrammaticAdds_Hint": "Open the Add window for downloads sent by the browser extension or another tool using this app's local API, so you can review them first. Downloads you add yourself and command-line adds are not affected.",
   "Set_LocalApiStatus": "Local API address",
   "Set_LocalApiConnected": "connected",
   "Set_LocalApiOffline": "not running",

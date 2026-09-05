@@ -76,6 +76,7 @@ Base URL: `http://127.0.0.1:15151` (or the fallback port shown in Settings — s
 | `queue` | no | Queue name or id (otherwise the default queue) |
 | `mirrors` | no | Extra URLs for the same file (JSON body only) |
 | `start` | no | `false` = add queued but don't start (default `true`) |
+| `confirm` | no | `true` = ask the user first — see [Asking the user first](#asking-the-user-first) |
 | `referer` | no | `Referer` to send for this download only (overrides the global setting) |
 | `headers` | no | Extra request headers for this download only — see the two forms below |
 | `cookies` | no | Cookies for this URL — see the two forms below |
@@ -94,6 +95,56 @@ concurrency cap). Responses: `400` with `{"error"}`, or `201` with:
 
 The last three are what tell a working hand-off from one whose context was dropped: if you sent cookies
 and got `"cookies": 0` back, they didn't reach the download. Counts only — no value is ever echoed back.
+
+#### Asking the user first
+
+By default a programmatic add is silent, which is what a script wants and not always what a person
+wants. Two things can turn one request into a confirmation:
+
+* **`confirm: true` in the request** (JSON body or `?confirm=true`), and
+* **the app setting "Ask before adding programmatic downloads"** (Settings → off by default), which
+  applies to *every* add from this API. This exists for clients that cannot be changed to send the
+  parameter.
+
+An explicit `confirm` in the request always wins, in both directions: `confirm: true` asks even with
+the setting off, and `confirm: false` stays silent even with it on.
+
+In confirm mode the app opens its Add dialog pre-filled with the whole request — url, file name, save
+path, queue, mirrors, variant, and the cookies/referer/headers below — and **adds nothing** until the
+user confirms it. The request is *not* held open while they decide: it answers `202` immediately with
+
+```json
+{ "ticket": "b3f1…" }
+```
+
+and you follow that ticket with **`GET /api/add-status?ticket=…`**:
+
+| Response | Meaning |
+|---|---|
+| `200 {"state":"pending"}` | The dialog is still open |
+| `200 {"state":"added","id":"…"}` | Confirmed — the download exists, and `id` tracks it as usual |
+| `200 {"state":"cancelled"}` | The user said no; nothing was added |
+| `404` | Unknown ticket, or one the app has forgotten (an unanswered dialog expires) |
+| `400` | No `ticket` parameter |
+
+A ticket is never resurrected: once forgotten it reads `404`, never `added`. If you ignore the `202`
+body entirely, the dialog still opens and the user's confirmation still adds the download — you just
+never learn its id.
+
+Only one confirmation is shown at a time. A second confirm-mode add arriving while a dialog is open
+gets its own ticket answered `cancelled` rather than stacking another window on the user.
+
+```bash
+TICKET=$(curl -s -X POST http://127.0.0.1:15151/api/add \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com/big.iso","confirm":true}' | jq -r .ticket)
+
+curl -s "http://127.0.0.1:15151/api/add-status?ticket=$TICKET"
+# → {"ticket":"b3f1…","state":"pending"}   … then {"state":"added","id":"9f8b4c1e-…"}
+```
+
+The **command line** add path is unaffected by all of this and is always silent — a script cannot
+answer a modal and must not be left waiting on one.
 
 #### Links that need the context they were found in
 

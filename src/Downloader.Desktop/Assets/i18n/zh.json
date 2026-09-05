@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "在最后一个下载完成 30 秒后关机（可取消）。",
   "Set_BrowserIntegration": "浏览器集成",
   "Set_BrowserIntegration_Hint": "允许浏览器扩展通过本地连接向本应用发送链接。",
+  "Set_ConfirmProgrammaticAdds": "添加程序发送的下载前先询问",
+  "Set_ConfirmProgrammaticAdds_Hint": "对于浏览器扩展或其他使用本应用本地 API 的工具发送的下载，先打开“添加”窗口，让你可以先行查看。你自己添加的下载和命令行添加不受影响。",
   "Set_LocalApiStatus": "本地 API 地址",
   "Set_LocalApiConnected": "已连接",
   "Set_LocalApiOffline": "未运行",

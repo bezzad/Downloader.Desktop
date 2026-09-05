@@ -63,6 +63,13 @@ public class DownloadSettings
     /// configs are migrated once via <see cref="Config.SchemaVersion"/>).</summary>
     public bool EnableBrowserIntegration { get; set; } = true;
 
+    /// <summary>Open the Add dialog for downloads handed over through the local API instead of adding them
+    /// silently. Off by default, so existing scripts and integrations keep today's behaviour. This is the
+    /// only lever over a third-party client that will never learn to send the request's own `confirm`
+    /// parameter — which, when present, always wins over this setting in both directions. It does not
+    /// affect the app's own Add dialog or the CLI add payload (a script cannot answer a modal).</summary>
+    public bool ConfirmProgrammaticAdds { get; set; } = false;
+
     /// <summary>Last local-API port the listener actually bound to (from the declared 15151–15155 range).
     /// 0 = not yet determined; the app prefers this on the next start before falling back further, and the
     /// CLI reads it to reach the running instance. Not user-editable (the extension can only reach the

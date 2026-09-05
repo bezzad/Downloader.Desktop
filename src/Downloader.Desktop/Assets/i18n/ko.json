@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "마지막 다운로드 완료 30초 후에 종료합니다 (취소 가능).",
   "Set_BrowserIntegration": "브라우저 통합",
   "Set_BrowserIntegration_Hint": "브라우저 확장 프로그램이 로컬 연결로 이 앱에 링크를 보낼 수 있게 합니다.",
+  "Set_ConfirmProgrammaticAdds": "프로그램이 보낸 다운로드를 추가하기 전에 확인",
+  "Set_ConfirmProgrammaticAdds_Hint": "브라우저 확장 프로그램이나 이 앱의 로컬 API를 사용하는 다른 도구가 보낸 다운로드에 대해 추가 창을 열어 먼저 검토할 수 있게 합니다. 직접 추가한 다운로드와 명령줄 추가에는 영향을 주지 않습니다.",
   "Set_LocalApiStatus": "로컬 API 주소",
   "Set_LocalApiConnected": "연결됨",
   "Set_LocalApiOffline": "실행 중 아님",

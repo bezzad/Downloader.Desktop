@@ -231,6 +231,25 @@ Rough order to turn the current skeleton into the MVP above:
    - ⚠️ `docs/screenshots/` still need regenerating on a machine with the .NET SDK (this container has none,
      and the SDK download hosts are blocked by the proxy) — the dialog's layout changed.
 
+18. ✅ **Ask before adding a programmatic download (issue #13, `confirm-before-add`)** (DONE, 2026-09-05):
+   - The extension's "Add silently" toggle was honoured on the popup/context-menu path only. A download the
+     extension **intercepted** from the browser, and anything a third-party client (Cat Catch) sent to
+     `/api/add`, was always added and started with no way to review it.
+   - **`/api/add` gained `confirm`** (POST body + GET query). In confirm mode the app adds NOTHING: it opens
+     the Add dialog pre-filled with the WHOLE request — url, name, path, queue, mirrors, variant, and the
+     cookies/referer/headers a URL-only dialog endpoint would have thrown away — and answers **`202`
+     `{"ticket"}`** at once. **`GET /api/add-status?ticket=…`** reports `pending`/`added`(+`id`)/`cancelled`;
+     an unknown or expired ticket is `404` and never reads as `added`. The request never blocks on the user
+     (a held-open response would trip the extension's add timeout and be read as a failed hand-off).
+   - **New setting `DownloadSettings.ConfirmProgrammaticAdds`** ("Ask before adding programmatic downloads",
+     off by default) makes every `/api/add` confirm-mode — the only lever over a client that will never send
+     the parameter. An explicit `confirm` in the request wins over it **in both directions**.
+   - **Extension 1.14.0**: `handOffToApp` reads the add mode and sends `confirm: true`, then follows the
+     ticket (`awaitAddTicket`); only `added` is a hand-off, so a cancelled dialog falls into the existing
+     "the app didn't take it" branch and the browser keeps the file. A picked quality stays silent.
+   - The **CLI add path is unconditionally silent** (a script cannot answer a modal) and the legacy
+     `/add?url=` endpoint is untouched.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Se apaga 30 segundos después de la última descarga completada (cancelable).",
   "Set_BrowserIntegration": "Integración con el navegador",
   "Set_BrowserIntegration_Hint": "Permite que una extensión del navegador envíe enlaces a esta app mediante una conexión local.",
+  "Set_ConfirmProgrammaticAdds": "Preguntar antes de añadir descargas automáticas",
+  "Set_ConfirmProgrammaticAdds_Hint": "Abre la ventana Añadir para las descargas enviadas por la extensión del navegador u otra herramienta que use la API local de esta aplicación, para que puedas revisarlas antes. No afecta a las descargas que añades tú ni a las de la línea de comandos.",
   "Set_LocalApiStatus": "Dirección de la API local",
   "Set_LocalApiConnected": "conectado",
   "Set_LocalApiOffline": "no está en ejecución",

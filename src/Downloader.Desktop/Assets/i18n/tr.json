@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Son indirme tamamlandıktan 30 saniye sonra kapanır (iptal edilebilir).",
   "Set_BrowserIntegration": "Tarayıcı entegrasyonu",
   "Set_BrowserIntegration_Hint": "Bir tarayıcı uzantısının yerel bir bağlantı üzerinden bu uygulamaya bağlantı göndermesine izin verir.",
+  "Set_ConfirmProgrammaticAdds": "Program aracılığıyla eklenen indirmelerden önce sor",
+  "Set_ConfirmProgrammaticAdds_Hint": "Tarayıcı uzantısının veya bu uygulamanın yerel API'sini kullanan başka bir aracın gönderdiği indirmeler için Ekle penceresini açar; böylece önce gözden geçirebilirsiniz. Kendi eklediğiniz indirmeler ve komut satırından eklenenler etkilenmez.",
   "Set_LocalApiStatus": "Yerel API adresi",
   "Set_LocalApiConnected": "bağlı",
   "Set_LocalApiOffline": "çalışmıyor",

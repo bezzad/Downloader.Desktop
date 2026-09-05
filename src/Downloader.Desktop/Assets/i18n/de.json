@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Fährt 30 Sekunden nach dem letzten abgeschlossenen Download herunter (abbrechbar).",
   "Set_BrowserIntegration": "Browser-Integration",
   "Set_BrowserIntegration_Hint": "Erlaubt einer Browser-Erweiterung, Links über eine lokale Verbindung an diese App zu senden.",
+  "Set_ConfirmProgrammaticAdds": "Vor dem Hinzufügen programmgesteuerter Downloads fragen",
+  "Set_ConfirmProgrammaticAdds_Hint": "Öffnet das Fenster „Hinzufügen“ für Downloads, die von der Browser-Erweiterung oder einem anderen Werkzeug über die lokale API dieser App gesendet werden, damit Sie sie zuerst prüfen können. Selbst hinzugefügte Downloads und Befehlszeilen-Downloads sind nicht betroffen.",
   "Set_LocalApiStatus": "Lokale-API-Adresse",
   "Set_LocalApiConnected": "verbunden",
   "Set_LocalApiOffline": "läuft nicht",

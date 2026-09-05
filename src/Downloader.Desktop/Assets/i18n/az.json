@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Son yükləmə tamamlandıqdan 30 saniyə sonra söndürülür (ləğv edilə bilər).",
   "Set_BrowserIntegration": "Brauzer inteqrasiyası",
   "Set_BrowserIntegration_Hint": "Brauzer genişlənməsinə yerli bağlantı vasitəsilə bu tətbiqə keçidlər göndərməyə imkan verir.",
+  "Set_ConfirmProgrammaticAdds": "Proqram vasitəsilə əlavə edilən yükləmələrdən əvvəl soruş",
+  "Set_ConfirmProgrammaticAdds_Hint": "Brauzer genişlənməsinin və ya bu tətbiqin yerli API-sindən istifadə edən başqa bir alətin göndərdiyi yükləmələr üçün Əlavə et pəncərəsini açır ki, əvvəlcə onlara baxa biləsiniz. Özünüzün əlavə etdiyi yükləmələrə və əmr sətrindən əlavələrə təsir etmir.",
   "Set_LocalApiStatus": "Yerli API ünvanı",
   "Set_LocalApiConnected": "qoşulub",
   "Set_LocalApiOffline": "işləmir",

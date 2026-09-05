@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Si spegne 30 secondi dopo l'ultimo download completato (annullabile).",
   "Set_BrowserIntegration": "Integrazione con il browser",
   "Set_BrowserIntegration_Hint": "Permetti a un'estensione del browser di inviare link a questa app tramite una connessione locale.",
+  "Set_ConfirmProgrammaticAdds": "Chiedi prima di aggiungere download automatici",
+  "Set_ConfirmProgrammaticAdds_Hint": "Apre la finestra di aggiunta per i download inviati dall'estensione del browser o da un altro strumento che usa l'API locale di questa app, così puoi rivederli prima. I download che aggiungi tu e quelli da riga di comando non sono interessati.",
   "Set_LocalApiStatus": "Indirizzo API locale",
   "Set_LocalApiConnected": "connesso",
   "Set_LocalApiOffline": "non in esecuzione",

@@ -135,6 +135,8 @@
   "Set_ShutdownOnComplete_Hint": "Desliga 30 segundos após o último download concluído (cancelável).",
   "Set_BrowserIntegration": "Integração com o navegador",
   "Set_BrowserIntegration_Hint": "Permite que uma extensão do navegador envie links para este app por uma conexão local.",
+  "Set_ConfirmProgrammaticAdds": "Perguntar antes de adicionar transferências automáticas",
+  "Set_ConfirmProgrammaticAdds_Hint": "Abre a janela Adicionar para transferências enviadas pela extensão do navegador ou por outra ferramenta que use a API local desta aplicação, para que possa revê-las primeiro. As transferências que você adiciona e as da linha de comandos não são afetadas.",
   "Set_LocalApiStatus": "Endereço da API local",
   "Set_LocalApiConnected": "conectado",
   "Set_LocalApiOffline": "não está em execução",

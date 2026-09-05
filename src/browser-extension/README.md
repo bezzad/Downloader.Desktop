@@ -41,7 +41,11 @@ A cross-browser **Manifest V3** extension that hands download links and detected
   **added silently and starts downloading** (the app's `/api/add` endpoint); untick
   **“Add silently (no dialog)”** in the popup to review each link in the app's Add dialog
   (`/add?url=…`) instead. On an app version without the API the extension falls back to the
-  dialog automatically.
+  dialog automatically. That choice governs **every** hand-off, including a download the extension
+  intercepts from the browser: those go to `/api/add` with `confirm: true`, so the dialog opens
+  carrying the link's cookies, referer, headers, mirrors and save folder rather than the bare URL.
+  If you cancel that dialog, the browser's own download is left running and you keep the file. A link
+  where you picked a specific quality is always sent silently, since the dialog would discard the pick.
 - **Download interception** *(off by default)* — take over downloads the **browser** starts and hand
   them to the app instead. Turn it on in **Settings** (the popup's *Settings & download interception*
   link, or your browser's extension options), where you also control what gets taken over: which file
@@ -120,6 +124,10 @@ The extension only needs the app's loopback endpoints:
 GET http://127.0.0.1:<port>/api/add?url=<url-encoded link>   # silent add (default)
 GET http://127.0.0.1:<port>/add?url=<url-encoded link>       # open the Add dialog instead
 GET http://127.0.0.1:<port>/ping                              # reachability check
+
+POST http://127.0.0.1:<port>/api/add                          # hand-off with cookies/referer/headers
+                                                              #   + "confirm": true to ask the user
+GET http://127.0.0.1:<port>/api/add-status?ticket=<ticket>    # follow a confirmation to added/cancelled
 ```
 
 `<port>` is normally `15151`; if another program holds it, the app falls back within the declared

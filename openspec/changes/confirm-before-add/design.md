@@ -122,5 +122,26 @@ older extension against a newer app, and a newer extension against an older app 
 
 ## Open Questions
 
-- Should the dialog opened by an interception show *which* page the download came from? The referer
-  is available and it would help the user judge. Left out of the spec for now — decide during apply.
+- ~~Should the dialog opened by an interception show *which* page the download came from?~~
+  **Decided during apply: no.** The Add dialog has no place for it that is not a new row of chrome on
+  a window every user sees, and the referer is already visible in the download's own details once it
+  exists. Adding a field to the shared dialog for the benefit of one entry point is the kind of
+  speculative widening the repo's Clean Code/KISS rule exists to stop. Revisit if a user asks for it.
+
+## Notes from apply
+
+- **`LocalApiService.ApplyRequestContext` was extracted from `BuildItem`** so the confirmed dialog and
+  the silent add apply the per-download context through ONE implementation. The alternative — building
+  a throwaway `DownloadItem` just to harvest its context — would have written a second temp cookie file
+  per confirmation and let the two paths drift.
+- **The dialog carries mirrors and a caller-picked variant only while the URL is untouched.** They
+  belong to the link the request was about; once the user retypes the URL they are addressing a
+  different file, and inheriting the old link's fallbacks would point the download at the wrong bytes.
+  The cookies/referer/headers still travel, because those describe the session the request was made in
+  rather than the URL. Pinned by
+  `UI/ConfirmAddDialogTests.A_url_the_user_retyped_does_not_inherit_the_old_link_fallbacks`.
+- **A confirm-mode add with no UI handler wired resolves its ticket as `cancelled`, never as a silent
+  add.** Falling back to adding it would hand the caller exactly the consent it was told to ask for.
+- **`MainViewModel.SilentAdd` needed no change** to stay unconditionally silent — it calls
+  `manager.Add` directly and never consults the setting — but it was made `internal` so a test can pin
+  that with the setting turned on.
