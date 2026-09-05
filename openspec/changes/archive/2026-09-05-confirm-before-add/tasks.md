@@ -49,8 +49,33 @@
 
 - [x] 8.1 `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` → 0 errors, **0 warnings**.
 - [x] 8.2 `dotnet test -v q --nologo` green; `node --test src/browser-extension/common.test.js` green; the Playwright suite in `src/browser-extension/e2e/` green.
-- [ ] 8.3 *(left for the author — needs a real browser + a visible dialog on screen; the automated
-  equivalent is green: `Integration/ConfirmAddEndpointTests` drives a real `curl`-shaped request through
-  the running listener, and the Playwright `interception.spec.js` pair drives a real intercepted download
-  in a real Chromium.)* Manual check against the issue: with the extension toggle off, an intercepted download and a raw `curl` to `/api/add` (setting on) both open the dialog; with it on/off respectively, both stay silent.
+- [x] 8.3 Manual check against the issue: with the extension toggle off, an intercepted download and a raw `curl` to `/api/add` (setting on) both open the dialog; with it on/off respectively, both stay silent.
+
+  **Run against a real app on a real desktop, 2026-09-05** (`dotnet run` with an isolated
+  `XDG_CONFIG_HOME` so the developer's own config was never touched — verified unmodified afterwards).
+  The dialog was confirmed to be a real window each time via `xwininfo -root -tree`, not merely inferred
+  from the API:
+
+  | Case | Result |
+  |---|---|
+  | setting off, `"confirm":true` | `202` + ticket, `"Add download"` 560×560 window on screen, `/api/list` **empty**, ticket `pending` |
+  | second confirm-mode add while that dialog was open | own ticket `cancelled`, still exactly **one** dialog window (no stacking) |
+  | setting **on**, plain add with no `confirm` (the Cat Catch case) | `202` + ticket, dialog opened, nothing added |
+  | setting **on**, `"confirm":false` | `201`, added silently — the opt-out wins over the setting |
+  | setting off, plain add | `201`, added silently — unchanged for existing clients |
+  | `GET /api/add?…&confirm=true` (query form) | `202` |
+  | `/api/add-status` unknown ticket / no ticket | `404` / `400` |
+
+  The setting itself round-tripped through a real restart (written to `config.json`, read back, and it
+  changed the behaviour). Note the first window poll after the `202` found no dialog yet — that is the
+  "answers without waiting for the user" property showing up in practice.
+
+  **Not covered by this run:** clicking Download/Cancel in the dialog, and eyeballing the pre-filled
+  fields — GNOME refused a screenshot to a non-interactive client (`org.gnome.Shell.Screenshot`:
+  *Screenshot is not allowed*) and no input-injection tool (`xdotool`/`ydotool`) is installed. Both are
+  covered by `UI/ConfirmAddDialogTests`, which opens the real dialog, asserts the pre-filled url/name/
+  folder, and asserts that confirming creates the item with its cookies/headers/referer intact while
+  cancelling creates nothing. The intercepted-download half is covered by the two Playwright cases in
+  `e2e/tests/interception.spec.js`, which drive a real `chrome.downloads` event through the real
+  extension in a real Chromium.
 - [x] 8.4 Regenerate `docs/screenshots/` for the Settings page (a control was added) and eyeball the PNGs before committing.
