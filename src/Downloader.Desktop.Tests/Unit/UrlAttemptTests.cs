@@ -142,6 +142,44 @@ public class UrlAttemptTests
         Assert.False(DownloadManager.LooksLikeConcurrencyRefusal(new IOException("disk full"), 8));
     }
 
+    // ── Stepping the connection count down (issue #14) ───────────────────────────────────────────────
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_refused_count_is_halved_until_there_is_a_single_connection_left()
+    {
+        // 8 → 4 → 2 → 1 lands within a factor of two of the server's real limit in three attempts. The old
+        // behaviour jumped straight to one, so a host that would have served four was downloaded over one.
+        Assert.Equal(4, DownloadManager.NextConnectionCount(8));
+        Assert.Equal(2, DownloadManager.NextConnectionCount(4));
+        Assert.Equal(1, DownloadManager.NextConnectionCount(2));
+        // An odd ceiling still steps down rather than stalling on a repeated count.
+        Assert.Equal(2, DownloadManager.NextConnectionCount(5));
+        Assert.Equal(1, DownloadManager.NextConnectionCount(3));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void There_is_nothing_below_a_single_connection()
+    {
+        // The end of the sequence: a lone request that is refused is the server's real answer, and asking
+        // again with "fewer" would repeat the identical request.
+        Assert.Null(DownloadManager.NextConnectionCount(1));
+        Assert.Null(DownloadManager.NextConnectionCount(0));
+        Assert.Null(DownloadManager.NextConnectionCount(-3));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_step_down_terminates_whatever_the_ceiling_was()
+    {
+        // Halving is finite by construction, but the cap is what a download actually spends: each step
+        // discards the partial file, so an unbounded search would be paid for in bytes.
+        var count = 0;
+        for (var n = 4096; DownloadManager.NextConnectionCount(n) is { } next; n = next)
+            count++;
+        Assert.Equal(12, count); // log2(4096)
+        Assert.True(DownloadManager.MaxReducedConnectionAttempts < count,
+            "the cap must bind before an absurd ceiling can spend a dozen attempts");
+    }
+
     // ── A "finished" download that produced nothing ──────────────────────────────────────────────────
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

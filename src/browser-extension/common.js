@@ -45,7 +45,11 @@ async function discoverAppPort(probe = pingPort, cachedPort = null) {
 // How long each kind of call to the app may take before we stop waiting. A health check has to be
 // quick (five ports are probed in turn) while a page-quality lookup legitimately runs the site tool;
 // the app abandons that one after 90s, so this only has to outlast its answer.
-const APP_TIMEOUT_MS = { ping: 2000, add: 20000, ask: 8000, variants: 120000 };
+// `confirm` is a person, not a server: it is how long we keep following a ticket while the app's Add
+// dialog waits for an answer. Generous on purpose — the browser's own download is still running the
+// whole time, so waiting costs nothing and giving up early would take the hand-off away from a user
+// who was about to confirm it.
+const APP_TIMEOUT_MS = { ping: 2000, add: 20000, ask: 8000, variants: 120000, confirm: 300000 };
 
 // fetch() with a deadline. Without one, an app that accepts the connection and never answers leaves
 // the caller pending FOR EVER — which is what a stuck app looked like from here: the popup's status
@@ -404,6 +408,39 @@ async function confirmAppFetching(base, id, opts) {
   }
 }
 
+// Follow a confirm-mode add (the app answered 202 with a ticket) until the user answers the Add dialog.
+// `pending` keeps waiting; `added` yields the item id; `cancelled`, a 404 (unknown/expired ticket, or an
+// older app that has no such endpoint) and the wait budget running out are all "the app didn't take it",
+// which every caller already handles by leaving the browser's own download alone.
+//
+// Never throws, and the clock/sleep are injectable — same shape as confirmAppFetching.
+async function awaitAddTicket(base, ticket, opts) {
+  const timeoutMs = opts?.timeoutMs ?? APP_TIMEOUT_MS.confirm;
+  const intervalMs = opts?.intervalMs ?? 1000;
+  const now = opts?.now || (() => Date.now());
+  const sleep = opts?.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+  if (!ticket) return { ok: false, reason: "add-cancelled", id: null };
+
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    try {
+      const res = await appFetch(
+        withIdentity(`${base}/api/add-status?ticket=${encodeURIComponent(ticket)}`),
+        withIdentityHeaders(), APP_TIMEOUT_MS.ask);
+      if (res?.status === 404) return { ok: false, reason: "add-cancelled", id: null };
+      if (res?.ok) {
+        const j = await res.json?.();
+        const state = String(j?.state || "").toLowerCase();
+        if (state === "added") return { ok: true, reason: "added", id: j?.id || null };
+        if (state === "cancelled") return { ok: false, reason: "add-cancelled", id: null };
+      }
+    } catch { /* the app went away mid-wait — the budget below ends it */ }
+
+    if (now() >= deadline) return { ok: false, reason: "add-timeout", id: null };
+    await sleep(intervalMs);
+  }
+}
+
 // The browser's own User-Agent. `navigator` exists in an MV3 service worker and in a Firefox
 // background script, but not in the plain-Node test context, so this must never assume it.
 function browserUserAgent() {
@@ -517,9 +554,17 @@ async function handOffToApp(url, filename, context) {
   // interception caller reads as "leave the browser's own download alone", never as a silent loss.
   const savePath = context?.savePath ?? await getSavePath();
   if (savePath) body.path = savePath;
+  // The user's silent-vs-dialog choice governs THIS path too (issue #13): an intercepted download used
+  // to be added and started with no dialog whatever the toggle said. A picked variant stays silent for
+  // the same reason it does in sendToApp — the dialog would discard the pick the user just made.
+  const variantId = typeof context?.variantId === "string" ? context.variantId.trim() : "";
+  if (variantId) body.variantId = variantId;
+  const wantsDialog = !variantId && (await getAddMode()) === "dialog";
+  if (wantsDialog) body.confirm = true;
   Object.assign(body, extensionIdentity());
 
-  const res = await postAdd(appBase(port), body);
+  const base = appBase(port);
+  const res = await postAdd(base, body);
   if (!res.ok) {
     return {
       ok: false,
@@ -527,6 +572,17 @@ async function handOffToApp(url, filename, context) {
       accepted: null,
       contextSent
     };
+  }
+
+  // Confirm mode: the app has NOT added anything yet — it answered with a ticket and opened its Add
+  // dialog. Follow that ticket; only an `added` outcome is a hand-off, so a cancelled dialog falls into
+  // the caller's existing "the app didn't take it" branch and the browser keeps its own download.
+  const ticket = res.status === 202 ? res.json?.ticket : null;
+  if (ticket) {
+    const outcome = await awaitAddTicket(base, ticket, context?.ticketOpts);
+    if (!outcome.ok)
+      return { ok: false, reason: outcome.reason, accepted: null, contextSent };
+    return { ok: true, reason: "ok", accepted: null, contextSent, id: outcome.id, port };
   }
 
   // What the app says it took. Absent fields = an older app that doesn't report them; treat that as
@@ -1407,6 +1463,7 @@ if (typeof module !== "undefined") {
     MIME_EXTENSIONS,
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
     getInterceptSettings, setInterceptSettings,
-    postAdd, handOffToApp
+    postAdd, handOffToApp, awaitAddTicket,
+    getAddMode, setAddMode
   };
 }

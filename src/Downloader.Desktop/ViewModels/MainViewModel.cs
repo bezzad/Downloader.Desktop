@@ -268,6 +268,9 @@ public class MainViewModel : ViewModelBase
         // Local API + browser integration: extension links open the Add dialog pre-filled; the
         // /api routes act on the manager directly (silent adds from scripts and the CLI).
         LocalApiService.OnUrlCaptured = CaptureUrl;
+        // A confirm-mode /api/add opens the Add dialog instead of adding straight away. Fire-and-forget:
+        // the request was already answered with its ticket and must not wait for the user.
+        LocalApiService.OnAddConfirmationRequested = (req, ticket) => _ = CaptureAddRequest(req, ticket);
         LocalApiService.Manager = _downloadManager;
         LocalApiService.Config = _config;
         LocalApiService.Plugins = _pluginManager;
@@ -425,8 +428,11 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>A CLI "add" payload arrived (forwarded or via --cli-add) — add it with no UI.</summary>
-    private void SilentAdd(string json)
+    /// <summary>A CLI "add" payload arrived (forwarded or via --cli-add) — add it with no UI.
+    /// UNCONDITIONALLY silent: it ignores both the request's `confirm` and the "ask before adding
+    /// programmatic downloads" setting, because a script cannot answer a modal and must not be left
+    /// waiting on one. Internal so a test can pin that.</summary>
+    internal void SilentAdd(string json)
     {
         var req = ApiAddRequest.FromJson(json ?? string.Empty);
         if (req.Error != null)
@@ -445,6 +451,50 @@ public class MainViewModel : ViewModelBase
         BringToFront();
         DownloadUrl = url;
         _ = AddDownloadItem();
+    }
+
+    /// <summary>A confirm-mode programmatic add arrived (issue #13) — surface the window and open the Add
+    /// dialog carrying the WHOLE request, then resolve its ticket from what the user chose. The API has
+    /// already answered `202`, so nothing is waiting on this: the caller follows the ticket instead.
+    /// A multi-item confirm (the user ticked several variants) reports the first item's id — the ticket
+    /// contract names one download, and every item is on the list either way.</summary>
+    internal async Task CaptureAddRequest(ApiAddRequest req, string ticket)
+    {
+        if (req == null || req.Error != null || string.IsNullOrWhiteSpace(req.Url))
+        {
+            LocalApiService.ResolvePendingAdd(ticket, null);
+            return;
+        }
+
+        BringToFront();
+        string addedId = null;
+        try
+        {
+            var result = await DialogHelper.ShowDialog<AddDownloadItemView, AddDownloadItemViewModel, List<DownloadItem>>(
+                new AddDownloadItemView(),
+                new AddDownloadItemViewModel(_config, req.Url, manager: _downloadManager,
+                    getVariants: (u, ct) => _pluginManager.GetVariantsAsync(u, ct),
+                    getResolverName: u => _pluginManager.FindResolverPluginName(u),
+                    apiRequest: req),
+                _config);
+
+            if (result is { Count: > 0 })
+            {
+                SelectFilter(StatusFilter.All);
+                await _downloadManager.AddRangeAsync(result, autoStart: req.Start);
+                addedId = result[0].Id.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            // A dialog that failed to open added nothing, which is exactly what a cancel means to the
+            // caller — resolving as cancelled below keeps the browser's own download untouched.
+            AppLog.Error("Confirming a programmatic add failed", ex);
+        }
+        finally
+        {
+            LocalApiService.ResolvePendingAdd(ticket, addedId);
+        }
     }
 
     /// <summary>Restores + activates the main window (used by single-instance and captured links).</summary>

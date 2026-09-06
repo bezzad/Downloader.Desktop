@@ -27,6 +27,10 @@ public class Config
     /// <summary>Last user-resized dimensions of each modal window type, keyed by a constant name (e.g. "AddDownload").</summary>
     public Dictionary<string, WindowSize> WindowSizes { get; set; }
 
+    /// <summary>Connection limits learned from servers that refused the configured count, keyed by host.
+    /// See <see cref="ServerConnectionLimit"/>; missing or nonsensical entries simply mean "no memory".</summary>
+    public Dictionary<string, ServerConnectionLimit> ServerConnectionLimits { get; set; }
+
     [JsonIgnore]
     public ThemeVariant ThemeMode
     {
@@ -66,7 +70,8 @@ public class Config
             },
             Schedules = new List<DownloadSchedule>(),
             IsThemeDarkMode = false,
-            WindowSizes = new Dictionary<string, WindowSize>()
+            WindowSizes = new Dictionary<string, WindowSize>(),
+            ServerConnectionLimits = new Dictionary<string, ServerConnectionLimit>()
         };
     }
 
@@ -89,6 +94,7 @@ public class Config
             Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName, MaxConcurrent = Settings.MaxConcurrentDownloads });
         Schedules ??= new List<DownloadSchedule>();
         WindowSizes ??= new Dictionary<string, WindowSize>();
+        ServerConnectionLimits ??= new Dictionary<string, ServerConnectionLimit>();
 
         // v0 → v1: integration became on-by-default when the local API shipped. Configs written
         // before then persisted false without ever asking the user, so flip it ONCE; any value the

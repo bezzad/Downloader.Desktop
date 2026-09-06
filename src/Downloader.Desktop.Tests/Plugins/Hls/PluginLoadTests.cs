@@ -75,7 +75,11 @@ public class PluginLoadTests
             // The SDK must resolve from the default context for shared type identity (exactly what the host does).
             if (name.Name == "Downloader.Desktop.Plugins.Abstractions") return null;
             var path = _resolver.ResolveAssemblyToPath(name);
-            return path is null ? null : LoadFromAssemblyPath(path);
+            if (path is null) return null;
+            // Same guard as the host's PluginLoadContext: once this context is unloading it cannot load
+            // anything, and must say so rather than throw on the unload thread. See PluginLoadContextTests.
+            try { return LoadFromAssemblyPath(path); }
+            catch (InvalidOperationException) { return null; }
         }
     }
 

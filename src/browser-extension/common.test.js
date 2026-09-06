@@ -25,7 +25,7 @@ const {
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
   unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
-  appFetch, APP_TIMEOUT_MS
+  appFetch, APP_TIMEOUT_MS, awaitAddTicket
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -1638,4 +1638,132 @@ test("a silent add against a hung app fails rather than hanging", async () => {
     APP_TIMEOUT_MS.add = savedAdd;
     global.fetch = saved;
   }
+});
+
+// ---------------- The add-mode choice governs the hand-off path too (issue #13) ----------------
+//
+// Before this, an INTERCEPTED download was always added and started silently, whatever the popup's
+// "Add silently / Open dialog" toggle said — the toggle was only read on the popup/context-menu path.
+
+// getAddMode() reads api.storage.local; the shared stub has no `storage`, which throws inside its
+// try/catch and yields "silent". These helpers give it one for the duration of a test.
+function withAddMode(mode, fn) {
+  const saved = global.chrome.storage;
+  global.chrome.storage = { local: { get: async d => ({ ...d, addMode: mode }) } };
+  return (async () => { try { return await fn(); } finally { global.chrome.storage = saved; } })();
+}
+
+// A stubbed app: /ping is up, /api/add answers 202 + ticket, /api/add-status answers `states` in order
+// (the last entry repeats). Returns the recorded add body.
+function stubConfirmingApp(states) {
+  const seen = { body: null, statusCalls: 0 };
+  let i = 0;
+  global.fetch = async (endpoint, opts) => {
+    const url = String(endpoint);
+    if (url.includes("/ping")) return { ok: true, status: 200 };
+    if (url.includes("/api/add-status")) {
+      seen.statusCalls++;
+      const s = states[Math.min(i++, states.length - 1)];
+      if (s.status === 404) return { ok: false, status: 404, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => s };
+    }
+    seen.body = JSON.parse(opts.body);
+    return { ok: true, status: 202, json: async () => ({ ticket: "T1" }) };
+  };
+  return seen;
+}
+
+const fastTicket = { intervalMs: 0, sleep: async () => {} };
+
+test("dialog mode asks the app to confirm an intercepted hand-off, keeping its whole context", async () => {
+  global.chrome.cookies.getAll = async () => [
+    { name: "SID", value: "v", domain: ".example.com", path: "/", session: true }
+  ];
+  const seen = stubConfirmingApp([{ state: "added", id: "item-1" }]);
+
+  const res = await withAddMode("dialog", () => handOffToApp("https://example.com/a.zip", "a.zip", {
+    referer: "https://example.com/page",
+    headers: { Referer: "https://example.com/page" },
+    mirrors: ["https://cdn.example.com/a.zip"],
+    savePath: "/tmp/dl",
+    ticketOpts: fastTicket
+  }));
+
+  assert.equal(seen.body.confirm, true);
+  // The whole point of routing this through /api/add rather than the URL-only dialog endpoint.
+  assert.equal(seen.body.cookies[0].name, "SID");
+  assert.equal(seen.body.referer, "https://example.com/page");
+  assert.equal(seen.body.headers.Referer, "https://example.com/page");
+  assert.deepEqual(seen.body.mirrors, ["https://cdn.example.com/a.zip"]);
+  assert.equal(seen.body.path, "/tmp/dl");
+  assert.equal(seen.body.filename, "a.zip");
+
+  assert.equal(res.ok, true, "a confirmed dialog completes the hand-off");
+  assert.equal(res.id, "item-1", "the id comes from the ticket, so the caller can confirm fetching");
+});
+
+test("silent mode sends no confirm flag at all", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  let body = null;
+  global.fetch = async (endpoint, opts) => String(endpoint).includes("/ping")
+    ? { ok: true, status: 200 }
+    : ((body = JSON.parse(opts.body)), { ok: true, status: 201, json: async () => ({ id: "abc" }) });
+
+  const res = await withAddMode("silent", () => handOffToApp("https://example.com/a.zip", null, {}));
+  assert.equal(body.confirm, undefined);
+  assert.equal(res.ok, true);
+});
+
+test("a picked variant stays silent even in dialog mode, so the pick is not discarded", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  let body = null;
+  global.fetch = async (endpoint, opts) => String(endpoint).includes("/ping")
+    ? { ok: true, status: 200 }
+    : ((body = JSON.parse(opts.body)), { ok: true, status: 201, json: async () => ({ id: "abc" }) });
+
+  await withAddMode("dialog", () =>
+    handOffToApp("https://example.com/master.m3u8", null, { variantId: "1200000" }));
+  assert.equal(body.confirm, undefined);
+  assert.equal(body.variantId, "1200000");
+});
+
+test("a cancelled dialog is not a successful hand-off, so the browser keeps its download", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  stubConfirmingApp([{ state: "pending" }, { state: "cancelled" }]);
+
+  const res = await withAddMode("dialog", () =>
+    handOffToApp("https://example.com/a.zip", null, { ticketOpts: fastTicket }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "add-cancelled");
+  assert.equal(res.id, undefined);
+});
+
+test("a dialog nobody answers stops being waited on instead of hanging", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  let clock = 0;
+  const seen = stubConfirmingApp([{ state: "pending" }]);
+
+  const res = await withAddMode("dialog", () =>
+    handOffToApp("https://example.com/a.zip", null, {
+      ticketOpts: { timeoutMs: 30, intervalMs: 10, now: () => (clock += 10), sleep: async () => {} }
+    }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "add-timeout");
+  assert.ok(seen.statusCalls > 0, "it really polled");
+});
+
+test("an older app with no add-status endpoint fails the hand-off, never fakes a success", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  stubConfirmingApp([{ status: 404 }]);
+
+  const res = await withAddMode("dialog", () =>
+    handOffToApp("https://example.com/a.zip", null, { ticketOpts: fastTicket }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "add-cancelled");
+});
+
+test("awaitAddTicket with no ticket is a failed hand-off, not an endless wait", async () => {
+  const res = await awaitAddTicket("http://127.0.0.1:15151", null, fastTicket);
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "add-cancelled");
 });

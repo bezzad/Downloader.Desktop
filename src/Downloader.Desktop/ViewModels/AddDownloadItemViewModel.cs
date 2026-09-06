@@ -36,6 +36,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     private CancellationTokenSource _resolveCts;
     private readonly Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> _getVariants;
     private readonly Func<string, string> _getResolverName;
+    private readonly ApiAddRequest _apiRequest;
     private string _resolverName;
     private bool _fetchingVariants;
     private string _variantError = string.Empty;
@@ -55,9 +56,11 @@ public class AddDownloadItemViewModel : ViewModelBase
         Func<Task<string>> readClipboard = null,
         IDownloadManager manager = null,
         Func<string, CancellationToken, Task<IReadOnlyList<Plugins.LinkVariant>>> getVariants = null,
-        Func<string, string> getResolverName = null)
+        Func<string, string> getResolverName = null,
+        ApiAddRequest apiRequest = null)
     {
         _config = config;
+        _apiRequest = apiRequest;
         _manager = manager;
         _getVariants = getVariants;
         _getResolverName = getResolverName;
@@ -70,6 +73,26 @@ public class AddDownloadItemViewModel : ViewModelBase
             : DownloadSettings.New().DefaultSavePath;
         _fileName = string.Empty;
         _selectedQueue = config?.DefaultQueue;
+
+        // A confirm-mode programmatic add opens this dialog carrying everything the request asked for, so
+        // the user reviews the real download rather than a bare URL. Only the VISIBLE fields are seeded
+        // here; the request context (cookies, headers, referer) is not the user's to edit and is applied
+        // to the built item in BuildItems.
+        if (apiRequest != null)
+        {
+            if (!string.IsNullOrWhiteSpace(apiRequest.Filename))
+            {
+                _fileName = apiRequest.Filename.Trim();
+                _userTypedName = true; // a name the caller chose must not be overwritten by the name probe
+            }
+            if (!string.IsNullOrWhiteSpace(apiRequest.Path))
+                _storageFolderPath = apiRequest.Path.Trim();
+            if (!string.IsNullOrWhiteSpace(apiRequest.Queue) && config?.Queues != null)
+                _selectedQueue = config.Queues.FirstOrDefault(q =>
+                    string.Equals(q.Id, apiRequest.Queue, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(q.Name, apiRequest.Queue, StringComparison.OrdinalIgnoreCase)) ?? _selectedQueue;
+        }
+
         _parsed = SplitUrls(_urls);
 
         SelectFileStoragePathCommand = ReactiveCommand.CreateFromTask(SelectFileStoragePathAsync);
@@ -598,7 +621,7 @@ public class AddDownloadItemViewModel : ViewModelBase
                 Status = DownloadStatus.Created,
                 LastTry = DateTime.Now
             }).ToList();
-            return variantItems;
+            return ApplyApiRequest(variantItems);
         }
 
         // Tag a multi-URL add as one group so the list can show them together (#13).
@@ -615,6 +638,35 @@ public class AddDownloadItemViewModel : ViewModelBase
             LastTry = DateTime.Now
         }).ToList();
 
+        return ApplyApiRequest(items);
+    }
+
+    /// <summary>Carries a confirm-mode programmatic add's context onto the items the user just confirmed, so
+    /// a confirmed download is byte-for-byte the download a silent add would have created.</summary>
+    private List<DownloadItem> ApplyApiRequest(List<DownloadItem> items)
+    {
+        if (_apiRequest == null)
+            return items;
+
+        // Mirrors and a caller-picked variant only make sense for the link the request was ABOUT. If the
+        // user retyped the URL (or split it into several), they are addressing a different file and
+        // inheriting the old link's fallbacks or quality id would be wrong.
+        var unchanged = items.Count == 1 &&
+                        string.Equals(items[0].Url?.Trim(), _apiRequest.Url?.Trim(), StringComparison.Ordinal);
+        if (unchanged)
+        {
+            foreach (var mirror in _apiRequest.Mirrors.Where(m => !string.IsNullOrWhiteSpace(m)))
+                items[0].Urls.Add(mirror.Trim());
+            // A variant the user picked in this dialog wins over the one the caller asked for.
+            if (items[0].VariantId == null && !string.IsNullOrWhiteSpace(_apiRequest.VariantId))
+                items[0].VariantId = _apiRequest.VariantId.Trim();
+        }
+
+        foreach (var item in items)
+        {
+            item.FromBrowserDownload = _apiRequest.FromBrowser;
+            LocalApiService.ApplyRequestContext(item, _apiRequest);
+        }
         return items;
     }
 }

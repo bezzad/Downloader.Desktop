@@ -128,7 +128,9 @@ async function onDownloadCreated(item) {
     const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers, mirrors });
 
     // The app didn't take it. Say nothing and change nothing: the browser download is still running,
-    // which is the outcome the user already had.
+    // which is the outcome the user already had. In dialog mode (issue #13) this is also the branch a
+    // CANCELLED confirmation lands in — `handOffToApp` only reports ok once the app says the download
+    // was really added — so cancelling the dialog can never reach cancelBrowserDownload below.
     if (!result.ok) return;
 
     // Accepting is NOT fetching. `/api/add` answers 201 as soon as the item is queued, before the app

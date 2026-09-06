@@ -24,9 +24,9 @@ worthless if nothing ever requests it.
 
 ### Requirement: A server that refuses concurrent requests is retried with one connection
 
-When a download fails in a way that indicates the server refused the *request* rather than the *address* —
-a forbidden response while several connections were in flight — the app SHALL retry it once using a single
-connection before failing it. The user's configured maximum number of connections SHALL be treated as a
+The app SHALL retry such a download once using a single connection before failing it, when the failure
+indicates the server refused the *request* rather than the *address* — a forbidden response while several
+connections were in flight. The user's configured maximum number of connections SHALL be treated as a
 ceiling that a download may use, not a count every download must use.
 
 #### Scenario: A server that only tolerates a few connections still downloads

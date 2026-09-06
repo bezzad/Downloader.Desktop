@@ -1,8 +1,8 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: An intercepted download hands over every address the browser had
 
-When the extension takes over a download, it SHALL hand the app both addresses the browser knew: the end
+The extension SHALL hand the app both addresses the browser knew when it takes over a download: the end
 of the redirect chain, which is where the browser was actually fetching the file from, and the link the
 user clicked, which can be resolved again if the first has been spent. The address most likely to serve
 the file — the end of the chain — SHALL lead, and the other SHALL be handed over as a fallback the app is

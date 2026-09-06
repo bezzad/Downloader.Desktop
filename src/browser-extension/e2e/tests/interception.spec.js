@@ -43,11 +43,23 @@ async function setCachedPort(context, port) {
  *               queued the download and its own request never got anywhere. The browser's copy must
  *               survive it.
  *   "failing" — 201, then /api/list reports the download Failed.
+ *   "confirm-added"     — 202 + ticket (the app opened its Add dialog), then the user confirms.
+ *   "confirm-cancelled" — 202 + ticket, then the user cancels. Nothing was added, so the browser's
+ *                         own download must survive untouched (issue #13).
  */
 function startStubApp(behavior = "accept") {
   const adds = [];
   const ADD_ID = "11111111-1111-1111-1111-111111111111";
+  const confirming = behavior.startsWith("confirm-");
   const server = http.createServer((req, res) => {
+    // Before /api/add — it is a prefix of this path.
+    if (req.url.startsWith("/api/add-status")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(behavior === "confirm-added"
+        ? { ticket: "T1", state: "added", id: ADD_ID }
+        : { ticket: "T1", state: "cancelled" }));
+      return;
+    }
     if (req.url.startsWith("/ping")) {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       res.end("{}");
@@ -55,7 +67,7 @@ function startStubApp(behavior = "accept") {
     }
     if (req.url.startsWith("/api/list")) {
       const row = { id: ADD_ID, name: "sample.zip", status: "Running", size: 0, downloaded: 0 };
-      if (behavior === "accept") { row.size = 200120; row.downloaded = 8192; }
+      if (behavior === "accept" || behavior === "confirm-added") { row.size = 200120; row.downloaded = 8192; }
       if (behavior === "failing") { row.status = "Failed"; }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(adds.length ? [row] : []));
@@ -71,6 +83,12 @@ function startStubApp(behavior = "accept") {
         if (behavior === "reject") {
           res.writeHead(500, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "the app could not add it" }));
+          return;
+        }
+        if (confirming) {
+          // The app did NOT add anything: it opened its Add dialog and handed back a ticket.
+          res.writeHead(202, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ticket: "T1" }));
           return;
         }
         res.writeHead(201, { "Content-Type": "application/json" });
@@ -98,6 +116,12 @@ function startStubApp(behavior = "accept") {
     server.on("error", tryNext); // EADDRINUSE — move along
     tryNext();
   });
+}
+
+/** Set the popup's silent-vs-dialog choice through the extension's own helper. */
+async function setMode(context, mode) {
+  const [sw] = context.serviceWorkers();
+  await sw.evaluate(m => { setAddMode(m); }, mode);
 }
 
 /** Write the interception settings straight through the extension's own helper. */
@@ -188,6 +212,58 @@ test.describe("download interception", () => {
     expect(state).not.toBeNull();
     expect(state.state).toBe("interrupted");
     expect(state.error).toBe("USER_CANCELED");
+  });
+
+  // Issue #13: the popup's "Add silently" toggle was ignored on this path — an intercepted download
+  // was always added and started with no dialog. In dialog mode the hand-off must ASK first, and the
+  // browser's own copy may only be cancelled once the user has actually confirmed it.
+  test("in dialog mode an intercepted download asks the user before it is taken over", async ({ context }) => {
+    app = await startStubApp("confirm-added");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+    await setMode(context, "dialog");
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    await startBrowserDownload(context, "http://127.0.0.1:8991/sample.zip?attach=1&slow=1&confirmed=1");
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+
+    // It asked — and it asked over /api/add, so the dialog opens carrying the context a URL-only
+    // endpoint would have thrown away.
+    const add = app.adds[0];
+    expect(add.body.confirm).toBe(true);
+    expect(add.body.url).toContain("sample.zip");
+    expect(add.body.referer).toContain("127.0.0.1");
+    expect(add.body.fromBrowser).toBe(true);
+
+    // The user confirmed, so the take-over completes exactly as a silent one does.
+    const state = await downloadState(context, "confirmed=1");
+    expect(state).not.toBeNull();
+    expect(state.state).toBe("interrupted");
+    expect(state.error).toBe("USER_CANCELED");
+  });
+
+  test("cancelling the dialog leaves the browser's own download running", async ({ context }) => {
+    app = await startStubApp("confirm-cancelled");
+    test.skip(!app, "no free port in the app range for the stub");
+    await setCachedPort(context, app.port);
+    await setMode(context, "dialog");
+    await setSettings(context, { enabled: true, fileTypes: { mode: "allow", list: ["zip"] }, minSizeBytes: 0 });
+
+    const page = await context.newPage();
+    await page.goto("/empty.html");
+    await startBrowserDownload(context, "http://127.0.0.1:8991/sample.zip?attach=1&slow=1&declined=1");
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
+    expect(app.adds[0].body.confirm).toBe(true);
+
+    // Nothing was added, so nothing may be cancelled — the user keeps the file they were already
+    // getting. This is the same branch every other "the app didn't take it" failure lands in.
+    const state = await downloadState(context, "declined=1");
+    expect(state).not.toBeNull();
+    expect(state.state).not.toBe("interrupted");
   });
 
   // The APKPure regression (issue #9 follow-up). Nothing about this URL names the file: the path's

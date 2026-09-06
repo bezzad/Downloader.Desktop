@@ -47,5 +47,10 @@
 - [x] 4.1 Full solution rebuild with **0 warnings**, `dotnet test` green, `node --test` green, Playwright `npm test` green — all four.
 - [x] 4.2 Bump the extension version (the hand-off changed) and refresh its README where it describes which link is handed over.
 - [x] 4.3 Update `CLAUDE.md` / `docs/codebase-index.md`, and append to `.claude/skills/downloader-desktop/SKILL.md` the fact this change exists to record: **mirrors are load spreading, not failover** — the app now provides the failover, and any future change to the hand-off ordering must not assume the engine does it.
-- [ ] 4.4 Release as a patch version so the reporter can retest, and only then draft the issue #9 reply covering both the regression and the connection finding. **Show the text and wait for the author's explicit OK before posting** (standing rule).
-- [ ] 4.5 `/opsx:sync` the delta specs into `openspec/specs/`, then `/opsx:archive` this change.
+- [x] 4.4 Release as a patch version so the reporter can retest, and only then draft the issue #9 reply covering both the regression and the connection finding. **Show the text and wait for the author's explicit OK before posting** (standing rule).
+- [x] 4.5 `/opsx:sync` the delta specs into `openspec/specs/`, then `/opsx:archive` this change.
+
+> 4.4 shipped as **v2.9.0** (not a patch: the release also carried the extension installer, the
+> HLS audio fix and the quality picker). The #9 reply was approved and posted
+> (`issuecomment-5516121207`); the reporter confirmed interception works on Softpedia (external mirror
+> and zip), APKMirror and GitHub, and the remaining connection-count suggestion moved to #14.

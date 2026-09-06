@@ -285,6 +285,17 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableBrowserIntegration}" />
                     </Grid>
 
+                    <!-- Review downloads handed over by the extension or another local-API tool before
+                         they are added, instead of them appearing already running (issue #13). -->
+                    <Grid Classes="field" ColumnDefinitions="*,Auto" IsVisible="{Binding EnableBrowserIntegration}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_ConfirmProgrammaticAdds}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_ConfirmProgrammaticAdds_Hint}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding ConfirmProgrammaticAdds}" />
+                    </Grid>
+
                     <!-- Read-only status: which loopback address the API bound to + a live reachable dot. -->
                     <Grid Classes="field" ColumnDefinitions="*,Auto" IsVisible="{Binding EnableBrowserIntegration}">
                         <StackPanel Grid.Column="0">

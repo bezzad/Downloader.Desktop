@@ -281,6 +281,9 @@ public static class LocalApiService
                 case "add":
                     await HandleAddAsync(ctx, manager, config).ConfigureAwait(false);
                     break;
+                case "add-status":
+                    HandleAddStatus(ctx);
+                    break;
                 case "settings":
                     HandleSettings(ctx, config);
                     break;
@@ -450,6 +453,27 @@ public static class LocalApiService
             return;
         }
 
+        // Confirm mode: don't add anything — hand the whole request to the UI and answer at once with a
+        // ticket the caller can follow. Answering only after the user decides would be simpler code and the
+        // wrong behaviour: the extension's add timeout would fire long before a user who stepped away comes
+        // back, and it would read that as a failed hand-off.
+        if (ShouldConfirm(req, config))
+        {
+            var (ticket, opened) = RegisterPendingAdd();
+            if (opened)
+            {
+                var handler = OnAddConfirmationRequested;
+                if (handler == null)
+                    // No UI to ask (the app is running headless / still wiring up). Never fall back to a
+                    // silent add: the caller asked for the user's consent and would not get it.
+                    ResolvePendingAdd(ticket, null);
+                else
+                    Dispatcher.UIThread.Post(() => handler(req, ticket));
+            }
+            RespondJson(ctx, 202, new Dictionary<string, object> { ["ticket"] = ticket });
+            return;
+        }
+
         var result = await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var item = BuildItem(req, config);
@@ -469,6 +493,122 @@ public static class LocalApiService
             };
         });
         RespondJson(ctx, 201, result);
+    }
+
+    // ---------------- Confirmations pending the user's answer ----------------
+
+    /// <summary>What became of a programmatic add the user was asked to confirm.</summary>
+    public enum PendingAddState { Pending, Added, Cancelled }
+
+    /// <summary>One confirmation the user was asked for. <paramref name="Id"/> is the created item's id,
+    /// set only once the state is <see cref="PendingAddState.Added"/>.</summary>
+    public sealed record PendingAdd(string Ticket, PendingAddState State, string Id, DateTimeOffset At);
+
+    /// <summary>How long a ticket is remembered. A dialog the user never answers must not pin a ticket for
+    /// the life of the process, and an expired one reads as unknown (404) — never as added.</summary>
+    internal static TimeSpan PendingAddLifetime = TimeSpan.FromMinutes(10);
+
+    /// <summary>Clock seam so expiry is testable without waiting.</summary>
+    internal static Func<DateTimeOffset> PendingClock = () => DateTimeOffset.UtcNow;
+
+    private static readonly object PendingGate = new();
+    private static readonly Dictionary<string, PendingAdd> PendingAdds = new(StringComparer.Ordinal);
+
+    /// <summary>Called with a confirm-mode request and its ticket: surface the window, open the Add dialog
+    /// pre-filled, and resolve the ticket from what the user chose. Set by the app shell; always invoked on
+    /// the UI thread.</summary>
+    public static Action<ApiAddRequest, string> OnAddConfirmationRequested { get; set; }
+
+    /// <summary>Is this add request in confirm mode? An explicit <c>confirm</c> in the request always wins —
+    /// in BOTH directions, so the extension keeps control of its own paths (<c>confirm:false</c> stays silent
+    /// even with the setting on) and the setting is the blunt instrument for clients that send nothing.</summary>
+    public static bool ShouldConfirm(ApiAddRequest req, Config config) =>
+        req?.Confirm ?? config?.Settings?.ConfirmProgrammaticAdds ?? false;
+
+    /// <summary>Registers a confirmation and returns its ticket. <c>Opened</c> is false when another
+    /// confirmation is already awaiting an answer: that ticket is resolved as cancelled straight away rather
+    /// than stacking modals, so a page firing several downloads can never bury the user in windows.</summary>
+    internal static (string Ticket, bool Opened) RegisterPendingAdd()
+    {
+        var ticket = Guid.NewGuid().ToString("N");
+        lock (PendingGate)
+        {
+            DropExpired();
+            var busy = PendingAdds.Values.Any(p => p.State == PendingAddState.Pending);
+            PendingAdds[ticket] = new PendingAdd(ticket,
+                busy ? PendingAddState.Cancelled : PendingAddState.Pending, null, PendingClock());
+            return (ticket, !busy);
+        }
+    }
+
+    /// <summary>Records the user's answer: an item id for a confirmed add, null for a cancelled one.</summary>
+    public static void ResolvePendingAdd(string ticket, string id)
+    {
+        if (string.IsNullOrEmpty(ticket))
+            return;
+        lock (PendingGate)
+        {
+            if (!PendingAdds.TryGetValue(ticket, out var existing) || existing.State != PendingAddState.Pending)
+                return; // already resolved or expired — the first answer stands
+            PendingAdds[ticket] = existing with
+            {
+                State = id == null ? PendingAddState.Cancelled : PendingAddState.Added,
+                Id = id,
+                At = PendingClock()
+            };
+        }
+    }
+
+    /// <summary>The state of a ticket, or null when it is unknown or has expired.</summary>
+    internal static PendingAdd LookupPendingAdd(string ticket)
+    {
+        if (string.IsNullOrEmpty(ticket))
+            return null;
+        lock (PendingGate)
+        {
+            DropExpired();
+            return PendingAdds.TryGetValue(ticket, out var found) ? found : null;
+        }
+    }
+
+    /// <summary>Forgets every ticket (test seam — the store is process-wide).</summary>
+    internal static void ClearPendingAdds()
+    {
+        lock (PendingGate)
+            PendingAdds.Clear();
+    }
+
+    private static void DropExpired()
+    {
+        var cutoff = PendingClock() - PendingAddLifetime;
+        foreach (var stale in PendingAdds.Where(p => p.Value.At <= cutoff).Select(p => p.Key).ToList())
+            PendingAdds.Remove(stale);
+    }
+
+    private static void HandleAddStatus(HttpListenerContext ctx)
+    {
+        var ticket = QueryParam(ctx.Request.Url, "ticket");
+        if (string.IsNullOrWhiteSpace(ticket))
+        {
+            RespondJson(ctx, 400, new Dictionary<string, object> { ["error"] = "missing 'ticket'" });
+            return;
+        }
+
+        var pending = LookupPendingAdd(ticket.Trim());
+        if (pending == null)
+        {
+            RespondJson(ctx, 404, new Dictionary<string, object> { ["error"] = "unknown or expired ticket" });
+            return;
+        }
+
+        var body = new Dictionary<string, object>
+        {
+            ["ticket"] = pending.Ticket,
+            ["state"] = pending.State.ToString().ToLowerInvariant()
+        };
+        if (pending.Id != null)
+            body["id"] = pending.Id;
+        RespondJson(ctx, 200, body);
     }
 
     private static async Task HandleListAsync(HttpListenerContext ctx, IDownloadManager manager)
@@ -566,6 +706,19 @@ public static class LocalApiService
             LastTry = DateTime.Now
         };
 
+        ApplyRequestContext(item, req);
+        return item;
+    }
+
+    /// <summary>Copies a request's per-download context (cookies, headers, referer) onto an item. Shared by
+    /// the silent add and by the Add dialog a confirm-mode request opens, so a confirmed download carries
+    /// exactly what a silent one would have — the context is not the user's to edit, only the visible
+    /// fields are.</summary>
+    public static void ApplyRequestContext(DownloadItem item, ApiAddRequest req)
+    {
+        if (item == null || req == null)
+            return;
+
         // Whatever context the caller supplied travels with the item (issue #7) so the requests that fetch
         // the BYTES send it too, not just the resolver. Cookies and headers stay in memory for this session;
         // only the referer is persisted (see DownloadItem.Referer).
@@ -585,8 +738,6 @@ public static class LocalApiService
             try { item.CookieFilePath = CookieFile.WriteTempFile(req.Cookies); }
             catch (Exception ex) { AppLog.Warn($"Couldn't write temp cookie file: {ex.Message}"); }
         }
-
-        return item;
     }
 
     // ---------------- Which extension is talking to us ----------------
@@ -851,6 +1002,12 @@ public sealed class ApiAddRequest
     /// <see cref="DownloadItem.FromBrowserDownload"/>.</summary>
     public bool FromBrowser { get; set; }
 
+    /// <summary>Ask the user before adding this download, instead of adding it silently. UNSET (null) is
+    /// deliberately distinct from false: only an absent value lets the app's "ask before adding
+    /// programmatic downloads" setting decide. An explicit value wins over that setting in BOTH
+    /// directions — see <see cref="LocalApiService.ShouldConfirm"/>.</summary>
+    public bool? Confirm { get; set; }
+
     /// <summary>Human-readable validation error, or null when the request is usable.</summary>
     public string Error { get; set; }
 
@@ -872,6 +1029,9 @@ public sealed class ApiAddRequest
             if (root.TryGetProperty("fromBrowser", out var fromBrowser) &&
                 fromBrowser.ValueKind is JsonValueKind.False or JsonValueKind.True)
                 req.FromBrowser = fromBrowser.GetBoolean();
+            if (root.TryGetProperty("confirm", out var confirm) &&
+                confirm.ValueKind is JsonValueKind.False or JsonValueKind.True)
+                req.Confirm = confirm.GetBoolean();
             if (root.TryGetProperty("start", out var start) &&
                 start.ValueKind is JsonValueKind.False or JsonValueKind.True)
                 req.Start = start.GetBoolean();
@@ -910,6 +1070,9 @@ public sealed class ApiAddRequest
         };
         if (LocalApiService.QueryParam(requestUri, "fromBrowser") is { } fromBrowser)
             req.FromBrowser = !fromBrowser.Equals("false", StringComparison.OrdinalIgnoreCase) && fromBrowser != "0";
+        // Absent stays UNSET so the app's setting decides; a present value is explicit either way.
+        if (LocalApiService.QueryParam(requestUri, "confirm") is { } confirm)
+            req.Confirm = !confirm.Equals("false", StringComparison.OrdinalIgnoreCase) && confirm != "0";
         if (LocalApiService.QueryParam(requestUri, "start") is { } start)
             req.Start = !start.Equals("false", StringComparison.OrdinalIgnoreCase) && start != "0";
 

@@ -170,6 +170,24 @@ run the test is dead. Fixed by `[assembly: Xunit.CollectionBehavior(DisableTestP
 dispatcher; the suite runs in seconds). Don't re-enable it. Analyze future hang dumps with
 `dotnet-dump analyze <dmp> -c pstacks`; the in-flight tests are the `Completed="False"` rows in the blame
 `Sequence_*.xml`.
+
+**The OTHER CI killer — an unloading AssemblyLoadContext that throws (2026-09-06).** For months CI failed
+~55% of runs (33 of the last 60) with "Test host process crashed", naming a DIFFERENT innocent test every
+time (21 / 991 / 1408 tests in, on all three OSes, Debug and Release) — and it NEVER reproduced with a plain
+`dotnet test`. The missing ingredient is `--settings src/coverlet.runsettings`, which only CI passes:
+coverage instruments the HLS plugin, and coverlet's injected tracker registers a module-unload hook. When a
+collectible ALC holding that plugin unloads, the hook resolves `System.Threading.Thread` THROUGH that
+context; `LoadFromStream`/`LoadFromAssemblyPath` on an unloading context throws `InvalidOperationException`,
+which escapes as an **unhandled exception on the unload thread** (no user code above it) and kills the host.
+Fix: an unloading context must answer "not mine" (`return null`) so the default context serves the assembly
+— applied in BOTH `PluginManager.PluginLoadContext.ResolveDependency` (app code: the app unloads an ALC
+whenever a plugin is disabled/removed, so this could kill the app too) and the test's
+`PluginLoadTests.HostMirroringLoadContext`. Pinned by `Plugins/PluginLoadContextTests.cs`; it fails on the
+old code with the exact production exception. **To reproduce this class of bug locally you MUST pass the
+coverlet runsettings** — `taskset -c 0,1 dotnet test … --settings src/coverlet.runsettings --blame-hang
+--blame-hang-timeout 180s --blame-crash`; a run that reports "Passed! 1696" can STILL have written a
+crashdump, so check for `*dump*.dmp` in the results dir and grep the output for "Unhandled exception"
+rather than trusting the exit code.
 Headless smoke check (no display interaction): `timeout 10 dotnet run --project Downloader.Desktop/Downloader.Desktop.csproj` — a clean 10s run (SIGTERM/143) with no exceptions means it launched OK. Note: empty-list startup does NOT exercise row/file-kind icons.
 
 ## Regenerate README screenshots
@@ -755,6 +773,55 @@ broke it", and takes seconds. The `Sequence_*.xml` is worth reading: parse it fo
 `Completed="False"` (`re.findall(r'<Test Name="([^"]+)"[^>]*Completed="(\w+)"', xml)`) and you get
 both the culprit and the exact count of tests that did run.
 
+## THE "test host hung" CI ABORT — root-caused and fixed (2026-09-05). Read this before blaming flake.
+The intermittent abort (`Test Run Aborted` + `Total tests: Unknown` + `0 Error(s)` + an inactivity
+`hangdump.dmp`, blaming a random `UI.AppTests` test at wildly varying counts) was **a real deadlock in
+the app**, not test infrastructure. It had been written off as flake here since July.
+
+- **Cause:** the engine's `Dispose()` is `Clear().Wait()`, and `Clear()` awaits the semaphore that the
+  running `StartDownload` holds until it returns. `DownloadManager.ReleaseEngine` called that synchronous
+  `Dispose()` — and nearly every caller of it (`FinishTerminal`, `TryAutoRefreshLink`, `TryNextUrl`,
+  `TryReduceConnections`, plus the stall watchdog) is reached FROM the engine's own completion event via
+  `OnUi`. So it waited for the operation that was waiting for it, **on the UI thread**. Stack from the dump:
+  `Task.Wait() ← AbstractDownloadService.Dispose() ← ReleaseEngine ← FinishTerminal ← OnUi ←
+  <Attach>b__3 ← OnDownloadFileCompleted ← SendDownloadCompletionSignal ← StartDownload`.
+- **In the app this froze the window** when a download finished — it was never only a test problem. It
+  got more frequent after `0c6ca1d` added the connection-backoff retry paths (more `ReleaseEngine` calls).
+- **Fix:** `DownloadManager.DisposeOffStack` — `Task.Run` + `DisposeAsync`, so the callback returns, which
+  is what lets the operation release the semaphore. **Never call `engine.Dispose()` from a manager path
+  again**; anything reachable from an engine event must dispose off that stack.
+- **Why xunit's `Timeout` never fired:** it cannot time out a test whose dispatcher is the deadlocked
+  thing. That is why the blame landed on an innocent later test and why it looked random.
+- **Regression test:** `Integration/EngineReleaseBlockingTests.Releasing_from_inside_the_engines_own_
+  completion_does_not_deadlock` — releases from inside the engine's real `DownloadFileCompleted`, hopping
+  to the UI thread the way the app does. Verified: **hangs** on the old code (killed by an outer timeout,
+  exit 124/143, blowing past its own 180s Timeout) and passes in <0.5s with the fix. The weaker sibling
+  test ("does releasing a busy engine return quickly") passes EITHER way — `Clear()` cancels first when
+  the release is not nested in the callback — so do not treat it as the guard.
+- **How to catch this class of thing:** run the EXACT CI command locally (`--settings
+  src/coverlet.runsettings --blame-hang --blame-hang-timeout 180s --blame-crash`, under
+  `taskset -c 0,1`). It writes a `crashdump.dmp` even on a passing run; `dotnet-dump analyze <dmp> -c
+  pstacks` is what exposed this in one look. A healthy dump is ~36 lines (just coverlet's `UnloadModule`
+  at exit); the deadlocked one was 284.
+
+**`dotnet build` on this box intermittently prints `Internal CLR error. (0x80131506)`, exits 0, and does
+NOT recompile.** Two "verification" runs silently tested a stale binary because of it. After any build you
+intend to draw a conclusion from, prove the change is in the output — e.g.
+`strings …/bin/Debug/net10.0/linux-x64/Downloader.Desktop.dll | grep -c <NewSymbolName>` — and pick a
+symbol that only exists in the new code (a method you renamed, not one whose definition still exists).
+
+**The one-command way to prove a CI failure is the hang and not your change (2026-09-05).** It struck both
+Windows legs on `8fbf59c` while ubuntu×2 and macOS×2 were green. Do NOT start by reading your diff — start
+with `gh api "repos/bezzad/Downloader.Desktop/actions/workflows/dotnet-desktop.yml/runs?branch=develop&per_page=12"
+--jq '.workflow_runs[] | "\(.conclusion)\t\(.head_sha[0:7])\t\(.id)"'` and look for two commits whose code
+is IDENTICAL with different outcomes. Here `77233df` (sync) and `8fbf59c` (archive) are both docs-only, zero
+code delta: one passed all six legs, the other failed two. That is conclusive in one step, and the author's
+own `0c6ca1d` had already failed before any of the session's work. Confirm the signature in the job log
+(`Test Run Aborted` + `Total tests: Unknown` + `0 Error(s)` + an inactivity-triggered `hangdump.dmp`, with
+the two legs blaming DIFFERENT tests at wildly different counts — 150 vs 476), then `gh run rerun <id>
+--failed`; it went green. **Grab artifacts BEFORE re-running** (a re-run replaces them) — though note the
+Windows ones are ~400 MB because they carry the dumps, so usually the log alone is enough.
+
 **Never conditionally restore `LocalApiService`.** Three tests used the "remember whether it was running,
 only stop it if it wasn't" pattern, which PRESERVES another test's leak instead of clearing it — one leak
 then reached `AppShellStartupTests.Starting_up_builds_the_pages_and_re_applies_the_saved_choices`
@@ -775,6 +842,44 @@ executed `OpenFolderCommand` with no seam, so on CI it actually ran `xdg-open` �
 (*"file '/tmp/dldesktop-plugins-vm-…' does not exist"*) ended up quoted as the test host's crash reason,
 which is a great way to spend an hour blaming the wrong thing. Set `ShellLauncher.OpenOverride` (or
 `RunOverride`) and assert the target instead; both are `internal` seams visible to the test project.
+
+## The GitHub resolver claims by link SHAPE, and offers the release's assets (issue #14 follow-up, 2026-09-05)
+Reported as "it can't find any linux app link" from a pasted
+`github.com/<owner>/<repo>/releases#release-v2.10.0`. A live probe of the SHIPPED plugin proved the
+resolver *did* return `Downloader-linux-x64.tar.gz` — the Add window simply never said so, and that is the
+whole lesson: **a resolver that offers no variants hands the "Choose what to download" slot to the fallback
+plugin**, so the dialog showed the Website plugin's "Offline copy (.zip)" and nothing about the release.
+Diagnose this class of report by probing `FindResolver`/`GetVariantsAsync`/`ResolveAsync` directly (a
+throwaway gated `[Fact]` writing to a file — xunit v3 swallows `Console.WriteLine` under `-v q`), not by
+reading the resolver and assuming.
+- **`CanResolve` used to claim any `github.com/<owner>/<repo>/…` path while `ResolveAsync` always asked for
+  `releases/latest`.** So `/releases/tag/v2.9.0`, a DIRECT `/releases/download/v2.9.0/<file>` asset link,
+  `/issues/14` and `/blob/main/README.md` ALL downloaded v2.10.0's tarball. Now one pure
+  `GitHubLink.Parse` answers all three call sites (`GitHubLinkKind`: LatestRelease / TaggedRelease /
+  RawFile / NotClaimed). **Claiming a link you cannot improve is worse than not claiming it** — the app
+  downloads a plain URL correctly on its own, and a wrong claim silently substitutes a different file.
+- The tag comes from `/releases/tag/<tag>` **or the `#release-<tag>` anchor** GitHub puts on each entry of
+  its own releases page (that anchor was the only thing naming the release the reporter was looking at).
+- Assets are offered as variants with **`SubstituteUrl` = the asset's own download URL** — the SDK
+  documents release assets as exactly that case. The download's address becomes the asset, so a retry
+  re-fetches it without touching the API, and it composes with the narrower claim (a direct asset URL is
+  no longer claimed, so it downloads as itself).
+- **`name.Contains("win")` also matches `darwin`.** The OS match is a pure `PickAsset(assets, os, arch)`
+  over an injected OS/arch (so Windows and macOS are exercised from Linux) and prefers an architecture
+  match, which is what separates `osx-arm64` from `osx-x64`.
+- `GitHubReleasesResolver.ApiBase` + `ClearCache()` are internal test seams: `Plugins/GitHubVariantTests`
+  runs the whole listing/tag/failure surface against a loopback stand-in for the API, spending none of the
+  anonymous 60-requests-an-hour limit. The release lookup is cached 5 min so listing + resolving is ONE
+  request per user action.
+- The GitHub plugin is now **compile-referenced** by the test project (like Hls/Website/SiteMedia) for its
+  pure internals, and is STILL staged into `<testout>/plugins-sample` for the external-DLL loader test —
+  the ALC loads its own image from a stream, so the two uses don't interfere.
+- **A stale `Downloader.Desktop.SamplePlugin.dll` can linger in `<testout>/plugins-sample`** from before the
+  rename; `LoadFromDirectory` loads it too, and its OLD greedy `CanResolve` fails the new claim test. Delete
+  it — the folder is not cleaned by a rebuild. (It also means an old probe can be answered by the ancestor
+  plugin rather than the one you just built.)
+- It is a BUILT-IN plugin: its version is the `Version` string in code (1.0.0 → **1.1.0**), not a catalog
+  csproj.
 
 ## Two plugins cannot share source, and other lessons from adding SiteMedia (2026-08-30)
 - **Never link the same `.cs` into two plugin projects.** The obvious way to give the new site-media
@@ -1052,6 +1157,35 @@ download survives:
    demoted to one connection by the previous address's punishment. Bound: ≤ 2 attempts per address.
 3. **`TryAutoRefreshLink` — a fresh signature for the current address.**
 
+### The count is STEPPED and cached per host (issue #14, supersedes "one single-connection retry")
+`TryReduceConnections` no longer latches to one connection: it HALVES `vm.PlannedConnections`
+(8 → 4 → 2 → 1, `DownloadManager.NextConnectionCount`, capped by `MaxReducedConnectionAttempts`) and
+writes the result to `vm.AttemptConnections` (`int?`, null = use the ceiling — the old
+`ForceSingleConnection` bool is gone). A server that refused eight may serve four, and collapsing to one
+made that download four times slower than it had to be.
+- **Every step still discards the partial file**, for the reason it always did: a resumed download keeps
+  the chunk layout its package was created with, so asking for four connections while an eight-chunk
+  partial is on disk re-opens the same eight ranges and is refused again. That is also why the resume
+  guard (`vm.PreAttemptSize is not null` ⇒ no step down) must stay — a 403 on a resume is the
+  expired-link shape, and that path SAVES the partial.
+- **Where a download settles is remembered per HOST** (`Config.ServerConnectionLimits` +
+  `Services/ServerLimits`, pure over the dictionary). `Start` begins at
+  `ChooseStartingCount(host, ceiling, now)`, always clamped by the configured count — the Settings number
+  is a ceiling, and a remembered 8 must never beat a user who has since chosen 2. `MarkCompleted` records
+  a count below the ceiling and CLEARS the entry when the ceiling itself succeeded; entries expire after
+  `ServerLimits.RetestAfter` (7 days, settable in tests) so one bad minute on a CDN is not permanent.
+- **`ApplyConnectionCount` must also lower `ParallelCount`** when it is non-zero: it overrides
+  `ChunkCount` in the engine (0 means "same as ChunkCount"), so a leftover ceiling value would re-open
+  exactly the concurrency just backed off.
+- A stepped-down row says so (`IsReducingConnections` → `State_FewerConnections`, in all 16 packs) while
+  it is queued AND while it runs, and `Error_ServerRefusedConnections` no longer tells users to lower a
+  setting the app now manages. Decision tests: `Integration/AdaptiveConnectionTests`,
+  `Integration/UrlFailoverTests`, `Unit/ServerLimitsTests`.
+- **A loopback "accepts at most N connections" server is modelled on request SHAPE**, not on requests
+  actually overlapping: `PickyServer.MinRangeBytes` refuses any ranged body smaller than a threshold,
+  which is exactly "no slice smaller than 1/N of the file". Counting real overlap depends on core count
+  and passes while proving nothing on a two-core runner.
+
 Two traps worth keeping:
 
 - The connection backoff **deletes the partial file** (a resumed download keeps the chunk layout its
@@ -1184,6 +1318,19 @@ context. Keep `Progress<T>` in the VM — it is what stops a bound property bein
 background thread — and assert the progress contract against the SERVICE, where reports are collected
 synchronously. Same family as the two other timing traps above; the tell is "passes alone, fails in the
 full run, passes on re-run".
+
+**Now there is a helper — use `TestSupport/SyncProgress<T>`, not `new Progress<T>(…)`, in any test that
+ASSERTS on what was reported.** It implements `IProgress<T>` and records synchronously on the reporting
+thread (`.Reports` for the snapshot). This recurred on macOS CI 2026-09-05 as
+`ExtensionInstallServiceTests.Reporting_progress_reaches_one_hundred_percent` → `Assert.Contains() …
+Collection: []` — not "a wrong value", **no reports at all**, which is the signature. `Unit/SyncProgressTests`
+pins the mechanism with a deliberately non-pumping `SynchronizationContext`. Two other tests pass a
+`Progress<T>` but never assert on it, so they are fine as they are.
+Two gotchas met while writing that test: (a) do NOT `await` anything while a non-pumping context is
+current — the continuation is queued into it and the test hangs to its `Timeout` rather than failing (the
+same mechanism, from the other side), so make such a test non-async; (b) `Task.Run(...).GetAwaiter()
+.GetResult()` in a test trips `xUnit1031`/`xUnit1051` — unnecessary anyway, since `Progress<T>.Report`
+posts to the captured context no matter which thread calls it.
 
 ## Awaiting a `ReactiveCommand` from a plain `[Fact]` hangs
 `ReactiveCommand` delivers on `RxApp.MainThreadScheduler`, which in a plain `[Fact]` is whatever the last
@@ -1458,3 +1605,22 @@ the only test loop. Two things make that loop cheap:
   `~/.config/Downloader/extension/`. Stub both in every VM test, and note `Vm(...)` in
   `Unit/ExtensionInstallViewModelTests` defaults `bundledVersion` to `"0.0.1"` so catalog-focused tests
   are not steered by whatever version the app happens to ship.
+
+## A CI guard that diffs the PUSH is wrong on `main` — diff what it actually means (2026-09-04)
+- `extension.yml`'s bump guard ("extension code changed but the manifest version is already on AMO")
+  compared `github.event.before` → `GITHUB_SHA`. On `develop` that is one push's worth of commits and
+  the check is right. On **`main` the push is the release merge**, so the base is the PREVIOUS release
+  and the span covers every extension commit since then — while the manifest already carries the
+  version the `develop` run published to AMO minutes earlier. It therefore failed on EVERY release
+  (2026-09-02, -03, -04) for code that WAS published. A permanently red check is how a real AMO
+  failure goes unnoticed.
+- Fix: the base is the commit that **last SET the current manifest version** (walk
+  `git log --format=%H $GITHUB_SHA -- manifest.firefox.json` newest→oldest while the version at that
+  commit still equals the current one; the last such commit is the bump). Then the question is "has
+  anything changed since the bump?", which is branch- and event-independent. Needs `fetch-depth: 0`.
+- **Don't use `git log -S"…"` for this**: the pickaxe matches any commit where the string's COUNT
+  changed — including the commit that REMOVED that version — so it can resolve to the wrong commit.
+- Verify a workflow step without waiting for the next release: extract the step's `run` from the YAML
+  (`yaml.safe_load` → the step's `run`), and execute it locally with `GITHUB_SHA` pointed at the exact
+  commit that failed, plus synthetic commits in a throwaway `git worktree` for the negative cases. Then
+  make the step runnable on `workflow_dispatch` and dispatch it once for a real on-runner proof.

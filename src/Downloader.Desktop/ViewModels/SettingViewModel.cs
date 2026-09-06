@@ -303,6 +303,19 @@ public class SettingViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Ask before adding a download handed over through the local API (issue #13). Plain
+    /// persisted flag — the API reads it per request, so nothing has to be restarted for it to bite.</summary>
+    public bool ConfirmProgrammaticAdds
+    {
+        get => S.ConfirmProgrammaticAdds;
+        set
+        {
+            if (S.ConfirmProgrammaticAdds == value) return;
+            S.ConfirmProgrammaticAdds = value;
+            this.RaisePropertyChanged();
+        }
+    }
+
     /// <summary>The effective loopback address the local API bound to, e.g. "127.0.0.1:15151".</summary>
     public string LocalApiAddress
     {
