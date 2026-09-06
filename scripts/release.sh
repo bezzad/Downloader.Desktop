@@ -326,7 +326,16 @@ if [[ "$RESUME" != "yes" ]] && git rev-parse -q --verify "origin/$MAIN_BRANCH" >
     # put develop ahead again, so this is fine. Dying here blocked the v2.0.0 release.
     warn "$DEV_BRANCH has no commits beyond $MAIN_BRANCH — the version bump will be the release commit"
   else
-    die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH and VersionPrefix is already $VERSION — nothing to release"
+    # The version is already bumped AND already merged: the bump/merge half of a release ran, and
+    # only the tag is missing (a run that died after the merge, or a prepared release handed over
+    # from another machine). "Nothing to release" is about content, not about branch geometry — so
+    # ask the question that means it: has anything landed since the previous release?
+    NEW_SINCE_PREV="$(git rev-list --count "$PREV_TAG..origin/$MAIN_BRANCH" 2>/dev/null || echo 0)"
+    if [[ -n "$PREV_TAG" && "$NEW_SINCE_PREV" -gt 0 ]]; then
+      warn "$DEV_BRANCH == $MAIN_BRANCH and VersionPrefix is already $VERSION — bump and merge are already done; tagging $TAG"
+    else
+      die "$DEV_BRANCH has no commits beyond $MAIN_BRANCH and nothing new since ${PREV_TAG:-the last release} — nothing to release"
+    fi
   fi
 fi
 
@@ -429,14 +438,26 @@ else
   step "Merging $DEV_BRANCH -> $MAIN_BRANCH"
   git checkout "$MAIN_BRANCH"
   retry git pull --ff-only origin "$MAIN_BRANCH" || true
-  git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
-    merge --no-ff "$DEV_BRANCH" -m "release: $TAG (merge $DEV_BRANCH)"
-  retry git push origin "$MAIN_BRANCH"
-  ok "$MAIN_BRANCH updated"
+  # Already merged (a previous run died after this step, or the merge was prepared elsewhere):
+  # merging again would be a no-op commit-less run, so just say so and move on.
+  if git merge-base --is-ancestor "$DEV_BRANCH" "$MAIN_BRANCH"; then
+    warn "$MAIN_BRANCH already contains $DEV_BRANCH — nothing to merge"
+  else
+    git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
+      merge --no-ff "$DEV_BRANCH" -m "release: $TAG (merge $DEV_BRANCH)"
+    retry git push origin "$MAIN_BRANCH"
+    ok "$MAIN_BRANCH updated"
+  fi
 
   # --- 3. tag + push (triggers release.yml + snap.yml) ----------------------
   step "Tagging $TAG"
-  git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" tag -a "$TAG" -m "Downloader Desktop $TAG"
+  # A local tag can already exist from an earlier attempt whose push failed; reuse it rather than
+  # dying on "tag already exists", since the push below is what actually starts the release.
+  if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+    warn "local tag $TAG already exists — pushing it as is"
+  else
+    git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" tag -a "$TAG" -m "Downloader Desktop $TAG"
+  fi
   retry git push origin "$TAG"
   ok "pushed $TAG — release.yml (GitHub assets + curl) and snap.yml (Snap Store) are now building"
   S_RELEASE="tagged — CI building"
