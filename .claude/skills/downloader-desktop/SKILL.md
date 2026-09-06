@@ -170,6 +170,24 @@ run the test is dead. Fixed by `[assembly: Xunit.CollectionBehavior(DisableTestP
 dispatcher; the suite runs in seconds). Don't re-enable it. Analyze future hang dumps with
 `dotnet-dump analyze <dmp> -c pstacks`; the in-flight tests are the `Completed="False"` rows in the blame
 `Sequence_*.xml`.
+
+**The OTHER CI killer — an unloading AssemblyLoadContext that throws (2026-09-06).** For months CI failed
+~55% of runs (33 of the last 60) with "Test host process crashed", naming a DIFFERENT innocent test every
+time (21 / 991 / 1408 tests in, on all three OSes, Debug and Release) — and it NEVER reproduced with a plain
+`dotnet test`. The missing ingredient is `--settings src/coverlet.runsettings`, which only CI passes:
+coverage instruments the HLS plugin, and coverlet's injected tracker registers a module-unload hook. When a
+collectible ALC holding that plugin unloads, the hook resolves `System.Threading.Thread` THROUGH that
+context; `LoadFromStream`/`LoadFromAssemblyPath` on an unloading context throws `InvalidOperationException`,
+which escapes as an **unhandled exception on the unload thread** (no user code above it) and kills the host.
+Fix: an unloading context must answer "not mine" (`return null`) so the default context serves the assembly
+— applied in BOTH `PluginManager.PluginLoadContext.ResolveDependency` (app code: the app unloads an ALC
+whenever a plugin is disabled/removed, so this could kill the app too) and the test's
+`PluginLoadTests.HostMirroringLoadContext`. Pinned by `Plugins/PluginLoadContextTests.cs`; it fails on the
+old code with the exact production exception. **To reproduce this class of bug locally you MUST pass the
+coverlet runsettings** — `taskset -c 0,1 dotnet test … --settings src/coverlet.runsettings --blame-hang
+--blame-hang-timeout 180s --blame-crash`; a run that reports "Passed! 1696" can STILL have written a
+crashdump, so check for `*dump*.dmp` in the results dir and grep the output for "Unhandled exception"
+rather than trusting the exit code.
 Headless smoke check (no display interaction): `timeout 10 dotnet run --project Downloader.Desktop/Downloader.Desktop.csproj` — a clean 10s run (SIGTERM/143) with no exceptions means it launched OK. Note: empty-list startup does NOT exercise row/file-kind icons.
 
 ## Regenerate README screenshots

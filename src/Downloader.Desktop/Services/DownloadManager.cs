@@ -1690,7 +1690,13 @@ public partial class DownloadManager : IDownloadManager
 
             if (e.TotalBytesToReceive > 0)
                 vm.Size = e.TotalBytesToReceive;
-            vm.Status = DownloadStatus.Running;
+            // Never resurrect a row that is no longer running. This event is POSTED to the UI thread, so
+            // it can land after a Stop/Pause the user made while the engine was still starting. Forcing
+            // Running here undid the stop, and the cancellation already in flight then arrived while the
+            // row read Running — which the completion handler maps to Failed. So a stop at the wrong
+            // moment reported a failure for a download nothing had failed at.
+            if (vm.Status is DownloadStatus.Running or DownloadStatus.Created or DownloadStatus.None)
+                vm.Status = DownloadStatus.Running;
             NotifyList();
         });
 

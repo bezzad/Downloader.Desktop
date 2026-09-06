@@ -503,7 +503,7 @@ public sealed class PluginManager
     /// Default context) so a plugin's `IDownloaderPlugin`/`ILinkResolver` types are the SAME types as the
     /// host's — otherwise `IsAssignableFrom` would fail. Private plugin deps resolve via the ADR.
     /// </summary>
-    private sealed class PluginLoadContext : AssemblyLoadContext
+    internal sealed class PluginLoadContext : AssemblyLoadContext
     {
         private const string SharedSdk = "Downloader.Desktop.Plugins.Abstractions";
         private readonly AssemblyDependencyResolver _resolver;
@@ -524,12 +524,28 @@ public sealed class PluginManager
             return LoadFromStream(fs);
         }
 
-        protected override Assembly Load(AssemblyName assemblyName)
+        protected override Assembly Load(AssemblyName assemblyName) => ResolveDependency(assemblyName);
+
+        /// <summary>The dependency-resolution rule, separated from the runtime hook so it can be tested
+        /// directly (a <c>protected override</c> cannot be called from a test).</summary>
+        internal Assembly ResolveDependency(AssemblyName assemblyName)
         {
             if (assemblyName.Name == SharedSdk)
                 return null; // share the host's SDK copy → unified type identity
             var path = _resolver.ResolveAssemblyToPath(assemblyName);
-            return path != null ? LoadPluginAssembly(path) : null;
+            if (path == null) return null;
+            try
+            {
+                return LoadPluginAssembly(path);
+            }
+            catch (InvalidOperationException)
+            {
+                // The context is unloading. A late caller — a task the plugin started, a finalizer, a
+                // coverage tracker's exit hook — can still ask us to resolve something, and "not mine"
+                // lets the default context serve it. Throwing here escapes as an unhandled exception on
+                // the unload thread, with no user code above it to catch it, and kills the process.
+                return null;
+            }
         }
     }
 }
