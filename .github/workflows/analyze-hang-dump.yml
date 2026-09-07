@@ -99,10 +99,40 @@ jobs:
                 for f in _cancellationTokenSource _dispatchTask _queue; do
                   addr=$(echo "$fields" | awk -v n="$f" '$NF == n {print $(NF-1)}' | head -1)
                   if [ -n "${addr:-}" ] && [ "$addr" != "0000000000000000" ]; then
-                    echo "--- $f @ $addr  (CTS _state 0 = never cancelled; Task m_stateFlags says if the loop ended)"
+                    echo "--- $f @ $addr  (CTS _state 0 = never cancelled; Task m_stateFlags 0x200000 = FAULTED)"
                     dotnet-dump analyze "$dmp" -c "dumpobj $addr" -c "exit" 2>&1 | tail -35
                   fi
                 done
+                # The dispatch loop runs as a Task, so an escaping exception is CAPTURED on it rather
+                # than crashing the process. Walk to that exception: it is what killed the session.
+                task=$(echo "$fields" | awk '$NF == "_dispatchTask" {print $(NF-1)}' | head -1)
+                follow() { dotnet-dump analyze "$dmp" -c "dumpobj $1" -c "exit" 2>/dev/null | tr -d '\r' \
+                           | awk -v n="$2" '$NF == n {print $(NF-1)}' | head -1; }
+                if [ -n "${task:-}" ]; then
+                  cp_=$(follow "$task" m_contingentProperties)
+                  echo "--- contingent properties @ ${cp_:-<none>}"
+                  [ -n "${cp_:-}" ] && dotnet-dump analyze "$dmp" -c "dumpobj $cp_" -c "exit" 2>&1 | tail -25
+                  hold=$(follow "${cp_:-0}" m_exceptionsHolder)
+                  echo "--- exceptions holder @ ${hold:-<none>}"
+                  [ -n "${hold:-}" ] && dotnet-dump analyze "$dmp" -c "dumpobj $hold" -c "exit" 2>&1 | tail -25
+                  faults=$(follow "${hold:-0}" m_faultExceptions)
+                  echo "--- fault exceptions list @ ${faults:-<none>}"
+                  [ -n "${faults:-}" ] && dotnet-dump analyze "$dmp" -c "dumpobj $faults" -c "exit" 2>&1 | tail -20
+                  items=$(follow "${faults:-0}" _items)
+                  echo "--- list backing array @ ${items:-<none>}"
+                  if [ -n "${items:-}" ]; then
+                    dotnet-dump analyze "$dmp" -c "dumparray $items" -c "exit" 2>&1 | tail -20
+                    edi=$(dotnet-dump analyze "$dmp" -c "dumparray $items" -c "exit" 2>/dev/null | tr -d '\r' \
+                          | awk '/^\[0\]/ {print $2}' | head -1)
+                    echo "--- ExceptionDispatchInfo @ ${edi:-<none>}"
+                    if [ -n "${edi:-}" ]; then
+                      dotnet-dump analyze "$dmp" -c "dumpobj $edi" -c "exit" 2>&1 | tail -20
+                      exc=$(follow "$edi" _exception)
+                      echo "=== THE EXCEPTION THAT KILLED THE SESSION @ ${exc:-<none>} ==="
+                      [ -n "${exc:-}" ] && dotnet-dump analyze "$dmp" -c "printexception -nested $exc" -c "exit" 2>&1 | tail -60
+                    fi
+                  fi
+                fi
               done
             fi
             echo "::endgroup::"
