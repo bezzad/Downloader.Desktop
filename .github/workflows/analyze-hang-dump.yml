@@ -77,6 +77,14 @@ jobs:
             echo "::group::clrthreads — $name"
             dotnet-dump analyze "$dmp" -c "clrthreads" -c "exit" || echo "clrthreads failed for $name"
             echo "::endgroup::"
+            echo "::group::exceptions on the heap — $name"
+            dotnet-dump analyze "$dmp" -c "dumpheap -stat -type Exception" -c "exit" 2>&1 | tail -60 \
+              || echo "dumpheap failed for $name"
+            echo "::endgroup::"
+            echo "::group::pending async state machines — $name"
+            dotnet-dump analyze "$dmp" -c "dumpasync -stacks" -c "exit" 2>&1 | head -250 \
+              || echo "dumpasync failed for $name"
+            echo "::endgroup::"
           done
           if [ "$found" -eq 0 ]; then
             echo "No .dmp files in the artifact — nothing to analyse."
