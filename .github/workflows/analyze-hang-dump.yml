@@ -33,7 +33,7 @@ on:
 
 env:
   # Used by the push trigger, which cannot carry inputs. Change it to point the job at another run.
-  DEFAULT_RUN_ID: '34016675882'
+  DEFAULT_RUN_ID: '34097680007'
   DEFAULT_ARTIFACT: test-results-windows-latest-Debug
 
 jobs:
@@ -81,9 +81,21 @@ jobs:
             dotnet-dump analyze "$dmp" -c "dumpheap -stat -type Exception" -c "exit" 2>&1 | tail -60 \
               || echo "dumpheap failed for $name"
             echo "::endgroup::"
-            echo "::group::pending async state machines — $name"
-            dotnet-dump analyze "$dmp" -c "dumpasync -stacks" -c "exit" 2>&1 | head -250 \
-              || echo "dumpasync failed for $name"
+            echo "::group::headless session state — $name"
+            # Was the session CANCELLED (i.e. disposed) or did its thread stop some other way? The
+            # answer is the CancellationTokenSource's _state field: 0 means not cancelled.
+            addrs=$(dotnet-dump analyze "$dmp" -c "dumpheap -short -type HeadlessUnitTestSession" -c "exit" \
+                    2>/dev/null | tr -d '\r' | grep -E '^[0-9a-f]{8,}$' || true)
+            for a in $addrs; do
+              echo "--- HeadlessUnitTestSession @ $a"
+              dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>&1 | tail -40
+              cts=$(dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>/dev/null | tr -d '\r' \
+                    | grep -i 'CancellationTokenSource' | awk '{print $NF}' | head -1)
+              if [ -n "${cts:-}" ]; then
+                echo "--- its CancellationTokenSource @ $cts"
+                dotnet-dump analyze "$dmp" -c "dumpobj $cts" -c "exit" 2>&1 | tail -30
+              fi
+            done
             echo "::endgroup::"
           done
           if [ "$found" -eq 0 ]; then
