@@ -362,6 +362,83 @@ public class PageViewModelTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Exactly_one_queue_is_the_default_and_picking_another_moves_it()
+    {
+        var (manager, config) = Build();
+        manager.AddQueue("movies");
+        var page = new QueuesViewModel(config, manager);
+        var first = page.Queues[0];
+        var second = page.Queues[1];
+
+        Assert.True(first.IsDefault); // with no choice saved, the first queue is the default
+        Assert.False(second.IsDefault);
+
+        second.IsDefault = true;
+
+        // Radio semantics: ticking one card unticks every other.
+        Assert.True(second.IsDefault);
+        Assert.False(first.IsDefault);
+        Assert.Equal(second.Queue.Id, config.DefaultQueue.Id);
+        Assert.Equal(second.Queue.Id, config.DefaultQueueId); // persisted, so it survives a restart
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_default_queue_cannot_be_unticked()
+    {
+        var (manager, config) = Build();
+        manager.AddQueue("movies");
+        var page = new QueuesViewModel(config, manager);
+        var first = page.Queues[0];
+
+        first.IsDefault = false; // the app must always have a default — this is a no-op
+
+        Assert.True(first.IsDefault);
+        Assert.Equal(first.Queue.Id, config.DefaultQueue.Id);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Choosing_a_default_brings_the_settings_concurrency_with_it()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("movies");
+        extra.MaxConcurrent = 7;
+        var page = new QueuesViewModel(config, manager);
+
+        page.Queues.First(q => q.Queue.Id == extra.Id).IsDefault = true;
+
+        // Settings' "max concurrent" mirrors the DEFAULT queue, so it has to follow the new one —
+        // otherwise Settings would keep showing (and writing to) the old queue's cap.
+        Assert.Equal(7, config.Settings.MaxConcurrentDownloads);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Deleting_the_default_queue_leaves_a_valid_default()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("movies");
+        manager.SetDefaultQueue(extra);
+
+        manager.RemoveQueue(extra);
+
+        Assert.Null(config.DefaultQueueId);
+        Assert.Equal(config.Queues[0].Id, config.DefaultQueue.Id);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_download_lands_in_the_chosen_default_queue()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("movies");
+        extra.IsRunning = false;
+        manager.SetDefaultQueue(extra);
+
+        var vm = new AddDownloadItemViewModel(config, "https://10.255.255.1/a.zip", manager: manager);
+
+        Assert.Equal(extra.Id, vm.SelectedQueue.Id);
+        Assert.Equal(extra.Id, vm.BuildItems()[0].QueueId);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Cancelling_the_name_box_creates_nothing()
     {
         var (manager, config) = Build();

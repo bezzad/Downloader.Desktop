@@ -232,6 +232,8 @@
   "Btn_Close": "Fermi",
   "Queues_Title": "Atendovicoj",
   "Queues_Add": "Nova atendovico",
+  "Queues_Default": "Defaŭlta",
+  "Queues_DefaultTip": "Novaj elŝutoj iras al ĉi tiu vico",
   "Queues_CollapseAll": "Maletendi ĉiujn",
   "Queues_CollapseAllTip": "Maletendi aŭ etendi ĉiujn vicojn",
   "Queues_CollapseTip": "Maletendi aŭ etendi ĉi tiun vicon",

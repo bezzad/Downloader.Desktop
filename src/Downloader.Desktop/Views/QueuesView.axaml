@@ -59,7 +59,7 @@
                                 <!-- Header (#8): controls grouped by function with breathing room + thin
                                      dividers, so what's clickable reads at a glance — chevron | name |
                                      [cap group] | [run toggle] | [delete]. -->
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Center">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Center">
                                     <!-- Fold/unfold this queue's list (#10); header stays visible when collapsed -->
                                     <ToggleButton Grid.Column="0" IsChecked="{Binding IsExpanded, Mode=TwoWay}"
                                                   Classes="icon" Margin="0 0 8 0" ToolTip.Tip="{i18n:Tr Queues_CollapseTip}">
@@ -73,21 +73,29 @@
                                     <TextBox Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15"
                                              CornerRadius="6" VerticalContentAlignment="Center" MaxWidth="280"
                                              HorizontalAlignment="Left" ToolTip.Tip="{i18n:Tr Queues_Name}" />
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="16 0"
+                                    <!-- Default queue: a tick per card, but only ONE card can be ticked
+                                         (radio semantics live in the view model — clicking another card
+                                         moves the default; clicking the current one does nothing). -->
+                                    <CheckBox Grid.Column="2" IsChecked="{Binding IsDefault, Mode=TwoWay}"
+                                              Content="{i18n:Tr Queues_Default}" Margin="16 0 0 0"
+                                              VerticalAlignment="Center" ToolTip.Tip="{i18n:Tr Queues_DefaultTip}" />
+                                    <Border Grid.Column="3" Width="1" Height="22" Margin="16 0 0 0"
+                                            Background="{DynamicResource SystemBaseLowColor}" />
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" Margin="16 0"
                                                 VerticalAlignment="Center">
                                         <TextBlock Text="{i18n:Tr Queues_RunSameTime}" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource SystemBaseMediumColor}" />
                                         <NumericUpDown Value="{Binding MaxConcurrent}" Minimum="1" Maximum="20" Increment="1"
                                                        FormatString="N0" Width="110" VerticalContentAlignment="Center" />
                                     </StackPanel>
-                                    <Border Grid.Column="3" Width="1" Height="22" Margin="0 0 16 0"
+                                    <Border Grid.Column="5" Width="1" Height="22" Margin="0 0 16 0"
                                             Background="{DynamicResource SystemBaseLowColor}" />
-                                    <ToggleSwitch Grid.Column="4" IsChecked="{Binding IsRunning}"
+                                    <ToggleSwitch Grid.Column="6" IsChecked="{Binding IsRunning}"
                                                   OffContent="{i18n:Tr Queues_Paused}" OnContent="{i18n:Tr Queues_Running}"
                                                   VerticalAlignment="Center" ToolTip.Tip="{i18n:Tr Queues_ToggleTip}" />
-                                    <Border Grid.Column="5" Width="1" Height="22" Margin="16 0"
+                                    <Border Grid.Column="7" Width="1" Height="22" Margin="16 0"
                                             Background="{DynamicResource SystemBaseLowColor}" />
-                                    <Button Grid.Column="6" Classes="icon" Command="{Binding RemoveCommand}"
+                                    <Button Grid.Column="8" Classes="icon" Command="{Binding RemoveCommand}"
                                             ToolTip.Tip="{i18n:Tr Queues_DeleteTip}">
                                         <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
                                     </Button>

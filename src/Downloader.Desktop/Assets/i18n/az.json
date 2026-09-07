@@ -232,6 +232,8 @@
   "Btn_Close": "Bağla",
   "Queues_Title": "Növbələr",
   "Queues_Add": "Yeni növbə",
+  "Queues_Default": "Defolt",
+  "Queues_DefaultTip": "Yeni yükləmələr bu növbəyə gedir",
   "Queues_CollapseAll": "Hamısını yığ",
   "Queues_CollapseAllTip": "Bütün növbələri yığ və ya aç",
   "Queues_CollapseTip": "Bu növbəni yığ və ya aç",

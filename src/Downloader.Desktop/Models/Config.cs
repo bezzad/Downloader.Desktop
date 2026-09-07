@@ -38,6 +38,9 @@ public class Config
         set => IsThemeDarkMode = value == ThemeVariant.Dark;
     }
 
+    /// <summary>Id of the queue the user picked as default. Empty/unknown ⇒ the first queue.</summary>
+    public string DefaultQueueId { get; set; }
+
     /// <summary>The default/primary queue items land in when none is specified.</summary>
     [JsonIgnore]
     public DownloadQueue DefaultQueue
@@ -52,6 +55,14 @@ public class Config
                     // Every queue-creation path copies the Settings cap — this lazy fallback included.
                     MaxConcurrent = Settings?.MaxConcurrentDownloads ?? 3
                 });
+            // The chosen default, when it still exists; otherwise the first queue (a deleted default
+            // must never leave the app without one).
+            if (!string.IsNullOrWhiteSpace(DefaultQueueId))
+            {
+                var chosen = Queues.Find(q => q.Id == DefaultQueueId);
+                if (chosen != null)
+                    return chosen;
+            }
             return Queues[0];
         }
     }

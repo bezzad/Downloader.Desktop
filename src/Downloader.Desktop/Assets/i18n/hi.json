@@ -232,6 +232,8 @@
   "Btn_Close": "बंद करें",
   "Queues_Title": "क़तारें",
   "Queues_Add": "नई क़तार",
+  "Queues_Default": "डिफ़ॉल्ट",
+  "Queues_DefaultTip": "नए डाउनलोड इसी कतार में जाते हैं",
   "Queues_CollapseAll": "सभी समेटें",
   "Queues_CollapseAllTip": "सभी कतारें समेटें या खोलें",
   "Queues_CollapseTip": "यह कतार समेटें या खोलें",

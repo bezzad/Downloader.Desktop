@@ -232,6 +232,8 @@
   "Btn_Close": "Schließen",
   "Queues_Title": "Warteschlangen",
   "Queues_Add": "Neue Warteschlange",
+  "Queues_Default": "Standard",
+  "Queues_DefaultTip": "Neue Downloads landen in dieser Warteschlange",
   "Queues_CollapseAll": "Alle einklappen",
   "Queues_CollapseAllTip": "Alle Warteschlangen ein- oder ausklappen",
   "Queues_CollapseTip": "Diese Warteschlange ein- oder ausklappen",

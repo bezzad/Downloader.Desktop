@@ -232,6 +232,8 @@
   "Btn_Close": "إغلاق",
   "Queues_Title": "قوائم الانتظار",
   "Queues_Add": "قائمة جديدة",
+  "Queues_Default": "افتراضي",
+  "Queues_DefaultTip": "التنزيلات الجديدة تذهب إلى هذه القائمة",
   "Queues_CollapseAll": "طيّ الكل",
   "Queues_CollapseAllTip": "طيّ أو توسيع كل قوائم الانتظار",
   "Queues_CollapseTip": "طيّ أو توسيع قائمة الانتظار هذه",

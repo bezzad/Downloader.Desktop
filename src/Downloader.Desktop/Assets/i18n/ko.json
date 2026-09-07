@@ -232,6 +232,8 @@
   "Btn_Close": "닫기",
   "Queues_Title": "대기열",
   "Queues_Add": "새 대기열",
+  "Queues_Default": "기본",
+  "Queues_DefaultTip": "새 다운로드가 이 대기열로 들어갑니다",
   "Queues_CollapseAll": "모두 접기",
   "Queues_CollapseAllTip": "모든 대기열 접기/펼치기",
   "Queues_CollapseTip": "이 대기열 접기/펼치기",

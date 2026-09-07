@@ -162,7 +162,10 @@ public class QueuesViewModel : ViewModelBase
     private void RaiseQueuesChanged()
     {
         foreach (var row in Queues)
+        {
             row.RebuildItems();
+            row.RaiseIsDefaultChanged(); // the default may have moved to another card
+        }
     }
 }
 
@@ -344,6 +347,26 @@ public class QueueRowViewModel : ViewModelBase
             this.RaisePropertyChanged();
         }
     }
+
+    /// <summary>Whether this is the queue new downloads land in. Exactly one queue is the default, so
+    /// this behaves like a radio button: ticking it moves the default here (and unticks every other
+    /// card), and unticking the current default does nothing — the app must always have one.</summary>
+    public bool IsDefault
+    {
+        get => _config != null && ReferenceEquals(Queue, _config.DefaultQueue);
+        set
+        {
+            if (!value || IsDefault)
+            {
+                this.RaisePropertyChanged(); // restore the tick a click tried to clear
+                return;
+            }
+            _manager?.SetDefaultQueue(Queue); // QueuesChanged → every card re-reads IsDefault
+        }
+    }
+
+    /// <summary>Re-reads <see cref="IsDefault"/> after the default moved to another card.</summary>
+    internal void RaiseIsDefaultChanged() => this.RaisePropertyChanged(nameof(IsDefault));
 
     public int MaxConcurrent
     {

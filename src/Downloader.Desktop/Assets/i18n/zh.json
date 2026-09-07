@@ -232,6 +232,8 @@
   "Btn_Close": "关闭",
   "Queues_Title": "队列",
   "Queues_Add": "新建队列",
+  "Queues_Default": "默认",
+  "Queues_DefaultTip": "新下载将进入此队列",
   "Queues_CollapseAll": "全部折叠",
   "Queues_CollapseAllTip": "折叠或展开所有队列",
   "Queues_CollapseTip": "折叠或展开此队列",

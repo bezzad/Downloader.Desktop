@@ -232,6 +232,8 @@
   "Btn_Close": "閉じる",
   "Queues_Title": "キュー",
   "Queues_Add": "新しいキュー",
+  "Queues_Default": "既定",
+  "Queues_DefaultTip": "新しいダウンロードはこのキューに入ります",
   "Queues_CollapseAll": "すべて折りたたむ",
   "Queues_CollapseAllTip": "すべてのキューを折りたたみ/展開",
   "Queues_CollapseTip": "このキューを折りたたみ/展開",
