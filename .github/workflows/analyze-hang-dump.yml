@@ -1,0 +1,73 @@
+# Reads a hang dump produced by a CI test run and prints managed stacks to the log.
+#
+# The dumps `--blame-hang` writes are platform-native: `dotnet-dump analyze` refuses a Windows or macOS
+# dump when it is running on Linux, so the recurring "test host hung" abort cannot be investigated from
+# a Linux dev box at all. This job runs the analysis on the runner OS that produced the dump.
+#
+# Dispatch it with the id of the run whose artifact holds the dump, e.g.
+#   gh workflow run analyze-hang-dump.yml -f run_id=34016675882
+name: Analyze hang dump
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Run id whose test-results artifact holds the hang dump
+        required: true
+      artifact:
+        description: Artifact name to download
+        required: false
+        default: test-results-windows-latest-Debug
+      os:
+        description: "Runner to analyse on — must match the OS that wrote the dump"
+        required: false
+        default: windows-latest
+        type: choice
+        options: [windows-latest, macos-latest, ubuntu-latest]
+
+jobs:
+  analyze:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download the dump artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ inputs.run_id }} --repo ${{ github.repository }} -n ${{ inputs.artifact }} -D dump
+
+      - name: Install dotnet-dump
+        run: dotnet tool install -g dotnet-dump
+
+      - name: Analyse every dump in the artifact
+        shell: bash
+        run: |
+          set -u
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          found=0
+          seen=""
+          # The artifact carries each dump twice (the collector's own folder and the runner copy);
+          # de-duplicate by file name so a 500 MB dump is not analysed twice.
+          for dmp in $(find dump -name '*.dmp' | sort); do
+            name=$(basename "$dmp")
+            case " $seen " in *" $name "*) continue ;; esac
+            seen="$seen $name"
+            found=$((found + 1))
+            echo "::group::pstacks — $name"
+            dotnet-dump analyze "$dmp" -c "pstacks" -c "exit" || echo "pstacks failed for $name"
+            echo "::endgroup::"
+            echo "::group::clrthreads — $name"
+            dotnet-dump analyze "$dmp" -c "clrthreads" -c "exit" || echo "clrthreads failed for $name"
+            echo "::endgroup::"
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No .dmp files in the artifact — nothing to analyse."
+            exit 1
+          fi
