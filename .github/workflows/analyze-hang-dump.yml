@@ -82,20 +82,27 @@ jobs:
               || echo "dumpheap failed for $name"
             echo "::endgroup::"
             echo "::group::headless session state — $name"
-            # Was the session CANCELLED (i.e. disposed) or did its thread stop some other way? The
-            # answer is the CancellationTokenSource's _state field: 0 means not cancelled.
-            addrs=$(dotnet-dump analyze "$dmp" -c "dumpheap -short -type HeadlessUnitTestSession" -c "exit" \
-                    2>/dev/null | tr -d '\r' | grep -E '^[0-9a-f]{8,}$' || true)
-            for a in $addrs; do
-              echo "--- HeadlessUnitTestSession @ $a"
-              dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>&1 | tail -40
-              cts=$(dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>/dev/null | tr -d '\r' \
-                    | grep -i 'CancellationTokenSource' | awk '{print $NF}' | head -1)
-              if [ -n "${cts:-}" ]; then
-                echo "--- its CancellationTokenSource @ $cts"
-                dotnet-dump analyze "$dmp" -c "dumpobj $cts" -c "exit" 2>&1 | tail -30
-              fi
-            done
+            # Was the session CANCELLED (i.e. disposed) or did its thread stop another way? The answer is
+            # the CancellationTokenSource's _state field: 0 means never cancelled.
+            # Resolve the EXACT type's method table first — a -type substring search also matches the
+            # static Dictionary<Assembly, HeadlessUnitTestSession> that holds it.
+            mt=$(dotnet-dump analyze "$dmp" -c "dumpheap -stat -type Avalonia.Headless.HeadlessUnitTestSession" -c "exit" \
+                 2>/dev/null | tr -d '\r' \
+                 | awk '$NF == "Avalonia.Headless.HeadlessUnitTestSession" {print $1}' | head -1)
+            echo "method table: ${mt:-<not found>}"
+            if [ -n "${mt:-}" ]; then
+              for a in $(dotnet-dump analyze "$dmp" -c "dumpheap -short -mt $mt" -c "exit" 2>/dev/null \
+                         | tr -d '\r' | grep -E '^[0-9a-f]{8,}$'); do
+                echo "--- HeadlessUnitTestSession @ $a"
+                dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>&1 | tail -40
+                cts=$(dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>/dev/null | tr -d '\r' \
+                      | awk '/CancellationTokenSource/ {print $(NF-1)}' | head -1)
+                if [ -n "${cts:-}" ] && [ "$cts" != "0000000000000000" ]; then
+                  echo "--- its CancellationTokenSource @ $cts (_state 0 = never cancelled)"
+                  dotnet-dump analyze "$dmp" -c "dumpobj $cts" -c "exit" 2>&1 | tail -30
+                fi
+              done
+            fi
             echo "::endgroup::"
           done
           if [ "$found" -eq 0 ]; then
