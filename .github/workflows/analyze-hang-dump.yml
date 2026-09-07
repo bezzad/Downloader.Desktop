@@ -95,12 +95,14 @@ jobs:
                          | tr -d '\r' | grep -E '^[0-9a-f]{8,}$'); do
                 echo "--- HeadlessUnitTestSession @ $a"
                 dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>&1 | tail -40
-                cts=$(dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>/dev/null | tr -d '\r' \
-                      | awk '/CancellationTokenSource/ {print $(NF-1)}' | head -1)
-                if [ -n "${cts:-}" ] && [ "$cts" != "0000000000000000" ]; then
-                  echo "--- its CancellationTokenSource @ $cts (_state 0 = never cancelled)"
-                  dotnet-dump analyze "$dmp" -c "dumpobj $cts" -c "exit" 2>&1 | tail -30
-                fi
+                fields=$(dotnet-dump analyze "$dmp" -c "dumpobj $a" -c "exit" 2>/dev/null | tr -d '\r')
+                for f in _cancellationTokenSource _dispatchTask _queue; do
+                  addr=$(echo "$fields" | awk -v n="$f" '$NF == n {print $(NF-1)}' | head -1)
+                  if [ -n "${addr:-}" ] && [ "$addr" != "0000000000000000" ]; then
+                    echo "--- $f @ $addr  (CTS _state 0 = never cancelled; Task m_stateFlags says if the loop ended)"
+                    dotnet-dump analyze "$dmp" -c "dumpobj $addr" -c "exit" 2>&1 | tail -35
+                  fi
+                done
               done
             fi
             echo "::endgroup::"
