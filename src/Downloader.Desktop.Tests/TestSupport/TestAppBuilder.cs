@@ -13,6 +13,24 @@ using Downloader.Desktop.Tests;
 // so parallelism bought nothing (suite runs in seconds) while causing the intermittent freeze.
 [assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
 
+// Build the Avalonia application ONCE for the whole assembly. The default is
+// AvaloniaTestIsolationLevel.PerTest, which tears the application down and rebuilds it for EVERY test —
+// and that rebuild is what caused the recurring "test host hung / Total tests: Unknown" CI abort.
+//
+// Root cause, from the hang dump of run 34016675882 (see the project skill for the full chain):
+// HeadlessUnitTestSession's per-test path calls EnsureIsolatedApplication() -> AppBuilder.SetupUnsafe()
+// -> AvaloniaHeadlessPlatform.Initialize -> new Compositor(...) -> RenderLoop.Add, which occasionally
+// fails its own Dispatcher.VerifyAccess with "The calling thread cannot access this object because a
+// different thread owns it". That call sits BEFORE the try that completes the test's
+// TaskCompletionSource, so the throw both orphaned the test and faulted the session's dispatch loop
+// task: the dispatcher was gone and every later test parked for ever, with the abort blaming whichever
+// innocent test happened to be next in line.
+//
+// PerAssembly uses EnsureSharedApplication instead, which runs SetupUnsafe() once per process, so the
+// failing call is no longer on the per-test path at all. It also stops rebuilding the whole application
+// ~1700 times a run.
+[assembly: Avalonia.Headless.AvaloniaTestIsolation(Avalonia.Headless.AvaloniaTestIsolationLevel.PerAssembly)]
+
 namespace Downloader.Desktop.Tests;
 
 public static class TestAppBuilder

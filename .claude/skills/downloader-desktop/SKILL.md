@@ -1689,9 +1689,17 @@ re-derive any of this**, and in particular do not start by reading the blamed te
 - **It does not reproduce on Linux.** 19 consecutive full-suite runs with the exact CI command (coverlet
   runsettings, `--blame-hang`, `taskset -c 0,1`) were clean. Both recent occurrences were
   windows-latest/Debug and macos-latest/Debug; ubuntu has been green throughout.
-- **Mitigations, none free.** `AvaloniaTestIsolationLevel.PerAssembly` would stop the per-test rebuild
-  outright and is the obvious fix, but it SEGFAULTS here (exit 139 after 658 tests) — see above. Worth
-  reporting upstream to Avalonia with the stack above. Until then the abort stays a known flake: re-run
-  the failed leg, and do not spend time on whichever test it names.
+- **THE FIX (applied 2026-09-07): `[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]`**
+  in `TestSupport/TestAppBuilder.cs`. PerAssembly routes through `EnsureSharedApplication`, which calls
+  `SetupUnsafe()` once per process, so the throwing call is no longer on the per-test path at all. Pinned
+  by `UI/TestIsolationLevelTests`.
+- **An earlier note here claimed PerAssembly SEGFAULTS (exit 139 after 658 tests). That was WRONG** — the
+  measurement was taken while a second full suite was still running in the same tree, which is the
+  concurrent-run hazard documented above. Measured properly: **8 consecutive full runs, 1702/1702 green
+  each**, with the exact CI flags under `taskset -c 0,1`. Lesson: never benchmark or bisect while another
+  `dotnet test` is live in the same worktree — check `ps` first.
+- Screenshot capture still works under PerAssembly. Note the capture set has its OWN pre-existing
+  non-determinism (a `DLDESKTOP_CAPTURE=1` run rewrites one or two PNGs — `about-dark`,
+  `details-refresh-dark` — with no code change, under PerTest as well). Don't attribute that to isolation.
 - Next occurrence, grab the artifact BEFORE re-running (a re-run replaces it) and point the analysis
   workflow at it by committing a new `DEFAULT_RUN_ID`; the walk to the captured exception is automated.
