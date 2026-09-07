@@ -8,7 +8,13 @@
 #   gh workflow run analyze-hang-dump.yml -f run_id=34016675882
 name: Analyze hang dump
 
+# `workflow_dispatch` only works once this file is on the default branch, and this repo merges to main
+# for releases only. The push trigger is scoped to THIS file so the job can be run from develop by
+# committing the run id below — it can never fire for ordinary work.
 on:
+  push:
+    branches: [develop]
+    paths: ['.github/workflows/analyze-hang-dump.yml']
   workflow_dispatch:
     inputs:
       run_id:
@@ -25,9 +31,14 @@ on:
         type: choice
         options: [windows-latest, macos-latest, ubuntu-latest]
 
+env:
+  # Used by the push trigger, which cannot carry inputs. Change it to point the job at another run.
+  DEFAULT_RUN_ID: '34016675882'
+  DEFAULT_ARTIFACT: test-results-windows-latest-Debug
+
 jobs:
   analyze:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ inputs.os || 'windows-latest' }}
     timeout-minutes: 45
     permissions:
       actions: read
@@ -41,7 +52,7 @@ jobs:
       - name: Download the dump artifact
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download ${{ inputs.run_id }} --repo ${{ github.repository }} -n ${{ inputs.artifact }} -D dump
+        run: gh run download ${{ inputs.run_id || env.DEFAULT_RUN_ID }} --repo ${{ github.repository }} -n ${{ inputs.artifact || env.DEFAULT_ARTIFACT }} -D dump
 
       - name: Install dotnet-dump
         run: dotnet tool install -g dotnet-dump
