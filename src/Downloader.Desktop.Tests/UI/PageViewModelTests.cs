@@ -316,6 +316,67 @@ public class PageViewModelTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Renaming_a_queue_renames_it_in_the_toolbar_menus_and_on_the_rows()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("videos");
+        var item = Add(manager, "clip.mkv", DownloadStatus.Created);
+        item.GetItem().QueueId = extra.Id;
+        var downloads = new DownloadsViewModel(manager);
+        var queues = new QueuesViewModel(config, manager);
+
+        queues.Queues.First(q => q.Queue.Id == extra.Id).Name = "movies";
+
+        // The menus cache the name they were built with, so a rename has to rebuild them.
+        Assert.Contains(downloads.StartQueueTargets, t => t.Name == "movies");
+        Assert.Contains(downloads.StopQueueTargets, t => t.Name == "movies");
+        Assert.DoesNotContain(downloads.StartQueueTargets, t => t.Name == "videos");
+        Assert.Equal("movies", item.QueueName);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_queue_is_only_created_once_it_has_a_name()
+    {
+        var (manager, config) = Build();
+        var page = new QueuesViewModel(config, manager);
+        var before = page.Queues.Count;
+
+        page.NewQueueCommand.Execute(null);
+        Assert.True(page.IsAddingQueue);
+        Assert.Equal(before, page.Queues.Count); // nothing added yet — the user names it first
+
+        page.NewQueueName = "   ";
+        page.ConfirmNewQueue();
+        Assert.Equal(before, page.Queues.Count); // a blank name creates nothing
+        Assert.True(page.IsAddingQueue);
+
+        var scrolled = false;
+        page.QueueAdded += () => scrolled = true;
+        page.NewQueueName = "movies";
+        page.ConfirmNewQueue();
+
+        Assert.Equal(before + 1, page.Queues.Count);
+        Assert.Contains(page.Queues, q => q.Name == "movies");
+        Assert.False(page.IsAddingQueue);
+        Assert.True(scrolled); // the page scrolls the new card into view
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Cancelling_the_name_box_creates_nothing()
+    {
+        var (manager, config) = Build();
+        var page = new QueuesViewModel(config, manager);
+        var before = page.Queues.Count;
+
+        page.NewQueueCommand.Execute(null);
+        page.NewQueueName = "movies";
+        page.CancelNewQueueCommand.Execute(null);
+
+        Assert.Equal(before, page.Queues.Count);
+        Assert.False(page.IsAddingQueue);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void The_queue_column_appears_only_once_a_second_queue_exists()
     {
         var (manager, config) = Build();

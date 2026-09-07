@@ -1703,3 +1703,23 @@ re-derive any of this**, and in particular do not start by reading the blamed te
   `details-refresh-dark` — with no code change, under PerTest as well). Don't attribute that to isolation.
 - Next occurrence, grab the artifact BEFORE re-running (a re-run replaces it) and point the analysis
   workflow at it by committing a new `DEFAULT_RUN_ID`; the walk to the captured exception is automated.
+
+## Queue naming (rename propagation, name-first creation, batch suggestion) — 2026-09-07
+- **A queue rename must go through `IDownloadManager.RenameQueue`.** `QueueActionTarget` (the toolbar's
+  Start/Stop-queue menus) snapshots the name it was built with, and a row's `QueueName` is a computed
+  property nothing re-raises — so writing `Queue.Name` directly (what `QueueRowViewModel.Name` used to do)
+  left the OLD name in both places until a restart. `RenameQueue` re-raises `QueueName` on that queue's
+  rows and fires `QueuesChanged`, which rebuilds the menus in place. It deliberately does NOT trim or
+  reject a blank name: the setter runs on every keystroke of the name box, and altering the text mid-edit
+  snaps it back under the cursor. It also skips `NotifyList()` (a per-keystroke grid refresh is too costly
+  and the per-row re-raise already covers the Queue column).
+- **The Queues page names a queue BEFORE creating it** (`IsAddingQueue`/`NewQueueName`/`ConfirmNewQueue`,
+  same inline-box shape as the Add dialog, Enter confirms / Esc cancels). Creating an unnamed "New queue"
+  card at the bottom of a long list read as "nothing happened". After creating, the VM raises `QueueAdded`
+  and `QueuesView` scrolls `PageScroller` to the end (Offset is clamped, so "past the end" lands at the
+  bottom) — a new card is always appended.
+- **A batch add offers a queue name**: `Services/QueueNameSuggester.Suggest(urls)` (pure) takes the links'
+  file names, splits them on `. - _ space +`, keeps the common leading tokens and drops trailing numbering
+  (`S01`, `E02`, `part3`) → `The.X.Movie`. Links with no file name (page URLs) give null and the Add dialog
+  falls back to `Localizer["Queues_Add"]` ("New queue"). The dialog opens its inline box pre-filled on any
+  paste of >= 2 links; cancelling sets a dismissed flag so it is not offered again in that dialog.

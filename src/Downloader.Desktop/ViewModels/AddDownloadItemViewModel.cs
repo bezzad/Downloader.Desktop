@@ -23,6 +23,8 @@ public class AddDownloadItemViewModel : ViewModelBase
     private readonly Func<Task<string>> _readClipboard;
     private bool _isAddingQueue;
     private string _newQueueName;
+    private string _lastSuggestion;
+    private bool _queueSuggestionDismissed;
     private readonly TimeSpan _resolveDebounce;
     private string _urls;
     private string _fileName;
@@ -100,12 +102,18 @@ public class AddDownloadItemViewModel : ViewModelBase
         ClearUrlsCommand = ReactiveCommand.Create(() => { Urls = string.Empty; });
         AddQueueCommand = ReactiveCommand.Create(() => { IsAddingQueue = true; });
         ConfirmAddQueueCommand = ReactiveCommand.Create(ConfirmAddQueue);
-        CancelAddQueueCommand = ReactiveCommand.Create(() => { NewQueueName = string.Empty; IsAddingQueue = false; });
+        CancelAddQueueCommand = ReactiveCommand.Create(() =>
+        {
+            NewQueueName = string.Empty;
+            IsAddingQueue = false;
+            _queueSuggestionDismissed = true; // don't re-offer a queue name they just turned down
+        });
 
         if (!string.IsNullOrWhiteSpace(_urls))
         {
             TriggerResolve();
             TriggerVariantLookup();
+            SuggestQueueForBatch();
         }
         RefreshResolverBadge();
 
@@ -161,6 +169,7 @@ public class AddDownloadItemViewModel : ViewModelBase
             TriggerResolve();
             TriggerVariantLookup();
             RefreshResolverBadge();
+            SuggestQueueForBatch();
         }
     }
 
@@ -550,6 +559,24 @@ public class AddDownloadItemViewModel : ViewModelBase
     {
         get => _newQueueName;
         set => this.RaiseAndSetIfChanged(ref _newQueueName, value);
+    }
+
+    /// <summary>Offers a name for a batch of links (a new queue keeps them together instead of piling
+    /// them into the main one). The name comes from what the links' file names share; when they share
+    /// nothing usable it's just "New queue". Opens the inline box pre-filled, so the user only has to
+    /// confirm — or cancel, which drops the offer for the rest of this dialog.</summary>
+    private void SuggestQueueForBatch()
+    {
+        if (_manager == null || _queueSuggestionDismissed || _parsed.Count < 2)
+            return;
+
+        // Don't overwrite a name the user typed themselves.
+        if (IsAddingQueue && !string.IsNullOrWhiteSpace(NewQueueName) && NewQueueName != _lastSuggestion)
+            return;
+
+        _lastSuggestion = QueueNameSuggester.Suggest(_parsed) ?? Localizer.Instance["Queues_Add"];
+        NewQueueName = _lastSuggestion;
+        IsAddingQueue = true;
     }
 
     /// <summary>Creates the queue through the manager (so QueuesChanged/pump wiring stays consistent),
