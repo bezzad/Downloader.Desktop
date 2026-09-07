@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -432,7 +434,14 @@ public class PageViewModelTests
         extra.IsRunning = false;
         manager.SetDefaultQueue(extra);
 
-        var vm = new AddDownloadItemViewModel(config, "https://10.255.255.1/a.zip", manager: manager);
+        // Stub the name probe: a real single-link dialog probes the URL, and an unreachable address
+        // would leave a 100-second HTTP attempt running behind the test.
+        var vm = new AddDownloadItemViewModel(
+            config, "https://10.255.255.1/a.zip",
+            resolveFileInfo: (_, _) => Task.FromResult<(string FileName, long FileSize)?>(null),
+            resolveDebounce: TimeSpan.Zero,
+            readClipboard: () => Task.FromResult<string>(null),
+            manager: manager);
 
         Assert.Equal(extra.Id, vm.SelectedQueue.Id);
         Assert.Equal(extra.Id, vm.BuildItems()[0].QueueId);
