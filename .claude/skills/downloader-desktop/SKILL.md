@@ -1644,9 +1644,34 @@ re-derive any of this**, and in particular do not start by reading the blamed te
   session — which is why every occurrence names a different, fast, innocent test, and why neither xunit's
   `Timeout` nor a test's own deadline loop fires (both need the dispatcher that is gone). The
   `Sequence_*.xml` showing exactly one `Completed="False"` row does NOT mean that test was executing.
-- **The session thread exited CLEANLY, it did not crash.** An unhandled exception on a background thread
-  would kill the process; the process was alive at dump time (macOS log even prints "Target process is
-  alive"). `HeadlessUnitTestSession`'s loop ends only when its `CancellationTokenSource` is cancelled.
+- **ROOT CAUSE (from the faulted task's captured exception).** The session loop runs as a *Task*, so an
+  escaping exception is captured on it instead of crashing the process — which is exactly why this hangs
+  rather than dies. In the dump `_dispatchTask.m_stateFlags` is `0x232008`, and `0x200000` is
+  `TASK_STATE_FAULTED`; its `m_contingentProperties → m_exceptionsHolder` holds:
+
+  ```
+  System.InvalidOperationException
+  "The calling thread cannot access this object because a different thread owns it."
+    Avalonia.Threading.Dispatcher.ThrowVerifyAccess()
+    Avalonia.Rendering.DefaultRenderLoop.Add(IRenderLoopTask)
+    Avalonia.Rendering.Composition.Server.ServerCompositor..ctor(...)
+    Avalonia.Rendering.Composition.Compositor..ctor(...)
+    Avalonia.Headless.AvaloniaHeadlessPlatform.Initialize(...)
+    Avalonia.AppBuilder.SetupUnsafe()
+    Avalonia.Headless.HeadlessUnitTestSession.EnsureIsolatedApplication()
+    HeadlessUnitTestSession.DispatchCore b__0 → StartNew b__0
+  ```
+
+  So a per-test application rebuild fails its own dispatcher thread-affinity check while constructing the
+  compositor. `EnsureIsolatedApplication()` is called BEFORE the try that fills the
+  `TaskCompletionSource`, so the throw orphans that test AND faults the loop task: the session is gone and
+  every later test parks. **This is an Avalonia bug in PerTest isolation, not app code** — nothing in
+  `Downloader.Desktop` appears anywhere in that stack.
+- **Two things this DISPROVES, both of which looked convincing:** (a) the session was NOT disposed or
+  cancelled — `_cancellationTokenSource._state = 0`, `_disposed = 0`, and the queue's `_isDisposed = 0`;
+  (b) "an unhandled exception would have crashed the process, so it must have exited cleanly" is WRONG
+  here, because the loop is a Task and Tasks capture exceptions. Check `m_stateFlags` before reasoning
+  about how a loop thread ended.
 - **The suite runs at `AvaloniaTestIsolationLevel.PerTest`** — the default when the assembly carries no
   `AvaloniaTestIsolationAttribute`, which ours does not. Proven, not assumed: a probe recording
   `RuntimeHelpers.GetHashCode(Application.Current)` and `Dispatcher.UIThread` across two tests reports
@@ -1664,5 +1689,9 @@ re-derive any of this**, and in particular do not start by reading the blamed te
 - **It does not reproduce on Linux.** 19 consecutive full-suite runs with the exact CI command (coverlet
   runsettings, `--blame-hang`, `taskset -c 0,1`) were clean. Both recent occurrences were
   windows-latest/Debug and macos-latest/Debug; ubuntu has been green throughout.
-- Still open: which call in the teardown throws. Next occurrence, grab the artifact BEFORE re-running
-  (a re-run replaces it) and point the analysis workflow at it.
+- **Mitigations, none free.** `AvaloniaTestIsolationLevel.PerAssembly` would stop the per-test rebuild
+  outright and is the obvious fix, but it SEGFAULTS here (exit 139 after 658 tests) — see above. Worth
+  reporting upstream to Avalonia with the stack above. Until then the abort stays a known flake: re-run
+  the failed leg, and do not spend time on whichever test it names.
+- Next occurrence, grab the artifact BEFORE re-running (a re-run replaces it) and point the analysis
+  workflow at it by committing a new `DEFAULT_RUN_ID`; the walk to the captured exception is automated.
