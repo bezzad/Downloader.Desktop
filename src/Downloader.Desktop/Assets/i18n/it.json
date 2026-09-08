@@ -232,6 +232,8 @@
   "Btn_Close": "Chiudi",
   "Queues_Title": "Code",
   "Queues_Add": "Nuova coda",
+  "Queues_Default": "Predefinita",
+  "Queues_DefaultTip": "I nuovi download vanno in questa coda",
   "Queues_CollapseAll": "Comprimi tutto",
   "Queues_CollapseAllTip": "Comprimi o espandi tutte le code",
   "Queues_CollapseTip": "Comprimi o espandi questa coda",

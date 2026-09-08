@@ -40,8 +40,25 @@ public static class NotificationService
     /// independent of the on/off switch.</summary>
     public static void Inform(string title, string message, bool isError) => Native(title, message, isError);
 
+    /// <summary>Test seam: replaces the platform call, so a test never posts a real notification.
+    /// The app never sets it.
+    ///
+    /// This exists because the platform branches are NOT equal in a test run. The Linux branch goes
+    /// through <see cref="ShellLauncher"/>, which tests already stub — but the macOS and Windows
+    /// branches talk to the shell directly (<c>Shell_NotifyIconW</c>, an in-process banner), so on
+    /// those runners the suite was really asking a session-less CI machine's shell to show ~a dozen
+    /// notifications, and <c>Shell_NotifyIconW</c> is documented to wait on the shell when there is
+    /// nothing there to answer.</summary>
+    internal static Action<string, string, bool> NativeOverride;
+
     private static void Native(string title, string message, bool isError)
     {
+        if (NativeOverride is { } stub)
+        {
+            stub(title, message, isError);
+            return;
+        }
+
         try
         {
             if (OperatingSystem.IsLinux())

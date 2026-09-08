@@ -711,6 +711,57 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Add_dialog_offers_a_queue_name_for_a_batch_of_links()
+    {
+        Localizer.Instance.Load("en");
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var vm = new AddDownloadItemViewModel(config, url: null, manager: manager);
+
+        vm.Urls = "https://host/The.X.Movie.S01.E02.mkv\nhttps://host/The.X.Movie.S01.E03.mkv";
+
+        // A batch used to land silently in the main queue; now the name box opens pre-filled so the
+        // user only has to confirm.
+        Assert.True(vm.IsAddingQueue);
+        Assert.Equal("The.X.Movie", vm.NewQueueName);
+
+        vm.ConfirmAddQueue();
+        Assert.Equal("The.X.Movie", vm.SelectedQueue.Name);
+        Assert.Equal(vm.SelectedQueue.Id, vm.BuildItems()[0].QueueId);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Links_with_nothing_in_common_still_get_a_plain_queue_name()
+    {
+        Localizer.Instance.Load("en");
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var vm = new AddDownloadItemViewModel(config, url: null, manager: manager);
+
+        vm.Urls = "https://www.youtube.com/watch?v=a\nhttps://www.youtube.com/watch?v=b";
+
+        Assert.Equal(Localizer.Instance["Queues_Add"], vm.NewQueueName); // "New queue"
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_declined_queue_suggestion_is_not_offered_again()
+    {
+        Localizer.Instance.Load("en");
+        var manager = new DownloadManager();
+        var config = Config.New();
+        manager.Initialize(config);
+        var vm = new AddDownloadItemViewModel(config, url: null, manager: manager);
+
+        vm.Urls = "https://host/a.1.zip\nhttps://host/a.2.zip";
+        vm.CancelAddQueueCommand.Execute(null);
+        vm.Urls = "https://host/a.3.zip\nhttps://host/a.4.zip";
+
+        Assert.False(vm.IsAddingQueue); // the batch goes to the selected queue, as the user asked
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Add_dialog_collapses_a_huge_paste_to_a_summary_without_probing()
     {
         Localizer.Instance.Load("en");

@@ -1585,7 +1585,39 @@ public partial class DownloadManager : IDownloadManager
         }
 
         _config.Queues.Remove(queue);
+        // Deleting the default leaves the choice dangling; clear it so the fallback (first queue) is
+        // what the UI shows as default rather than a queue that no longer exists.
+        if (_config.DefaultQueueId == queue.Id)
+            _config.DefaultQueueId = null;
         NotifyList();
+        QueuesChanged?.Invoke();
+    }
+
+    public void RenameQueue(DownloadQueue queue, string name)
+    {
+        // No trimming or blank check here: this runs on every keystroke of the inline name box, and
+        // rejecting/altering the text mid-edit would snap it back under the user's cursor.
+        if (queue == null || queue.Name == name)
+            return;
+
+        queue.Name = name;
+        // The per-queue menus cache the name they were built with, and each row's QueueName is computed
+        // from the queue list — both need telling, or the old name survives until a restart.
+        foreach (var vm in Items.Where(i => i.GetItem().QueueId == queue.Id).ToList())
+            vm.RaiseQueueNameChanged();
+        QueuesChanged?.Invoke();
+    }
+
+    public void SetDefaultQueue(DownloadQueue queue)
+    {
+        if (queue == null || _config == null || _config.DefaultQueueId == queue.Id)
+            return;
+
+        _config.DefaultQueueId = queue.Id;
+        // The Settings "Max concurrent downloads" mirrors the DEFAULT queue's cap, so it has to follow
+        // the new default — otherwise Settings would show (and write to) the old queue's number.
+        if (_config.Settings != null)
+            _config.Settings.MaxConcurrentDownloads = Math.Max(1, queue.MaxConcurrent);
         QueuesChanged?.Invoke();
     }
 

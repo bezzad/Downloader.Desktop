@@ -21,7 +21,35 @@ public class QueuesViewModel : ViewModelBase
     private readonly IDownloadManager _manager;
 
     public ObservableCollection<QueueRowViewModel> Queues { get; } = new();
+
+    /// <summary>Opens the inline name box (the queue is only created once a name is confirmed).</summary>
     public ICommand NewQueueCommand { get; }
+
+    /// <summary>Creates the queue with the typed name.</summary>
+    public ICommand ConfirmNewQueueCommand { get; }
+
+    /// <summary>Closes the name box without creating anything.</summary>
+    public ICommand CancelNewQueueCommand { get; }
+
+    /// <summary>Raised after a queue is created, so the page can scroll its new card into view —
+    /// with many queues the card is added below the fold and the click looked like it did nothing.</summary>
+    public event Action QueueAdded;
+
+    private bool _isAddingQueue;
+    private string _newQueueName;
+
+    /// <summary>True while the inline "name your queue" box is showing.</summary>
+    public bool IsAddingQueue
+    {
+        get => _isAddingQueue;
+        private set => this.RaiseAndSetIfChanged(ref _isAddingQueue, value);
+    }
+
+    public string NewQueueName
+    {
+        get => _newQueueName;
+        set => this.RaiseAndSetIfChanged(ref _newQueueName, value);
+    }
 
     public QueuesViewModel()
     {
@@ -31,7 +59,9 @@ public class QueuesViewModel : ViewModelBase
     {
         _config = config;
         _manager = manager;
-        NewQueueCommand = ReactiveCommand.Create(AddQueue);
+        NewQueueCommand = ReactiveCommand.Create(() => { IsAddingQueue = true; });
+        ConfirmNewQueueCommand = ReactiveCommand.Create(ConfirmNewQueue);
+        CancelNewQueueCommand = ReactiveCommand.Create(() => { NewQueueName = string.Empty; IsAddingQueue = false; });
         // Queues can be created/removed outside this page too (e.g. the Add-download dialog's
         // inline "new queue" box), so keep the cards in sync with the config whenever the
         // manager reports a queue-set change — not just on our own buttons.
@@ -66,7 +96,20 @@ public class QueuesViewModel : ViewModelBase
         RaiseAllCollapsedChanged();
     }
 
-    private void AddQueue() => _manager.AddQueue("New queue"); // QueuesChanged → SyncFromConfig adds the row
+    /// <summary>Creates the queue with the name the user typed. A blank name creates nothing (the box
+    /// stays open) — naming it first is the point: an unnamed "New queue" card added at the bottom of a
+    /// long list was invisible to the user.</summary>
+    public void ConfirmNewQueue()
+    {
+        var name = NewQueueName?.Trim();
+        if (string.IsNullOrEmpty(name) || _manager == null)
+            return;
+
+        _manager.AddQueue(name); // QueuesChanged → SyncFromConfig adds the row
+        NewQueueName = string.Empty;
+        IsAddingQueue = false;
+        QueueAdded?.Invoke();
+    }
 
     /// <summary>Seam for the destructive-removal confirmation (title, message) → confirmed?
     /// Defaults to the modal Yes/No dialog; tests substitute it.</summary>
@@ -119,7 +162,10 @@ public class QueuesViewModel : ViewModelBase
     private void RaiseQueuesChanged()
     {
         foreach (var row in Queues)
+        {
             row.RebuildItems();
+            row.RaiseIsDefaultChanged(); // the default may have moved to another card
+        }
     }
 }
 
@@ -290,8 +336,37 @@ public class QueueRowViewModel : ViewModelBase
     public string Name
     {
         get => Queue.Name;
-        set { Queue.Name = value; this.RaisePropertyChanged(); }
+        set
+        {
+            // Route the rename through the manager so the toolbar's Start/Stop-queue menus and the
+            // downloads grid pick up the new name straight away.
+            if (_manager != null)
+                _manager.RenameQueue(Queue, value);
+            else
+                Queue.Name = value;
+            this.RaisePropertyChanged();
+        }
     }
+
+    /// <summary>Whether this is the queue new downloads land in. Exactly one queue is the default, so
+    /// this behaves like a radio button: ticking it moves the default here (and unticks every other
+    /// card), and unticking the current default does nothing — the app must always have one.</summary>
+    public bool IsDefault
+    {
+        get => _config != null && ReferenceEquals(Queue, _config.DefaultQueue);
+        set
+        {
+            if (!value || IsDefault)
+            {
+                this.RaisePropertyChanged(); // restore the tick a click tried to clear
+                return;
+            }
+            _manager?.SetDefaultQueue(Queue); // QueuesChanged → every card re-reads IsDefault
+        }
+    }
+
+    /// <summary>Re-reads <see cref="IsDefault"/> after the default moved to another card.</summary>
+    internal void RaiseIsDefaultChanged() => this.RaisePropertyChanged(nameof(IsDefault));
 
     public int MaxConcurrent
     {

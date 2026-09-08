@@ -31,12 +31,20 @@ public class SmallServiceTests : IDisposable
     {
         ShellLauncher.RunOverride = (file, args) => { _ran.Add((file, args)); return true; };
         ShellLauncher.OpenOverride = _ => true;
+        // This class asserts on what the platform branch actually does, so ON LINUX it needs the real
+        // branch rather than the suite-wide stub (NoRealNotifications) — and that is safe because the
+        // Linux branch goes through the ShellLauncher override installed above, so nothing is launched.
+        // On macOS and Windows the stub STAYS: those branches talk to the shell directly, and a CI
+        // runner has no shell to answer them.
+        if (OperatingSystem.IsLinux())
+            NotificationService.NativeOverride = null;
     }
 
     public void Dispose()
     {
         ShellLauncher.RunOverride = null;
         ShellLauncher.OpenOverride = null;
+        NoRealNotifications.Install(); // put the suite-wide stub back for every other test
         NotificationService.Enabled = _notificationsWereEnabled;
         AppLog.SetEnabled(_loggingWasEnabled);
     }

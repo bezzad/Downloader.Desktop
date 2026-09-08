@@ -57,6 +57,18 @@ jobs:
       # (regex DFAs, compiled XAML) out of the denominator, so codecov reports authored code.
       # --blame-hang makes a stuck test host get killed and NAMED: without it a hang just burns the
       # job's whole timeout and the log stops mid-suite without saying which test was in flight.
+      #
+      # timeout-minutes is on the STEP, deliberately below the job's 30, because the two hang modes
+      # need different nets and only this one preserves the evidence:
+      #   * a host that stops responding BETWEEN tests is caught by --blame-hang after 180s, which
+      #     kills it, names the test in flight and writes a dump;
+      #   * a run that stalls OUTSIDE that window — before the first test, or after the last one while
+      #     the host exits and the coverage collector writes its report — is invisible to --blame-hang.
+      #     That is what has been happening (2026-09-07: three legs sat in this step for the full 30
+      #     minutes with no abort and no dump), and a job cancelled by the JOB timeout keeps NEITHER
+      #     its log NOR its artifacts, so every occurrence threw away the only evidence there was.
+      # Failing the step instead leaves the log intact and still runs the always() upload below.
+      timeout-minutes: 12
       run: dotnet test "${{ env.Test_Project_Path }}" --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --settings src/coverlet.runsettings --blame-hang --blame-hang-timeout 180s --blame-crash
 
     - name: Upload test results

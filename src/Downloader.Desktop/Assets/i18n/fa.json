@@ -232,6 +232,8 @@
   "Btn_Close": "بستن",
   "Queues_Title": "صف‌ها",
   "Queues_Add": "صف جدید",
+  "Queues_Default": "پیش‌فرض",
+  "Queues_DefaultTip": "دانلودهای جدید به این صف می‌روند",
   "Queues_CollapseAll": "جمع‌کردن همه",
   "Queues_CollapseAllTip": "جمع یا باز کردن همهٔ صف‌ها",
   "Queues_CollapseTip": "جمع یا باز کردن این صف",

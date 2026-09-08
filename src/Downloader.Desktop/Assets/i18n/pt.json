@@ -232,6 +232,8 @@
   "Btn_Close": "Fechar",
   "Queues_Title": "Filas",
   "Queues_Add": "Nova fila",
+  "Queues_Default": "Padrão",
+  "Queues_DefaultTip": "Novos downloads vão para esta fila",
   "Queues_CollapseAll": "Recolher tudo",
   "Queues_CollapseAllTip": "Recolher ou expandir todas as filas",
   "Queues_CollapseTip": "Recolher ou expandir esta fila",

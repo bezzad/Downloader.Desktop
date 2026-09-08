@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
@@ -313,6 +315,151 @@ public class PageViewModelTests
         Assert.Equal(before + 1, page.StartQueueTargets.Count);
         Assert.Equal(before + 1, page.StopQueueTargets.Count);
         Assert.Contains(page.StartQueueTargets, t => t.Name == "videos");
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Renaming_a_queue_renames_it_in_the_toolbar_menus_and_on_the_rows()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("videos");
+        var item = Add(manager, "clip.mkv", DownloadStatus.Created);
+        item.GetItem().QueueId = extra.Id;
+        var downloads = new DownloadsViewModel(manager);
+        var queues = new QueuesViewModel(config, manager);
+
+        queues.Queues.First(q => q.Queue.Id == extra.Id).Name = "movies";
+
+        // The menus cache the name they were built with, so a rename has to rebuild them.
+        Assert.Contains(downloads.StartQueueTargets, t => t.Name == "movies");
+        Assert.Contains(downloads.StopQueueTargets, t => t.Name == "movies");
+        Assert.DoesNotContain(downloads.StartQueueTargets, t => t.Name == "videos");
+        Assert.Equal("movies", item.QueueName);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_queue_is_only_created_once_it_has_a_name()
+    {
+        var (manager, config) = Build();
+        var page = new QueuesViewModel(config, manager);
+        var before = page.Queues.Count;
+
+        page.NewQueueCommand.Execute(null);
+        Assert.True(page.IsAddingQueue);
+        Assert.Equal(before, page.Queues.Count); // nothing added yet — the user names it first
+
+        page.NewQueueName = "   ";
+        page.ConfirmNewQueue();
+        Assert.Equal(before, page.Queues.Count); // a blank name creates nothing
+        Assert.True(page.IsAddingQueue);
+
+        var scrolled = false;
+        page.QueueAdded += () => scrolled = true;
+        page.NewQueueName = "movies";
+        page.ConfirmNewQueue();
+
+        Assert.Equal(before + 1, page.Queues.Count);
+        Assert.Contains(page.Queues, q => q.Name == "movies");
+        Assert.False(page.IsAddingQueue);
+        Assert.True(scrolled); // the page scrolls the new card into view
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Exactly_one_queue_is_the_default_and_picking_another_moves_it()
+    {
+        var (manager, config) = Build();
+        manager.AddQueue("movies");
+        var page = new QueuesViewModel(config, manager);
+        var first = page.Queues[0];
+        var second = page.Queues[1];
+
+        Assert.True(first.IsDefault); // with no choice saved, the first queue is the default
+        Assert.False(second.IsDefault);
+
+        second.IsDefault = true;
+
+        // Radio semantics: ticking one card unticks every other.
+        Assert.True(second.IsDefault);
+        Assert.False(first.IsDefault);
+        Assert.Equal(second.Queue.Id, config.DefaultQueue.Id);
+        Assert.Equal(second.Queue.Id, config.DefaultQueueId); // persisted, so it survives a restart
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_default_queue_cannot_be_unticked()
+    {
+        var (manager, config) = Build();
+        manager.AddQueue("movies");
+        var page = new QueuesViewModel(config, manager);
+        var first = page.Queues[0];
+
+        first.IsDefault = false; // the app must always have a default — this is a no-op
+
+        Assert.True(first.IsDefault);
+        Assert.Equal(first.Queue.Id, config.DefaultQueue.Id);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Choosing_a_default_brings_the_settings_concurrency_with_it()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("movies");
+        extra.MaxConcurrent = 7;
+        var page = new QueuesViewModel(config, manager);
+
+        page.Queues.First(q => q.Queue.Id == extra.Id).IsDefault = true;
+
+        // Settings' "max concurrent" mirrors the DEFAULT queue, so it has to follow the new one —
+        // otherwise Settings would keep showing (and writing to) the old queue's cap.
+        Assert.Equal(7, config.Settings.MaxConcurrentDownloads);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Deleting_the_default_queue_leaves_a_valid_default()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("movies");
+        manager.SetDefaultQueue(extra);
+
+        manager.RemoveQueue(extra);
+
+        Assert.Null(config.DefaultQueueId);
+        Assert.Equal(config.Queues[0].Id, config.DefaultQueue.Id);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_download_lands_in_the_chosen_default_queue()
+    {
+        var (manager, config) = Build();
+        var extra = manager.AddQueue("movies");
+        extra.IsRunning = false;
+        manager.SetDefaultQueue(extra);
+
+        // Stub the name probe: a real single-link dialog probes the URL, and an unreachable address
+        // would leave a 100-second HTTP attempt running behind the test.
+        var vm = new AddDownloadItemViewModel(
+            config, "https://10.255.255.1/a.zip",
+            resolveFileInfo: (_, _) => Task.FromResult<(string FileName, long FileSize)?>(null),
+            resolveDebounce: TimeSpan.Zero,
+            readClipboard: () => Task.FromResult<string>(null),
+            manager: manager);
+
+        Assert.Equal(extra.Id, vm.SelectedQueue.Id);
+        Assert.Equal(extra.Id, vm.BuildItems()[0].QueueId);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Cancelling_the_name_box_creates_nothing()
+    {
+        var (manager, config) = Build();
+        var page = new QueuesViewModel(config, manager);
+        var before = page.Queues.Count;
+
+        page.NewQueueCommand.Execute(null);
+        page.NewQueueName = "movies";
+        page.CancelNewQueueCommand.Execute(null);
+
+        Assert.Equal(before, page.Queues.Count);
+        Assert.False(page.IsAddingQueue);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

@@ -232,6 +232,8 @@
   "Btn_Close": "Cerrar",
   "Queues_Title": "Colas",
   "Queues_Add": "Nueva cola",
+  "Queues_Default": "Predeterminada",
+  "Queues_DefaultTip": "Las nuevas descargas van a esta cola",
   "Queues_CollapseAll": "Contraer todo",
   "Queues_CollapseAllTip": "Contraer o expandir todas las colas",
   "Queues_CollapseTip": "Contraer o expandir esta cola",

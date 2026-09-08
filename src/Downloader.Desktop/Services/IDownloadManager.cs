@@ -100,6 +100,14 @@ public interface IDownloadManager
     /// <summary>Removes a queue, reassigning its items to another queue (keeps at least one).</summary>
     void RemoveQueue(DownloadQueue queue);
 
+    /// <summary>Renames a queue and tells everyone about it, so the per-queue menus and the grid's
+    /// Queue column show the new name without an app restart.</summary>
+    void RenameQueue(DownloadQueue queue, string name);
+
+    /// <summary>Makes this the default queue new downloads land in. Exactly one queue is the default,
+    /// so choosing one clears the previous choice.</summary>
+    void SetDefaultQueue(DownloadQueue queue);
+
     /// <summary>Moves a download into another queue and re-pumps both (capped) queues.</summary>
     void MoveToQueue(DownloadItemViewModel vm, string queueId);
 
