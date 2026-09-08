@@ -664,8 +664,11 @@ public class SettingViewModelTests
     public void Turning_notifications_on_sends_one_sample_so_the_user_can_see_it_work()
     {
         var notificationsWereEnabled = NotificationService.Enabled;
-        var sent = new List<string[]>();
-        ShellLauncher.RunOverride = (_, args) => { sent.Add(args); return true; };
+        var sent = new List<string>();
+        // Observe the NOTIFICATION, not the command one platform happens to launch: this used to watch
+        // ShellLauncher, which only sees the Linux notify-send path, so on macOS and Windows it asserted
+        // that nothing was observable — proving nothing about the sample on those platforms.
+        NotificationService.NativeOverride = (title, message, _) => sent.Add($"{title} {message}");
         try
         {
             var (vm, config, _) = Build();
@@ -676,24 +679,19 @@ public class SettingViewModelTests
 
             Assert.True(config.Settings.EnableNotifications);
             Assert.True(NotificationService.Enabled);
-            // Only Linux posts its notification through a launched command (notify-send); macOS and
-            // Windows post in-process, so there the sample is not observable through ShellLauncher.
-            var expected = OperatingSystem.IsLinux() ? 1 : 0;
-            Assert.Equal(expected, sent.Count);
-            if (expected == 1)
-                Assert.Contains(sent[0], a => a.Contains("Notifications enabled"));
+            Assert.Contains("Notifications enabled", Assert.Single(sent));
 
             // Already on — no second sample.
             vm.EnableNotifications = true;
-            Assert.Equal(expected, sent.Count);
+            Assert.Single(sent);
 
             vm.EnableNotifications = false;
             Assert.False(NotificationService.Enabled);
-            Assert.Equal(expected, sent.Count);
+            Assert.Single(sent);
         }
         finally
         {
-            ShellLauncher.RunOverride = null;
+            NoRealNotifications.Install(); // back to the suite-wide stub
             NotificationService.Enabled = notificationsWereEnabled;
         }
     }
