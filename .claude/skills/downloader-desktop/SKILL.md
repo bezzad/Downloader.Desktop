@@ -1723,3 +1723,34 @@ re-derive any of this**, and in particular do not start by reading the blamed te
   (`S01`, `E02`, `part3`) → `The.X.Movie`. Links with no file name (page URLs) give null and the Add dialog
   falls back to `Localizer["Queues_Add"]` ("New queue"). The dialog opens its inline box pre-filled on any
   paste of >= 2 links; cancelling sets a dismissed flag so it is not offered again in that dialog.
+
+## The hang got WORSE after PerAssembly, and every test leaks a scheduler timer (2026-09-07, open)
+Evidence from four consecutive `develop` runs, counting legs killed by the job's 30-minute timeout
+while stuck in `Test` (no `[FAIL]` anywhere, so these are hangs, not failures):
+
+| run | commit | hung legs |
+|-----|--------|-----------|
+| 572 | `f1c94d2` (PerAssembly landed) | 1 (macOS Debug) |
+| 573 | `aa6d503` | 2, then 1 on re-run, then 1 again |
+| 574 | `104fc6c` | 3 |
+| 575 | `7ff5056` | 3 (macOS Debug+Release, Windows Release) |
+
+**ubuntu has never hung in any of them** — only Windows and macOS, in both Debug and Release. So
+`f1c94d2`'s note above ("PerAssembly fixes the hang, 8 clean local runs") is NOT what CI shows: the
+rate went UP after it. Do not treat that note as settled.
+
+**Unverified hypothesis, cheap to check first:** `DownloadManager.Initialize` calls `StartScheduler()`,
+which starts a 30-second `DispatcherTimer` that **nothing ever stops** — there is no `StopScheduler`
+and no `Dispose`. Under the old PerTest isolation each test got a fresh app + dispatcher, so those
+timers died with it; under PerAssembly ONE dispatcher serves the whole run, so every manager a test
+builds leaves a live timer behind. The test project calls `Initialize` in **133** places (144
+`new DownloadManager()`), so a full run ends with well over a hundred timers all ticking
+`EvaluateSchedules` on the one dispatcher the tests also need.
+
+To confirm on a machine with the SDK: run the exact CI command and count live timers (or log each
+`OnSchedulerTick`) near the end of the run; if it holds, the fix is a `StopScheduler`/`Dispose` the
+tests call, or not starting the timer at all while `Config.Schedules` is empty (which also spares
+every real user a pointless timer) — with a hook so adding a schedule starts it.
+
+This was NOT changed blind: the fix touches production scheduling and this container has no .NET SDK
+to verify it, so it is written down rather than guessed at.
