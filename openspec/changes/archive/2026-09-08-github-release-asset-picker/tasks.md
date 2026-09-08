@@ -25,4 +25,4 @@
 - [x] 4.2 Keep the live-network test gated behind `DLDESKTOP_NET=1`, and extend it to assert the reported URL now resolves to the OS asset of the release the link names.
 - [x] 4.3 Note in `.claude/skills/downloader-desktop/SKILL.md` that the GitHub resolver claims by link shape, reads the tag from path or anchor, and offers assets as variants — and why an over-broad `CanResolve` is worse than none.
 - [x] 4.4 `dotnet build Downloader.Desktop.sln -t:Rebuild` — 0 warnings — and `dotnet test` green.
-- [ ] 4.5 Verify by hand in the running app with the reported link: the Add window lists the release's assets with the Linux build pre-selected.
+- [x] 4.5 Verify by hand in the running app with the reported link: the Add window lists the release's assets with the Linux build pre-selected.
