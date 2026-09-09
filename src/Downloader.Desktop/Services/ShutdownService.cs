@@ -17,7 +17,14 @@ namespace Downloader.Desktop.Services;
 /// </summary>
 public static class ShutdownService
 {
-    private const int CountdownSeconds = 30;
+    private const int DefaultCountdownSeconds = 30;
+
+    /// <summary>
+    /// Test seam: how long the countdown runs. A test that has to prove the countdown was really STOPPED
+    /// (and not merely hidden) has to let it run to zero, and 30 seconds of pumping per test is not
+    /// something a suite can carry.
+    /// </summary>
+    internal static int CountdownSeconds { get; set; } = DefaultCountdownSeconds;
 
     private static ShutdownView _dialog;
 
@@ -86,6 +93,15 @@ public static class ShutdownService
     {
         var dlg = _dialog;
         _dialog = null;
+
+        // Stop the countdown BEFORE closing the window. The countdown is a DispatcherTimer, which lives
+        // on the dispatcher and not on the window, so closing the dialog on its own leaves it ticking —
+        // and it powers the machine off when it reaches zero. That made Cancel() (the tray's "cancel
+        // shutdown", and the test suite between tests) close the dialog and shut the computer down
+        // anyway 30 seconds later. The dialog's own Cancel button was safe: it goes through the view
+        // model, which does stop the timer.
+        (dlg?.DataContext as ShutdownViewModel)?.StopCountdown();
+
         try { dlg?.Close(); } catch { /* already closed */ }
     }
 

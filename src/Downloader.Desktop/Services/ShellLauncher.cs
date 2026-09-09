@@ -33,6 +33,43 @@ public static class ShellLauncher
     internal static Func<string, string[], bool> RunOverride { get; set; }
 
     /// <summary>
+    /// Backstop for test runs: refuses to start a REAL process when no override is installed.
+    ///
+    /// <para>The per-test seams above are opt-in, so any path that reaches here unstubbed spawns a real
+    /// process on the machine running the suite. One of those paths is the shutdown countdown, and it
+    /// powered developer machines (and, in all likelihood, CI runners — only the Windows and macOS legs,
+    /// which accept a power-off) off mid-run. A test asserting WHICH command would run installs
+    /// <see cref="RunOverride"/> and is unaffected; a leak now fails loudly instead of pulling the
+    /// machine down. Set once by the test assembly's module initializer, never in production.</para>
+    /// </summary>
+    internal static bool RealProcessStartBlocked { get; set; }
+
+    /// <summary>
+    /// Opt-out of <see cref="RealProcessStartBlocked"/> for the duration of the scope — for the handful of
+    /// tests that deliberately drive the REAL launcher (running <c>/bin/false</c> to prove an exit code is
+    /// read, <c>sleep</c> to prove a hang is treated as failure). Without this they would be answered by
+    /// the block and pass for the wrong reason, which is worse than failing.
+    /// </summary>
+    internal static IDisposable AllowRealProcessStart()
+    {
+        var previous = RealProcessStartBlocked;
+        RealProcessStartBlocked = false;
+        return new Restore(() => RealProcessStartBlocked = previous);
+    }
+
+    private sealed class Restore(Action undo) : IDisposable
+    {
+        public void Dispose() => undo();
+    }
+
+    private static bool RefuseRealStart(string file, string[] args)
+    {
+        AppLog.Warn($"Refused to start a real process during a test run: '{file} {string.Join(' ', args ?? Array.Empty<string>())}'. "
+                    + "Install ShellLauncher.RunOverride in the test if it means to assert this command.");
+        return false;
+    }
+
+    /// <summary>
     /// Opens a URL, file or folder with whatever the OS has registered for it. Best-effort: a machine
     /// with no handler (a headless box, a stripped container) simply does nothing.
     /// </summary>
@@ -49,6 +86,9 @@ public static class ShellLauncher
 
         if (OpenOverride is { } handler)
             return handler(target);
+
+        if (RealProcessStartBlocked)
+            return RefuseRealStart(target, Array.Empty<string>());
 
         try
         {
@@ -153,6 +193,9 @@ public static class ShellLauncher
         if (RunOverride is { } handler)
             return handler(file, args ?? Array.Empty<string>());
 
+        if (RealProcessStartBlocked)
+            return RefuseRealStart(file, args);
+
         try
         {
             var psi = new ProcessStartInfo { FileName = file, UseShellExecute = false, CreateNoWindow = true };
@@ -193,6 +236,9 @@ public static class ShellLauncher
 
         if (RunOverride is { } handler)
             return handler(file, args ?? Array.Empty<string>());
+
+        if (RealProcessStartBlocked)
+            return RefuseRealStart(file, args);
 
         try
         {
