@@ -34,6 +34,13 @@ jobs:
     env:
       Solution_Name: src/Downloader.Desktop.sln
       Test_Project_Path: src/Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj
+      # TEMPORARY — proving the hang harness works (change fix-ci-test-host-hang, task 1.3).
+      # A 90s deadline lands in the middle of a ~3-minute suite, so every leg is killed while a test host
+      # is genuinely alive. What this run has to show, on windows-latest AND macos-latest: the STEP fails
+      # (not the job cancelled), its log survives, and the uploaded artifact contains hang-testhost.dmp.
+      # THIS RUN IS DELIBERATELY RED and the next commit removes these two lines.
+      CI_TEST_DEADLINE_SECONDS: '90'
+      CI_TEST_DUMP_LEAD_SECONDS: '30'
 
     steps:
     - name: Checkout
