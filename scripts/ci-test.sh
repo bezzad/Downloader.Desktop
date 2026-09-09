@@ -70,8 +70,19 @@ watchdog() {
     [ -n "$host_pid" ] || host_pid="$("$dump_tool" ps 2>/dev/null | awk -v skip="$TEST_PID" '$1 != skip {print $1}' | tail -1)"
   fi
   if [ -z "$host_pid" ] && command -v pgrep >/dev/null 2>&1; then
-    host_pid="$(pgrep -f "Downloader.Desktop.Tests.dll" | grep -v "^${TEST_PID}$" | head -1)"
-    [ -n "$host_pid" ] || host_pid="$(pgrep -f testhost | grep -v "^${TEST_PID}$" | head -1)"
+    # Record every candidate with its command line: if the pick below is ever wrong again, the artifact
+    # still says what was running and under which pid.
+    echo "--- candidate processes ---" >> "$report"
+    pgrep -fl "Downloader.Desktop.Tests" >> "$report" 2>/dev/null || true
+    echo "---------------------------" >> "$report"
+
+    # `testhost` FIRST and by highest pid. Run 34312862020 dumped the wrong process on macOS: the
+    # vstest console's command line also names the test dll, and taking the first match picked the
+    # console (3660) while the host VSTest was actually monitoring was 3861 — a dump of the wrong
+    # process is evidence about the wrong thing. The host is spawned by the console, so it is the
+    # later pid.
+    host_pid="$(pgrep -f "testhost" | grep -v "^${TEST_PID}$" | tail -1)"
+    [ -n "$host_pid" ] || host_pid="$(pgrep -f "Downloader.Desktop.Tests.dll" | grep -v "^${TEST_PID}$" | tail -1)"
   fi
   echo "test host pid: ${host_pid:-<not found>}" >> "$report"
 
@@ -87,7 +98,10 @@ watchdog() {
     createdump="$(find "$(dirname "$(command -v dotnet)")/shared/Microsoft.NETCore.App" -name createdump -type f 2>/dev/null | sort | tail -1)"
     if [ -n "$createdump" ]; then
       echo "falling back to $createdump" >> "$report"
-      "$createdump" -f "$RESULTS/hang-testhost.dmp" "$host_pid" >>"$report" 2>&1 \
+      # --withheap, NOT the default: on macOS createdump defaults to a FULL core dump and wrote
+      # 6.1 GB (1.9 GB compressed) per leg in run 34312862020. A heap minidump still carries the
+      # managed stacks and object state an analysis needs, at a fraction of that.
+      "$createdump" --withheap -f "$RESULTS/hang-testhost.dmp" "$host_pid" >>"$report" 2>&1 \
         && dumped=1 || echo "::warning::createdump could not dump process $host_pid either"
     fi
   fi
