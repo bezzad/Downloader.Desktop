@@ -1724,7 +1724,45 @@ re-derive any of this**, and in particular do not start by reading the blamed te
   falls back to `Localizer["Queues_Add"]` ("New queue"). The dialog opens its inline box pre-filled on any
   paste of >= 2 links; cancelling sets a dismissed flag so it is not offered again in that dialog.
 
-## The hang got WORSE after PerAssembly, and every test leaks a scheduler timer (2026-09-07, open)
+## THE SUITE USED TO POWER THE MACHINE OFF — read this before running tests (2026-09-09, FIXED)
+The author reported: every time this session was told to continue, the computer shut down about a minute
+later. No agent command contained a shutdown — **`dotnet test` did it**, three times.
+
+- `ShutdownService.Cancel()` (the tray's "cancel shutdown", and what the suite calls between tests) closed
+  the countdown window and cleared its own field but **did not stop the countdown**: it is a
+  `DispatcherTimer`, which lives on the DISPATCHER, not on the window.
+- Under `PerAssembly` the dispatcher lives for the whole run, so the leaked countdown outlived its test,
+  reached zero, and called `PowerOff()` — by which time the arming test's `finally` had restored
+  `PowerOffOverride = null` and `RunOverride = null`, so it reached the REAL `systemctl poweroff` (and
+  `shutdown /s /t 0` on Windows, `osascript … shut down` on macOS). Under the old `PerTest` isolation each
+  test got a fresh dispatcher and the timer died with it, which is why this only started biting after
+  `f1c94d2`.
+- **Also a production bug, the worse half:** a user who cancelled from the tray was shut down 30 s later
+  anyway. The dialog's own Cancel button was always safe (it goes through the VM, which stops the timer).
+- **This is the leading explanation of the CI hang too**, and it fits what the scheduler-timer hypothesis
+  never explained: Windows and macOS runners ACCEPT a power-off (leg stops progressing, no `[FAIL]`, no
+  dump, log+artifacts destroyed), a GitHub-hosted ubuntu runner refuses `systemctl poweroff` — and ubuntu
+  has never hung.
+- Fixes: `Close()` stops the countdown first; `ShellLauncher.RealProcessStartBlocked` (set by
+  `TestSupport/NoRealPowerOff`, a `[ModuleInitializer]`, same pattern as `NoRealNotifications`) makes the
+  suite unable to start a real process at all. `ShellLauncher.AllowRealProcessStart()` is the scoped
+  opt-out for the three `RevealInFolderTests` cases that really do run `/bin/false`/`sleep`/a missing
+  command — **without it they pass for the wrong reason**, which is worse than failing.
+- **Testing a leaked timer needs a seam for the DURATION.** Two drafts of `ShutdownCancelTests` passed
+  against the buggy code: a 3-second pump cannot observe a 30-second countdown, and asserting on
+  `PowerOffOverride` after nulling it observes nothing. `ShutdownService.CountdownSeconds` is now settable
+  and the observation sits at the LAUNCHER, one layer below the override that masks the fire.
+
+## Every test leaked a scheduler timer too (2026-09-09, FIXED — measured, not guessed)
+`DownloadManager.Initialize` → `StartScheduler()` started a 30 s `DispatcherTimer` with no stop and no
+dispose. Measured over a full local run with the CI flags: **405 timers started**, ticks arriving in
+bursts from dozens of manager instances after their tests ended. Fix: `SyncScheduler()` runs the timer
+only while `Config.Schedules` is non-empty, `Dispose()` releases it (and the UI pump), and
+`SchedulerViewModel` re-syncs after add/remove. Now **39** per run (tests that really configure a
+schedule). Pinned by `UI/SchedulerLifetimeTests`. The 133 `Initialize` call sites were deliberately NOT
+rewritten — lazy start removes the leak at its source.
+
+## (superseded) The hang got WORSE after PerAssembly, and every test leaks a scheduler timer (2026-09-07)
 Evidence from four consecutive `develop` runs, counting legs killed by the job's 30-minute timeout
 while stuck in `Test` (no `[FAIL]` anywhere, so these are hangs, not failures):
 

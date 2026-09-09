@@ -113,9 +113,66 @@ continues from that evidence rather than from a new guess.
 - **Cannot be reproduced locally**, so the fix is validated by CI repetition — slower feedback than usual;
   accepted, and the reason the acceptance bar is five runs rather than one.
 
+## What the investigation actually found (2026-09-09) — supersedes the hypothesis above
+
+**A cancelled shutdown countdown was powering the machine off mid-run.** Found the way the best bugs
+are: the author noticed that every time this session was told to continue, the computer shut down about a
+minute later, and asked whether one of the agent's commands contained a shutdown. None did — the test
+suite did it.
+
+The chain:
+
+1. `ShutdownService.Cancel()` (the tray's "cancel shutdown", and what the suite calls between tests)
+   closed the countdown window and cleared its own field, but the countdown is a `DispatcherTimer` that
+   lives on the **dispatcher, not the window**. Closing the dialog left it ticking.
+2. Under `PerAssembly` the dispatcher lives for the whole run (under the old `PerTest` each test got a
+   fresh one and the leaked timer died with it), so the countdown survived the test that armed it,
+   reached zero minutes later, and called `PowerOff()`.
+3. By then the arming test's `finally` had restored `PowerOffOverride = null` and `RunOverride = null`,
+   so `PowerOff()` reached the real platform dispatch: `systemctl poweroff` on Linux,
+   `shutdown /s /t 0` on Windows, `osascript … shut down` on macOS.
+
+**This is also the best explanation of the CI hang, and it fits the signature the scheduler-timer
+hypothesis never did:** a Windows or macOS runner ACCEPTS a power-off, so the leg stops making progress
+with no `[FAIL]`, no dump and no abort, and the job's log and artifacts are destroyed with it — while a
+GitHub-hosted ubuntu runner refuses `systemctl poweroff`, which is why ubuntu has never hung. Confirmed
+only as far as the mechanism goes; the proof is the five clean runs in tasks 5.1.
+
+**It is also a production bug, and the worse half of it:** a real user who cancelled the shutdown from
+the tray had their machine powered off 30 seconds later anyway. The dialog's own Cancel button was safe
+(it goes through the view model, which does stop the timer), so the broken path was the one nobody
+watches.
+
+Fixes, in order of what each protects:
+
+- `ShutdownService.Close()` stops the countdown (`ShutdownViewModel.StopCountdown()`) BEFORE closing the
+  window. Pinned by `UI/ShutdownCancelTests`, which fails on the old code with `'systemctl' should not
+  have run`. Two earlier drafts of that test passed against the buggy code — a 3-second pump against a
+  30-second countdown, then assertions that removed the very stub that would observe the fire — so the
+  countdown length is now a test seam (`ShutdownService.CountdownSeconds`) and the observation happens at
+  the launcher, one layer below the override that would mask it.
+- `ShellLauncher.RealProcessStartBlocked`, installed once by the test assembly
+  (`TestSupport/NoRealPowerOff`, same `[ModuleInitializer]` pattern as `NoRealNotifications`): the suite
+  can no longer start a real process at all, so the next leak of this class fails a test instead of
+  taking a machine down. `AllowRealProcessStart()` is the explicit opt-out for the three tests in
+  `Unit/RevealInFolderTests` that mean to run `/bin/false`, `sleep`, and a missing command — without it
+  they would have passed for the wrong reason, which is worse than failing.
+
+**The scheduler timer leak was real too, and is fixed** — just not the whole story. Measured on a full
+local run with the CI flags: **405** scheduler timers started per run, ticks arriving in bursts from
+dozens of manager instances after their tests had ended. With the fix (start only while
+`Config.Schedules` is non-empty; stop and release on dispose) that is **39** — the tests that genuinely
+configure a schedule. Pinned by `UI/SchedulerLifetimeTests` (5 of its 6 tests fail on the old code).
+
+Full suite after both fixes: **1728/1728 green**, full rebuild **0 warnings**, no crash or hang dump.
+
 ## Open Questions
 
-- Why did the step's `timeout-minutes: 12` not fire? Worth understanding (it affects every other step's
-  bound), but the change does not depend on the answer — decision 1 does not trust it either way.
-- Is the stall before the first test or after the last? The captured dump answers this; the previous
-  session could only guess from the absence of `[FAIL]`.
+- Why did the step's `timeout-minutes: 12` not fire? (Answer candidate from the finding above: a runner
+  whose OS has begun shutting down is in no state to enforce a step timeout — the runner process is going
+  away with everything else. That would explain both the missed step bound and the 35-minute job.)
+  Worth understanding either way, since it affects every other step's bound — but the change does not
+  depend on the answer: decision 1 does not trust the step bound in either direction.
+- Is the stall before the first test or after the last? Moot if the power-off explanation holds (the run
+  is not stalled at all, the machine is going down under it). The captured dump answers it if a hang
+  recurs after these fixes.

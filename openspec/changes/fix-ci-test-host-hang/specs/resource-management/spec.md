@@ -20,3 +20,17 @@ disposed, so a manager that goes out of scope leaves no live timer behind on the
 #### Scenario: Many short-lived managers leave no timers behind
 - **WHEN** many managers are created, initialized and disposed within one dispatcher's lifetime
 - **THEN** the number of live scheduler timers on that dispatcher does not grow with the number of managers
+
+### Requirement: A cancelled shutdown countdown is stopped, not just hidden
+When an automatic shutdown is cancelled, the app SHALL stop the countdown itself — not merely dismiss its
+dialog. No power-off command SHALL be issued after a cancellation, however long the process keeps running.
+
+#### Scenario: Cancelling from outside the dialog really cancels
+- **WHEN** a shutdown countdown is armed and then cancelled through the service (the tray's "cancel
+  shutdown", not the dialog's own button)
+- **THEN** the countdown stops and no platform power-off command is ever issued, even after more than the
+  countdown's duration has elapsed
+
+#### Scenario: A dismissed dialog leaves no timer running
+- **WHEN** the countdown dialog is closed by anything other than reaching zero
+- **THEN** its timer is stopped and released, so it cannot fire later on a dispatcher that outlives it
