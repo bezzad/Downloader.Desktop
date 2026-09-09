@@ -92,15 +92,32 @@ watchdog() {
       && dumped=1 || echo "::warning::dotnet-dump could not collect a dump of process $host_pid"
   fi
 
-  # Last resort: the runtime's own createdump, which does not need the diagnostics IPC that
-  # dotnet-dump relies on — that IPC is what is missing on the macOS runners.
+  # macOS gets native stacks instead of a dump, unless one is explicitly asked for.
+  #
+  # dotnet-dump cannot see the process there at all (`ps` lists nothing — the diagnostics IPC is not
+  # reachable on those runners), and the runtime's own createdump only writes a FULL core on macOS:
+  # `--withheap` was ignored and it produced 6.1 GB raw / 1.9 GB compressed per leg, twice
+  # (runs 34312862020 and 34313419033). That is not a sensible standing cost for a rare event, so the
+  # cheap evidence is collected by default and the giant dump is one env var away when a specific
+  # macOS hang actually needs heap state.
+  if [ -z "$dumped" ] && [ -n "$host_pid" ] && [ "$(uname -s)" = "Darwin" ] \
+     && [ "${CI_TEST_MACOS_FULL_DUMP:-0}" != "1" ]; then
+    echo "--- native stacks (macOS: sample, in place of a 6 GB full core) ---" >> "$report"
+    if command -v sample >/dev/null 2>&1; then
+      sample "$host_pid" 3 -file "$RESULTS/hang-sample.txt" >>"$report" 2>&1 \
+        && dumped=1 || echo "::warning::sample could not profile process $host_pid"
+    else
+      echo "no 'sample' on this runner" >> "$report"
+    fi
+    echo "Set CI_TEST_MACOS_FULL_DUMP=1 to collect a full core here instead." >> "$report"
+  fi
+
+  # Everywhere else (and on macOS when asked): the runtime's own createdump, which does not need the
+  # diagnostics IPC dotnet-dump relies on.
   if [ -z "$dumped" ] && [ -n "$host_pid" ]; then
     createdump="$(find "$(dirname "$(command -v dotnet)")/shared/Microsoft.NETCore.App" -name createdump -type f 2>/dev/null | sort | tail -1)"
     if [ -n "$createdump" ]; then
       echo "falling back to $createdump" >> "$report"
-      # --withheap, NOT the default: on macOS createdump defaults to a FULL core dump and wrote
-      # 6.1 GB (1.9 GB compressed) per leg in run 34312862020. A heap minidump still carries the
-      # managed stacks and object state an analysis needs, at a fraction of that.
       "$createdump" --withheap -f "$RESULTS/hang-testhost.dmp" "$host_pid" >>"$report" 2>&1 \
         && dumped=1 || echo "::warning::createdump could not dump process $host_pid either"
     fi
