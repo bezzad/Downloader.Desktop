@@ -33,7 +33,12 @@ RUNSETTINGS="src/coverlet.runsettings"
 DUMP_AT=$(( DEADLINE > DUMP_LEAD ? DEADLINE - DUMP_LEAD : DEADLINE ))
 mkdir -p "$RESULTS"
 MARKER="$RESULTS/.test-finished"
-rm -f "$MARKER"
+# The watchdog leaves this behind when it kills the run, and the script then fails REGARDLESS of the exit
+# status it waited for. Proving run 34311757571 showed why that matters: on Linux and macOS a SIGTERM'd
+# `dotnet test` exits 0, so the killed legs reported SUCCESS (only Windows surfaced 143) — a harness that
+# hides the hang it exists to catch.
+KILLED="$RESULTS/.test-killed"
+rm -f "$MARKER" "$KILLED"
 
 # Collect a dump of whatever test host is still alive, then let the deadline kill the run.
 watchdog() {
@@ -45,9 +50,22 @@ watchdog() {
   dump_tool="$HOME/.dotnet/tools/dotnet-dump"
   [ -x "$dump_tool" ] || dump_tool="$(command -v dotnet-dump || true)"
   if [ -n "$dump_tool" ]; then
-    # --name avoids having to find the pid, which has no portable spelling across the three runners.
-    "$dump_tool" collect --name testhost --output "$RESULTS/hang-testhost.dmp" \
-      || echo "::warning::dotnet-dump could not collect a dump of the test host"
+    # The test host is NOT called the same thing everywhere: `--name testhost` matched on
+    # windows-latest and found nothing on ubuntu/macOS, where the process is plain `dotnet`
+    # (run 34311757571: "Attaching crash dump utility to process testhost" vs "…process dotnet").
+    # So ask dotnet-dump which .NET processes it can see and pick the test host out of them, by
+    # command line, falling back to any dotnet process that is not this script's own child.
+    host_pid="$("$dump_tool" ps 2>/dev/null | grep -i "testhost" | awk '{print $1}' | head -1)"
+    if [ -z "$host_pid" ]; then
+      host_pid="$("$dump_tool" ps 2>/dev/null | awk -v skip="$TEST_PID" '$1 != skip {print $1}' | tail -1)"
+    fi
+
+    if [ -n "$host_pid" ]; then
+      "$dump_tool" collect --process-id "$host_pid" --output "$RESULTS/hang-testhost.dmp" \
+        || echo "::warning::dotnet-dump could not collect a dump of process $host_pid"
+    else
+      echo "::warning::no .NET process to dump — dotnet-dump ps listed none"
+    fi
   else
     echo "::warning::dotnet-dump is unavailable — no hang dump was captured"
   fi
@@ -55,6 +73,14 @@ watchdog() {
   sleep "$DUMP_LEAD"
   [ -f "$MARKER" ] && return 0
   echo "::error::Killing the test run at its ${DEADLINE}s deadline."
+  # Recorded BEFORE the kill: this, not the exit status, is what fails the step.
+  : > "$KILLED"
+  # Closes the last narrow race: if the run finished in the instant between the check above and this
+  # write, withdraw the sentinel rather than failing a run that actually completed.
+  if [ -f "$MARKER" ]; then
+    rm -f "$KILLED"
+    return 0
+  fi
   kill -TERM "$TEST_PID" 2>/dev/null || true
   sleep 15
   kill -KILL "$TEST_PID" 2>/dev/null || true
@@ -78,7 +104,14 @@ STATUS=$?
 touch "$MARKER"
 kill "$WATCHDOG_PID" 2>/dev/null || true
 
+if [ -f "$KILLED" ]; then
+  # A SIGTERM'd `dotnet test` exits 0 on Linux and macOS, so the wait status cannot be trusted to
+  # report this. The sentinel can.
+  echo "::error::The test run was KILLED at its ${DEADLINE}s deadline (wait reported $STATUS). The uploaded test-results artifact holds hang-testhost.dmp."
+  exit 124
+fi
+
 if [ "$STATUS" -ne 0 ]; then
-  echo "::error::dotnet test exited $STATUS. If it was killed at the deadline, the uploaded test-results artifact holds hang-testhost.dmp."
+  echo "::error::dotnet test exited $STATUS."
 fi
 exit "$STATUS"
