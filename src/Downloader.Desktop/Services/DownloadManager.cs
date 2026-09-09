@@ -16,7 +16,7 @@ namespace Downloader.Desktop.Services;
 /// <see cref="DownloadBuilder"/>, marshals engine events onto the UI thread, and updates the
 /// matching <see cref="DownloadItemViewModel"/>. Queue concurrency / scheduling are layered on later.
 /// </summary>
-public partial class DownloadManager : IDownloadManager
+public partial class DownloadManager : IDownloadManager, IDisposable
 {
     private Config _config;
 
@@ -195,12 +195,35 @@ public partial class DownloadManager : IDownloadManager
             Items.Add(new DownloadItemViewModel(item, this));
         }
 
-        StartScheduler();
+        SyncScheduler();
     }
 
     // ---------------- Scheduler ----------------
 
     private DispatcherTimer _schedulerTimer;
+
+    /// <summary>Test seam: whether the periodic scheduler timer is currently ticking.</summary>
+    internal bool IsSchedulerRunning => _schedulerTimer?.IsEnabled == true;
+
+    /// <summary>
+    /// Runs the periodic scheduler only while there is something to schedule. Call it whenever the
+    /// schedule list changes.
+    ///
+    /// It used to be an unconditional `StartScheduler()` with no stop and no dispose, which cost twice:
+    /// a user with no schedules had the dispatcher woken every 30 s for a list that could not fire
+    /// anything, and in the test suite — where ONE dispatcher serves the whole run since
+    /// `AvaloniaTestIsolationLevel.PerAssembly` landed — every manager a test built left its timer behind.
+    /// Measured over a full local run with the CI flags (2026-09-08): 405 scheduler timers started, with
+    /// ticks arriving in bursts from dozens of distinct manager instances long after the tests that
+    /// created them had ended, on the dispatcher the remaining tests need in order to run at all.
+    /// </summary>
+    public void SyncScheduler()
+    {
+        if (_config?.Schedules is { Count: > 0 })
+            StartScheduler();
+        else
+            StopScheduler();
+    }
 
     private void StartScheduler()
     {
@@ -208,6 +231,33 @@ public partial class DownloadManager : IDownloadManager
         _schedulerTimer.Tick -= OnSchedulerTick;
         _schedulerTimer.Tick += OnSchedulerTick;
         _schedulerTimer.Start();
+    }
+
+    private void StopScheduler()
+    {
+        if (_schedulerTimer == null)
+            return;
+
+        _schedulerTimer.Stop();
+        _schedulerTimer.Tick -= OnSchedulerTick;
+        _schedulerTimer = null;
+    }
+
+    /// <summary>
+    /// Releases the two <see cref="DispatcherTimer"/>s this manager owns. A stopped timer is unhooked from
+    /// the dispatcher, so a manager that goes out of scope stops costing anything — which is what the test
+    /// suite needs, since its managers are per-test and its dispatcher is per-assembly.
+    /// </summary>
+    public void Dispose()
+    {
+        StopScheduler();
+
+        if (_uiTimer != null)
+        {
+            _uiTimer.Stop();
+            _uiTimer.Tick -= OnUiPumpTick;
+            _uiTimer = null;
+        }
     }
 
     private void OnSchedulerTick(object sender, EventArgs e)

@@ -54,6 +54,9 @@ public class SchedulerViewModel : ViewModelBase
         };
         _config.Schedules.Add(schedule);
         Schedules.Add(new ScheduleRowViewModel(schedule, _config, this));
+        // The scheduler timer runs only while there is something to schedule, so the first schedule has
+        // to start it — otherwise a schedule added in this session would never fire.
+        _manager?.SyncScheduler();
     }
 
     /// <summary>Smallest "Schedule {n}" not already taken by an existing schedule name.</summary>
@@ -74,6 +77,7 @@ public class SchedulerViewModel : ViewModelBase
     {
         _config.Schedules.Remove(row.Schedule);
         Schedules.Remove(row);
+        _manager?.SyncScheduler();
     }
 }
 
