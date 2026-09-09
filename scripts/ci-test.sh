@@ -46,29 +46,53 @@ watchdog() {
   [ -f "$MARKER" ] && return 0
 
   echo "::error::The test run is still going after ${DUMP_AT}s (deadline ${DEADLINE}s) — capturing a hang dump before it is killed."
+
+  # A VISIBLE record, written whatever else happens. upload-artifact ignores hidden files, so a killed
+  # leg whose dump could not be taken used to upload NOTHING at all (macOS, run 34312491544) — the exact
+  # "no evidence" outcome this script exists to prevent.
+  report="$RESULTS/hang-report.txt"
+  {
+    echo "The test run passed its ${DUMP_AT}s dump point and was killed at ${DEADLINE}s."
+    echo "runner: $(uname -s) $(uname -m)   configuration: $CONFIGURATION   date: $(date -u '+%FT%TZ')"
+  } > "$report"
+
   dotnet tool install --global dotnet-dump >/dev/null 2>&1 || true
   dump_tool="$HOME/.dotnet/tools/dotnet-dump"
   [ -x "$dump_tool" ] || dump_tool="$(command -v dotnet-dump || true)"
-  if [ -n "$dump_tool" ]; then
-    # The test host is NOT called the same thing everywhere: `--name testhost` matched on
-    # windows-latest and found nothing on ubuntu/macOS, where the process is plain `dotnet`
-    # (run 34311757571: "Attaching crash dump utility to process testhost" vs "…process dotnet").
-    # So ask dotnet-dump which .NET processes it can see and pick the test host out of them, by
-    # command line, falling back to any dotnet process that is not this script's own child.
-    host_pid="$("$dump_tool" ps 2>/dev/null | grep -i "testhost" | awk '{print $1}' | head -1)"
-    if [ -z "$host_pid" ]; then
-      host_pid="$("$dump_tool" ps 2>/dev/null | awk -v skip="$TEST_PID" '$1 != skip {print $1}' | tail -1)"
-    fi
 
-    if [ -n "$host_pid" ]; then
-      "$dump_tool" collect --process-id "$host_pid" --output "$RESULTS/hang-testhost.dmp" \
-        || echo "::warning::dotnet-dump could not collect a dump of process $host_pid"
-    else
-      echo "::warning::no .NET process to dump — dotnet-dump ps listed none"
-    fi
-  else
-    echo "::warning::dotnet-dump is unavailable — no hang dump was captured"
+  # The test host is NOT called the same thing everywhere, and it is not always visible to the same
+  # tool: `--name testhost` matched only on windows-latest (on ubuntu/macOS the process is plain
+  # `dotnet`), and `dotnet-dump ps` listed nothing at all on macOS. So try the tool's own listing
+  # first, then the OS's.
+  host_pid=""
+  if [ -n "$dump_tool" ]; then
+    host_pid="$("$dump_tool" ps 2>/dev/null | grep -i "testhost" | awk '{print $1}' | head -1)"
+    [ -n "$host_pid" ] || host_pid="$("$dump_tool" ps 2>/dev/null | awk -v skip="$TEST_PID" '$1 != skip {print $1}' | tail -1)"
   fi
+  if [ -z "$host_pid" ] && command -v pgrep >/dev/null 2>&1; then
+    host_pid="$(pgrep -f "Downloader.Desktop.Tests.dll" | grep -v "^${TEST_PID}$" | head -1)"
+    [ -n "$host_pid" ] || host_pid="$(pgrep -f testhost | grep -v "^${TEST_PID}$" | head -1)"
+  fi
+  echo "test host pid: ${host_pid:-<not found>}" >> "$report"
+
+  dumped=""
+  if [ -n "$dump_tool" ] && [ -n "$host_pid" ]; then
+    "$dump_tool" collect --process-id "$host_pid" --output "$RESULTS/hang-testhost.dmp" >>"$report" 2>&1 \
+      && dumped=1 || echo "::warning::dotnet-dump could not collect a dump of process $host_pid"
+  fi
+
+  # Last resort: the runtime's own createdump, which does not need the diagnostics IPC that
+  # dotnet-dump relies on — that IPC is what is missing on the macOS runners.
+  if [ -z "$dumped" ] && [ -n "$host_pid" ]; then
+    createdump="$(find "$(dirname "$(command -v dotnet)")/shared/Microsoft.NETCore.App" -name createdump -type f 2>/dev/null | sort | tail -1)"
+    if [ -n "$createdump" ]; then
+      echo "falling back to $createdump" >> "$report"
+      "$createdump" -f "$RESULTS/hang-testhost.dmp" "$host_pid" >>"$report" 2>&1 \
+        && dumped=1 || echo "::warning::createdump could not dump process $host_pid either"
+    fi
+  fi
+
+  [ -n "$dumped" ] || echo "::warning::no hang dump was captured — see hang-report.txt in the artifact"
 
   sleep "$DUMP_LEAD"
   [ -f "$MARKER" ] && return 0
