@@ -21,7 +21,7 @@ let currentPageTitle = "";
 let currentGroups = [];
 let pageVariants = []; // the app's qualities for THIS page, once it has answered
 let pageVariantsNote = null; // why there are none, when the app said why
-const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
+const selectsByGroup = new Map(); // group.key -> the row's quality picker ({ value }), or null
 
 async function activeTab() {
   // Test-only override: e2e tests open popup.html as a normal tab (there's no public API to
@@ -46,8 +46,8 @@ function fileName(url) {
 }
 
 // What identifies one option inside its card. The URL alone doesn't: a page's qualities are all the
-// SAME url (the page) distinguished only by the variant the app should extract, so keying the
-// <select> by URL would collapse them onto whichever came first.
+// SAME url (the page) distinguished only by the variant the app should extract, so keying the chips
+// by URL would collapse them onto whichever came first.
 function optionKey(opt) {
   if (!opt) return "";
   return opt.variantId ? `${opt.url}#${opt.variantId}` : opt.url;
@@ -154,6 +154,46 @@ function buildGroups() {
   return sortDetectedGroups([...map.values()]);
 }
 
+// The row's small icon set. Inline SVG, never emoji: these inherit the accent the app is wearing and
+// stay crisp at 14px. `kind` names what the row IS, which is also what the badge has to say now that
+// it draws a glyph instead of the file extension (the extension survives as the badge's tooltip).
+const ROW_ICONS = {
+  hls: '<path d="M8 2.4 13.6 5.4 8 8.4 2.4 5.4z"/><path d="M2.4 8.6 8 11.6l5.6-3"/><path d="M2.4 11.2 8 14.2l5.6-3"/>',
+  page: '<circle cx="8" cy="8" r="5.4"/><path d="M2.6 8h10.8"/><path d="M8 2.6c1.5 1.6 2.3 3.5 2.3 5.4S9.5 11.8 8 13.4C6.5 11.8 5.7 9.9 5.7 8s.8-3.8 2.3-5.4z"/>',
+  video: '<rect x="2.3" y="3.5" width="11.4" height="9" rx="1.6"/><path d="M6.6 6.4l3.6 2.1-3.6 2.1z"/>',
+  audio: '<circle cx="5.2" cy="11.4" r="1.9"/><circle cx="11.6" cy="10.1" r="1.9"/><path d="M7.1 11.4V4.6l6.4-1.3v6.8"/>',
+  file: '<path d="M9 2.3H4.6a1.3 1.3 0 0 0-1.3 1.3v8.8a1.3 1.3 0 0 0 1.3 1.3h6.8a1.3 1.3 0 0 0 1.3-1.3V5.9z"/><path d="M9 2.3v3.6h3.7"/>',
+  download: '<path d="M8 2.2v7.3"/><path d="M4.8 6.6 8 9.8l3.2-3.2"/><path d="M2.8 13.2h10.4"/>',
+  done: '<path d="M3.2 8.6 6.4 11.8 12.8 4.6"/>',
+  failed: '<path d="M8 4.4v4.4"/><path d="M8 11.4v.2"/><circle cx="8" cy="8" r="5.8"/>'
+};
+
+const AUDIO_EXTS = ["m4a", "mp3", "aac", "opus", "ogg", "flac", "wav"];
+
+function svgIcon(name, size = 14) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.6");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.dataset.icon = name;
+  svg.innerHTML = ROW_ICONS[name] || ROW_ICONS.file;
+  return svg;
+}
+
+/** Which glyph stands for this row: a manifest, a page, a sound file, a video, or just a file. */
+function rowKind(group, ext) {
+  if (group.kind === "page") return "page";
+  if (group.kind === "hls" || ext === "M3U8" || ext === "M3U") return "hls";
+  if (AUDIO_EXTS.includes((ext || "").toLowerCase())) return "audio";
+  return "video";
+}
+
 // A fixed-size preview slot, so the list never reflows as previews arrive and a source that fails to
 // load falls back to the type placeholder instead of leaving a broken image. `src` is this group's
 // OWN assigned image (see assignThumbnails) — never looked up freshly here, or every card would draw
@@ -162,13 +202,12 @@ function buildThumb(group, src) {
   const slot = document.createElement("div");
   slot.className = "thumb";
   const ext = (extOf(groupTypeUrl(group)) || "").toUpperCase();
-  // A page row has no file extension to show — it stands for the video the app will extract; and a
-  // manifest is called HLS by everyone, including this extension's own UI.
-  const label = group.kind === "page" ? "PAGE"
-    : ext === "M3U8" || ext === "M3U" ? "HLS"
-    : (ext ? ext.slice(0, 4) : "FILE");
+  // A page row has no file extension to show — it stands for the video the app will extract.
+  const label = group.kind === "page" ? "PAGE" : (ext ? ext.slice(0, 4) : "FILE");
   const placeholder = () => {
-    slot.textContent = label;
+    slot.innerHTML = "";
+    slot.appendChild(svgIcon(rowKind(group, ext)));
+    slot.title = label;
     slot.classList.add("placeholder");
   };
   if (!src) { placeholder(); return slot; }
@@ -182,7 +221,11 @@ function buildThumb(group, src) {
 }
 
 function buildCard(group, thumbSrc) {
+  // A row is a column: the entry itself, and — when there is a choice to make — the quality band
+  // underneath it. One <li> either way, so the list's own count still means "things found".
   const li = document.createElement("li");
+  const row = document.createElement("div");
+  row.className = "row";
   const meta = document.createElement("div");
   meta.className = "meta";
   const name = document.createElement("div");
@@ -191,18 +234,35 @@ function buildCard(group, thumbSrc) {
   name.title = group.title;
   meta.appendChild(name);
 
-  let select = null;
+  // The qualities are chips, not a dropdown: on a row that HAS a choice, the point is that the choice
+  // is visible — most of the time what is wanted is not the quality that happened to be playing, it is
+  // the audio or a smaller copy, and a closed dropdown hides exactly that.
+  let band = null;
+  let picker = null;
   if (group.options.length > 1) {
-    select = document.createElement("select");
-    select.className = "quality";
+    band = document.createElement("div");
+    band.className = "qband";
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    chips.setAttribute("role", "radiogroup");
+    band.appendChild(chips);
+    picker = { value: optionKey(group.options[0]), chips: new Map() };
     for (const opt of group.options) {
-      const o = document.createElement("option");
-      o.value = optionKey(opt);
-      o.textContent = opt.label || fileName(opt.url);
-      select.appendChild(o);
+      const key = optionKey(opt);
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.type = "button";
+      chip.setAttribute("role", "radio");
+      chip.dataset.value = key;
+      const full = opt.label || fileName(opt.url);
+      chip.textContent = chipLabel(full) || full;
+      chip.title = full;
+      chip.onclick = () => selectChip(key);
+      picker.chips.set(key, chip);
+      chips.appendChild(chip);
     }
   }
-  selectsByGroup.set(group.key, select);
+  selectsByGroup.set(group.key, picker);
 
   // The left line says WHAT this is; the measured facts (size, quality) sit in their own right-hand
   // column, so a list of six rows can be scanned down one edge instead of read sentence by sentence.
@@ -210,7 +270,6 @@ function buildCard(group, thumbSrc) {
   sizeEl.className = "type size-line";
   sizeEl.textContent = group.note || (group.isMaster ? `Stream · ${group.options.length} qualities` : "");
   meta.appendChild(sizeEl);
-  if (select) meta.appendChild(select);
 
   const right = document.createElement("div");
   right.className = "meta-right";
@@ -221,20 +280,28 @@ function buildCard(group, thumbSrc) {
   right.append(sizeVal, qualityVal);
 
   const currentOption = () => {
-    const key = select ? select.value : optionKey(group.options[0]);
+    const key = picker ? picker.value : optionKey(group.options[0]);
     return group.options.find(o => optionKey(o) === key) || group.options[0];
+  };
+  const selectChip = key => {
+    picker.value = key;
+    for (const [k, chip] of picker.chips) {
+      const on = k === key;
+      chip.classList.toggle("on", on);
+      chip.setAttribute("aria-checked", String(on));
+    }
+    updateSize();
   };
   const updateSize = () => {
     const opt = currentOption();
     const human = opt && formatBytes(opt.size);
     sizeVal.textContent = human ? (opt.approx ? "~" : "") + human : "";
     // Say the quality the row was ranked on — otherwise the order of the list is unexplainable from
-    // looking at it. Only when there is no picker: a picker already shows every quality.
-    const height = select ? -1 : groupQualityHeight(group);
-    qualityVal.textContent = height > 0 ? `${height}p` : "";
+    // looking at it. With a picker it is the chosen chip's own label.
+    const height = picker ? -1 : groupQualityHeight(group);
+    qualityVal.textContent = picker ? chipLabel(opt?.label || "") : (height > 0 ? `${height}p` : "");
   };
-  if (select) select.onchange = updateSize;
-  updateSize();
+  if (picker) selectChip(picker.value); else updateSize();
 
   // Why this row has no picker, when the app told us. Kept out of the size line so it is not mistaken
   // for part of the file's description, and titled as well because a plugin's reason can be a sentence.
@@ -248,10 +315,14 @@ function buildCard(group, thumbSrc) {
 
   const btn = document.createElement("button");
   btn.className = "row-action";
-  btn.textContent = "Download";
+  btn.title = "Download";
+  btn.setAttribute("aria-label", "Download");
+  btn.appendChild(svgIcon("download"));
   btn.onclick = () => sendOption(currentOption(), btn);
 
-  li.append(buildThumb(group, thumbSrc), meta, right, btn);
+  row.append(buildThumb(group, thumbSrc), meta, right, btn);
+  li.appendChild(row);
+  if (band) li.appendChild(band);
   return li;
 }
 
@@ -287,10 +358,13 @@ function pageGroup() {
 // The section header doubles as the count: the list IS ordered (see sortDetectedGroups), and a
 // header that never changes leaves that unexplained.
 function updateCount() {
-  if (!listCountEl) return;
-  listCountEl.textContent = currentGroups.length
-    ? `${currentGroups.length} detected \u00b7 best first`
-    : "Detected media";
+  const n = currentGroups.length;
+  if (listCountEl)
+    listCountEl.textContent = n ? `${n} detected \u00b7 best first` : "Detected media";
+  const label = document.getElementById("sendAllLabel");
+  if (label) label.textContent = n ? `All ${n}` : "All";
+  const all = document.getElementById("sendAll");
+  if (all) all.disabled = n === 0;
 }
 
 function render() {
@@ -350,7 +424,7 @@ function addItem(url, type) {
 
 async function sendOne(url, btn, variantId) {
   if (!url) return;
-  if (btn) { btn.disabled = true; btn.textContent = "…"; }
+  if (btn) { btn.disabled = true; btn.classList.add("busy"); btn.title = "Sending…"; }
   // The answer can be missing entirely, not just negative: the background worker is torn down (or the
   // message channel closes) and the callback fires with `undefined`. Destructuring that threw, which
   // left the button reading "…" for ever with nothing to click — the shape of a hang, for what is
@@ -363,7 +437,12 @@ async function sendOne(url, btn, variantId) {
     ok = false;
   }
   if (btn) {
-    btn.textContent = ok ? "Sent ✓" : "Failed";
+    btn.classList.remove("busy");
+    btn.classList.toggle("done", ok);
+    btn.classList.toggle("failed", !ok);
+    btn.title = ok ? "Sent" : "Failed — click to try again";
+    btn.setAttribute("aria-label", btn.title);
+    btn.replaceChildren(svgIcon(ok ? "done" : "failed"));
     btn.disabled = ok; // a failure is worth trying again; a sent item is not
   }
 }
@@ -516,8 +595,8 @@ document.getElementById("sendManual").onclick = () => {
 document.getElementById("scanLinks").onclick = scanPageLinks;
 document.getElementById("sendAll").onclick = async () => {
   for (const g of currentGroups) {
-    const select = selectsByGroup.get(g.key);
-    const key = select ? select.value : optionKey(g.options[0]);
+    const picker = selectsByGroup.get(g.key);
+    const key = picker ? picker.value : optionKey(g.options[0]);
     await sendOption(g.options.find(o => optionKey(o) === key) || g.options[0]);
   }
 };
@@ -537,13 +616,20 @@ document.getElementById("copyLinks").onclick = async (e) => {
     groups: currentGroups,
     sniffed: rawItems.map(i => i.url)
   });
+  const settle = (cls, tip) => {
+    btn.classList.add(cls);
+    btn.title = tip;
+    setTimeout(() => {
+      btn.classList.remove(cls);
+      btn.title = "Copy the detected links (for a bug report)";
+    }, 2000);
+  };
   try {
     await navigator.clipboard.writeText(text);
-    btn.textContent = "Copied";
+    settle("done", "Copied");
   } catch {
-    btn.textContent = "Could not copy";
+    settle("failed", "Could not copy");
   }
-  setTimeout(() => { btn.textContent = "Copy links"; }, 2000);
 };
 
 // Interception rules and the rest of the settings live on the options page; the popup only links to

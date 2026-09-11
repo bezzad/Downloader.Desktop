@@ -77,10 +77,11 @@ test("HLS master expands into a quality picker with an estimated size, with no d
   // regression: this used to produce 3+ near-duplicate cards for one video).
   await expect(cards).toHaveCount(1);
 
-  const select = cards.first().locator("select.quality");
-  const optionTexts = await select.locator("option").allTextContents();
-  expect(optionTexts.some(t => t.includes("320x240"))).toBeTruthy();
-  expect(optionTexts.some(t => t.includes("640x480"))).toBeTruthy();
+  // The chips carry the short label; the full one ("640x480") is their tooltip.
+  const chips = cards.first().locator(".qband .chip");
+  const titles = await chips.evaluateAll(els => els.map(e => e.title));
+  expect(titles.some(t => t.includes("320x240"))).toBeTruthy();
+  expect(titles.some(t => t.includes("640x480"))).toBeTruthy();
 
   await expect(cards.first().locator(".size-val")).toContainText("~"); // HLS = always an estimate
 });
@@ -106,7 +107,7 @@ test("direct-file quality variants are grouped into one card", async ({ context,
 
   const cards = popup.locator("#list li");
   await expect(cards).toHaveCount(1); // both qualities grouped into ONE card
-  await expect(cards.first().locator("select.quality option")).toHaveCount(2);
+  await expect(cards.first().locator(".qband .chip")).toHaveCount(2);
 });
 
 test("choosing a quality sends the MASTER plus that quality's id, not the rendition URL", async ({ context, extensionId }) => {
@@ -129,12 +130,12 @@ test("choosing a quality sends the MASTER plus that quality's id, not the rendit
     await popup.waitForTimeout(3000);
 
     const card = popup.locator("#list li").first();
-    const select = card.locator("select.quality");
-    // The picker lists the master's variants in playlist order; pick the 640x480 one by its label.
-    const labels = await select.locator("option").allTextContents();
-    const wanted = labels.findIndex(t => t.includes("640x480"));
+    const chips = card.locator(".qband .chip");
+    // The band lists the master's variants in playlist order; pick the 640x480 one by its tooltip.
+    const titles = await chips.evaluateAll(els => els.map(e => e.title));
+    const wanted = titles.findIndex(t => t.includes("640x480"));
     expect(wanted).toBeGreaterThanOrEqual(0);
-    await select.selectOption({ index: wanted });
+    await chips.nth(wanted).click();
     await card.locator("button.row-action").click();
 
     await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);

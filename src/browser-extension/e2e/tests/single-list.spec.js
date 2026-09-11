@@ -96,7 +96,9 @@ test("a row with no available preview still shows a fixed-size type placeholder"
 
   const thumb = popup.locator("#list li .thumb").first();
   await expect(thumb).toHaveClass(/placeholder/);
-  await expect(thumb).toHaveText("MP4");
+  // The badge draws what the row IS; the file type it used to spell out is its tooltip.
+  await expect(thumb.locator("svg")).toHaveAttribute("data-icon", "video");
+  await expect(thumb).toHaveAttribute("title", "MP4");
   // The point of the slot is that it never reflows the list: a row with no preview reserves exactly
   // the same fixed square a captured frame is drawn into (28px in popup.css's dense rows).
   const box = await thumb.boundingBox();

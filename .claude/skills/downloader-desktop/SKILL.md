@@ -1927,10 +1927,19 @@ already existed and both had run. What was wrong was the DISPLAY and the dead en
   **28px square** slot (the captured preview when there is one, the file type when there isn't — the
   preview pipeline was kept, just made small), name + one meta line + the quality `<select>` below it,
   hairline dividers, a compact `Download` button per row. Six or seven finds fit at once.
+- **The controls are the design's, not HTML defaults** (the author rejected two rounds that kept them):
+  the badge draws a GLYPH for what the row is (manifest / page / video / sound — the file type is its
+  `title`), the row's action is an ICON-ONLY arrow whose words live in `title`/`aria-label` and whose
+  states are glyph swaps (`done`/`failed`/`busy`), the quality picker is a JOINED SEGMENTED BAND of
+  chips on its own strip under the row (never a `<select>` — a closed dropdown hides exactly the choice
+  the design exists to show), and the footer is one row: a switch, a compact `All N` button, and two
+  icon buttons. `chipLabel` (common.js, pure) shortens a chip's text — `640x480` → `480p`,
+  `Audio only (≈4 MB)` → `Audio` — with the full text as its tooltip.
 - **Selectors the Playwright suite holds onto** — renaming any of these breaks e2e, so grep the specs
-  first: `#list li`, `.thumb` (+`.placeholder`, and `.thumb img` for a real preview), `.name`,
-  `.size-line`, `.warn-line`, `select.quality`, and **`button.row-action`** (the row's action button; it
-  is deliberately NOT `.primary` any more — the footer's bulk button is the primary one).
+  first: `#list li` (ONE per find, the band lives inside it), `.row`, `.thumb` (+`.placeholder`, its
+  `svg[data-icon]`, and `.thumb img` for a real preview), `.name`, `.size-line`, `.size-val`,
+  `.quality-val`, `.warn-line`, `.qband .chip`, and **`button.row-action`** (whose `title` is what the
+  assertions read, since it has no text).
 - The section header is live: `updateCount()` writes "N detected · best first", since the list IS sorted
   and nothing said so. Status is a dot **plus a word** (`#statusText`) — a lone dot only explains itself
   on hover.

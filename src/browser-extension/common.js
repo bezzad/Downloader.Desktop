@@ -1162,6 +1162,19 @@ async function fetchAppDefaultSavePath(port = null) {
   }
 }
 
+// The short label a quality CHIP carries. The picker is a row of chips, not a dropdown, so a label has
+// to fit one: "640x480" is the height everyone reads it by, and the size estimate belongs in the row's
+// own size column, not repeated on every chip. The full text stays as the chip's tooltip.
+function chipLabel(text) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  const head = t.split(" (")[0].trim();          // "1080p (~120 MB)" -> "1080p"
+  const wxh = head.match(/^(\d+)\s*[x\u00d7]\s*(\d+)$/i);
+  if (wxh) return `${wxh[2]}p`;                   // "640x480" -> "480p"
+  if (/^audio/i.test(head)) return "Audio";       // "Audio only" -> "Audio"
+  return head;
+}
+
 // ---------------- Theme: follow the app's accent (not its light/dark) ----------------
 //
 // The popup's palette is the app's, but it was a hand-copied one: choosing Blue in the app's settings
@@ -1669,6 +1682,7 @@ if (typeof module !== "undefined") {
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
     shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
+    chipLabel,
     isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
     contrastRatio, mixHex, luminance,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,

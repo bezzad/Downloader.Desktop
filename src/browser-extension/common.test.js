@@ -27,6 +27,7 @@ const {
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
   unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
   variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
+  chipLabel,
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
   contrastRatio,
   appFetch, APP_TIMEOUT_MS, awaitAddTicket
@@ -1974,4 +1975,16 @@ test("the accent as TEXT is darkened or lightened until it reads on the popup's 
   assert.equal(tokens["--accent-text"], accentTextColor("#E2922E", false));
   assert.equal(tokens["--accent-text-dark"], accentTextColor("#E2922E", true));
   assert.equal(accentTextColor("not a colour", false), null);
+});
+
+test("a quality chip carries the short label, not the whole option text", () => {
+  // The picker is a row of chips: a label has to fit one, and the size estimate belongs in the row's
+  // own size column rather than repeated on every chip.
+  assert.equal(chipLabel("1080p (≈120 MB)"), "1080p");
+  assert.equal(chipLabel("640x480"), "480p");      // the height is what people read it by
+  assert.equal(chipLabel("1920×1080"), "1080p");   // the × form too
+  assert.equal(chipLabel("Audio only (≈4 MB)"), "Audio");
+  assert.equal(chipLabel("1200 kbps"), "1200 kbps"); // nothing to shorten: left alone
+  assert.equal(chipLabel(""), "");
+  assert.equal(chipLabel(null), "");
 });

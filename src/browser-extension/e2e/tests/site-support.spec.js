@@ -104,7 +104,7 @@ test("with the plugin installed, the page itself is listed as a downloadable ite
     // The page is an ITEM, not a notice: one ordinary row with a Download button, and no message at
     // all where the video belongs (the red block of text was the complaint this replaced).
     await expect(popup.locator("#list li")).toHaveCount(1);
-    await expect(popup.locator("#list li button")).toHaveText("Download");
+    await expect(popup.locator("#list li button.row-action")).toHaveAttribute("title", "Download");
     await expect(popup.locator("#list li .size-line")).toContainText("Video sites");
     await expect(popup.locator("#empty")).toBeHidden();
   } finally {
@@ -131,16 +131,16 @@ test("the page row offers the app's qualities, and the pick is what gets sent", 
     const page = await openBlockedSitePage(context);
 
     const popup = await openPopupFor(context, extensionId, page);
-    const select = popup.locator("#list li select.quality");
-    await expect(select).toBeVisible();
-    await expect(select.locator("option")).toHaveText([
-      "1080p (≈120 MB)", "720p (≈60 MB)", "Audio only (≈4 MB)"
-    ]);
+    const chips = popup.locator("#list li .qband .chip");
+    await expect(chips).toHaveCount(3);
+    await expect(chips).toHaveText(["1080p", "720p", "Audio"]); // short on the chip…
+    expect(await chips.evaluateAll(els => els.map(e => e.title)))
+      .toEqual(["1080p (≈120 MB)", "720p (≈60 MB)", "Audio only (≈4 MB)"]); // …full in the tooltip
 
     // What most people are after on a music video is the audio — so the pick has to survive the send.
-    await select.selectOption({ index: 2 });
-    await popup.locator("#list li button").click();
-    await expect(popup.locator("#list li button")).toHaveText("Sent ✓");
+    await chips.nth(2).click();
+    await popup.locator("#list li button.row-action").click();
+    await expect(popup.locator("#list li button.row-action")).toHaveAttribute("title", "Sent");
     expect(adds.length).toBe(1);
     expect(adds[0].variantId).toBe("audio");
     expect(adds[0].url).toContain("youtube.com/watch");
@@ -191,8 +191,8 @@ test("a failed quality lookup says why on the row instead of silently offering n
     await expect(popup.locator("#list li .warn-line")).toHaveText(reason);
     // Still downloadable as a whole page: the reason explains the missing picker, it does not replace
     // the row (the app can still pick a stream itself).
-    await expect(popup.locator("#list li button")).toHaveText("Download");
-    await expect(popup.locator("#list li select.quality")).toHaveCount(0);
+    await expect(popup.locator("#list li button.row-action")).toHaveAttribute("title", "Download");
+    await expect(popup.locator("#list li .qband")).toHaveCount(0);
   } finally {
     await new Promise(r => app.server.close(r));
   }
