@@ -616,8 +616,13 @@ async function pingApp() {
 
 // Does the running app claim this page? Discovers the port the same way every other call does.
 async function askAppCanHandlePage(url) {
-  const port = await discoverAppPort();
-  return await appCanHandlePage(url, port);
+  const answer = await appCanHandlePage(url, await discoverAppPort());
+  if (answer.answered) return answer;
+  // One retry. This answer decides what the popup TELLS the user about their setup, and the popup is
+  // open for a moment — a single missed answer (a service worker still waking, a request that raced
+  // something else) must not be presented as a fact about their machine.
+  await new Promise(r => setTimeout(r, CAN_HANDLE_RETRY_MS));
+  return await appCanHandlePage(url, await discoverAppPort());
 }
 
 // The qualities behind a page the app claims (1080p / 720p / audio-only …), asked of the app's
@@ -841,29 +846,45 @@ const SITE_MEDIA_PLUGIN_NAME = "Video sites (YouTube and others)";
 // plugins that are actually enabled. Never throws: an unreachable or older app (404) answers "no", which
 // reproduces the behaviour from before this endpoint existed.
 async function appCanHandlePage(url, port) {
-  if (!url || port == null) return { handled: false, by: null };
+  if (!url || port == null) return { handled: false, by: null, answered: false };
   try {
     const res = await appFetch(withIdentity(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
-    if (!res.ok) return { handled: false, by: null };
+    // A 404 is an app older than this endpoint. That IS an answer — such an app has no page handling
+    // at all — and it is the case this branch was written for.
+    if (res.status === 404) return { handled: false, by: null, answered: true };
+    if (!res.ok) return { handled: false, by: null, answered: false };
     const body = await res.json();
-    return { handled: body?.handled === true, by: body?.by ?? null };
+    return { handled: body?.handled === true, by: body?.by ?? null, answered: true };
   } catch {
-    return { handled: false, by: null };
+    return { handled: false, by: null, answered: false };
   }
 }
+
+/** How long to wait before asking a second time when the first attempt got no answer at all. */
+const CAN_HANDLE_RETRY_MS = 400;
 
 // What the popup shows for a page on a site whose video can't be sniffed off the network (MSE/DRM).
 // Pure, so both branches are unit-tested: with a plugin that claims the page the page itself is
 // offered to the app; without one the user is told which plugin would do it. Deliberately never "you
 // must be signed in" — that was the old wording and it is wrong: the people who see it ARE signed in,
 // and signing in again changes nothing (issue #9 follow-up).
-function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName }) {
+function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName, answered = true }) {
   if (!hostUnsupported) return { mode: "normal", message: null };
   // The app CAN take this page, so there is nothing to explain and nothing to warn about: the popup
   // shows the page as an ordinary row with a Download button, exactly like a sniffed file. A block of
   // red text where the video item belongs was the whole complaint — it read as an error for a page
   // that downloads perfectly well. `handler` is the plugin's name, shown as the row's quiet sub-line.
   if (appHandlesPage) return { mode: "offer", message: null, handler: handlerName || null };
+  // Nobody ANSWERED. Saying "install the plugin" here states something about the user's machine that
+  // was never established — and it was told to someone who had the plugin installed all along (the
+  // answer only failed intermittently). An unanswered question is reported as one.
+  if (!answered) {
+    return {
+      mode: "unknown",
+      message: "Downloader didn't answer when asked whether it can download from this site. "
+        + "Close and reopen this popup to try again.",
+    };
+  }
   return {
     mode: "unsupported",
     message: "This site streams video in a format Downloader can't capture from the page. "

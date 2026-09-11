@@ -1999,3 +1999,21 @@ and must not be worked around.
   re-run it later; the version it was carrying never shipped, so the NEXT bump carries those changes.
 - Check what is actually live before assuming:
   `curl -fsSL "https://addons.mozilla.org/api/v5/addons/addon/<slug>/versions/?page_size=50"`.
+
+## A lookup that got NO ANSWER must never be reported as a fact about the user's machine
+Reported twice in one session, from both endpoints the popup asks:
+- `/api/variants` empty vs failed — a failed quality lookup looked exactly like "this page offers no
+  choices", so a missing "Audio only" had no explanation (fixed: the row shows the app's reason).
+- `/api/can-handle` false vs unanswered — the popup told the author to install the site-media plugin
+  they HAD installed; reloading the page a few times made it work, i.e. the lookup was failing
+  INTERMITTENTLY and a failure was rendered as a verdict on their setup.
+The shape to watch for: a helper that swallows every failure into the same value the negative answer
+uses (`return { handled: false }` in a `catch`). Every app-facing lookup in `common.js` now carries
+whether it IS an answer (`answered`), the popup only treats an explicit `answered === true` as one,
+and `askAppCanHandlePage` retries once (`CAN_HANDLE_RETRY_MS`) because the popup lives for a moment
+and one missed answer would otherwise be shown as fact. A 404 stays a real answer — that is an app
+older than the endpoint. The "we could not ask" state is its own mode (`unknown`, amber), never the
+red of a definite refusal.
+**`send()` to the background worker can resolve `undefined`** while an MV3 worker is still waking:
+`const { x } = await send(...)` THROWS on that and abandons the whole load silently. Destructure a
+defaulted object (`(await send(...)) || {}`).

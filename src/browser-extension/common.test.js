@@ -25,7 +25,7 @@ const {
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
-  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
   variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
   chipLabel,
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
@@ -1331,21 +1331,26 @@ test("an ordinary site is left alone", () => {
 test("asking the app what it can handle survives an old app, an error and no app at all", async () => {
   const realFetch = global.fetch;
   try {
-    global.fetch = async () => ({ ok: true, json: async () => ({ handled: true, by: "Video sites (YouTube and others)" }) });
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ handled: true, by: "Video sites (YouTube and others)" }) });
     assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
-      { handled: true, by: "Video sites (YouTube and others)" });
+      { handled: true, by: "Video sites (YouTube and others)", answered: true });
 
     // An app older than this endpoint 404s — that must read as "no", exactly as before it existed.
     global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
-    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151), { handled: false, by: null });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
+      { handled: false, by: null, answered: true });
 
+    // A failure is "no" as far as the caller's flow goes, but it is NOT an answer (see the tests at
+    // the end of this file): the popup must not turn it into a claim about the user's setup.
     global.fetch = async () => { throw new Error("connection refused"); };
-    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151), { handled: false, by: null });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
+      { handled: false, by: null, answered: false });
 
     // No port discovered at all — never even attempts a request.
     let called = false;
     global.fetch = async () => { called = true; };
-    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null), { handled: false, by: null });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null),
+      { handled: false, by: null, answered: false });
     assert.equal(called, false);
   } finally {
     global.fetch = realFetch;
@@ -1990,4 +1995,70 @@ test("a quality chip carries the short label, not the whole option text", () => 
   assert.equal(chipLabel("1200 kbps"), "1200 kbps"); // nothing to shorten: left alone
   assert.equal(chipLabel(""), "");
   assert.equal(chipLabel(null), "");
+});
+
+// ---- "We could not ask" must never be reported as "you do not have the plugin" ----
+
+test("a can-handle lookup that got no answer is marked unanswered, and a 404 is an answer", async () => {
+  const realFetch = global.fetch;
+  try {
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ handled: true, by: "Video sites" }) });
+    const yes = await appCanHandlePage("https://youtube.com/watch?v=a", 15151);
+    assert.deepEqual(yes, { handled: true, by: "Video sites", answered: true });
+
+    // An app older than the endpoint genuinely has no page handling — that IS an answer.
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", 15151)).answered, true);
+
+    // A server error or an unreachable app is NOT an answer, however tempting it is to treat it as one.
+    global.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", 15151)).answered, false);
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", 15151)).answered, false);
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", null)).answered, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("an unanswered lookup never tells the user to install a plugin", () => {
+  // The real report: the message named a plugin the author had installed all along — the answer had
+  // only failed intermittently (reloading the page a few times made it work). A claim about someone's
+  // machine needs an answer behind it.
+  const unknown = unsupportedSiteState({
+    hostUnsupported: true, appHandlesPage: false, handlerName: null, answered: false
+  });
+  assert.equal(unknown.mode, "unknown");
+  assert.doesNotMatch(unknown.message, /install/i);
+  assert.doesNotMatch(unknown.message, /plugin/i);
+  assert.ok(!unknown.message.includes(SITE_MEDIA_PLUGIN_NAME));
+
+  // An actual "no plugin claims this" still says so, and still names the plugin that would.
+  const answered = unsupportedSiteState({
+    hostUnsupported: true, appHandlesPage: false, handlerName: null, answered: true
+  });
+  assert.equal(answered.mode, "unsupported");
+  assert.ok(answered.message.includes(SITE_MEDIA_PLUGIN_NAME));
+});
+
+test("a can-handle lookup that goes unanswered is asked once more", async () => {
+  const realFetch = global.fetch;
+  const savedStorage = global.chrome.storage;
+  try {
+    global.chrome.storage = { local: { get: async d => ({ ...d }), set: () => {} } };
+    let calls = 0;
+    global.fetch = async url => {
+      if (String(url).includes("/ping")) return { ok: true, status: 200, json: async () => ({}) };
+      calls++;
+      // Unanswered first, then the real answer — the shape of the reported flake.
+      if (calls === 1) throw new Error("no answer");
+      return { ok: true, status: 200, json: async () => ({ handled: true, by: "Video sites" }) };
+    };
+    const answer = await askAppCanHandlePage("https://youtube.com/watch?v=a");
+    assert.equal(answer.handled, true);
+    assert.equal(calls, 2);
+  } finally {
+    global.fetch = realFetch;
+    global.chrome.storage = savedStorage;
+  }
 });

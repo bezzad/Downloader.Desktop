@@ -27,7 +27,7 @@ async function appAnsweringInRange() {
  * A stub app that answers /ping and /api/can-handle. `handled` decides which answer it gives, i.e.
  * whether this "install" has a plugin that claims video pages.
  */
-function startAppStub({ handled, by, variants, variantsError, adds }) {
+function startAppStub({ handled, by, variants, variantsError, adds, canHandleStatus }) {
   const server = http.createServer((req, res) => {
     if (req.url.startsWith("/ping")) {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
@@ -35,6 +35,7 @@ function startAppStub({ handled, by, variants, variantsError, adds }) {
       return;
     }
     if (req.url.startsWith("/api/can-handle")) {
+      if (canHandleStatus) { res.writeHead(canHandleStatus).end(); return; }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ handled, by: handled ? by : null }));
       return;
@@ -193,6 +194,32 @@ test("a failed quality lookup says why on the row instead of silently offering n
     // the row (the app can still pick a stream itself).
     await expect(popup.locator("#list li button.row-action")).toHaveAttribute("title", "Download");
     await expect(popup.locator("#list li .qband")).toHaveCount(0);
+  } finally {
+    await new Promise(r => app.server.close(r));
+  }
+});
+
+test("an app that fails to answer is never reported as a missing plugin", async ({ context, extensionId }) => {
+  test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
+  // The real report: the popup told the author to install a plugin they had installed all along, and
+  // reloading the page a few times made it work — i.e. the lookup only failed intermittently, and a
+  // failure was being presented as a fact about their machine.
+  const app = await startAppStub({ handled: false, canHandleStatus: 500 });
+  test.skip(!app, "no free port in the app range for the stub");
+  try {
+    await setCachedPort(context, app.port);
+    const page = await openBlockedSitePage(context);
+
+    const popup = await openPopupFor(context, extensionId, page);
+    // Wait for the ANSWER, not for the element: #empty is visible from the static HTML with its
+    // default text, so reading it once races the render (and the lookup retries before giving up).
+    await expect(popup.locator("#empty")).toContainText(/didn't answer/i);
+    const text = await popup.locator("#empty").textContent();
+    expect(text).not.toMatch(/install/i);
+    expect(text).not.toContain("Video sites (YouTube and others)");
+    // Amber "we could not ask", not the red of a definite refusal.
+    await expect(popup.locator("#empty")).toHaveClass(/unknown/);
+    await expect(popup.locator("#empty")).not.toHaveClass(/unsupported/);
   } finally {
     await new Promise(r => app.server.close(r));
   }

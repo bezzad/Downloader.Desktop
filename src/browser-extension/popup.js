@@ -378,7 +378,7 @@ function render() {
     listEl.append(buildCard(currentGroups[0], thumbIndex.fallback));
     updateCount();
     emptyEl.style.display = "none";
-    emptyEl.classList.remove("unsupported");
+    emptyEl.classList.remove("unsupported", "unknown");
     return;
   }
 
@@ -392,7 +392,8 @@ function render() {
     selectsByGroup.clear();
     listEl.innerHTML = "";
     emptyEl.style.display = "block";
-    emptyEl.classList.add("unsupported");
+    emptyEl.classList.toggle("unsupported", siteState.mode === "unsupported");
+    emptyEl.classList.toggle("unknown", siteState.mode === "unknown");
     emptyEl.textContent = siteState.message;
     updateCount();
     return;
@@ -409,11 +410,11 @@ function render() {
 
   if (currentGroups.length === 0) {
     emptyEl.style.display = "block";
-    emptyEl.classList.remove("unsupported");
+    emptyEl.classList.remove("unsupported", "unknown");
     emptyEl.textContent = "No media detected on this page yet.";
   } else {
     emptyEl.style.display = "none";
-    emptyEl.classList.remove("unsupported");
+    emptyEl.classList.remove("unsupported", "unknown");
   }
 }
 
@@ -541,8 +542,15 @@ async function loadDetected() {
   // installed the page itself is downloadable. Ask before deciding what to say (issue #9 follow-up).
   siteState = unsupportedSiteState({ hostUnsupported: isUnsupportedHost, appHandlesPage: false, handlerName: null });
   if (isUnsupportedHost) {
-    const { handled, by } = await send("canHandlePage", { url: tab.url });
-    siteState = unsupportedSiteState({ hostUnsupported: true, appHandlesPage: handled, handlerName: by });
+    // The answer can be missing entirely, not just negative: the background worker is still waking
+    // and the message resolves with `undefined`. Destructuring that threw, which abandoned the whole
+    // load — so only an explicit `answered` counts as an answer, and anything else is "we don't know"
+    // rather than a claim about the user's setup.
+    const answer = (await send("canHandlePage", { url: tab.url })) || {};
+    const { handled, by } = answer;
+    siteState = unsupportedSiteState({
+      hostUnsupported: true, appHandlesPage: handled, handlerName: by, answered: answer.answered === true
+    });
     // Upgrades the page row in place when it answers; the lookup runs the site tool and can take a few
     // seconds, so it must never hold up the first paint below.
     if (handled) loadPageVariants(tab.url);
