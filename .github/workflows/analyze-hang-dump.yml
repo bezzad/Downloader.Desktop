@@ -33,7 +33,7 @@ on:
 
 env:
   # Used by the push trigger, which cannot carry inputs. Change it to point the job at another run.
-  DEFAULT_RUN_ID: '34097680007'
+  DEFAULT_RUN_ID: '34609494951'
   DEFAULT_ARTIFACT: test-results-windows-latest-Debug
 
 jobs:
