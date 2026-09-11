@@ -97,7 +97,12 @@ public class MemoryReleaseTests
             // Retry must rebuild a fresh engine and complete.
             manager.Retry(vm);
             await PumpUntil(() => vm.Status == DownloadStatus.Completed, 20000);
-            Assert.Equal(DownloadStatus.Completed, vm.Status);
+            // Say WHY when it doesn't: this one fails on macOS CI now and then, and a bare
+            // "Expected: Completed / Actual: Failed" names neither the reason nor how far it got.
+            Assert.True(vm.Status == DownloadStatus.Completed,
+                $"retry ended {vm.Status}: error={vm.ErrorMessage ?? "<none>"}, " +
+                $"progress={vm.Progress:0.#}%, downloaded={vm.Downloaded}/{vm.Size}, " +
+                $"attempt={vm.AttemptGeneration}, saved={Directory.GetFiles(dir).Length} file(s)");
             Assert.Null(vm.Download); // released again after completing
         }
         finally

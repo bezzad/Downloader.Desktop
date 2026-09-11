@@ -2051,3 +2051,21 @@ from a Playwright script (`sw.evaluate(...)` calls common.js globals directly), 
   pins the rollback.
 - **Rule for the next SDK addition**: a plugin that calls it either goes through `HostCompat` or its catalog
   `minAppVersion` moves to the app release that ships the member. Refresh the old-SDK fixture when you do.
+
+## A proxy must never apply to loopback — it made CI fail in unrelated tests (2026-09-12)
+- **Symptom**: ubuntu/Release legs failing with `PluginInstallFlowTests` → *"Could not download the plugin"*
+  (4 at once) and `ExtensionCatalogServiceTests.Entries_resolve_against_the_release_assets` resolving 0
+  entries. Both talk to their own `HttpListener` on 127.0.0.1, and nothing about them had changed.
+- **Cause**: `AppProxy.AddressSource` is process-wide and `DownloadManager.Initialize` points it at a test's
+  `Config` **without ever restoring it**. `SettingViewModelTests` (whose `Build()` calls `Initialize`) then
+  sets `vm.ProxyAddress = "http://127.0.0.1:8080"`, so from that test on, every `AppProxy.CreateClient()`
+  request in the process — including every loopback one — went through a proxy that was not there. Order
+  dependent, hence "intermittent": it never reproduced locally when the classes ran in the other order.
+- **Fix**: `AppProxy.LiveProxy` bypasses `Uri.IsLoopback` destinations (127.0.0.0/8, ::1, localhost) in BOTH
+  `GetProxy` and `IsBypassed`. That is also the correct product behaviour — the app reaches its own local API
+  over loopback, and a user's proxy has no business intercepting it (curl/browsers/`BypassOnLocal` agree).
+- Pinned by `Unit/AppProxyTests.A_proxy_is_never_applied_to_this_machine` (+ the end-to-end
+  `A_dead_proxy_setting_cannot_break_a_request_to_this_machine`, which fetches from a loopback server while
+  the setting points at a dead port). Both fail on the old code.
+- **Still true and worth knowing**: `Initialize` leaks that global, so a test can change what a LATER test's
+  clients do. If a non-loopback case ever bites, restore `AppProxy.AddressSource` in the offending fixture.

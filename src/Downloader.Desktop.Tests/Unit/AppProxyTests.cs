@@ -165,4 +165,41 @@ public class AppProxyTests : IDisposable
         var line = await server.FirstRequestLine;
         Assert.StartsWith("GET /thing.json ", line); // origin form = it was NOT sent through a proxy
     }
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData("http://127.0.0.1:15151/api/settings")]
+    [InlineData("http://localhost:15151/ping")]
+    [InlineData("http://[::1]:15151/ping")]
+    public void A_proxy_is_never_applied_to_this_machine(string destination)
+    {
+        // A proxy is for reaching the outside world. The app talks to ITSELF over loopback (its local
+        // API, and every loopback server the suite stands up), and sending those through a proxy only
+        // breaks them — which is what curl, browsers and .NET's own BypassOnLocal all assume.
+        AppProxy.AddressSource = () => "http://127.0.0.1:12000";
+        var target = new Uri(destination);
+
+        Assert.Null(AppProxy.Live.GetProxy(target));
+        Assert.True(AppProxy.Live.IsBypassed(target));
+        // The setting itself is untouched: it still applies to everything that isn't this machine.
+        Assert.Equal(12000, AppProxy.Live.GetProxy(new Uri("https://example.com/file.zip"))!.Port);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_dead_proxy_setting_cannot_break_a_request_to_this_machine()
+    {
+        // The CI failure this came from: a proxy address left in the live settings by an earlier test
+        // (AppProxy.AddressSource is process-wide and DownloadManager.Initialize points it at a config)
+        // sent every later loopback request through a proxy that was not there — "Could not download
+        // the plugin", and a catalog that resolved nothing. Nobody had configured a proxy at all.
+        using var server = new RecordingHttpProxy();
+        AppProxy.AddressSource = () => "http://127.0.0.1:1"; // nothing is listening there, ever
+
+        using var client = AppProxy.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(10);
+        var response = await client.GetAsync($"http://127.0.0.1:{server.Port}/thing.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.StartsWith("GET /thing.json ", await server.FirstRequestLine);
+    }
 }
