@@ -1976,3 +1976,16 @@ already existed and both had run. What was wrong was the DISPLAY and the dead en
 - The app's five accents: Teal `#16A4C2` (default), Blue `#2F7DE1`, Purple `#8A60E6`, Green `#2BA86B`,
   Amber `#E2922E` — note these are `ThemeService.Accents`, NOT `App.axaml`'s palette `Accent` (#0E8FB3),
   which is only the pre-override default.
+
+## The extension ships on EVERY push to develop — so every push that touches it needs a version
+`extension.yml` runs on each push to `develop` and SUBMITS to AMO, then guards: if
+`src/browser-extension` changed since the commit that set the current manifest version, and that
+version is already on AMO, the job FAILS with "bump version in BOTH manifests". That guard is right
+and must not be worked around.
+- **"The version is unreleased, so I can keep it" is FALSE here** (cost three red runs on 2026-09-11):
+  there is no separate release step for the extension — a push IS the release. Bump both manifests in
+  the SAME commit as any change under `src/browser-extension`, every time.
+- A failure reading `Upload failed: Service Unavailable` is AMO's own outage, not our package —
+  re-run it later; the version it was carrying never shipped, so the NEXT bump carries those changes.
+- Check what is actually live before assuming:
+  `curl -fsSL "https://addons.mozilla.org/api/v5/addons/addon/<slug>/versions/?page_size=50"`.
