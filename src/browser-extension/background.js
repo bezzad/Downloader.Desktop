@@ -270,8 +270,12 @@ async function probeMediaForTab(tabId) {
   const tasks = items.map(item => async signal => {
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
+      // No `#EXT-X-STREAM-INF` lines: this is a MEDIA playlist (one rendition), not a master. Say so
+      // rather than calling it "direct" — a rendition whose master keeps audio in a separate
+      // `#EXT-X-MEDIA` group is video-only, so the popup must not offer it beside its own master.
+      // Its size is not probed either: what a GET returns here is the playlist text, not the media.
       if (variants.length === 0)
-        return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
+        return { url: item.url, kind: "media" };
       const sized = await Promise.all(variants.map(async v => {
         const est = await estimateHlsSize(v.uri, { signal });
         return { ...v, size: est.size, segmentUrls: est.segmentUrls };

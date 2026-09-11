@@ -933,8 +933,44 @@ function groupQualityHeight(group) {
   return best;
 }
 
-// True for the one type that always leads: an HLS master playlist.
+// True when an `.m3u8` link is one RENDITION of a stream rather than the master that lists them all.
+// A master never names a resolution in its own path; a rendition is the thing that path exists to
+// distinguish (`…/pl/avc1/720x1280/name.m3u8`, `…/hls/1280x720/index.m3u8`).
+//
+// It matters because a rendition of a master that keeps its audio in a separate `#EXT-X-MEDIA` group
+// is VIDEO ONLY — downloading it gives a silent file (reported repeatedly on x.com). A probe proves
+// this properly (see popup.js), but the probe can still be in flight or have timed out when the user
+// clicks, and until then the URL is all there is to go on.
+function isHlsRenditionUrl(url) {
+  if (extOf(url) !== "m3u8") return false;
+  return qualityHeightFromUrl(url) != null;
+}
+
+// A plain-text report of what the popup found on a page: the page itself, every link it offered
+// (and which of them it judged a master or a rendition), and every link that was sniffed at all.
+// This is what a "it downloaded without sound" report needs in order to be reproduced — the master
+// playlist URL cannot be derived from a rendition's, so without it the report is unanswerable.
+// LINKS ONLY: no cookies, no headers, nothing from the session. Those are secrets, and a block of
+// text the user pastes into an issue is the last place they should appear.
+function describeDetectedLinks({ pageUrl = "", version = "", groups = [], sniffed = [] } = {}) {
+  const lines = [`Downloader extension ${version}`.trim(), `Page: ${pageUrl}`, ""];
+  lines.push(groups.length ? "Offered:" : "Offered: (nothing)");
+  for (const g of groups) {
+    const what = g?.isMaster ? "hls master" : g?.isRendition ? "hls rendition" : g?.kind || "?";
+    lines.push(`- [${what}] ${g?.key ?? ""}`);
+    for (const o of g?.options || [])
+      if (o?.url && o.url !== g?.key) lines.push(`    option: ${o.url}${o.variantId ? ` (variant ${o.variantId})` : ""}`);
+  }
+  lines.push("", "Sniffed:");
+  for (const url of sniffed) lines.push(`- ${url}`);
+  return lines.join("\n");
+}
+
+// True for the one type that always leads: an HLS MASTER playlist. A rendition is deliberately not a
+// leader — its URL names a resolution, so it would otherwise outrank the master it belongs to (whose
+// own URL names none) and sit at the very top of the list as the silent copy of the video.
 function leadsList(group) {
+  if (group?.isRendition) return false;
   return extOf(groupTypeUrl(group)) === "m3u8";
 }
 
@@ -1447,6 +1483,7 @@ if (typeof module !== "undefined") {
     appPageVariants, askAppPageVariants,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+    isHlsRenditionUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
     shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,

@@ -1792,3 +1792,32 @@ every real user a pointless timer) — with a hook so adding a schedule starts i
 
 This was NOT changed blind: the fix touches production scheduling and this container has no .NET SDK
 to verify it, so it is written down rather than guessed at.
+
+## "No sound" on x.com, part 2: the popup ranked the RENDITION above the master (2026-09-11, extension 1.15.0)
+Reported again on app 2.12.0 / extension 1.14.0 with
+`https://video.twimg.com/amplify_video/<id>/pl/avc1/720x1280/<token>.m3u8`. The app side (HLS 2.3.0's
+`#EXT-X-MEDIA` audio groups) was fine; the extension handed it a video-only media playlist.
+- **From a rendition URL, neither the master nor the audio is recoverable — verified, not assumed.**
+  `…/pl/<token>.m3u8` 404s with and without `?container=fmp4`, and so does a guessed
+  `…/pl/mp4a/128000/<token>.m3u8`: twimg gives the master a DIFFERENT random token. So there is no
+  app-side rescue for this shape; the only fix is never to send it.
+- **Root cause**: `leadsList` counted any `.m3u8` as a leader, and `groupQualityHeight` reads the
+  rendition's path (`720x1280` → 1280) while a master's path names no resolution (→ -1). So an
+  unprobed rendition sorted FIRST, above its own master — the top row, the one that gets clicked.
+  It survived the `childUris` dedup only when the master's probe timed out (2.5 s, concurrency 4, a
+  feed page full of videos) or when the sniffed URL differed from the master's listed URI.
+- **Fix**: `probeMediaForTab` now answers `kind: "media"` for an m3u8 with no `#EXT-X-STREAM-INF`
+  (was `"direct"` + a meaningless size probe of playlist text); `popup.js buildGroups` marks each
+  HLS group `isMaster`/`isRendition` (probe, falling back to `isHlsRenditionUrl` — a resolution in
+  the path — for the pre-probe window), drops EVERY rendition once any master is on the page, and
+  labels a surviving master-less rendition "One quality only — may have no sound". `leadsList`
+  excludes renditions.
+- **Popup footer "Copy detected links (for a bug report)"** (`describeDetectedLinks`, pure/exported):
+  page URL + every offered group (master/rendition) + every sniffed URL. Links ONLY — the master URL
+  is the one fact a "no sound" report cannot be answered without, and cookies must never ride along
+  in text a user pastes into a public issue.
+- **Running the e2e suite in the web container**: `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium
+  xvfb-run -a npx playwright test --workers=1` (fixtures.js honours that env var; the container's
+  Chromium build is older than the one this Playwright downloads, and `headless: false` needs a
+  display). Two `single-list.spec.js` thumbnail tests fail there regardless of any change — canvas
+  frame capture does not work in that Chromium — so verify a failure against a stashed tree first.

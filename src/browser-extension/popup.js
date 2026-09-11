@@ -80,7 +80,12 @@ function buildGroups() {
 
   for (const g of map.values()) {
     const probed = probedByUrl.get(g.key);
-    if (g.kind === "hls" && probed?.kind === "hls" && probed.variants.length) {
+    // Master or rendition? A probe answers it outright; until one lands (or when it timed out on a
+    // busy feed page) the URL is all there is, and a rendition's URL names its resolution.
+    g.isMaster = g.kind === "hls" && probed?.kind === "hls" && probed.variants.length > 0;
+    g.isRendition = g.kind === "hls" && !g.isMaster
+      && (probed?.kind === "media" || isHlsRenditionUrl(g.key));
+    if (g.isMaster) {
       // The row still IDENTIFIES itself by the rendition URL (that is what was probed, deduped and
       // thumbnailed), but what gets SENT is the MASTER plus the chosen quality's id. A rendition of a
       // master that keeps its audio in a separate #EXT-X-MEDIA group is video-only, so handing the app
@@ -103,6 +108,10 @@ function buildGroups() {
     if (g.kind === "direct" && g.options.length > 1)
       for (const opt of g.options) opt.label = opt.label || qualityLabel(opt.url);
     g.title = fileName(g.kind === "direct" ? g.options[0]?.url ?? g.key : g.key);
+    // A rendition that survives the drop below is one whose master was never seen on this page. It
+    // is still downloadable — plenty of streams mux their audio into every rendition — but it is the
+    // shape that comes out silent when they don't, and the user deserves to know before clicking.
+    if (g.isRendition) g.note = "One quality only — may have no sound";
 
     // Drop options a probe confirmed are implausibly tiny for real media (tracking beacons,
     // empty init segments — e.g. sub-1KB responses seen on X.com) — never before a probe has run.
@@ -125,6 +134,15 @@ function buildGroups() {
       }
   }
   for (const key of childUris) map.delete(key);
+
+  // The dedup above needs the master's variant URIs to match the sniffed ones exactly, and needs its
+  // probe to have finished. Neither is guaranteed — a variant can be re-requested with a different
+  // query string, and on a feed page full of videos the probes routinely time out. So drop every
+  // rendition outright once ANY master is on the page: the master is always the better thing to hand
+  // over (the app re-reads it, picks the quality AND attaches the separate audio track), and a
+  // rendition is exactly the row that produced a silent video when it was picked instead.
+  if ([...map.values()].some(g => g.isMaster))
+    for (const [key, g] of map) if (g.isRendition) map.delete(key);
 
   return sortDetectedGroups([...map.values()]);
 }
@@ -193,7 +211,7 @@ function buildCard(group, thumbSrc) {
     // looking at it. Only when there is no picker: a picker already shows every quality.
     const height = select ? -1 : groupQualityHeight(group);
     const quality = height > 0 ? `${height}p` : "";
-    sizeEl.textContent = [quality, size].filter(Boolean).join(" · ") || group.note || "";
+    sizeEl.textContent = [quality, size, group.note].filter(Boolean).join(" · ");
   };
   if (select) select.onchange = updateSize;
   updateSize();
@@ -458,6 +476,25 @@ document.getElementById("sendAll").onclick = async () => {
 const silentEl = document.getElementById("silentMode");
 getAddMode().then(mode => { silentEl.checked = mode === "silent"; });
 silentEl.onchange = () => setAddMode(silentEl.checked ? "silent" : "dialog");
+
+// One click turns a vague report into a reproducible one: the master playlist URL is not derivable
+// from a rendition's, so without this block "it downloaded without sound" cannot be investigated.
+document.getElementById("copyLinks").onclick = async (e) => {
+  const btn = e.currentTarget;
+  const text = describeDetectedLinks({
+    pageUrl: currentPageUrl,
+    version: api.runtime.getManifest().version,
+    groups: currentGroups,
+    sniffed: rawItems.map(i => i.url)
+  });
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "Copied";
+  } catch {
+    btn.textContent = "Could not copy";
+  }
+  setTimeout(() => { btn.textContent = "Copy detected links (for a bug report)"; }, 2000);
+};
 
 // Interception rules and the rest of the settings live on the options page; the popup only links to
 // it (the extension had no settings surface at all before — see issue #9).

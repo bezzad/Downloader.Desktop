@@ -146,3 +146,33 @@ test("choosing a quality sends the MASTER plus that quality's id, not the rendit
     await new Promise(r => app.server.close(r));
   }
 });
+
+test("a rendition the master does not list is dropped, not offered beside it", async ({ context, extensionId }) => {
+  // The "downloaded without sound" report (x.com): the popup showed the rendition as its own row,
+  // ABOVE the master — its URL names 720x1280 while a master's names no resolution at all — so the
+  // top row, the one that gets clicked, was the video-only copy. The child-URI dedup could not help
+  // here because the master does not list this URL.
+  const page = await context.newPage();
+  await page.goto("/hls-orphan-rendition.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  await expect(popup.locator("#list li")).toHaveCount(1);
+  await expect(popup.locator("#list li").first()).toContainText("master.m3u8");
+  await expect(popup.locator("li", { hasText: "rogue.m3u8" })).toHaveCount(0);
+});
+
+test("a rendition with no master anywhere is still offered, and says it may have no sound", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/hls-rendition-only.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  const cards = popup.locator("#list li");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first().locator(".size-line")).toContainText("may have no sound");
+});

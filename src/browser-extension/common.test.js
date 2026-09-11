@@ -11,6 +11,7 @@ const {
   runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+  isHlsRenditionUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
   buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
@@ -189,6 +190,43 @@ test("a quality anywhere in the path counts, not just a trailing token", () => {
   assert.equal(qualityHeightFromUrl("https://c/clip.mp4"), null);
   // A query string is not the file's identity — only the path is read.
   assert.equal(qualityHeightFromUrl("https://c/clip.mp4?label=1080p"), null);
+});
+
+test("an HLS rendition is recognised by the resolution in its path", () => {
+  // The real x.com shape from the "downloaded without sound" report: the master lives at
+  // .../pl/<token>.m3u8 and names no resolution; the rendition's whole path exists to name one.
+  assert.equal(isHlsRenditionUrl("https://video.twimg.com/amplify_video/1/pl/avc1/720x1280/x.m3u8"), true);
+  assert.equal(isHlsRenditionUrl("https://video.twimg.com/amplify_video/1/pl/x.m3u8"), false);
+  assert.equal(isHlsRenditionUrl("https://c/hls/1280x720/index.m3u8"), true);
+  assert.equal(isHlsRenditionUrl("https://c/movie_1080p.mp4"), false); // not a playlist at all
+});
+
+test("an HLS rendition never leads the list, even though its URL names a quality", () => {
+  // Without this the rendition (1280 from "720x1280") outranked the master (no quality in its URL)
+  // and sat at the TOP of the popup — so the row the user clicked first was the silent one.
+  const master = group("https://c/pl/token.m3u8");
+  const rendition = group("https://c/pl/avc1/720x1280/token.m3u8");
+  rendition.isRendition = true;
+  assert.equal(leadsList(master), true);
+  assert.equal(leadsList(rendition), false);
+  assert.deepEqual(sortDetectedGroups([rendition, master]).map(g => g.key),
+    ["https://c/pl/token.m3u8", "https://c/pl/avc1/720x1280/token.m3u8"]);
+});
+
+test("the bug-report block names the master, the rendition and every sniffed link", () => {
+  const text = describeDetectedLinks({
+    pageUrl: "https://x.com/u/status/1",
+    version: "1.15.0",
+    groups: [{ key: "https://c/pl/token.m3u8", kind: "hls", isMaster: true,
+               options: [{ url: "https://c/pl/avc1/720x1280/token.m3u8", variantId: "1200000" }] }],
+    sniffed: ["https://c/pl/token.m3u8", "https://c/pl/avc1/720x1280/token.m3u8"]
+  });
+  assert.match(text, /Page: https:\/\/x\.com\/u\/status\/1/);
+  assert.match(text, /\[hls master\] https:\/\/c\/pl\/token\.m3u8/);
+  assert.match(text, /variant 1200000/);
+  assert.match(text, /Sniffed:/);
+  // Links only. A block the user pastes into a public issue must never carry their session.
+  assert.doesNotMatch(text, /cookie/i);
 });
 
 test("an HLS master always leads the list", () => {

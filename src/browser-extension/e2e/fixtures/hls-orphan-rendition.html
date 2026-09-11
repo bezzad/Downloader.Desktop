@@ -1,0 +1,12 @@
+<!doctype html>
+<html><body>
+<!-- A master AND a rendition whose URL the master does not list (a different query string, a
+     re-request, a second video's rendition — all seen in the wild). The child-URI dedup cannot
+     match it, so the rendition has to be dropped on the strength of being a rendition: it names a
+     resolution in its path and its own playlist has no #EXT-X-STREAM-INF lines. Handing it to the
+     app is what produced a silent video on x.com. -->
+<script>
+  fetch('/master.m3u8');
+  fetch('/avc1/720x1280/rogue.m3u8');
+</script>
+</body></html>
