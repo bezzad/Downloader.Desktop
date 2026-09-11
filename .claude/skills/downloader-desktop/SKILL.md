@@ -1821,3 +1821,16 @@ Reported again on app 2.12.0 / extension 1.14.0 with
   Chromium build is older than the one this Playwright downloads, and `headless: false` needs a
   display). Two `single-list.spec.js` thumbnail tests fail there regardless of any change — canvas
   frame capture does not work in that Chromium — so verify a failure against a stashed tree first.
+
+## `scripts/dev-run.sh` wrote to the WRONG folder on macOS (fixed 2026-09-11)
+It hardcoded `${XDG_CONFIG_HOME:-$HOME/.config}/Downloader` for both the plugins root and the
+extension folder. On macOS the app's `Environment.SpecialFolder.ApplicationData` is
+`~/Library/Application Support`, so: the optional plugins were copied somewhere nothing loads, and
+the extension refresh hit `[[ -d "$dest" ]] || continue` and **skipped in silence** — while still
+printing "reload it in the browser". Reported as "dev-run.sh ran fine but Chrome still loads the old
+version", which is exactly what it looks like. Now `data_root` branches on `uname -s`, a missing
+browser folder says so instead of continuing, `--print-paths` shows both roots without building, and
+the two `grep -oP` version reads became `sed` (macOS grep has no `-P`).
+Verify a change to this script without a .NET SDK: shim `uname`/`dotnet` onto PATH, point `HOME` at a
+temp dir with a fake `extension/chrome/`, `touch` the plugin build outputs, run `--no-run`, then read
+the destination manifest's version.
