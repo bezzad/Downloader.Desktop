@@ -140,6 +140,11 @@ button.icon:hover { background: var(--soft); color: var(--text); }
 }
 .list .type { color: var(--muted); font-size: 10.5px; }
 .list .size-line { color: var(--muted); font-size: 10.5px; min-height: 13px; margin-top: 1px; }
+/* The measured facts, right-aligned in their own column: size over quality, tabular so the digits of
+   six rows line up and the list can be scanned down one edge. */
+.list .meta-right { flex: 0 0 auto; text-align: right; min-width: 46px; }
+.list .size-val { font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.list .quality-val { font-size: 10px; color: var(--muted); margin-top: 1px; }
 .list .size-line.pending::after { content: "…"; }
 /* Why a row has no picker (the app's own reason). Wraps: a plugin's reason is a sentence, and
    truncating the one thing that explains a missing option would defeat the point. */

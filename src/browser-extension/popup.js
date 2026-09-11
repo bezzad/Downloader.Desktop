@@ -204,10 +204,21 @@ function buildCard(group, thumbSrc) {
   }
   selectsByGroup.set(group.key, select);
 
+  // The left line says WHAT this is; the measured facts (size, quality) sit in their own right-hand
+  // column, so a list of six rows can be scanned down one edge instead of read sentence by sentence.
   const sizeEl = document.createElement("div");
   sizeEl.className = "type size-line";
+  sizeEl.textContent = group.note || (group.isMaster ? `Stream · ${group.options.length} qualities` : "");
   meta.appendChild(sizeEl);
   if (select) meta.appendChild(select);
+
+  const right = document.createElement("div");
+  right.className = "meta-right";
+  const sizeVal = document.createElement("div");
+  sizeVal.className = "size-val";
+  const qualityVal = document.createElement("div");
+  qualityVal.className = "quality-val";
+  right.append(sizeVal, qualityVal);
 
   const currentOption = () => {
     const key = select ? select.value : optionKey(group.options[0]);
@@ -216,12 +227,11 @@ function buildCard(group, thumbSrc) {
   const updateSize = () => {
     const opt = currentOption();
     const human = opt && formatBytes(opt.size);
-    const size = human ? (opt.approx ? "~" : "") + human : "";
+    sizeVal.textContent = human ? (opt.approx ? "~" : "") + human : "";
     // Say the quality the row was ranked on — otherwise the order of the list is unexplainable from
     // looking at it. Only when there is no picker: a picker already shows every quality.
     const height = select ? -1 : groupQualityHeight(group);
-    const quality = height > 0 ? `${height}p` : "";
-    sizeEl.textContent = [quality, size, group.note].filter(Boolean).join(" · ");
+    qualityVal.textContent = height > 0 ? `${height}p` : "";
   };
   if (select) select.onchange = updateSize;
   updateSize();
@@ -241,7 +251,7 @@ function buildCard(group, thumbSrc) {
   btn.textContent = "Download";
   btn.onclick = () => sendOption(currentOption(), btn);
 
-  li.append(buildThumb(group, thumbSrc), meta, btn);
+  li.append(buildThumb(group, thumbSrc), meta, right, btn);
   return li;
 }
 

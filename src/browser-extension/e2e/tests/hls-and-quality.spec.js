@@ -82,7 +82,7 @@ test("HLS master expands into a quality picker with an estimated size, with no d
   expect(optionTexts.some(t => t.includes("320x240"))).toBeTruthy();
   expect(optionTexts.some(t => t.includes("640x480"))).toBeTruthy();
 
-  await expect(cards.first().locator(".size-line")).toContainText("~"); // HLS = always an estimate
+  await expect(cards.first().locator(".size-val")).toContainText("~"); // HLS = always an estimate
 });
 
 test("an implausibly tiny junk .m3u8 is filtered out entirely", async ({ context, extensionId }) => {

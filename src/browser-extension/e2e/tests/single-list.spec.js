@@ -136,5 +136,5 @@ test("after HLS the higher quality leads, even when the lower-quality file is bi
   expect(hi).toBeLessThan(lo);
 
   // The row says what it was ranked on, so the order is explainable from looking at it.
-  await expect(popup.locator("#list li").first().locator(".size-line")).toContainText("1080p");
+  await expect(popup.locator("#list li").first().locator(".quality-val")).toHaveText("1080p");
 });
