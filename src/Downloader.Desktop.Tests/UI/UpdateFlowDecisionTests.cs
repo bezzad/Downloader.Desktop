@@ -20,6 +20,9 @@ namespace Downloader.Desktop.Tests.UI;
 public class UpdateFlowDecisionTests : IDisposable
 {
     private readonly bool _notificationsWereEnabled = NotificationService.Enabled;
+    // The suite's module initializer points this at a no-op so no test posts a real notification; the
+    // tests below swap in a recorder, and it has to go back or a LATER test keeps writing into a dead list.
+    private readonly Action<string, string, bool> _nativeWas = NotificationService.NativeOverride;
     private readonly List<string> _opened = new();
 
     public UpdateFlowDecisionTests()
@@ -34,6 +37,7 @@ public class UpdateFlowDecisionTests : IDisposable
     {
         UpdateFlow.ResetForTests();
         ShellLauncher.OpenOverride = null;
+        NotificationService.NativeOverride = _nativeWas;
         NotificationService.Enabled = _notificationsWereEnabled;
     }
 
@@ -211,5 +215,74 @@ public class UpdateFlowDecisionTests : IDisposable
 
         Assert.Equal(UpdateState.Available, UpdateFlow.State);
         Assert.Equal(0, quits);
+    }
+
+    // ---- "Check for updates does nothing" (reported on 2.12.0) -------------------------------------
+    // Every outcome was reported ONLY as an OS notification, which Notify() drops when the notifications
+    // switch is off, and a FAILED check reported nothing anywhere — it only wrote to the log, which is
+    // off by default. The button was indistinguishable from a dead one.
+
+    /// <summary>A check that cannot reach GitHub must say so, not fail silently.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_check_that_fails_says_why_instead_of_looking_like_nothing_happened()
+    {
+        var shown = new List<string>();
+        NotificationService.NativeOverride = (title, message, _) => shown.Add($"{title}: {message}");
+        // The reported machine's situation: passive notifications are switched off. Feedback for
+        // something the user just clicked must not be silenced by that.
+        NotificationService.Enabled = false;
+        UpdateFlow.CheckOverride = () => throw new System.Net.Http.HttpRequestException("no such host is known");
+
+        await UpdateFlow.CheckAsync(manual: true);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(UpdateState.Idle, UpdateFlow.State);
+        Assert.Contains("no such host is known", UpdateFlow.LastCheckMessage);
+        Assert.Contains(shown, s => s.Contains("Couldn't check for updates"));
+    }
+
+    /// <summary>Already current is an ANSWER, and has to reach the user as one.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_up_to_date_check_reports_it_where_the_notifications_switch_cannot_hide_it()
+    {
+        var shown = new List<string>();
+        NotificationService.NativeOverride = (title, message, _) => shown.Add($"{title}: {message}");
+        NotificationService.Enabled = false;
+        UpdateFlow.CheckOverride = () => Task.FromResult<UpdateInfo>(null);
+
+        await UpdateFlow.CheckAsync(manual: true);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(UpdateState.Idle, UpdateFlow.State);
+        Assert.Contains(UpdateService.CurrentVersion.ToString(), UpdateFlow.LastCheckMessage);
+        Assert.Contains(shown, s => s.Contains("up to date"));
+    }
+
+    /// <summary>An automatic check stays quiet, but still records what it found for the Settings row.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_automatic_check_records_the_outcome_without_interrupting_anyone()
+    {
+        var shown = new List<string>();
+        NotificationService.NativeOverride = (title, message, _) => shown.Add($"{title}: {message}");
+        UpdateFlow.CheckOverride = () => Task.FromResult<UpdateInfo>(null);
+
+        await UpdateFlow.CheckAsync(manual: false);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Contains("latest version", UpdateFlow.LastCheckMessage);
+        Assert.Empty(shown);
+    }
+
+    /// <summary>A newer version names itself on the row too, so Settings explains the changed button.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_available_release_is_named_on_the_settings_row()
+    {
+        UpdateFlow.PromptUpdate = _ => { };
+        UpdateFlow.CheckOverride = () => Task.FromResult(Release("v99.1.0"));
+
+        await UpdateFlow.CheckAsync(manual: true);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Contains("v99.1.0", UpdateFlow.LastCheckMessage);
     }
 }

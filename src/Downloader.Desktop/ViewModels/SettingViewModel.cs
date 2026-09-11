@@ -93,7 +93,16 @@ public class SettingViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(UpdateProgressText));
         this.RaisePropertyChanged(nameof(AvailableVersionText));
         this.RaisePropertyChanged(nameof(HasAvailableVersion));
+        this.RaisePropertyChanged(nameof(UpdateStatusText));
+        this.RaisePropertyChanged(nameof(HasUpdateStatus));
     }
+
+    /// <summary>What the last check concluded ("You're up to date", "Couldn't check for updates: …").
+    /// Shown next to the button because an OS notification is not a reliable answer: the notifications
+    /// switch silences it, and a failed check used to say nothing at all — so the button looked dead.</summary>
+    public string UpdateStatusText => UpdateFlow.LastCheckMessage ?? string.Empty;
+
+    public bool HasUpdateStatus => !string.IsNullOrWhiteSpace(UpdateFlow.LastCheckMessage);
 
     public ICommand CancelUpdateDownloadCommand { get; }
 

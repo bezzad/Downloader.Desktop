@@ -1,0 +1,72 @@
+# TEMPORARY diagnostic: runs ONE test many times on the runner OS that fails it, and prints why.
+#
+# `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion` fails on macOS CI every few
+# runs ("Expected: Completed / Actual: Failed") and has never reproduced on the Linux dev box — 25
+# consecutive single-core Release runs there are green. This job gets the failure's own words (the row's
+# error, progress and saved files, added to the assertion) instead of guessing.
+#
+# Delete this file once the cause is fixed.
+name: Probe flaky test
+
+# The push trigger is scoped to THIS file, so it can be run from develop by committing it and can never
+# fire for ordinary work (same pattern as analyze-hang-dump.yml).
+on:
+  push:
+    branches: [develop]
+    paths: ['.github/workflows/probe-flaky-test.yml']
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: Test filter to repeat
+        required: false
+        default: MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion
+      runs:
+        description: How many times to repeat it
+        required: false
+        default: '20'
+      os:
+        description: Runner to reproduce on
+        required: false
+        default: macos-latest
+        type: choice
+        options: [macos-latest, windows-latest, ubuntu-latest]
+
+env:
+  DEFAULT_FILTER: MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion
+  DEFAULT_RUNS: '20'
+
+jobs:
+  probe:
+    runs-on: ${{ inputs.os || 'macos-latest' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        working-directory: src
+        run: dotnet build Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -c Release -v q --nologo
+
+      - name: Repeat the test
+        working-directory: src
+        shell: bash
+        run: |
+          set -u
+          filter="${{ inputs.filter || env.DEFAULT_FILTER }}"
+          runs="${{ inputs.runs || env.DEFAULT_RUNS }}"
+          failed=0
+          for i in $(seq 1 "$runs"); do
+            echo "::group::attempt $i"
+            if ! dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -c Release --no-build \
+                 --nologo -v q --filter "FullyQualifiedName~$filter"; then
+              failed=$((failed + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "=== $failed of $runs attempts failed ==="
+          # Never fail the job: a green probe is a result too, and the point is the printed reason.
+          exit 0

@@ -77,18 +77,28 @@ public class ShutdownCancelTests : IDisposable
         ShellLauncher.RunOverride = (file, _) => { commands.Add(file); return true; };
         // The countdown has to be allowed to REACH ZERO for this to prove anything: a cancel that only
         // hides the dialog looks identical to a real one until the timer fires.
-        ShutdownService.CountdownSeconds = 1;
+        // Long enough that the countdown cannot legitimately elapse before it is cancelled, short enough
+        // that the wait below still outlives it.
+        ShutdownService.CountdownSeconds = 3;
         try
         {
+            // Someone else's leftover countdown would make Schedule below a no-op (it returns early when
+            // one is already showing), so start from a known state — as with the local API listener.
+            ShutdownService.Cancel();
+
             ShutdownService.Schedule(notify: false);
-            Dispatcher.UIThread.RunJobs();
+            // NO RunJobs here, deliberately. Schedule runs synchronously on this thread, so the dialog
+            // exists the moment it returns; pumping first hands the dispatcher a chance to run jobs —
+            // the countdown tick itself, or a Close posted by an earlier test — and then this assert
+            // fails for a reason that has nothing to do with cancelling (it did, on Windows CI).
             Assert.True(ShutdownService.IsScheduled);
 
             ShutdownService.Cancel();
             Dispatcher.UIThread.RunJobs();
             Assert.False(ShutdownService.IsScheduled);
 
-            var deadline = Environment.TickCount64 + 3000;
+            // Well past the countdown: a timer that survived the cancel fires in here.
+            var deadline = Environment.TickCount64 + 6000;
             while (Environment.TickCount64 < deadline)
             {
                 Dispatcher.UIThread.RunJobs();

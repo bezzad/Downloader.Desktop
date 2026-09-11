@@ -356,6 +356,11 @@
                                 </Button>
                             </StackPanel>
                         </StackPanel>
+                        <!-- The answer to "did anything happen?". An OS notification cannot be that answer:
+                             the notifications switch silences it, and a check that FAILED reported nothing
+                             at all — so the button looked dead (reported on 2.12.0). -->
+                        <TextBlock Classes="hint" Text="{Binding UpdateStatusText}" TextWrapping="Wrap"
+                                   IsVisible="{Binding HasUpdateStatus}" />
                     </StackPanel>
                 </StackPanel>
             </Expander>

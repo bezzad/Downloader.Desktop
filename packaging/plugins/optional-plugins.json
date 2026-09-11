@@ -5,7 +5,7 @@
     "project": "src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Hls/Downloader.Desktop.Plugins.Hls.csproj",
     "name": "Streaming media (HLS & DASH)",
     "description": "Downloads adaptive streams — HLS (.m3u8) and MPEG-DASH (.mpd): lists the qualities the stream offers, downloads the chosen (or best) one as segments, and assembles them into a playable file (AES-128 decrypt, concat, and ffmpeg remux or video+audio mux). FFmpeg is auto-downloaded on first use.",
-    "minAppVersion": "2.13.0"
+    "minAppVersion": "1.7.0"
   },
   {
     "id": "com.bezzad.website-zip",
@@ -13,7 +13,7 @@
     "project": "src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.Website/Downloader.Desktop.Plugins.Website.csproj",
     "name": "Website offline copy",
     "description": "Save a web page — or a whole site — for offline reading: adds an “Offline copy (.zip)” option when you paste a page link. Pages, styles, scripts, images and fonts are captured with links rewritten for offline viewing, packaged as a single .zip. No extra tools needed.",
-    "minAppVersion": "2.13.0"
+    "minAppVersion": "2.1.0"
   },
   {
     "id": "com.bezzad.site-media",
@@ -21,6 +21,6 @@
     "project": "src/Downloader.Desktop.Plugins/Downloader.Desktop.Plugins.SiteMedia/Downloader.Desktop.Plugins.SiteMedia.csproj",
     "name": "Video sites (YouTube and others)",
     "description": "Downloads the video behind a page on YouTube, X, Instagram, TikTok, Vimeo and other video sites: lists the available qualities, downloads the chosen one, and assembles it into a playable file. It uses the browser session the Downloader extension sends with a link — never the cookies stored in your browser. The extraction tool and FFmpeg are downloaded and checksum-verified on first use.",
-    "minAppVersion": "2.13.0"
+    "minAppVersion": "2.1.0"
   }
 ]
