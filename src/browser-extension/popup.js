@@ -552,5 +552,9 @@ if (versionEl) {
   versionEl.title = `Downloader extension ${full}`;
 }
 
+// The popup wears the accent the APP is set to (light/dark still follows the browser) — see
+// common.js's syncAccent. Fire-and-forget: a failure leaves popup.css's own palette in place.
+syncAccent(document.documentElement);
+
 refreshStatus();
 loadDetected();

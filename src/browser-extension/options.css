@@ -11,6 +11,9 @@
   --accent: #0E8FB3;
   --on-accent: #FFFFFF;
   --tint: rgba(14, 143, 179, .08);
+  --accent-text: var(--accent);
+  --accent-text-dark: var(--accent);
+  --accent-fg: var(--accent-text);
   --tint-line: rgba(14, 143, 179, .45);
   --ok: #1FA971;
   --bad: #E5594F;
@@ -26,6 +29,7 @@
     --accent: #2DBED6;
     --on-accent: #06222A;
     --tint: rgba(45, 190, 214, .10);
+    --accent-fg: var(--accent-text-dark);
     --tint-line: rgba(45, 190, 214, .45);
   }
 }
@@ -80,7 +84,7 @@ button {
 button:hover { background: var(--line); }
 button.primary { background: var(--accent); color: var(--on-accent); }
 button.primary:hover { filter: brightness(1.08); }
-button.link { background: none; color: var(--accent); padding: 0 2px; }
+button.link { background: none; color: var(--accent-fg); padding: 0 2px; }
 
 .row { display: flex; gap: 8px; margin-top: 12px; }
 

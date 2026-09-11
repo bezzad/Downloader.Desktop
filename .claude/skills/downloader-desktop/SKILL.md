@@ -1936,3 +1936,27 @@ already existed and both had run. What was wrong was the DISPLAY and the dead en
   on hover.
 - **The badge label maps `.m3u8`/`.m3u` → `HLS`** (nobody calls it "M3U8", and 4 characters do not fit
   28px).
+
+## The extension FOLLOWS the app's accent over /api/settings (2026-09-11)
+- **There is no shared file and there cannot be one**: an MV3 extension has no filesystem access, so it
+  can never read `~/.config/Downloader/config.json`. The only channel between app and extension is the
+  local API, and `/api/settings` (which the options page already called for the save folder) now also
+  reports **`accentColor`** — `ThemeService.HexOf(Settings.AccentColor)`, i.e. the colour the app is
+  actually WEARING. The popup's palette used to be a hand-copied constant that drifted the moment the
+  user picked Blue.
+- **Only the accent is followed — light/dark stays with the BROWSER** (`prefers-color-scheme`, author's
+  call): the popup is drawn inside the browser's chrome and must not be the one dark surface in a light
+  window.
+- `common.js syncAccent(root)` paints the cached accent first (no flicker, and it stays right while the
+  app is closed), then asks the app and repaints. Called from `popup.js` and `options.js`.
+- **A colour is validated before it reaches a style** (`isHexColor`, strict `#rrggbb`): the value arrives
+  over HTTP, and anything else is refused rather than written into `style.setProperty`.
+- **Two derived tokens, both pure and unit-tested**: `accentInk(hex)` picks white or `#06222A` for text
+  ON the accent by **whichever has the higher WCAG contrast** (no magic threshold — white measures ~2:1
+  on Amber and ~3:1 on Teal, so the app's own "white on accent" is not safe across the five accents);
+  `accentTextColor(hex, dark)` darkens/lightens the accent until it reaches 4.5:1 as TEXT on the popup's
+  background, for links/badges/the row button. CSS picks between the two themes' values with
+  `--accent-fg`, so a scheme flip while the value is cached can't leave unreadable text.
+- The app's five accents: Teal `#16A4C2` (default), Blue `#2F7DE1`, Purple `#8A60E6`, Green `#2BA86B`,
+  Amber `#E2922E` — note these are `ThemeService.Accents`, NOT `App.axaml`'s palette `Accent` (#0E8FB3),
+  which is only the pre-override default.

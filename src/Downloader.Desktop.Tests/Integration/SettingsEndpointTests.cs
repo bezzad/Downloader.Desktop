@@ -28,6 +28,7 @@ public class SettingsEndpointTests
         var config = Config.New();
         config.DefaultQueue.IsRunning = false; // nothing may hit the network here
         config.Settings.DefaultSavePath = "/tmp/dldesktop-settings-endpoint";
+        config.Settings.AccentColor = "Blue"; // anything but the default, so a wrong mapping shows
         manager.Initialize(config);
 
         LocalApiService.Manager = manager;
@@ -42,6 +43,10 @@ public class SettingsEndpointTests
 
             Assert.Equal("/tmp/dldesktop-settings-endpoint", answer.GetProperty("defaultSavePath").GetString());
             Assert.Equal(UpdateService.CurrentVersion.ToString(), answer.GetProperty("version").GetString());
+
+            // The accent the app is WEARING, so the extension's popup can paint itself the same colour
+            // instead of carrying a hand-copied palette that drifts the moment the user picks another.
+            Assert.Equal("#2F7DE1", answer.GetProperty("accentColor").GetString());
 
             // Read-only: no download appeared, and the setting it reported is untouched.
             Assert.Empty(manager.Items);

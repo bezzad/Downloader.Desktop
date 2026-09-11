@@ -27,6 +27,8 @@ const {
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
   unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
   variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
+  isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
+  contrastRatio,
   appFetch, APP_TIMEOUT_MS, awaitAddTicket
 } = require("./common.js");
 
@@ -1859,4 +1861,117 @@ test("an app too old for the endpoint is not reported as a failure", () => {
   // before this endpoint existed, and warning about it would be noise on every older install.
   assert.equal(variantLookupFailureNote(404), null);
   assert.match(variantLookupFailureNote(503), /HTTP 503/);
+});
+
+// ---- Following the app's accent (the popup's palette used to be a hand-copied constant) ----
+
+test("ink on the accent is whichever of white and dark reads better on it", () => {
+  // The app's five accents (ThemeService.Accents). White measures about 2:1 on the amber one and
+  // 3:1 on the teal, so one fixed choice cannot serve the whole range.
+  assert.equal(accentInk("#16A4C2"), "#06222A"); // Teal   — 5.3:1 dark vs 3.0:1 white
+  assert.equal(accentInk("#2F7DE1"), "#FFFFFF"); // Blue
+  assert.equal(accentInk("#8A60E6"), "#FFFFFF"); // Purple
+  assert.equal(accentInk("#2BA86B"), "#06222A"); // Green
+  assert.equal(accentInk("#E2922E"), "#06222A"); // Amber
+  // Extremes, so the comparison itself is pinned and not just its five known answers.
+  assert.equal(accentInk("#000000"), "#FFFFFF");
+  assert.equal(accentInk("#FFFFFF"), "#06222A");
+});
+
+test("only a real colour is ever written into a style", () => {
+  assert.equal(isHexColor("#2F7DE1"), true);
+  assert.equal(isHexColor("#2f7de1 "), true); // trimmed
+  for (const bad of ["red", "#2F7DE", "#2F7DE1; background: url(x)", "", null, 42, "#GGGGGG"])
+    assert.equal(isHexColor(bad), false, String(bad));
+  assert.equal(accentTokens("javascript:alert(1)"), null);
+
+  // The tint is the accent at low alpha: a blue accent must not keep teal badges.
+  const tokens = accentTokens("#2F7DE1");
+  assert.equal(tokens["--accent"], "#2F7DE1");
+  assert.equal(tokens["--on-accent"], "#FFFFFF");
+  assert.equal(tokens["--tint"], "rgba(47, 125, 225, .12)");
+});
+
+test("applyAccent writes the custom properties, and refuses a non-colour", () => {
+  const written = {};
+  const root = { style: { setProperty: (k, v) => { written[k] = v; } } };
+  assert.equal(applyAccent(root, "#8A60E6"), true);
+  assert.equal(written["--accent"], "#8A60E6");
+  assert.equal(applyAccent(root, "nope"), false);
+  assert.equal(applyAccent(null, "#8A60E6"), false);
+});
+
+test("the accent comes from the app, and a failure leaves the stylesheet's own palette", async () => {
+  const realFetch = global.fetch;
+  const savedStorage = global.chrome.storage;
+  try {
+    global.chrome.storage = { local: { get: async d => ({ ...d }), set: () => {} } };
+
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ accentColor: "#2BA86B" }) });
+    assert.equal(await fetchAppAccent(15151), "#2BA86B");
+
+    // An app too old for the field, a refusal, and an unreachable app are all "keep what you have".
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ defaultSavePath: "/x" }) });
+    assert.equal(await fetchAppAccent(15151), null);
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.equal(await fetchAppAccent(15151), null);
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.equal(await fetchAppAccent(15151), null);
+
+    // A colour that is not a colour never reaches a style.
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ accentColor: "expression(evil)" }) });
+    assert.equal(await fetchAppAccent(15151), null);
+  } finally {
+    global.fetch = realFetch;
+    global.chrome.storage = savedStorage;
+  }
+});
+
+test("syncAccent paints the cached accent first, then the app's, and caches the change", async () => {
+  const realFetch = global.fetch;
+  const savedStorage = global.chrome.storage;
+  try {
+    const painted = [];
+    const root = { style: { setProperty: (k, v) => { if (k === "--accent") painted.push(v); } } };
+    let stored = "#16A4C2";
+    global.chrome.storage = {
+      local: { get: async d => ({ ...d, appAccent: stored }), set: o => { stored = o.appAccent; } }
+    };
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ accentColor: "#2F7DE1" }) });
+
+    // Cached first: without it the popup opens in the previous accent and flicks to the new one.
+    assert.equal(await syncAccent(root), "#2F7DE1");
+    assert.deepEqual(painted, ["#16A4C2", "#2F7DE1"]);
+    assert.equal(stored, "#2F7DE1");
+
+    // Unchanged: no second paint, and nothing rewritten.
+    painted.length = 0;
+    assert.equal(await syncAccent(root), "#2F7DE1");
+    assert.deepEqual(painted, ["#2F7DE1"]);
+  } finally {
+    global.fetch = realFetch;
+    global.chrome.storage = savedStorage;
+  }
+});
+
+test("the accent as TEXT is darkened or lightened until it reads on the popup's background", () => {
+  // A fill picks its ink; text cannot, so the colour itself has to move. Amber measures about 2:1 as
+  // text on the light background and Teal about 3:1 — the reason this exists at all.
+  for (const hex of ["#16A4C2", "#2F7DE1", "#8A60E6", "#2BA86B", "#E2922E"]) {
+    const light = accentTextColor(hex, false);
+    const dark = accentTextColor(hex, true);
+    assert.ok(contrastRatio(light, "#E9EFF3") >= 4.5, `${hex} light -> ${light}`);
+    assert.ok(contrastRatio(dark, "#0B121A") >= 4.5, `${hex} dark -> ${dark}`);
+  }
+
+  // It stops as soon as it is readable, so the accent is still recognisably the chosen one: the dark
+  // theme's background is dark enough that most accents already pass and are returned untouched.
+  assert.equal(accentTextColor("#16A4C2", true), "#16A4C2");
+  assert.notEqual(accentTextColor("#16A4C2", false), "#16A4C2");
+
+  // Both themes travel together (the browser's scheme can flip while the value is cached).
+  const tokens = accentTokens("#E2922E");
+  assert.equal(tokens["--accent-text"], accentTextColor("#E2922E", false));
+  assert.equal(tokens["--accent-text-dark"], accentTextColor("#E2922E", true));
+  assert.equal(accentTextColor("not a colour", false), null);
 });

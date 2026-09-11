@@ -441,6 +441,10 @@ public static class LocalApiService
         {
             ["defaultSavePath"] = config.Settings.DefaultSavePath,
             ["version"] = UpdateService.CurrentVersion.ToString(),
+            // The accent the app is wearing, so the extension's popup can paint itself the same colour
+            // instead of carrying a hand-copied palette that drifts (a colour is not a secret; the rule
+            // above is about not echoing the settings OBJECT).
+            ["accentColor"] = ThemeService.HexOf(config.Settings.AccentColor),
         });
     }
 

@@ -17,6 +17,12 @@
   --accent: #0E8FB3;      /* Light Accent */
   --on-accent: #FFFFFF;
   --tint: rgba(14, 143, 179, .10);
+  /* The accent as TEXT (links, the row's Download, the type badge). A fill picks its ink; text cannot,
+     so the colour itself is darkened/lightened until it reads on this background — common.js writes
+     both themes' values when it follows the app's accent, and --accent-fg picks the live one. */
+  --accent-text: var(--accent);
+  --accent-text-dark: var(--accent);
+  --accent-fg: var(--accent-text);
   --ok: #1FA971;
   --bad: #E5594F;
   --warn: #E0922F;
@@ -34,6 +40,7 @@
     /* The dark accent is a bright teal: white on it measures about 2:1, so it takes dark ink. */
     --on-accent: #06222A;
     --tint: rgba(45, 190, 214, .12);
+    --accent-fg: var(--accent-text-dark);
   }
 }
 
@@ -91,7 +98,7 @@ button.primary:hover { filter: brightness(1.08); }
 button.primary:disabled { cursor: default; filter: none; opacity: .75; }
 button.wide { width: 100%; }
 button.link {
-  background: none; color: var(--accent); padding: 2px 3px; font-size: 11px;
+  background: none; color: var(--accent-fg); padding: 2px 3px; font-size: 11px;
   display: inline-flex; align-items: center; gap: 4px;
 }
 button.link:hover { background: none; text-decoration: underline; }
@@ -124,7 +131,7 @@ button.icon:hover { background: var(--soft); color: var(--text); }
 }
 .list .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .list .thumb.placeholder {
-  font-size: 8px; font-weight: 700; letter-spacing: .2px; color: var(--accent);
+  font-size: 8px; font-weight: 700; letter-spacing: .2px; color: var(--accent-fg);
   overflow: hidden; padding: 0 1px;
 }
 .list .meta { flex: 1; min-width: 0; }
@@ -139,10 +146,10 @@ button.icon:hover { background: var(--soft); color: var(--text); }
 .list .warn-line { color: var(--warn); font-size: 10.5px; margin-top: 2px; }
 .list .row-action {
   flex: 0 0 auto; height: 24px; padding: 0 9px; font-size: 11px; font-weight: 600;
-  background: var(--tint); color: var(--accent);
+  background: var(--tint); color: var(--accent-fg);
 }
 .list .row-action:hover { background: var(--accent); color: var(--on-accent); }
-.list .row-action:disabled { background: var(--tint); color: var(--accent); opacity: .8; }
+.list .row-action:disabled { background: var(--tint); color: var(--accent-fg); opacity: .8; }
 
 select.quality {
   margin-top: 3px; max-width: 100%; font-size: 10.5px; padding: 2px 5px; font-family: inherit;

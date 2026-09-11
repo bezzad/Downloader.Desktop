@@ -1162,6 +1162,145 @@ async function fetchAppDefaultSavePath(port = null) {
   }
 }
 
+// ---------------- Theme: follow the app's accent (not its light/dark) ----------------
+//
+// The popup's palette is the app's, but it was a hand-copied one: choosing Blue in the app's settings
+// left the extension teal for ever. The app reports the colour it is actually wearing over
+// /api/settings, so the popup wears the same one. Light vs dark deliberately stays with the BROWSER
+// (prefers-color-scheme): the popup is drawn inside the browser's own chrome and should not be the one
+// dark surface in a light window.
+
+/** Is this a plain "#rrggbb" colour? Anything else is refused rather than written into a style. */
+function isHexColor(value) {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim());
+}
+
+/** The dark ink used on a light accent — the same near-black the dark theme already uses. */
+const ACCENT_DARK_INK = "#06222A";
+
+/** sRGB relative luminance (WCAG) of a "#rrggbb" colour. */
+function luminance(hex) {
+  const n = parseInt(hex.trim().slice(1), 16);
+  const channel = c => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+}
+
+/**
+ * Ink for text sitting ON this accent: whichever of white and the dark ink has the HIGHER contrast
+ * with it. The app's accents run from a bright amber to a deep purple, so one fixed choice is
+ * unreadable at one end (white on Amber measures about 2:1) — and a brightness threshold is just a
+ * magic number pretending to be that comparison.
+ */
+function accentInk(hex) {
+  if (!isHexColor(hex)) return "#FFFFFF";
+  const l = luminance(hex);
+  const withWhite = 1.05 / (l + 0.05);
+  const withDark = (l + 0.05) / (luminance(ACCENT_DARK_INK) + 0.05);
+  return withDark > withWhite ? ACCENT_DARK_INK : "#FFFFFF";
+}
+
+/** The page behind accent-coloured TEXT, per theme (popup.css's --bg). */
+const ACCENT_BACKDROP = { light: "#E9EFF3", dark: "#0B121A" };
+
+/** WCAG contrast ratio between two "#rrggbb" colours. */
+function contrastRatio(a, b) {
+  const la = luminance(a), lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** Linear blend of two "#rrggbb" colours (t=0 returns a, t=1 returns b). */
+function mixHex(a, b, t) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+  const ch = (shift) => {
+    const from = (x >> shift) & 255, to = (y >> shift) & 255;
+    return Math.round(from + (to - from) * t).toString(16).padStart(2, "0");
+  };
+  return `#${ch(16)}${ch(8)}${ch(0)}`.toUpperCase();
+}
+
+/**
+ * The accent as READABLE TEXT on the popup's own background — links, the row's Download, the type
+ * badge. A fill can pick its ink (accentInk); text cannot, so the colour itself has to move: Amber
+ * measures about 2:1 as text on the light background and Teal about 3:1. Darkens (light theme) or
+ * lightens (dark theme) in small steps until it reaches 4.5:1, and stops there so the accent is still
+ * recognisably the one the user chose.
+ */
+function accentTextColor(hex, dark = false) {
+  if (!isHexColor(hex)) return null;
+  const backdrop = dark ? ACCENT_BACKDROP.dark : ACCENT_BACKDROP.light;
+  const towards = dark ? "#FFFFFF" : "#000000";
+  let best = hex.trim().toUpperCase();
+  for (let t = 0; t <= 0.8001; t += 0.05) {
+    best = mixHex(hex.trim(), towards, t);
+    if (contrastRatio(best, backdrop) >= 4.5) break;
+  }
+  return best;
+}
+
+/** The CSS custom properties an accent decides. Returns null for anything that is not a colour. */
+function accentTokens(hex) {
+  if (!isHexColor(hex)) return null;
+  const h = hex.trim();
+  const n = parseInt(h.slice(1), 16);
+  const rgb = `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+  return {
+    "--accent": h,
+    "--on-accent": accentInk(h),
+    // The row/badge tint is the accent at low alpha — it has to move with it or a blue accent keeps
+    // teal badges.
+    "--tint": `rgba(${rgb}, .12)`,
+    // Both themes are written, not just the current one: the popup follows the BROWSER's light/dark,
+    // which can flip while these values are cached, and a stale text colour would be unreadable.
+    "--accent-text": accentTextColor(h, false),
+    "--accent-text-dark": accentTextColor(h, true)
+  };
+}
+
+/** Paints an accent onto a document (inline custom properties beat the stylesheet's :root defaults). */
+function applyAccent(root, hex) {
+  const tokens = accentTokens(hex);
+  if (!root || !tokens) return false;
+  for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
+  return true;
+}
+
+/** The accent the app is wearing right now, or null (unreachable, older app, or a non-colour). */
+async function fetchAppAccent(port = null) {
+  try {
+    const p = port ?? await discoverAppPort();
+    if (p == null) return null;
+    const res = await appFetch(withIdentity(`${appBase(p)}/api/settings`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
+    if (!res.ok) return null;
+    const body = await res.json();
+    return isHexColor(body?.accentColor) ? body.accentColor.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Paints the last known accent at once, then asks the app and repaints if it has changed. The cache is
+ * what stops the popup opening teal and flicking to blue a moment later, and it keeps the colour right
+ * while the app is closed.
+ */
+async function syncAccent(root) {
+  let cached = null;
+  try {
+    const r = await api.storage.local.get({ appAccent: "" });
+    cached = isHexColor(r.appAccent) ? r.appAccent : null;
+  } catch { /* private window, or storage denied — fall through to the stylesheet default */ }
+  if (cached) applyAccent(root, cached);
+
+  const live = await fetchAppAccent();
+  if (!live || live === cached) return cached;
+  applyAccent(root, live);
+  try { api.storage.local.set({ appAccent: live }); } catch { /* optional */ }
+  return live;
+}
+
 // ---------------- Download interception (issue #9) ----------------
 
 // Types worth handing to a download manager. An ALLOW list, so ordinary browsing is untouched by
@@ -1530,6 +1669,8 @@ if (typeof module !== "undefined") {
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
     shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
+    isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
+    contrastRatio, mixHex, luminance,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     appFetch, APP_TIMEOUT_MS,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,
