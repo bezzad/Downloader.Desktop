@@ -11,7 +11,7 @@ const {
   runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
-  isHlsRenditionUrl, describeDetectedLinks,
+  isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
   buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
@@ -80,9 +80,13 @@ test("parseHlsMaster returns [] for a variant/media playlist (no STREAM-INF)", a
   assert.deepEqual(variants, []);
 });
 
-test("parseHlsMaster returns [] when the fetch fails", async () => {
+test("parseHlsMaster returns null when the playlist cannot be read at all", async () => {
+  // Not []: "I could not read it" is not evidence that the link is a rendition, and the popup drops
+  // rows on exactly that evidence. A master behind a hiccup must not vanish from the list.
   global.fetch = async () => { throw new Error("network down"); };
-  assert.deepEqual(await parseHlsMaster("https://cdn.example.com/x.m3u8"), []);
+  assert.equal(await parseHlsMaster("https://cdn.example.com/x.m3u8"), null);
+  global.fetch = async () => ({ ok: false, status: 404, text: async () => "" });
+  assert.equal(await parseHlsMaster("https://cdn.example.com/x.m3u8"), null);
 });
 
 test("probeSize reads Content-Length from a HEAD response", async () => {
@@ -199,6 +203,29 @@ test("an HLS rendition is recognised by the resolution in its path", () => {
   assert.equal(isHlsRenditionUrl("https://video.twimg.com/amplify_video/1/pl/x.m3u8"), false);
   assert.equal(isHlsRenditionUrl("https://c/hls/1280x720/index.m3u8"), true);
   assert.equal(isHlsRenditionUrl("https://c/movie_1080p.mp4"), false); // not a playlist at all
+});
+
+test("an audio-only rendition is recognised, and never mistaken for the video", () => {
+  // The second x.com report: the fix for the video rendition demoted it, which let the AUDIO
+  // rendition rise to the top instead — so the download arrived with sound and no picture. It names
+  // no resolution at all (.../pl/mp4a/128000/...), so a resolution test alone can never catch it.
+  const audio = "https://video.twimg.com/amplify_video/2/pl/mp4a/128000/CxVLE33iD6GdbnVb.m3u8";
+  const video = "https://video.twimg.com/amplify_video/2/pl/avc1/720x1280/Dk9C-H8GkOsKiI2M.m3u8";
+  const master = "https://video.twimg.com/amplify_video/2/pl/CxVLE33iD6GdbnVb.m3u8";
+  assert.equal(looksAudioOnlyUrl(audio), true);
+  assert.equal(looksAudioOnlyUrl(video), false);
+  assert.equal(looksAudioOnlyUrl(master), false);
+  // BOTH tracks are renditions; only the master is not.
+  assert.equal(isHlsRenditionUrl(audio), true);
+  assert.equal(isHlsRenditionUrl(video), true);
+  assert.equal(isHlsRenditionUrl(master), false);
+});
+
+test("a track word must be a whole path segment, not a substring", () => {
+  // "audio" inside a host or a file name says nothing about what the playlist carries.
+  assert.equal(looksAudioOnlyUrl("https://audiocdn.example/stream/master.m3u8"), false);
+  assert.equal(looksAudioOnlyUrl("https://c/s/my-audiobook.m3u8"), false);
+  assert.equal(looksAudioOnlyUrl("https://c/audio/track.m3u8"), true);
 });
 
 test("an HLS rendition never leads the list, even though its URL names a quality", () => {

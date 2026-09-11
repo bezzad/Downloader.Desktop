@@ -111,7 +111,10 @@ function buildGroups() {
     // A rendition that survives the drop below is one whose master was never seen on this page. It
     // is still downloadable — plenty of streams mux their audio into every rendition — but it is the
     // shape that comes out silent when they don't, and the user deserves to know before clicking.
-    if (g.isRendition) g.note = "One quality only — may have no sound";
+    if (g.isRendition)
+      g.note = looksAudioOnlyUrl(g.key)
+        ? "Audio track only — no video"
+        : "One track of a stream — may have no sound";
 
     // Drop options a probe confirmed are implausibly tiny for real media (tracking beacons,
     // empty init segments — e.g. sub-1KB responses seen on X.com) — never before a probe has run.

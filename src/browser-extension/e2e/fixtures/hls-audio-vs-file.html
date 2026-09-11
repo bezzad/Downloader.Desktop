@@ -1,0 +1,12 @@
+<!doctype html>
+<html><body>
+<!-- An audio-only rendition sniffed alongside a real video file. Any .m3u8 used to count as a list
+     leader, so the audio track sat above the video — which is how a download arrived with sound and
+     a blank picture. A rendition is not a leader. -->
+<script>
+  // ?stall=1: sniffed, but its probe never comes back — so only the URL can say it is an audio
+  // track. That is the state every manifest is in on a busy page, and where the bug actually lived.
+  fetch('/mp4a/128000/aud.m3u8?stall=1');
+  fetch('/videos/movie_720p.mp4');
+</script>
+</body></html>

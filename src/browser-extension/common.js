@@ -690,14 +690,18 @@ async function probeSize(url, { signal } = {}) {
 // Parses an HLS MASTER playlist's #EXT-X-STREAM-INF variants into [{ uri, resolution, bandwidth }].
 // Returns [] when the URL isn't fetchable, or when it's actually a variant/media playlist (no
 // #EXT-X-STREAM-INF entries) — callers fall back to treating it as one plain file.
+// Variants of a master playlist. `[]` means the playlist WAS read and lists none (so it is a media
+// playlist — one rendition); `null` means it could not be read at all (offline, aborted, 404). The
+// difference matters: "could not read it" is not evidence that a link is a rendition, and treating
+// it as such would drop a perfectly good master from the popup.
 async function parseHlsMaster(url, { signal } = {}) {
   let text;
   try {
     const res = await fetch(url, { signal });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     text = await res.text();
   } catch {
-    return [];
+    return null;
   }
   const lines = text.split(/\r?\n/);
   const variants = [];
@@ -941,9 +945,34 @@ function groupQualityHeight(group) {
 // is VIDEO ONLY — downloading it gives a silent file (reported repeatedly on x.com). A probe proves
 // this properly (see popup.js), but the probe can still be in flight or have timed out when the user
 // clicks, and until then the URL is all there is to go on.
+// Path segments that name ONE track of a stream rather than the stream itself. A master playlist is
+// addressed by the stream; a rendition is addressed by the codec, the bitrate or the resolution it
+// carries, because that is the only thing distinguishing it from its siblings.
+const AUDIO_PATH_WORDS = ["audio", "aud", "mp4a", "aac", "opus", "vorbis", "ac3", "eac3", "mp3"];
+const VIDEO_PATH_WORDS = ["video", "vid", "avc1", "avc", "h264", "hevc", "hvc1", "vp9", "vp09", "av01"];
+
+// Does any segment of this URL's path equal one of `words`? Segment equality, not a substring match:
+// a host or file name that merely CONTAINS "aud" is not an audio track.
+function pathNames(url, words) {
+  let pathname;
+  try { pathname = decodeURIComponent(new URL(url).pathname); }
+  catch { pathname = typeof url === "string" ? url : ""; }
+  return pathname.toLowerCase().split("/").some(seg => words.includes(seg));
+}
+
+// True when a link is an AUDIO-ONLY rendition: downloading it gives sound and no picture. Reported
+// on x.com (…/pl/mp4a/128000/…m3u8, whose segments live under /aud/).
+function looksAudioOnlyUrl(url) {
+  return pathNames(url, AUDIO_PATH_WORDS);
+}
+
 function isHlsRenditionUrl(url) {
   if (extOf(url) !== "m3u8") return false;
-  return qualityHeightFromUrl(url) != null;
+  // A resolution catches the video renditions; the codec/track words catch the audio one, which
+  // names no resolution at all — that gap is how an audio-only playlist reached a user as "the
+  // video", with sound and a blank picture.
+  return qualityHeightFromUrl(url) != null
+    || pathNames(url, AUDIO_PATH_WORDS) || pathNames(url, VIDEO_PATH_WORDS);
 }
 
 // A plain-text report of what the popup found on a page: the page itself, every link it offered
@@ -1483,7 +1512,7 @@ if (typeof module !== "undefined") {
     appPageVariants, askAppPageVariants,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
-    isHlsRenditionUrl, describeDetectedLinks,
+    isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
     shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,

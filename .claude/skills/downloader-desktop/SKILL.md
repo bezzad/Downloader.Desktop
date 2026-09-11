@@ -1834,3 +1834,28 @@ the two `grep -oP` version reads became `sed` (macOS grep has no `-P`).
 Verify a change to this script without a .NET SDK: shim `uname`/`dotnet` onto PATH, point `HOME` at a
 temp dir with a fake `extension/chrome/`, `touch` the plugin build outputs, run `--no-run`, then read
 the destination manifest's version.
+
+## "No sound" part 3: the AUDIO rendition, and why the probe cannot be trusted in time (1.16.0)
+Fixing the video rendition (1.15.0) made the **audio** rendition
+(`…/pl/mp4a/128000/<token>.m3u8`, segments under `/aud/`) the top row instead — the next download
+arrived with sound and a blank picture. Lessons, all of them the kind that only show up in the wild:
+- **`isHlsRenditionUrl` cannot key on a resolution alone.** An audio rendition names no resolution.
+  It now also matches a path SEGMENT equal to a track/codec word (`AUDIO_PATH_WORDS` /
+  `VIDEO_PATH_WORDS` in common.js, via `pathNames`). Segment equality, not substring: an
+  `audiocdn.example` host is not an audio track. `looksAudioOnlyUrl` drives the row's wording
+  ("Audio track only — no video").
+- **The real gap is the PRE-PROBE render window, not a probe timeout.** `runProbesBounded` aborts
+  the fetch, but `parseHlsMaster` CATCHES the abort, so an aborted probe still answered
+  `kind: "media"` — a timeout was never the problem. The popup renders rows immediately and the user
+  clicks the top one while probes are still in flight; until one lands the URL is the only evidence.
+  So a test of the URL heuristic must assert the list **as first rendered** (`toHaveCount(2)` then
+  read, no `waitForTimeout`), or the probe lands first and the test passes on the broken code too.
+- **`parseHlsMaster` now returns `null` when the playlist could not be read** (fetch threw, or not
+  ok) and `[]` only when it was read and lists no variants. It used to return `[]` for both, so an
+  unreachable MASTER was labelled a rendition — and rows are dropped on that evidence.
+- **Probing manifests first with a bigger budget was tried and reverted**: `probeMediaForTab` returns
+  ONE combined array, so running manifests as a separate earlier batch only delays the whole
+  response. It also bought nothing once the abort behaviour above was understood.
+- **e2e trick for "sniffed but never probed"**: the fixture server's new `?stall=1` sends headers
+  (`res.flushHeaders()` — Node buffers otherwise, and with no headers on the wire nothing is sniffed)
+  and never sends a body.

@@ -270,6 +270,8 @@ async function probeMediaForTab(tabId) {
   const tasks = items.map(item => async signal => {
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
+      // Unreadable: report nothing rather than guess. The popup then falls back to judging the URL.
+      if (variants === null) return null;
       // No `#EXT-X-STREAM-INF` lines: this is a MEDIA playlist (one rendition), not a master. Say so
       // rather than calling it "direct" — a rendition whose master keeps audio in a separate
       // `#EXT-X-MEDIA` group is video-only, so the popup must not offer it beside its own master.

@@ -162,6 +162,9 @@ test("a rendition the master does not list is dropped, not offered beside it", a
   await expect(popup.locator("#list li")).toHaveCount(1);
   await expect(popup.locator("#list li").first()).toContainText("master.m3u8");
   await expect(popup.locator("li", { hasText: "rogue.m3u8" })).toHaveCount(0);
+  // The audio rendition too. Dropping only the video one is what made the audio track the top row,
+  // so the next download arrived with sound and no picture.
+  await expect(popup.locator("li", { hasText: "aud.m3u8" })).toHaveCount(0);
 });
 
 test("a rendition with no master anywhere is still offered, and says it may have no sound", async ({ context, extensionId }) => {
@@ -175,4 +178,37 @@ test("a rendition with no master anywhere is still offered, and says it may have
   const cards = popup.locator("#list li");
   await expect(cards).toHaveCount(1);
   await expect(cards.first().locator(".size-line")).toContainText("may have no sound");
+});
+
+test("an audio-only rendition with no master says it is audio, not video", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/hls-audio-only.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  const cards = popup.locator("#list li");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first().locator(".size-line")).toContainText("Audio track only");
+});
+
+test("an audio-only rendition is listed BELOW a real video file, never above it", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/hls-audio-vs-file.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  // Read the list AS FIRST RENDERED, before any probe result lands. That window is the one that
+  // matters: the popup shows rows immediately and the user clicks the top one, while the manifest
+  // probes are still in flight (they get 8s, and there are usually many of them on a feed page).
+  // Until a probe answers, the URL is the only thing that can say this playlist is an audio track.
+  // The stalled fetch keeps it that way for the length of the assertion.
+  await expect(popup.locator("#list li")).toHaveCount(2);
+  const titles = await popup.locator("#list li .name").allTextContents();
+  const video = titles.findIndex(t => t.includes("movie_720p.mp4"));
+  const audio = titles.findIndex(t => t.includes("aud.m3u8"));
+  expect(video).toBeGreaterThanOrEqual(0);
+  expect(audio).toBeGreaterThanOrEqual(0);
+  expect(video).toBeLessThan(audio);
 });
