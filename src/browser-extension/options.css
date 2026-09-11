@@ -46,6 +46,11 @@ header {
   display: flex; align-items: center; gap: 8px;
   padding: 14px 16px; border-bottom: 1px solid var(--line);
 }
+.mark {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px;
+  background: var(--accent); color: var(--on-accent);
+  display: flex; align-items: center; justify-content: center;
+}
 .title { font-weight: 600; font-size: 15px; flex: 1; }
 .status { font-size: 12px; color: var(--muted); }
 .status.on { color: var(--ok); }

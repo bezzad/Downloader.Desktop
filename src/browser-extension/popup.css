@@ -57,6 +57,11 @@ header {
   display: flex; align-items: center; gap: 9px;
   padding: 11px 13px; border-bottom: 1px solid var(--line);
 }
+.mark {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px;
+  background: var(--accent); color: var(--on-accent);
+  display: flex; align-items: center; justify-content: center;
+}
 .title-group { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .title { font-weight: 600; font-size: 14px; letter-spacing: -.1px; }
 .version {
