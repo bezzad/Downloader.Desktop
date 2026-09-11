@@ -636,12 +636,26 @@ async function appPageVariants(url, cookies, port) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }), APP_TIMEOUT_MS.variants);
-    if (!res.ok) return { variants: [], error: null };
+    if (!res.ok) return { variants: [], error: variantLookupFailureNote(res.status) };
     const json = await res.json();
     return { variants: Array.isArray(json?.variants) ? json.variants : [], error: json?.error ?? null };
   } catch {
-    return { variants: [], error: null };
+    return { variants: [], error: VARIANT_LOOKUP_NO_ANSWER };
   }
+}
+
+// What the row says when the lookup never produced an answer at all (the app stopped, or the request
+// outlived its timeout). There is no reason to quote in that case, so it is named here.
+const VARIANT_LOOKUP_NO_ANSWER = "The app didn't answer when asked what this page offers.";
+
+// What the row says when the app answered the lookup with a failure status. Returning a note matters:
+// an empty list and a FAILED list used to look identical in the popup — one plain Download button,
+// nothing said — so a missing quality/audio picker had no visible explanation.
+function variantLookupFailureNote(status) {
+  // 404 is an app older than this endpoint. It has no qualities to report and never had, so there is
+  // nothing to warn about: the row stays one plain Download, exactly as before the endpoint existed.
+  if (status === 404) return null;
+  return `The app couldn't list what this page offers (HTTP ${status}).`;
 }
 
 // As above, discovering the port and capturing the page's live cookies first (background-page use).
@@ -1509,7 +1523,7 @@ if (typeof module !== "undefined") {
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
-    appPageVariants, askAppPageVariants,
+    appPageVariants, askAppPageVariants, variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,

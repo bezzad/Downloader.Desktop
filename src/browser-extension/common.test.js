@@ -26,6 +26,7 @@ const {
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
   unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
   appFetch, APP_TIMEOUT_MS, awaitAddTicket
 } = require("./common.js");
 
@@ -1831,4 +1832,31 @@ test("awaitAddTicket with no ticket is a failed hand-off, not an endless wait", 
   const res = await awaitAddTicket("http://127.0.0.1:15151", null, fastTicket);
   assert.equal(res.ok, false);
   assert.equal(res.reason, "add-cancelled");
+});
+
+// A lookup the app never answered, or answered with a failure, used to come back indistinguishable
+// from "this page offers no choices" — so a missing quality/audio-only picker had no explanation
+// anywhere the user could see (the reason went only to the app's log).
+test("a failed quality lookup comes back with a reason, not a bare empty list", async () => {
+  const realFetch = global.fetch;
+  try {
+    global.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    const failed = await appPageVariants("https://youtube.com/watch?v=a", [], 15151);
+    assert.deepEqual(failed.variants, []);
+    assert.match(failed.error, /HTTP 500/);
+
+    // Nothing answered at all (app stopped, or the request outlived its timeout).
+    global.fetch = async () => { throw new Error("connection refused"); };
+    const silent = await appPageVariants("https://youtube.com/watch?v=a", [], 15151);
+    assert.equal(silent.error, VARIANT_LOOKUP_NO_ANSWER);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("an app too old for the endpoint is not reported as a failure", () => {
+  // A 404 is an app that never had qualities to report: the row stays one plain Download, exactly as
+  // before this endpoint existed, and warning about it would be noise on every older install.
+  assert.equal(variantLookupFailureNote(404), null);
+  assert.match(variantLookupFailureNote(503), /HTTP 503/);
 });

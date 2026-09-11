@@ -53,6 +53,9 @@ button.link { background: none; color: #0E8FB3; padding: 2px 4px; }
 .list .type { color: #888; font-size: 11px; }
 .list .size-line { color: #888; font-size: 11px; min-height: 14px; }
 .list .size-line.pending::after { content: "…"; }
+/* Why a row has no picker (the app's own reason). Wraps: a plugin's reason is a sentence, and
+   truncating the one thing that explains a missing option would defeat the point. */
+.list .warn-line { color: #B3590E; font-size: 11px; margin-top: 2px; }
 select.quality {
   margin-top: 3px; max-width: 100%; font-size: 11px; padding: 3px 5px;
   border-radius: 5px; border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;

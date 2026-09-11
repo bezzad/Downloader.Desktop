@@ -17,6 +17,7 @@ let currentPageUrl = "";
 let currentPageTitle = "";
 let currentGroups = [];
 let pageVariants = []; // the app's qualities for THIS page, once it has answered
+let pageVariantsNote = null; // why there are none, when the app said why
 const selectsByGroup = new Map(); // group.key -> <select> element (or null when ungrouped)
 
 async function activeTab() {
@@ -219,6 +220,16 @@ function buildCard(group, thumbSrc) {
   if (select) select.onchange = updateSize;
   updateSize();
 
+  // Why this row has no picker, when the app told us. Kept out of the size line so it is not mistaken
+  // for part of the file's description, and titled as well because a plugin's reason can be a sentence.
+  if (group.warning) {
+    const warn = document.createElement("div");
+    warn.className = "warn-line";
+    warn.textContent = group.warning;
+    warn.title = group.warning;
+    meta.appendChild(warn);
+  }
+
   const btn = document.createElement("button");
   btn.className = "primary";
   btn.textContent = "Download";
@@ -252,6 +263,7 @@ function pageGroup() {
     kind: "page",
     title: currentPageTitle || fileName(currentPageUrl) || currentPageUrl,
     note: siteState.handler ? `Video page · ${siteState.handler}` : "Video page",
+    warning: pageVariantsNote,
     options,
   };
 }
@@ -434,9 +446,13 @@ async function loadDetected() {
 }
 
 async function loadPageVariants(url) {
-  const { variants } = await send("pageVariants", { url });
-  if (!variants || !variants.length) return; // no choice to offer — the row stays as it is
-  pageVariants = variants;
+  const { variants, error } = await send("pageVariants", { url });
+  pageVariants = variants || [];
+  // A lookup that FAILED used to be indistinguishable from "this page offers no choices": both left
+  // the row as one plain Download with nothing said, so a missing quality/audio-only picker had no
+  // visible explanation (the app logs the reason, which no user reads). The reason is only worth
+  // showing when there is nothing to pick — a list that came back makes it moot.
+  pageVariantsNote = pageVariants.length ? null : (error || null);
   render();
 }
 

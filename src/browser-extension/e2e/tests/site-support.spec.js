@@ -27,7 +27,7 @@ async function appAnsweringInRange() {
  * A stub app that answers /ping and /api/can-handle. `handled` decides which answer it gives, i.e.
  * whether this "install" has a plugin that claims video pages.
  */
-function startAppStub({ handled, by, variants, adds }) {
+function startAppStub({ handled, by, variants, variantsError, adds }) {
   const server = http.createServer((req, res) => {
     if (req.url.startsWith("/ping")) {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
@@ -41,7 +41,7 @@ function startAppStub({ handled, by, variants, adds }) {
     }
     if (req.url.startsWith("/api/variants")) {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ variants: variants || [] }));
+      res.end(JSON.stringify({ variants: variants || [], error: variantsError || null }));
       return;
     }
     if (req.url.startsWith("/api/add")) {
@@ -166,6 +166,33 @@ test("without the plugin, the message names the plugin and never says to sign in
     // The people who saw the old wording were already signed in; repeating it sent them nowhere.
     expect(text).not.toMatch(/sign in|signed in/i);
     await expect(popup.locator("#empty button")).toHaveCount(0);
+  } finally {
+    await new Promise(r => app.server.close(r));
+  }
+});
+
+test("a failed quality lookup says why on the row instead of silently offering nothing", async ({ context, extensionId }) => {
+  test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
+  // The real report: a YouTube page offered no picker and no "Audio only", with nothing saying why —
+  // the app HAD failed the lookup and said so, and the popup dropped the reason on the floor.
+  const reason = "yt-dlp could not read this page (the Deno component isn't installed yet).";
+  const app = await startAppStub({
+    handled: true,
+    by: "Video sites (YouTube and others)",
+    variants: [],
+    variantsError: reason
+  });
+  test.skip(!app, "no free port in the app range for the stub");
+  try {
+    await setCachedPort(context, app.port);
+    const page = await openBlockedSitePage(context);
+
+    const popup = await openPopupFor(context, extensionId, page);
+    await expect(popup.locator("#list li .warn-line")).toHaveText(reason);
+    // Still downloadable as a whole page: the reason explains the missing picker, it does not replace
+    // the row (the app can still pick a stream itself).
+    await expect(popup.locator("#list li button")).toHaveText("Download");
+    await expect(popup.locator("#list li select.quality")).toHaveCount(0);
   } finally {
     await new Promise(r => app.server.close(r));
   }
