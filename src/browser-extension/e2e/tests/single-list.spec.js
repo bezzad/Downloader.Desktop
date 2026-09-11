@@ -97,8 +97,11 @@ test("a row with no available preview still shows a fixed-size type placeholder"
   const thumb = popup.locator("#list li .thumb").first();
   await expect(thumb).toHaveClass(/placeholder/);
   await expect(thumb).toHaveText("MP4");
+  // The point of the slot is that it never reflows the list: a row with no preview reserves exactly
+  // the same fixed square a captured frame is drawn into (28px in popup.css's dense rows).
   const box = await thumb.boundingBox();
-  expect(box.width).toBeGreaterThan(50); // occupies the same slot a real preview would
+  expect(box.width).toBe(28);
+  expect(box.height).toBe(28);
 });
 
 test("an HLS master leads the list, above a direct mp4", async ({ context, extensionId }) => {

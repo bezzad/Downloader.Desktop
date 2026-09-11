@@ -135,7 +135,7 @@ test("choosing a quality sends the MASTER plus that quality's id, not the rendit
     const wanted = labels.findIndex(t => t.includes("640x480"));
     expect(wanted).toBeGreaterThanOrEqual(0);
     await select.selectOption({ index: wanted });
-    await card.locator("button.primary").click();
+    await card.locator("button.row-action").click();
 
     await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
     const sent = app.adds[0].url;

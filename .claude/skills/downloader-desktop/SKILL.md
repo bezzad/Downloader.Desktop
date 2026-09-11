@@ -1914,3 +1914,25 @@ already existed and both had run. What was wrong was the DISPLAY and the dead en
   `Start_retries_in_background_until_a_port_frees_up`: blocking every port is the scenario, and a
   macOS prefix can be refused while the port stays free, so it leaves rather than assert. Verified it
   really exercises the path here by breaking `CanRetryLocalApi` and watching it fail.
+
+## The extension popup wears the APP's palette, and its class names are a test contract (2026-09-11)
+- **`popup.css`/`options.css` no longer use the browser's system `Canvas`/`CanvasText`.** They define
+  CSS custom properties lifted from `App.axaml`'s two `ColorPaletteResources` (`--accent` #0E8FB3 light /
+  #2DBED6 dark, `--bg` #E9EFF3 / #0B121A, `--card`, `--text` BaseHigh, `--muted` BaseMedium, `--line`
+  BaseLow, `--soft` ListLow, `--field` ChromeLow) plus the shared status brushes, with the dark set in a
+  `prefers-color-scheme` block. That system-colour default is why the extension never matched the app.
+  **`--on-accent` is `#06222A` in dark, not white**: the dark accent is a bright teal and white on it
+  measures ~2:1.
+- **Layout is the "dense utility" direction** (author picked it from three mockups): no card per row, a
+  **28px square** slot (the captured preview when there is one, the file type when there isn't — the
+  preview pipeline was kept, just made small), name + one meta line + the quality `<select>` below it,
+  hairline dividers, a compact `Download` button per row. Six or seven finds fit at once.
+- **Selectors the Playwright suite holds onto** — renaming any of these breaks e2e, so grep the specs
+  first: `#list li`, `.thumb` (+`.placeholder`, and `.thumb img` for a real preview), `.name`,
+  `.size-line`, `.warn-line`, `select.quality`, and **`button.row-action`** (the row's action button; it
+  is deliberately NOT `.primary` any more — the footer's bulk button is the primary one).
+- The section header is live: `updateCount()` writes "N detected · best first", since the list IS sorted
+  and nothing said so. Status is a dot **plus a word** (`#statusText`) — a lone dot only explains itself
+  on hover.
+- **The badge label maps `.m3u8`/`.m3u` → `HLS`** (nobody calls it "M3U8", and 4 characters do not fit
+  28px).

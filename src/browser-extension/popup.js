@@ -1,11 +1,14 @@
 // Popup UI: shows media detected on the active tab as ONE list, best copy first (HLS master, then
 // quality, then size — see common.js's sortDetectedGroups for why relevance-ranking was removed),
-// each row with a preview image, a size/quality upgrade pass, and a Download button.
+// each row a dense two-line entry with a small preview slot, a size/quality upgrade pass, and a
+// Download button.
 const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
 const statusEl = document.getElementById("status");
 const versionEl = document.getElementById("version");
 const appMissingEl = document.getElementById("appMissing");
+const statusTextEl = document.getElementById("statusText");
+const listCountEl = document.getElementById("listCount");
 
 let rawItems = []; // { url, type, group, capturedAt }
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
@@ -159,8 +162,11 @@ function buildThumb(group, src) {
   const slot = document.createElement("div");
   slot.className = "thumb";
   const ext = (extOf(groupTypeUrl(group)) || "").toUpperCase();
-  // A page row has no file extension to show — it stands for the video the app will extract.
-  const label = group.kind === "page" ? "PAGE" : (ext ? ext.slice(0, 4) : "FILE");
+  // A page row has no file extension to show — it stands for the video the app will extract; and a
+  // manifest is called HLS by everyone, including this extension's own UI.
+  const label = group.kind === "page" ? "PAGE"
+    : ext === "M3U8" || ext === "M3U" ? "HLS"
+    : (ext ? ext.slice(0, 4) : "FILE");
   const placeholder = () => {
     slot.textContent = label;
     slot.classList.add("placeholder");
@@ -195,13 +201,13 @@ function buildCard(group, thumbSrc) {
       o.textContent = opt.label || fileName(opt.url);
       select.appendChild(o);
     }
-    meta.appendChild(select);
   }
   selectsByGroup.set(group.key, select);
 
   const sizeEl = document.createElement("div");
   sizeEl.className = "type size-line";
   meta.appendChild(sizeEl);
+  if (select) meta.appendChild(select);
 
   const currentOption = () => {
     const key = select ? select.value : optionKey(group.options[0]);
@@ -231,7 +237,7 @@ function buildCard(group, thumbSrc) {
   }
 
   const btn = document.createElement("button");
-  btn.className = "primary";
+  btn.className = "row-action";
   btn.textContent = "Download";
   btn.onclick = () => sendOption(currentOption(), btn);
 
@@ -268,6 +274,15 @@ function pageGroup() {
   };
 }
 
+// The section header doubles as the count: the list IS ordered (see sortDetectedGroups), and a
+// header that never changes leaves that unexplained.
+function updateCount() {
+  if (!listCountEl) return;
+  listCountEl.textContent = currentGroups.length
+    ? `${currentGroups.length} detected \u00b7 best first`
+    : "Detected media";
+}
+
 function render() {
   // A page the app itself can download is an ITEM, not a notice: one ordinary row, same thumbnail,
   // same Download button as any sniffed file. It replaced a block of red explanatory text standing
@@ -277,6 +292,7 @@ function render() {
     selectsByGroup.clear();
     listEl.innerHTML = "";
     listEl.append(buildCard(currentGroups[0], thumbIndex.fallback));
+    updateCount();
     emptyEl.style.display = "none";
     emptyEl.classList.remove("unsupported");
     return;
@@ -294,6 +310,7 @@ function render() {
     emptyEl.style.display = "block";
     emptyEl.classList.add("unsupported");
     emptyEl.textContent = siteState.message;
+    updateCount();
     return;
   }
 
@@ -304,6 +321,7 @@ function render() {
   // queue instead of every card independently picking (and repeating) the same one.
   const thumbs = assignThumbnails(thumbIndex, currentGroups);
   for (const g of currentGroups) listEl.append(buildCard(g, thumbs.get(g.key)));
+  updateCount();
 
   if (currentGroups.length === 0) {
     emptyEl.style.display = "block";
@@ -351,6 +369,9 @@ async function refreshStatus() {
   const { ok } = await send("ping", {});
   statusEl.className = "status " + (ok ? "on" : "off");
   statusEl.title = ok ? "Desktop app connected" : "Desktop app not reachable — start it and enable browser integration";
+  // A lone coloured dot only explains itself on hover, which is no help to someone wondering why
+  // nothing happens when they click Download.
+  if (statusTextEl) statusTextEl.textContent = ok ? "Connected" : "Not connected";
   // The dot alone only says something is wrong once you hover it. Say what was actually tried, so a
   // report can be answered with a screenshot instead of a guess.
   if (appMissingEl) {
@@ -512,7 +533,7 @@ document.getElementById("copyLinks").onclick = async (e) => {
   } catch {
     btn.textContent = "Could not copy";
   }
-  setTimeout(() => { btn.textContent = "Copy detected links (for a bug report)"; }, 2000);
+  setTimeout(() => { btn.textContent = "Copy links"; }, 2000);
 };
 
 // Interception rules and the rest of the settings live on the options page; the popup only links to

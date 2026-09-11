@@ -1,69 +1,164 @@
-:root { color-scheme: light dark; }
+/* The popup wears the desktop app's own theme. Every value below is lifted from
+   src/Downloader.Desktop/App.axaml — the two ColorPaletteResources (Accent, RegionColor, AltHigh,
+   BaseHigh/Medium/Low, ListLow, ChromeLow) and the shared status brushes — so the extension and the
+   app read as one product instead of two. It used to paint with the browser's system Canvas/CanvasText,
+   which is why it never matched.
+   Layout is the "dense utility" direction: no card per row, a small square media slot, two lines of
+   text and hairline dividers, so six or seven finds are visible at once on a busy page. */
+:root {
+  color-scheme: light dark;
+  --bg: #E9EFF3;          /* Light RegionColor */
+  --card: #FFFFFF;        /* AltHigh */
+  --text: #16242B;        /* BaseHigh */
+  --muted: #5C6B73;       /* BaseMedium */
+  --line: #C6D2DA;        /* BaseLow */
+  --soft: #E7EEF2;        /* ListLow */
+  --field: #FFFFFF;
+  --accent: #0E8FB3;      /* Light Accent */
+  --on-accent: #FFFFFF;
+  --tint: rgba(14, 143, 179, .10);
+  --ok: #1FA971;
+  --bad: #E5594F;
+  --warn: #E0922F;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B121A;        /* Dark RegionColor */
+    --card: #15202A;
+    --text: #EAF1F4;
+    --muted: #93A4AD;
+    --line: #283642;
+    --soft: #1B2833;
+    --field: #0F1822;     /* ChromeLow */
+    --accent: #2DBED6;    /* Dark Accent */
+    /* The dark accent is a bright teal: white on it measures about 2:1, so it takes dark ink. */
+    --on-accent: #06222A;
+    --tint: rgba(45, 190, 214, .12);
+  }
+}
+
 * { box-sizing: border-box; }
 body {
   width: 360px;
   margin: 0;
-  font: 13px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
-  background: Canvas;
-  color: CanvasText;
+  font: 13px/1.4 -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
+
 header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-bottom: 1px solid rgba(128,128,128,.25);
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 13px; border-bottom: 1px solid var(--line);
 }
-/* .title-group (not .title) carries the flex-grow, so the version badge sits tight against the
-   title while the status dot still gets pushed to the header's far right. */
-.title-group { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
-.title { font-weight: 600; font-size: 14px; }
+.title-group { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.title { font-weight: 600; font-size: 14px; letter-spacing: -.1px; }
 .version {
-  font-size: 10px; font-weight: 600; color: #888; letter-spacing: .2px;
-  background: rgba(128,128,128,.18); border-radius: 8px; padding: 1px 6px;
+  font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: .2px;
+  background: var(--soft); border-radius: 8px; padding: 1px 6px;
 }
-.status { font-size: 12px; }
-.status.on { color: #1FA971; }
-.status.off { color: #E5594F; }
-section { padding: 10px 12px; }
-.row { display: flex; gap: 6px; }
-input[type=text] {
-  flex: 1; padding: 7px 9px; border-radius: 7px;
-  border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
+/* Connection state reads as a dot plus a word: a lone dot only explains itself on hover. */
+.conn { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.status { font-size: 9px; line-height: 1; color: var(--bad); }
+.status.on { color: var(--ok); }
+
+section { padding: 9px 13px; }
+section.compact { padding-bottom: 4px; }
+
+/* The paste box carries its own Send, so the row is one control instead of two. */
+.linkbox {
+  display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 5px 0 9px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--field);
 }
+.linkbox:focus-within { border-color: var(--accent); }
+.linkbox .ic { color: var(--muted); display: flex; flex: 0 0 auto; }
+.linkbox input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 0;
+  font: inherit; font-size: 12px; color: var(--text);
+}
+.linkbox input::placeholder { color: var(--muted); }
+.linkbox button {
+  flex: 0 0 auto; height: 22px; padding: 0 9px; border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+}
+
 button {
-  cursor: pointer; border: none; border-radius: 7px; padding: 7px 11px;
-  background: rgba(128,128,128,.18); color: CanvasText; font-size: 13px;
+  cursor: pointer; border: none; border-radius: 7px; padding: 6px 10px;
+  background: var(--soft); color: var(--text); font-size: 12px; font-family: inherit;
 }
-button:hover { background: rgba(128,128,128,.30); }
-button.primary { background: #0E8FB3; color: #fff; }
-button.primary:hover { background: #0c7c9c; }
+button:hover { background: var(--line); }
+button.primary { background: var(--accent); color: var(--on-accent); }
+button.primary:hover { filter: brightness(1.08); }
+button.primary:disabled { cursor: default; filter: none; opacity: .75; }
 button.wide { width: 100%; }
-button.link { background: none; color: #0E8FB3; padding: 2px 4px; }
-.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-.list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
-.list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,.15); }
-/* Fixed slot so previews arriving late never reflow the list, and a missing one is a placeholder of
-   exactly the same size rather than a gap. */
+button.link {
+  background: none; color: var(--accent); padding: 2px 3px; font-size: 11px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+button.link:hover { background: none; text-decoration: underline; }
+button.icon {
+  background: none; color: var(--muted); padding: 4px; display: inline-flex; border-radius: 6px;
+}
+button.icon:hover { background: var(--soft); color: var(--text); }
+
+.section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 13px 6px; color: var(--muted); font-size: 10px;
+  text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+}
+
+/* ---- The list: dense rows on hairlines, no per-row card ---- */
+.list {
+  list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto;
+  border-top: 1px solid var(--line);
+}
+.list li {
+  display: flex; align-items: flex-start; gap: 9px; padding: 7px 13px;
+  border-bottom: 1px solid var(--line);
+}
+.list li:hover { background: var(--soft); }
+/* One fixed 28px slot: the captured preview when there is one, the file type when there isn't. Small
+   enough that six rows fit, still a colour cue that tells two similar clips apart. */
 .list .thumb {
-  flex: 0 0 auto; width: 64px; height: 36px; border-radius: 5px; overflow: hidden;
-  background: rgba(128,128,128,.18); display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 7px; overflow: hidden;
+  background: var(--tint); display: flex; align-items: center; justify-content: center;
 }
 .list .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.list .thumb.placeholder { font-size: 10px; font-weight: 600; letter-spacing: .5px; color: #888; }
+.list .thumb.placeholder {
+  font-size: 8px; font-weight: 700; letter-spacing: .2px; color: var(--accent);
+  overflow: hidden; padding: 0 1px;
+}
 .list .meta { flex: 1; min-width: 0; }
-.list .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.list .type { color: #888; font-size: 11px; }
-.list .size-line { color: #888; font-size: 11px; min-height: 14px; }
+.list .name {
+  font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.list .type { color: var(--muted); font-size: 10.5px; }
+.list .size-line { color: var(--muted); font-size: 10.5px; min-height: 13px; margin-top: 1px; }
 .list .size-line.pending::after { content: "…"; }
 /* Why a row has no picker (the app's own reason). Wraps: a plugin's reason is a sentence, and
    truncating the one thing that explains a missing option would defeat the point. */
-.list .warn-line { color: #B3590E; font-size: 11px; margin-top: 2px; }
-select.quality {
-  margin-top: 3px; max-width: 100%; font-size: 11px; padding: 3px 5px;
-  border-radius: 5px; border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
+.list .warn-line { color: var(--warn); font-size: 10.5px; margin-top: 2px; }
+.list .row-action {
+  flex: 0 0 auto; height: 24px; padding: 0 9px; font-size: 11px; font-weight: 600;
+  background: var(--tint); color: var(--accent);
 }
-.empty { color: #888; text-align: center; padding: 8px 0; }
-.notfound { margin: 0 10px 8px; padding: 8px 10px; border-radius: 6px; line-height: 1.4;
-  color: #E5594F; background: rgba(229, 89, 79, 0.10); border: 1px solid rgba(229, 89, 79, 0.35); }
-.empty.unsupported { color: #E5594F; }
-footer { padding: 10px 12px; border-top: 1px solid rgba(128,128,128,.25); }
-.mode { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #888; cursor: pointer; }
-.mode input { accent-color: #0E8FB3; }
+.list .row-action:hover { background: var(--accent); color: var(--on-accent); }
+.list .row-action:disabled { background: var(--tint); color: var(--accent); opacity: .8; }
+
+select.quality {
+  margin-top: 3px; max-width: 100%; font-size: 10.5px; padding: 2px 5px; font-family: inherit;
+  border-radius: 6px; border: 1px solid var(--line); background: var(--field); color: var(--text);
+}
+
+.empty { color: var(--muted); text-align: center; padding: 10px 0; font-size: 12px; }
+.empty.unsupported { color: var(--bad); }
+.notfound {
+  margin: 0 13px 8px; padding: 8px 10px; border-radius: 8px; line-height: 1.4; font-size: 12px;
+  color: var(--bad); background: rgba(229, 89, 79, .10); border: 1px solid rgba(229, 89, 79, .35);
+}
+
+/* One footer row: the silent-add switch, the bulk action, and the two links. */
+footer { padding: 9px 13px 11px; border-top: 1px solid var(--line); }
+.footer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mode { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); cursor: pointer; }
+.mode input { accent-color: var(--accent); width: 14px; height: 14px; margin: 0; }
+.footer-links { display: flex; align-items: center; gap: 10px; margin-top: 7px; }
