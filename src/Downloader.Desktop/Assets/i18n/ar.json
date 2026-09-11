@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "مهلة الاتصال (مللي ثانية)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "الوكيل (Proxy)",
-  "Set_ProxyPlaceholder": "http://host:port (فارغ = بلا وكيل)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (فارغ = بلا وكيل)",
   "About_Desc": "مدير تنزيلات متعدد المنصات. لا يتطلب تثبيتًا أو أي اعتماديات.",
   "About_Title": "حول",
   "About_Version": "الإصدار {0}",

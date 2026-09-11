@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Qoşulma vaxt aşımı (ms)",
   "Set_KeepAlive": "Bağlantını canlı saxla",
   "Set_Proxy": "Proksi",
-  "Set_ProxyPlaceholder": "http://host:port (yoxdursa boş buraxın)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (yoxdursa boş buraxın)",
   "About_Desc": "Çarpaz platforma endirmə meneceri. Quraşdırma və ya asılılıq tələb olunmur.",
   "About_Title": "Haqqında",
   "About_Version": "Versiya {0}",

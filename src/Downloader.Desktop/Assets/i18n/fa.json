@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "مهلت اتصال (میلی‌ثانیه)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "پروکسی",
-  "Set_ProxyPlaceholder": "http://host:port (خالی = بدون پروکسی)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (خالی = بدون پروکسی)",
   "About_Desc": "مدیریت دانلود چندسکویی. بدون نیاز به نصب یا هیچ وابستگی.",
   "About_Title": "درباره",
   "About_Version": "نسخه {0}",

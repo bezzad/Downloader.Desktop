@@ -38,7 +38,9 @@ public static class PluginCatalogService
 
     private static HttpClient CreateClient()
     {
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        // Through the user's proxy, like everything else the app fetches.
+        var c = AppProxy.CreateClient();
+        c.Timeout = TimeSpan.FromSeconds(20);
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
         c.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Downloader.Desktop", ver));
         c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));

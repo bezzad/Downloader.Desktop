@@ -171,6 +171,12 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     {
         _config = config ?? Config.New();
 
+        // Everything outside the download engine — every plugin, and the app's own lookups — asks
+        // AppProxy for the user's proxy. Point it at the LIVE settings object rather than the value:
+        // the user can change the proxy afterwards, and nothing should have to be told about it.
+        var settings = _config;
+        AppProxy.AddressSource = () => settings.Settings?.ProxyAddress;
+
         // The Settings "Max concurrent downloads" is the user-facing limit; keep the primary queue's
         // cap in lockstep so it actually limits how many run at once (a config saved before this was
         // wired up could have a stale queue cap). Extra queues keep their own caps from the Queues page.

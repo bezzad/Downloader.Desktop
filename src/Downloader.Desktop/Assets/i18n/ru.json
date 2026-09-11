@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Тайм-аут подключения (мс)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Прокси",
-  "Set_ProxyPlaceholder": "http://host:port (оставьте пустым, если не нужен)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (оставьте пустым, если не нужен)",
   "About_Desc": "Кроссплатформенный менеджер загрузок. Установка и зависимости не требуются.",
   "About_Title": "О программе",
   "About_Version": "Версия {0}",

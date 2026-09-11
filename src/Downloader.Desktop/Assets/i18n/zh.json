@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "连接超时 (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "代理",
-  "Set_ProxyPlaceholder": "http://host:port（留空表示不使用）",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port（留空表示不使用）",
   "About_Desc": "跨平台下载管理器。无需安装或依赖。",
   "About_Title": "关于",
   "About_Version": "版本 {0}",

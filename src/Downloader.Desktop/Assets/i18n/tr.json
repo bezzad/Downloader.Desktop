@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Bağlantı zaman aşımı (ms)",
   "Set_KeepAlive": "Bağlantıyı canlı tut",
   "Set_Proxy": "Proxy",
-  "Set_ProxyPlaceholder": "http://host:port (yoksa boş bırakın)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (yoksa boş bırakın)",
   "About_Desc": "Çapraz platform indirme yöneticisi. Kurulum veya bağımlılık gerekmez.",
   "About_Title": "Hakkında",
   "About_Version": "Sürüm {0}",

@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "연결 시간 초과 (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "프록시",
-  "Set_ProxyPlaceholder": "http://host:port (사용 안 하려면 비워 두세요)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (사용 안 하려면 비워 두세요)",
   "About_Desc": "크로스 플랫폼 다운로드 관리자. 설치나 종속성이 필요 없습니다.",
   "About_Title": "정보",
   "About_Version": "버전 {0}",

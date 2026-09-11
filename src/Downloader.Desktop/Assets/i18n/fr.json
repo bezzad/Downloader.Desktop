@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Délai de connexion (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
-  "Set_ProxyPlaceholder": "http://hôte:port (vide = aucun)",
+  "Set_ProxyPlaceholder": "http://hôte:port, socks5://hôte:port (vide = aucun)",
   "About_Desc": "Gestionnaire de téléchargement multiplateforme. Aucune installation ni dépendance requise.",
   "About_Title": "À propos",
   "About_Version": "Version {0}",

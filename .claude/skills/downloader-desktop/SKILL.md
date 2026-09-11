@@ -1859,3 +1859,36 @@ arrived with sound and a blank picture. Lessons, all of them the kind that only 
 - **e2e trick for "sniffed but never probed"**: the fixture server's new `?stall=1` sends headers
   (`res.flushHeaders()` — Node buffers otherwise, and with no headers on the wire nothing is sniffed)
   and never sends a body.
+
+## One proxy setting, honoured by every plugin (`AppProxy`, 2026-09-11)
+The Settings → Advanced → "Network & request headers" → Proxy box reached the ENGINE only
+(`DownloadSettings.ToConfiguration` → `new WebProxy(address)` → the engine's `SocketsHttpHandler`).
+Every plugin, and the app's own update/catalog lookups, built a bare `new HttpClient()` and went
+direct. Now they all go through `Services/AppProxy`.
+- **`socks5://` works and always did** — the engine's handler is a `SocketsHttpHandler`, and .NET 6+
+  supports `socks5`/`socks4`/`socks4a` proxy URIs. The scheme MUST be typed: `WebProxy` (and
+  `AppProxy.Parse`, deliberately matching it) prepends `http://` to a scheme-less value, so
+  `127.0.0.1:12000` silently becomes an HTTP proxy. The placeholder in all 16 packs now shows both.
+- **The address is resolved PER REQUEST, via an `IWebProxy`, not captured.** `HttpClient` refuses a
+  proxy change after its first request, and plugins are told to build one client and keep it — so
+  capturing the address would freeze the proxy at startup. `AppProxy.Live` reads
+  `AddressSource()` (wired to the live `Config` in `DownloadManager.Initialize`) on every call.
+- **SDK: `IPluginContext.CreateHttpClient()` + `ProxyAddress`**, both C# 8 default-implemented so an
+  external plugin (or a test double) built against an older host still compiles and simply gets an
+  unproxied client. A spawned TOOL cannot be proxied by any client of ours — `ProxyAddress` exists
+  for that one case (yt-dlp `--proxy`; never pass it empty, which yt-dlp reads as "force direct").
+- **Guard: `Plugins/PluginProxyTests`** runs every plugin's `Initialize` against a counting context
+  and fails if it did not ask for a client, plus a source scan of every `*Plugin.cs` `Initialize`
+  body for `new HttpClient`. Both were verified to fail when a plugin is reverted to its own client.
+  `Unit/AppProxyTests` proves the plumbing for real against `TestSupport/RecordingHttpProxy` — a raw
+  `TcpListener` (NOT `HttpListener`, which normalises the request line away) that records whether the
+  request arrived in absolute form (`GET http://host/path` = proxied) or origin form (= direct).
+- **Trap: configuring a SHARED client per use throws.** `WebsiteTransferProvider` hands its client to
+  a new `WebsiteTransfer` per download; setting `Timeout` (or adding a default header) on a client
+  that has already sent a request throws `InvalidOperationException`, so every offline copy after the
+  first died. Configure a client once, where it is created — `_http = http ?? CreateClient()`.
+- A test that pins an exact plugin version string (`Assert.Equal("1.2.0", plugin.Version)`) fails on
+  every legitimate bump, which is the opposite of what such a test is for. Assert `>=` instead.
+- **This container CAN build .NET now**: `curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s --
+  --channel 10.0 --install-dir /tmp/dotnet` then `export PATH=/tmp/dotnet:$PATH`. The old note that
+  the SDK host is blocked is out of date — restore is fine and the full suite runs in ~60 s.

@@ -24,14 +24,14 @@ public sealed class GitHubReleasesPlugin : IDownloaderPlugin
 {
     public string Id => "com.bezzad.github-releases";
     public string Name => "GitHub Releases";
-    public string Version => "1.1.0";
+    public string Version => "1.2.0";
     public string Author => "bezzad";
     public string Description => "Paste a github.com/owner/repo link to download the latest release asset for your OS.";
 
     public void Initialize(IPluginContext context)
     {
         context.Logger.LogInformation("GitHub Releases plugin initialized");
-        context.RegisterResolver(new GitHubReleasesResolver());
+        context.RegisterResolver(new GitHubReleasesResolver(context.CreateHttpClient()));
         context.RegisterPostProcessor(new Sha256SidecarPostProcessor());
         context.RegisterTransferProvider(new LocalFileTransferProvider());
     }
@@ -142,7 +142,11 @@ internal sealed record GitHubRelease(string Tag, IReadOnlyList<GitHubAsset> Asse
 
 internal sealed class GitHubReleasesResolver : ILinkResolver
 {
-    private static readonly HttpClient Http = CreateClient();
+    // The host supplies this so the user's proxy setting applies; when a caller (a test) supplies
+    // none we make our own, exactly as before.
+    private readonly HttpClient _http;
+
+    public GitHubReleasesResolver(HttpClient? http = null) => _http = CreateClient(http);
 
     /// <summary>The Add window lists a link's assets and then resolves the pick, so the same release would
     /// be fetched twice — against an anonymous rate limit of 60 requests an hour. Short-lived by design:
@@ -295,7 +299,7 @@ internal sealed class GitHubReleasesResolver : ILinkResolver
         return $"{value:0.#} {units[unit]}";
     }
 
-    private static async Task<GitHubRelease> GetReleaseAsync(GitHubLink link, CancellationToken cancellationToken)
+    private async Task<GitHubRelease> GetReleaseAsync(GitHubLink link, CancellationToken cancellationToken)
     {
         var api = link.Kind == GitHubLinkKind.TaggedRelease
             ? $"{ApiBase}/repos/{link.Owner}/{link.Repo}/releases/tags/{Uri.EscapeDataString(link.Tag!)}"
@@ -304,7 +308,7 @@ internal sealed class GitHubReleasesResolver : ILinkResolver
         if (Cache.TryGetValue(api, out var cached) && DateTime.UtcNow - cached.FetchedUtc < CacheFor)
             return cached.Release;
 
-        using var response = await Http.GetAsync(api, cancellationToken).ConfigureAwait(false);
+        using var response = await _http.GetAsync(api, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException(DescribeApiFailure(link, response.StatusCode));
 
@@ -347,9 +351,9 @@ internal sealed class GitHubReleasesResolver : ILinkResolver
         _ => $"GitHub answered {(int)status} for {link.Owner}/{link.Repo}.",
     };
 
-    private static HttpClient CreateClient()
+    private static HttpClient CreateClient(HttpClient? client = null)
     {
-        var c = new HttpClient();
+        var c = client ?? new HttpClient();
         c.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Downloader-Plugin", "1.0")); // GitHub requires a UA
         c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         return c;

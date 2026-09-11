@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Downloader.Desktop.Plugins;
@@ -39,4 +40,22 @@ public interface IPluginContext
     /// <c>Logger.LogInformation/LogWarning/LogError(...)</c> (Microsoft.Extensions.Logging), the same
     /// logging contract the Downloader engine and the app use.</summary>
     ILogger Logger { get; }
+
+    /// <summary>
+    /// An <see cref="HttpClient"/> that honours the proxy the user set in the app's Settings — use it
+    /// instead of <c>new HttpClient()</c> and a plugin needs no proxy code, no proxy setting and no
+    /// proxy knowledge of its own. The proxy is read PER REQUEST, so changing it in Settings applies
+    /// to clients that already exist: build one in <c>Initialize</c> and keep it for the plugin's life.
+    /// <para>The default is a plain client, so a plugin built against an older host still works and a
+    /// host that predates this member still compiles.</para>
+    /// </summary>
+    HttpClient CreateHttpClient() => new();
+
+    /// <summary>
+    /// The proxy address configured in the app, e.g. <c>socks5://127.0.0.1:1080</c> or
+    /// <c>http://host:port</c>; null or empty when the user set none. Only needed for a TOOL the
+    /// plugin spawns (yt-dlp's <c>--proxy</c>); for the plugin's own HTTP use
+    /// <see cref="CreateHttpClient"/>, which applies it already.
+    /// </summary>
+    string? ProxyAddress => null;
 }

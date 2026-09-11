@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Konekta tempolimo (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Prokurilo",
-  "Set_ProxyPlaceholder": "http://gastiganto:pordo (malplena = neniu)",
+  "Set_ProxyPlaceholder": "http://gastiganto:pordo, socks5://gastiganto:pordo (malplena = neniu)",
   "About_Desc": "Plurplatforma elŝutadministrilo. Neniu instalado aŭ dependeco bezonata.",
   "About_Title": "Pri",
   "About_Version": "Versio {0}",

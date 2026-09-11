@@ -9,11 +9,18 @@ internal sealed class WebsiteTransferProvider : ITransferProvider
 {
     private readonly ILogger? _logger;
 
-    public WebsiteTransferProvider(ILogger? logger = null) => _logger = logger;
+    private readonly HttpClient? _http;
+
+    // The crawl's client comes from the host, so an offline copy is fetched through the user's proxy.
+    public WebsiteTransferProvider(ILogger? logger = null, HttpClient? http = null)
+    {
+        _logger = logger;
+        _http = http is null ? null : WebsiteTransfer.CreateClient(http); // configured once, shared by every transfer
+    }
 
     public bool CanHandle(string url) => WebsiteResolver.IsSchemeUrl(url);
 
-    public ITransfer Create(string url, string targetFolder) => new WebsiteTransfer(url, targetFolder, _logger);
+    public ITransfer Create(string url, string targetFolder) => new WebsiteTransfer(url, targetFolder, _logger, _http);
 }
 
 /// <summary>
@@ -23,7 +30,9 @@ internal sealed class WebsiteTransferProvider : ITransferProvider
 /// </summary>
 internal sealed class WebsiteTransfer : ITransfer
 {
-    private static readonly HttpClient Http = CreateClient();
+    // The host supplies this so the user's proxy setting applies; when a caller (a test) supplies
+    // none we make our own, exactly as before.
+    private readonly HttpClient _http;
 
     private readonly string _url;
     private readonly string _targetFolder;
@@ -35,12 +44,16 @@ internal sealed class WebsiteTransfer : ITransfer
 
     public event EventHandler<TransferProgress>? ProgressChanged;
 
-    public WebsiteTransfer(string url, string targetFolder, ILogger? logger = null)
+    public WebsiteTransfer(string url, string targetFolder, ILogger? logger = null, HttpClient? http = null)
     {
         _url = WebsiteResolver.IsSchemeUrl(url) ? url[WebsiteResolver.Scheme.Length..] : url;
         _targetFolder = targetFolder;
         _logger = logger;
-        _crawler = new SiteCrawler(Http, logger: logger) { Progress = OnCrawlProgress };
+        // Only a client we made ourselves may be configured here: touching Timeout or the
+        // default headers of one that has already sent a request throws, and the provider's
+        // client is shared by every transfer after the first.
+        _http = http ?? CreateClient();
+        _crawler = new SiteCrawler(_http, logger: logger) { Progress = OnCrawlProgress };
     }
 
     public async Task<string> StartAsync(CancellationToken cancellationToken)
@@ -114,10 +127,13 @@ internal sealed class WebsiteTransfer : ITransfer
         });
     }
 
-    private static HttpClient CreateClient()
+    /// <summary>Applies this plugin's crawl settings to a client. Call it ONCE per client, before it
+    /// has sent anything — <see cref="HttpClient"/> refuses both changes after its first request.</summary>
+    internal static HttpClient CreateClient(HttpClient? client = null)
     {
         // Per-request timeouts are enforced by the crawler; the client itself must not cut off a long crawl.
-        var client = new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        client ??= new HttpClient();
+        client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; Downloader)");
         return client;
     }

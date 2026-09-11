@@ -431,7 +431,10 @@ public class OllamaPluginVersionTests
     public void The_plugin_reports_the_version_that_carries_huggingface_support()
     {
         var plugin = new OllamaPlugin();
-        Assert.Equal("1.2.0", plugin.Version);
+        // At LEAST the version HuggingFace support landed in — pinning the exact string made every
+        // later bump fail a test whose point is the opposite ("don't ship a change under an old
+        // version"). What must hold is that an installed copy is never older than this feature.
+        Assert.True(Version.Parse(plugin.Version) >= new Version(1, 2, 0), plugin.Version);
 
         // What the Settings row actually renders.
         var descriptor = new Downloader.Desktop.Services.PluginDescriptor
@@ -446,7 +449,7 @@ public class OllamaPluginVersionTests
             descriptor, new Downloader.Desktop.Services.PluginManager(),
             Downloader.Desktop.Models.Config.New());
 
-        Assert.Equal("v1.2.0", row.VersionText);
+        Assert.Equal($"v{plugin.Version}", row.VersionText);
         Assert.Contains("HuggingFace", row.Description);
     }
 }

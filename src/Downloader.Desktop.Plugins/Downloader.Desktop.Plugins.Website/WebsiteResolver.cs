@@ -17,7 +17,11 @@ internal sealed class WebsiteResolver : ILinkResolver
     private static readonly string[] PageExtensions =
         { "", ".html", ".htm", ".php", ".asp", ".aspx", ".jsp", ".cfm", ".shtml" };
 
-    private static readonly HttpClient Http = CreateClient();
+    // The host supplies this so the user's proxy setting applies; when a caller (a test) supplies
+    // none we make our own, exactly as before.
+    private readonly HttpClient _http;
+
+    public WebsiteResolver(HttpClient? http = null) => _http = CreateClient(http);
 
     public bool IsFallback => true;
 
@@ -73,7 +77,7 @@ internal sealed class WebsiteResolver : ILinkResolver
 
     /// <summary>Bounded content-type probe: HEAD first, ranged GET when HEAD is rejected. Any failure
     /// means "no variant" — it must never block or delay adding a download.</summary>
-    private static async Task<bool> ServesHtmlAsync(string url, CancellationToken cancellationToken)
+    private async Task<bool> ServesHtmlAsync(string url, CancellationToken cancellationToken)
     {
         try
         {
@@ -83,7 +87,7 @@ internal sealed class WebsiteResolver : ILinkResolver
             using var head = new HttpRequestMessage(HttpMethod.Head, url);
             try
             {
-                using var resp = await Http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cts.Token)
+                using var resp = await _http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cts.Token)
                     .ConfigureAwait(false);
                 if (resp.IsSuccessStatusCode)
                     return IsHtml(resp.Content.Headers.ContentType?.MediaType);
@@ -95,7 +99,7 @@ internal sealed class WebsiteResolver : ILinkResolver
 
             using var get = new HttpRequestMessage(HttpMethod.Get, url);
             get.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
-            using var getResp = await Http.SendAsync(get, HttpCompletionOption.ResponseHeadersRead, cts.Token)
+            using var getResp = await _http.SendAsync(get, HttpCompletionOption.ResponseHeadersRead, cts.Token)
                 .ConfigureAwait(false);
             return getResp.IsSuccessStatusCode && IsHtml(getResp.Content.Headers.ContentType?.MediaType);
         }
@@ -110,9 +114,10 @@ internal sealed class WebsiteResolver : ILinkResolver
         (mediaType.Equals("text/html", StringComparison.OrdinalIgnoreCase) ||
          mediaType.Equals("application/xhtml+xml", StringComparison.OrdinalIgnoreCase));
 
-    private static HttpClient CreateClient()
+    private static HttpClient CreateClient(HttpClient? client = null)
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        client ??= new HttpClient();
+        client.Timeout = TimeSpan.FromSeconds(10);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; Downloader)");
         return client;
     }

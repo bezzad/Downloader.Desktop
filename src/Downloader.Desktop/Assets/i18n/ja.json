@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "接続タイムアウト (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "プロキシ",
-  "Set_ProxyPlaceholder": "http://host:port（不要な場合は空欄）",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port（不要な場合は空欄）",
   "About_Desc": "クロスプラットフォームのダウンロードマネージャー。インストールや依存関係は不要です。",
   "About_Title": "このアプリについて",
   "About_Version": "バージョン {0}",

@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Tiempo de espera de conexión (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
-  "Set_ProxyPlaceholder": "http://host:puerto (vacío = ninguno)",
+  "Set_ProxyPlaceholder": "http://host:puerto, socks5://host:puerto (vacío = ninguno)",
   "About_Desc": "Gestor de descargas multiplataforma. No requiere instalación ni dependencias.",
   "About_Title": "Acerca de",
   "About_Version": "Versión {0}",

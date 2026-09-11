@@ -192,7 +192,7 @@
   "Set_ConnectTimeout": "Connect timeout (ms)",
   "Set_KeepAlive": "Keep-alive",
   "Set_Proxy": "Proxy",
-  "Set_ProxyPlaceholder": "http://host:port (leave empty for none)",
+  "Set_ProxyPlaceholder": "http://host:port, socks5://host:port (leave empty for none)",
   "About_Desc": "Cross-platform download manager. No installation or dependencies required.",
   "About_Title": "About",
   "About_Version": "Version {0}",
