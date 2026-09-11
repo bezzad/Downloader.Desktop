@@ -193,45 +193,116 @@ public static class PluginCatalogService
             return PluginInstallResult.Fail("Nothing to install.");
 
         var tmp = Path.Combine(Path.GetTempPath(), $"plugin-dl-{Guid.NewGuid():N}.zip");
-        PluginInstallResult result;
+        string previousFolder = null, backup = null;
         try
         {
-            if (!await DownloadAssetAsync(info, tmp, ct).ConfigureAwait(false))
-                return PluginInstallResult.Fail("Could not download the plugin. Please check your connection and try again.");
-            // Update swap: drop the currently-loaded copy so the loader will accept the new one
-            // (registration is idempotent by id, so a still-loaded old copy would block the reload).
-            // Done only AFTER the download succeeded — removing first meant a failed download left the
-            // plugin silently uninstalled behind a stale "installed" row.
-            if (manager.IsInstalled(info.Id))
+            PluginInstallResult result;
+            try
+            {
+                if (!await DownloadAssetAsync(info, tmp, ct).ConfigureAwait(false))
+                    return PluginInstallResult.Fail("Could not download the plugin. Please check your connection and try again.");
+                // Update swap: drop the currently-loaded copy so the loader will accept the new one
+                // (registration is idempotent by id, so a still-loaded old copy would block the reload).
+                // Done only AFTER the download succeeded — removing first meant a failed download left the
+                // plugin silently uninstalled behind a stale "installed" row. And backed up first: a verified
+                // package can still fail to LOAD (v2.13.0's plugins in an older app did), and an update must
+                // never leave the user with less than they had.
+                if (manager.IsInstalled(info.Id))
+                {
+                    previousFolder = manager.InstalledFolder(info.Id);
+                    backup = BackUp(previousFolder);
+                    manager.RemovePlugin(info.Id);
+                }
+                result = await manager.InstallFromZipAsync(tmp, info.Sha256, info.Id, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Restore(manager, previousFolder, backup);
+                throw;
+            }
+            finally
+            {
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best-effort */ }
+            }
+
+            if (!result.Success)
+            {
+                Restore(manager, previousFolder, backup);
+                return result;
+            }
+
+            var deps = manager.GetRuntimeDependencies(info.Id);
+            if (deps.Count == 0)
+                return result;
+
+            try
+            {
+                await PluginDependencyInstaller.EnsureAllAsync(deps, dependencyProgress, ct).ConfigureAwait(false);
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
                 manager.RemovePlugin(info.Id);
-            result = await manager.InstallFromZipAsync(tmp, info.Sha256, info.Id, ct).ConfigureAwait(false);
+                Restore(manager, previousFolder, backup);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                manager.RemovePlugin(info.Id);
+                Restore(manager, previousFolder, backup);
+                return PluginInstallResult.Fail($"Installed, but a required component could not be downloaded: {ex.Message}");
+            }
         }
         finally
         {
-            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best-effort */ }
+            if (backup != null)
+                try { Directory.Delete(backup, recursive: true); } catch { /* best-effort */ }
         }
+    }
 
-        if (!result.Success)
-            return result;
-
-        var deps = manager.GetRuntimeDependencies(info.Id);
-        if (deps.Count == 0)
-            return result;
-
+    /// <summary>Copies a plugin folder aside before an update removes it. Null when there is nothing on disk
+    /// to keep (e.g. a plugin registered in memory).</summary>
+    private static string BackUp(string folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            return null;
+        var backup = Path.Combine(Path.GetTempPath(), $"plugin-backup-{Guid.NewGuid():N}");
         try
         {
-            await PluginDependencyInstaller.EnsureAllAsync(deps, dependencyProgress, ct).ConfigureAwait(false);
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            manager.RemovePlugin(info.Id);
-            throw;
+            CopyDirectory(folder, backup);
+            return backup;
         }
         catch (Exception ex)
         {
-            manager.RemovePlugin(info.Id);
-            return PluginInstallResult.Fail($"Installed, but a required component could not be downloaded: {ex.Message}");
+            AppLog.Warn($"Could not back up plugin folder before updating: {ex.Message}");
+            return null;
         }
+    }
+
+    /// <summary>Puts the pre-update copy back on disk and loads it again.</summary>
+    private static void Restore(PluginManager manager, string folder, string backup)
+    {
+        if (backup == null || string.IsNullOrWhiteSpace(folder))
+            return;
+        try
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+            CopyDirectory(backup, folder);
+            manager.LoadFromDirectory(folder);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Restoring the previous plugin after a failed update failed", ex);
+        }
+    }
+
+    private static void CopyDirectory(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (var file in Directory.GetFiles(from))
+            File.Copy(file, Path.Combine(to, Path.GetFileName(file)), overwrite: true);
+        foreach (var dir in Directory.GetDirectories(from))
+            CopyDirectory(dir, Path.Combine(to, Path.GetFileName(dir)));
     }
 }

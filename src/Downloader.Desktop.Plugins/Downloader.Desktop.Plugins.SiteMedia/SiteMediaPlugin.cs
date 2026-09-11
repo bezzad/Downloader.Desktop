@@ -37,12 +37,13 @@ public sealed class SiteMediaPlugin : IDownloaderPlugin, IHasRuntimeDependencies
     {
         // Clients from the host, so the user's proxy setting reaches the tool downloads and every
         // request this plugin makes. No timeout: a tool is tens of megabytes and the token governs it.
-        var tools = context.CreateHttpClient();
+        // Through HostCompat: an app older than v2.13.0 has neither CreateHttpClient nor ProxyAddress.
+        var tools = HostCompat.CreateHttpClient(context);
         tools.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
         _ffmpeg = new FfmpegMuxer(context.DataDirectory, tools, context.Logger);
-        _ytDlp = new YtDlpBinary(context.DataDirectory, tools, context.Logger, context.ProxyAddress);
+        _ytDlp = new YtDlpBinary(context.DataDirectory, tools, context.Logger, HostCompat.ProxyAddress(context));
 
-        context.RegisterResolver(new SiteMediaResolver(_ytDlp, context.Logger, context.CreateHttpClient()));
+        context.RegisterResolver(new SiteMediaResolver(_ytDlp, context.Logger, HostCompat.CreateHttpClient(context)));
         context.RegisterPostProcessor(new MuxPostProcessor(_ffmpeg, context.Logger));
 
         context.Logger.LogInformation("Site-media plugin initialized (data dir: {Dir})", context.DataDirectory);
