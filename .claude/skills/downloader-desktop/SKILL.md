@@ -1960,12 +1960,19 @@ already existed and both had run. What was wrong was the DISPLAY and the dead en
   app is closed), then asks the app and repaints. Called from `popup.js` and `options.js`.
 - **A colour is validated before it reaches a style** (`isHexColor`, strict `#rrggbb`): the value arrives
   over HTTP, and anything else is refused rather than written into `style.setProperty`.
-- **Two derived tokens, both pure and unit-tested**: `accentInk(hex)` picks white or `#06222A` for text
-  ON the accent by **whichever has the higher WCAG contrast** (no magic threshold — white measures ~2:1
-  on Amber and ~3:1 on Teal, so the app's own "white on accent" is not safe across the five accents);
-  `accentTextColor(hex, dark)` darkens/lightens the accent until it reaches 4.5:1 as TEXT on the popup's
-  background, for links/badges/the row button. CSS picks between the two themes' values with
-  `--accent-fg`, so a scheme flip while the value is cached can't leave unreadable text.
+- **Two derived tokens, both pure and unit-tested — and the DESIGN decides their defaults, not a
+  contrast optimum** (this was got wrong twice and the author caught it from screenshots):
+  `accentInk(hex)` returns **white**, because that is what the app puts on an accent fill and what the
+  design does, and only falls to `#06222A` when white drops below **2.8:1** (amber alone);
+  `accentTextColor(hex, dark)` leaves the accent ALONE and only moves it when it fails **3:1** as text
+  (the UI-text floor), so blue/purple and the whole dark theme are untouched. An earlier "whichever
+  contrasts more" + 4.5 target repainted the default teal's buttons with dark ink and every link darker
+  than the design — objectively defensible, and visibly not the product. CSS picks between the two
+  themes' values with `--accent-fg`.
+- **The popup's built-in default accent is `#16A4C2`** — `ThemeService.Accents[0]`, what the app really
+  wears — NOT App.axaml's palette `Accent` `#0E8FB3`, which is only the pre-override Fluent default and
+  left the two products a shade apart. One value serves both themes, as the app applies one accent to
+  both.
 - The app's five accents: Teal `#16A4C2` (default), Blue `#2F7DE1`, Purple `#8A60E6`, Green `#2BA86B`,
   Amber `#E2922E` — note these are `ThemeService.Accents`, NOT `App.axaml`'s palette `Accent` (#0E8FB3),
   which is only the pre-override default.

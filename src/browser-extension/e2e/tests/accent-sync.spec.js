@@ -69,13 +69,15 @@ test("the popup takes the accent the app reports", async ({ context, extensionId
     const popup = await openPopupFor(context, extensionId, page);
     await expect.poll(() => accentOf(popup), { timeout: 10000 }).toBe("#2F7DE1");
 
-    // The fill's ink and the text colour move with it, or a light accent leaves unreadable labels.
+    // A fill takes white ink, as the app's own accent surfaces do…
     const ink = await popup.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue("--on-accent").trim().toUpperCase());
     expect(ink).toBe("#FFFFFF");
+    // …and the accent is left ALONE as text when it already reads, so the popup wears the colour the
+    // user chose rather than a darkened cousin of it.
     const text = await popup.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue("--accent-text").trim().toUpperCase());
-    expect(text).not.toBe("#2F7DE1"); // darkened until it reads on the light background
+    expect(text).toBe("#2F7DE1");
   } finally {
     await new Promise(r => app.server.close(r));
   }
@@ -94,7 +96,7 @@ test("an app that reports no accent leaves the stylesheet's own palette alone", 
 
     const popup = await openPopupFor(context, extensionId, page);
     await popup.waitForTimeout(1500);
-    expect(await accentOf(popup)).toBe("#0E8FB3"); // popup.css's own default
+    expect(await accentOf(popup)).toBe("#16A4C2"); // popup.css's own default (the app's default accent)
   } finally {
     await new Promise(r => app.server.close(r));
   }

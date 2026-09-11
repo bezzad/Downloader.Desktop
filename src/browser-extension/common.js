@@ -1201,18 +1201,20 @@ function luminance(hex) {
   return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
 }
 
+/** How little contrast white may have on the accent before the fill takes dark ink instead. */
+const ACCENT_INK_MIN = 2.8;
+
 /**
- * Ink for text sitting ON this accent: whichever of white and the dark ink has the HIGHER contrast
- * with it. The app's accents run from a bright amber to a deep purple, so one fixed choice is
- * unreadable at one end (white on Amber measures about 2:1) — and a brightness threshold is just a
- * magic number pretending to be that comparison.
+ * Ink for text sitting ON this accent. WHITE by default, because that is what the app itself puts on
+ * an accent fill (its nav selection, its accent buttons) and what this design does — matching the app
+ * is the whole point, and picking "whichever has the higher contrast" quietly overrode the design for
+ * every accent (it put dark ink on the default teal, which is not what either product looks like).
+ * The dark ink is the exception, for an accent so bright that white stops being readable on it: only
+ * the amber one, at about 2.5:1.
  */
 function accentInk(hex) {
   if (!isHexColor(hex)) return "#FFFFFF";
-  const l = luminance(hex);
-  const withWhite = 1.05 / (l + 0.05);
-  const withDark = (l + 0.05) / (luminance(ACCENT_DARK_INK) + 0.05);
-  return withDark > withWhite ? ACCENT_DARK_INK : "#FFFFFF";
+  return contrastRatio("#FFFFFF", hex) >= ACCENT_INK_MIN ? "#FFFFFF" : ACCENT_DARK_INK;
 }
 
 /** The page behind accent-coloured TEXT, per theme (popup.css's --bg). */
@@ -1234,12 +1236,16 @@ function mixHex(a, b, t) {
   return `#${ch(16)}${ch(8)}${ch(0)}`.toUpperCase();
 }
 
+/** The floor an accent must clear as TEXT before it is darkened or lightened at all. */
+const ACCENT_TEXT_MIN = 3.0;
+
 /**
- * The accent as READABLE TEXT on the popup's own background — links, the row's Download, the type
- * badge. A fill can pick its ink (accentInk); text cannot, so the colour itself has to move: Amber
- * measures about 2:1 as text on the light background and Teal about 3:1. Darkens (light theme) or
- * lightens (dark theme) in small steps until it reaches 4.5:1, and stops there so the accent is still
- * recognisably the one the user chose.
+ * The accent as TEXT on the popup's own background — links, the type badge, the row's arrow. A fill
+ * can pick its ink (accentInk); text cannot, so a colour that has stopped reading has to move. It
+ * moves as LITTLE as possible: the chosen accent is the design, and darkening every accent to a 4.5
+ * body-text target repainted links visibly darker than the design in every theme. The floor is the
+ * 3:1 that UI text and icons are held to, which leaves blue, purple and the dark theme untouched and
+ * rescues only the light-on-light cases (amber, and the teal at 2.5:1).
  */
 function accentTextColor(hex, dark = false) {
   if (!isHexColor(hex)) return null;
@@ -1248,7 +1254,7 @@ function accentTextColor(hex, dark = false) {
   let best = hex.trim().toUpperCase();
   for (let t = 0; t <= 0.8001; t += 0.05) {
     best = mixHex(hex.trim(), towards, t);
-    if (contrastRatio(best, backdrop) >= 4.5) break;
+    if (contrastRatio(best, backdrop) >= ACCENT_TEXT_MIN) break;
   }
   return best;
 }

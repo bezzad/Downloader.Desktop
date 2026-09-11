@@ -14,9 +14,13 @@
   --line: #C6D2DA;        /* BaseLow */
   --soft: #E7EEF2;        /* ListLow */
   --field: #FFFFFF;
-  --accent: #0E8FB3;      /* Light Accent */
+  /* The app's DEFAULT accent — ThemeService.Accents[0] "Teal", which is what it actually wears until
+     the user picks another (App.axaml's palette Accent is only the pre-override Fluent default, so
+     painting with it left the two products a shade apart). syncAccent replaces this with whatever the
+     app reports; the same value serves both themes, exactly as the app applies one accent to both. */
+  --accent: #16A4C2;
   --on-accent: #FFFFFF;
-  --tint: rgba(14, 143, 179, .10);
+  --tint: rgba(22, 164, 194, .12);
   /* The accent as TEXT (links, the row's Download, the type badge). A fill picks its ink; text cannot,
      so the colour itself is darkened/lightened until it reads on this background — common.js writes
      both themes' values when it follows the app's accent, and --accent-fg picks the live one. */
@@ -36,10 +40,6 @@
     --line: #283642;
     --soft: #1B2833;
     --field: #0F1822;     /* ChromeLow */
-    --accent: #2DBED6;    /* Dark Accent */
-    /* The dark accent is a bright teal: white on it measures about 2:1, so it takes dark ink. */
-    --on-accent: #06222A;
-    --tint: rgba(45, 190, 214, .12);
     --accent-fg: var(--accent-text-dark);
   }
 }

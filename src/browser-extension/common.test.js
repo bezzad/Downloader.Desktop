@@ -1866,17 +1866,18 @@ test("an app too old for the endpoint is not reported as a failure", () => {
 
 // ---- Following the app's accent (the popup's palette used to be a hand-copied constant) ----
 
-test("ink on the accent is whichever of white and dark reads better on it", () => {
-  // The app's five accents (ThemeService.Accents). White measures about 2:1 on the amber one and
-  // 3:1 on the teal, so one fixed choice cannot serve the whole range.
-  assert.equal(accentInk("#16A4C2"), "#06222A"); // Teal   — 5.3:1 dark vs 3.0:1 white
+test("an accent fill takes white ink, as the app and the design both do", () => {
+  // The app puts white on its accent (nav selection, accent buttons) and so does this design, so
+  // white is the rule and dark ink is the exception — picking "whichever contrasts more" silently
+  // overrode BOTH for the default teal, which is how the popup ended up not looking like either.
+  assert.equal(accentInk("#16A4C2"), "#FFFFFF"); // Teal (the app's default)
   assert.equal(accentInk("#2F7DE1"), "#FFFFFF"); // Blue
   assert.equal(accentInk("#8A60E6"), "#FFFFFF"); // Purple
-  assert.equal(accentInk("#2BA86B"), "#06222A"); // Green
-  assert.equal(accentInk("#E2922E"), "#06222A"); // Amber
-  // Extremes, so the comparison itself is pinned and not just its five known answers.
-  assert.equal(accentInk("#000000"), "#FFFFFF");
+  assert.equal(accentInk("#2BA86B"), "#FFFFFF"); // Green
+  assert.equal(accentInk("#E2922E"), "#06222A"); // Amber — white measures ~2.5:1 here, too little
+  // The exception is decided by measurement, not by a list: white on white is the extreme case.
   assert.equal(accentInk("#FFFFFF"), "#06222A");
+  assert.equal(accentInk("#000000"), "#FFFFFF");
 });
 
 test("only a real colour is ever written into a style", () => {
@@ -1955,20 +1956,22 @@ test("syncAccent paints the cached accent first, then the app's, and caches the 
   }
 });
 
-test("the accent as TEXT is darkened or lightened until it reads on the popup's background", () => {
-  // A fill picks its ink; text cannot, so the colour itself has to move. Amber measures about 2:1 as
-  // text on the light background and Teal about 3:1 — the reason this exists at all.
+test("the accent as TEXT moves only as far as it must to keep reading", () => {
+  // A fill picks its ink; text cannot, so a colour that has stopped reading has to move — but the
+  // chosen accent IS the design, so it moves as little as possible. An earlier 4.5 body-text target
+  // repainted every link visibly darker than the design; the floor is the 3:1 that UI text is held to.
   for (const hex of ["#16A4C2", "#2F7DE1", "#8A60E6", "#2BA86B", "#E2922E"]) {
     const light = accentTextColor(hex, false);
     const dark = accentTextColor(hex, true);
-    assert.ok(contrastRatio(light, "#E9EFF3") >= 4.5, `${hex} light -> ${light}`);
-    assert.ok(contrastRatio(dark, "#0B121A") >= 4.5, `${hex} dark -> ${dark}`);
+    assert.ok(contrastRatio(light, "#E9EFF3") >= 3, `${hex} light -> ${light}`);
+    assert.ok(contrastRatio(dark, "#0B121A") >= 3, `${hex} dark -> ${dark}`);
   }
 
-  // It stops as soon as it is readable, so the accent is still recognisably the chosen one: the dark
-  // theme's background is dark enough that most accents already pass and are returned untouched.
+  // Untouched wherever it already reads — blue and purple in both themes, and everything in dark.
+  assert.equal(accentTextColor("#2F7DE1", false), "#2F7DE1");
+  assert.equal(accentTextColor("#8A60E6", false), "#8A60E6");
   assert.equal(accentTextColor("#16A4C2", true), "#16A4C2");
-  assert.notEqual(accentTextColor("#16A4C2", false), "#16A4C2");
+  assert.notEqual(accentTextColor("#E2922E", false), "#E2922E");
 
   // Both themes travel together (the browser's scheme can flip while the value is cached).
   const tokens = accentTokens("#E2922E");
