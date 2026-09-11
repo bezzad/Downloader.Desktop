@@ -26,6 +26,7 @@ const {
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
   unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  createLookupLimiter, MAX_VARIANT_LOOKUPS, askAppPageVariants,
   variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
   chipLabel,
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
@@ -2060,5 +2061,98 @@ test("a can-handle lookup that goes unanswered is asked once more", async () => 
   } finally {
     global.fetch = realFetch;
     global.chrome.storage = savedStorage;
+  }
+});
+
+// ── Why the can-handle question went unanswered in the first place ──────────────────────────────────
+// Quality lookups (/api/variants) run the site tool and outlive the popup that started them, and a
+// browser allows six connections to one host. Enough of them left open meant the next popup's /ping and
+// /api/can-handle could not be sent at all. Lookups are now capped and cancellable.
+
+test("the lookup limiter shares a key in flight and cancels the oldest beyond the cap", async () => {
+  const run = createLookupLimiter(2);
+  const finish = new Map();
+  const signals = {};
+  let started = 0;
+  const task = key => signal => {
+    started++;
+    signals[key] = signal;
+    return new Promise(resolve => finish.set(key, resolve));
+  };
+  const tick = async () => { for (let i = 0; i < 3; i++) await Promise.resolve(); };
+
+  const a1 = run("a", task("a"));
+  assert.equal(run("a", task("a")), a1, "a second ask for the same page shares the request");
+  run("b", task("b"));
+  await tick();
+  assert.equal(started, 2);
+  assert.equal(run.inFlightCount(), 2);
+
+  run("c", task("c"));
+  await tick();
+  assert.equal(signals.a.aborted, true, "the oldest lookup is cancelled to make room");
+  assert.equal(signals.b.aborted, false);
+  assert.equal(run.inFlightCount(), 2);
+
+  for (const done of finish.values()) done("ok");
+  await a1;
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(run.inFlightCount(), 0, "finished lookups free their slot");
+});
+
+test("appFetch drops a cancelled request at once instead of holding it to its deadline", async () => {
+  const realFetch = global.fetch;
+  let sawAbort = false;
+  try {
+    global.fetch = (url, init) => new Promise((_, reject) => {
+      init.signal.addEventListener("abort", () => { sawAbort = true; reject(new Error("aborted")); });
+    });
+    const controller = new AbortController();
+    const started = Date.now();
+    const pending = appFetch("http://127.0.0.1:15151/api/variants", {}, 60000, controller.signal);
+    controller.abort();
+    await assert.rejects(pending, /cancelled|aborted/);
+    assert.ok(Date.now() - started < 1000);
+    assert.equal(sawAbort, true, "the underlying request is aborted, which frees its connection");
+
+    // Already cancelled before it starts: no request is made at all.
+    let called = false;
+    global.fetch = async () => { called = true; };
+    await assert.rejects(appFetch("http://127.0.0.1:15151/x", {}, 60000, controller.signal), /cancelled/);
+    assert.equal(called, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("quality lookups for many pages never hold more than the cap of connections to the app", async () => {
+  const realFetch = global.fetch;
+  const hanging = [];
+  let open = 0, maxOpen = 0;
+  try {
+    global.fetch = (url, init) => {
+      if (String(url).includes("/ping")) return Promise.resolve({ ok: true, status: 200 });
+      if (!String(url).includes("/api/variants")) return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+      // Like a real fetch: an already-cancelled request never opens a connection.
+      if (init?.signal?.aborted) return Promise.reject(new Error("aborted"));
+      open++; maxOpen = Math.max(maxOpen, open);
+      return new Promise((resolve, reject) => {
+        let closed = false;
+        const close = () => { if (!closed) { closed = true; open--; } };
+        hanging.push(() => { close(); resolve({ ok: true, status: 200, json: async () => ({ variants: [] }) }); });
+        init?.signal?.addEventListener("abort", () => { close(); reject(new Error("aborted")); });
+      });
+    };
+    // Six popups opened on six videos, each leaving its lookup running — the reported pile-up.
+    const lookups = [1, 2, 3, 4, 5, 6].map(i => askAppPageVariants(`https://www.youtube.com/watch?v=v${i}`));
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    assert.ok(maxOpen <= MAX_VARIANT_LOOKUPS, `at most ${MAX_VARIANT_LOOKUPS} lookups hold a connection (saw ${maxOpen})`);
+    assert.ok(MAX_VARIANT_LOOKUPS < 6, "the cap leaves the browser's connections free for /ping and /api/can-handle");
+
+    for (const done of hanging) done();
+    const results = await Promise.all(lookups);
+    assert.equal(results.length, 6, "a cancelled lookup still answers (with a note), it never throws");
+  } finally {
+    global.fetch = realFetch;
   }
 });

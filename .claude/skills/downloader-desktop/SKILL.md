@@ -2017,3 +2017,15 @@ red of a definite refusal.
 **`send()` to the background worker can resolve `undefined`** while an MV3 worker is still waking:
 `const { x } = await send(...)` THROWS on that and abandons the whole load silently. Destructure a
 defaulted object (`(await send(...)) || {}`).
+**The intermittency's ROOT CAUSE (found 2026-09-11, extension 1.20.1): the browser's 6-connection cap.**
+A quality lookup (`/api/variants`) runs the site tool for seconds to a minute and the service worker
+keeps it going after the popup closes. Chrome (and Firefox) allow six connections to one host, so a
+few popups on video pages later every slot was held and the next popup's `/ping`/`/api/can-handle`
+timed out IN THE BROWSER'S QUEUE — the app was never asked. Proven against the real app from a
+Playwright service worker: 0 open lookups → can-handle answered in 5 ms; 6 open → ping false after
+2011 ms, can-handle unanswered, and no request in the app's log. Fix: `createLookupLimiter` caps
+lookups at `MAX_VARIANT_LOOKUPS` (2), shares one per URL, and CANCELS the oldest (appFetch's `cancel`
+signal aborts the socket). Pinned by the e2e pile-up spec in `site-support.spec.js`. Any other
+long-running app request the extension adds must go through a cap too, or it will do this again.
+The Claude-in-Chrome tools cannot open `chrome-extension://` pages, so drive a real-app reproduction
+from a Playwright script (`sw.evaluate(...)` calls common.js globals directly), not the MCP browser.

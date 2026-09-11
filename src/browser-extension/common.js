@@ -56,14 +56,25 @@ const APP_TIMEOUT_MS = { ping: 2000, add: 20000, ask: 8000, variants: 120000, co
 // dot stayed unset and a Download button sat on "…" with no error, because nothing ever resolved.
 // The abort releases the socket; the race is the belt to that braces, so a fetch that ignores the
 // signal still cannot wedge the caller (and a stubbed fetch in tests behaves the same way).
-async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask) {
+// `cancel` (optional) is the caller's own AbortSignal: a request nobody is waiting for any more is
+// dropped at once instead of holding one of the browser's few connections to the app to its deadline.
+async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask, cancel = null) {
+  if (cancel?.aborted) throw new Error("the request was cancelled");
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   let timer = null;
+  let onCancel = null;
   const expired = new Promise((_, reject) => {
     timer = setTimeout(() => {
       try { controller?.abort(); } catch { /* already gone */ }
       reject(new Error("the app did not answer in time"));
     }, timeoutMs);
+    if (cancel) {
+      onCancel = () => {
+        try { controller?.abort(); } catch { /* already gone */ }
+        reject(new Error("the request was cancelled"));
+      };
+      cancel.addEventListener("abort", onCancel, { once: true });
+    }
   });
   try {
     return await Promise.race([
@@ -72,6 +83,7 @@ async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask) {
     ]);
   } finally {
     clearTimeout(timer);
+    if (onCancel) cancel.removeEventListener("abort", onCancel);
   }
 }
 
@@ -630,7 +642,7 @@ async function askAppCanHandlePage(url) {
 // caller, so asking without the cookies we already captured would report "no choices" for exactly
 // the pages this exists for. Never throws — an unreachable or older app (404) answers with an empty
 // list, which renders the page as one plain Download exactly as before this existed.
-async function appPageVariants(url, cookies, port) {
+async function appPageVariants(url, cookies, port, cancel = null) {
   if (!url || port == null) return { variants: [], error: null };
   try {
     const body = { url };
@@ -640,7 +652,7 @@ async function appPageVariants(url, cookies, port) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    }), APP_TIMEOUT_MS.variants);
+    }), APP_TIMEOUT_MS.variants, cancel);
     if (!res.ok) return { variants: [], error: variantLookupFailureNote(res.status) };
     const json = await res.json();
     return { variants: Array.isArray(json?.variants) ? json.variants : [], error: json?.error ?? null };
@@ -663,11 +675,48 @@ function variantLookupFailureNote(status) {
   return `The app couldn't list what this page offers (HTTP ${status}).`;
 }
 
+// At most this many quality lookups hold a connection to the app at once. THIS is why the popup on
+// YouTube "usually" said to install a plugin the user had: a lookup runs the site tool (seconds, up to
+// a minute), the browser keeps it going after the popup that asked has closed, and a browser allows
+// only SIX connections to one host. A few popups later every one of them was held by a lookup, so the
+// next popup's /ping and /api/can-handle could not even be sent — they timed out in the browser's own
+// queue and the app was never asked (reproduced against the real app: 6 open lookups → ping false after
+// 2011 ms, can-handle unanswered, nothing in the app's log). "Reload until it works" was waiting for
+// lookups to finish.
+const MAX_VARIANT_LOOKUPS = 2;
+
+// Runs keyed async tasks under a cap: a second ask for a key already in flight shares that request, and
+// a new key beyond the cap cancels the OLDEST (one popup is open at a time, so the oldest lookup is one
+// nobody is looking at any more). `task` receives an AbortSignal. Pure — unit-tested.
+function createLookupLimiter(max = MAX_VARIANT_LOOKUPS) {
+  const inFlight = new Map(); // insertion order = age
+  const run = (key, task) => {
+    const existing = inFlight.get(key);
+    if (existing) return existing.promise;
+    while (inFlight.size >= max) {
+      const [oldestKey, oldest] = inFlight.entries().next().value;
+      inFlight.delete(oldestKey);
+      try { oldest.controller.abort(); } catch { /* already gone */ }
+    }
+    const entry = { controller: new AbortController(), promise: null };
+    entry.promise = Promise.resolve()
+      .then(() => task(entry.controller.signal))
+      .finally(() => { if (inFlight.get(key) === entry) inFlight.delete(key); });
+    inFlight.set(key, entry);
+    return entry.promise;
+  };
+  run.inFlightCount = () => inFlight.size;
+  return run;
+}
+
+const variantLookups = createLookupLimiter();
+
 // As above, discovering the port and capturing the page's live cookies first (background-page use).
+// Goes through `variantLookups`, so these long requests can never crowd out the short ones.
 async function askAppPageVariants(url) {
   const port = await discoverAppPort();
   if (port == null) return { variants: [], error: null };
-  return await appPageVariants(url, await captureCookies(url), port);
+  return await variantLookups(url, async signal => appPageVariants(url, await captureCookies(url), port, signal));
 }
 
 // The version badge in the popup header ("v1.7"). A trailing zero patch is dropped — extension
@@ -1702,6 +1751,7 @@ if (typeof module !== "undefined") {
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
+    createLookupLimiter, MAX_VARIANT_LOOKUPS,
     appPageVariants, askAppPageVariants, variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,

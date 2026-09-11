@@ -27,15 +27,23 @@ async function appAnsweringInRange() {
  * A stub app that answers /ping and /api/can-handle. `handled` decides which answer it gives, i.e.
  * whether this "install" has a plugin that claims video pages.
  */
-function startAppStub({ handled, by, variants, variantsError, adds, canHandleStatus }) {
+function startAppStub({ handled, by, variants, variantsError, adds, canHandleStatus, canHandleFailures = 0, variantsHang = false, stats }) {
+  let canHandleCalls = 0;
   const server = http.createServer((req, res) => {
     if (req.url.startsWith("/ping")) {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       res.end("{}");
       return;
     }
+    if (req.url.startsWith("/api/variants") && variantsHang) {
+      // The site tool taking its time: the connection stays open with no answer.
+      if (stats) stats.variants = (stats.variants || 0) + 1;
+      return;
+    }
     if (req.url.startsWith("/api/can-handle")) {
-      if (canHandleStatus) { res.writeHead(canHandleStatus).end(); return; }
+      canHandleCalls++;
+      if (stats) stats.canHandle = canHandleCalls;
+      if (canHandleStatus || canHandleCalls <= canHandleFailures) { res.writeHead(canHandleStatus || 503).end(); return; }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ handled, by: handled ? by : null }));
       return;
@@ -194,6 +202,53 @@ test("a failed quality lookup says why on the row instead of silently offering n
     // the row (the app can still pick a stream itself).
     await expect(popup.locator("#list li button.row-action")).toHaveAttribute("title", "Download");
     await expect(popup.locator("#list li .qband")).toHaveCount(0);
+  } finally {
+    await new Promise(r => app.server.close(r));
+  }
+});
+
+test("slow quality lookups left behind by earlier popups never stop the next popup asking the app", async ({ context, extensionId }) => {
+  test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
+  // The ROOT CAUSE of "install the plugin" on YouTube with the plugin installed: every popup on a video
+  // page starts a quality lookup that runs the site tool, the browser keeps it going after the popup
+  // closes, and a browser allows six connections to one host. A few videos later /ping and
+  // /api/can-handle could not be sent at all. Reloading until it "worked" was waiting for lookups to end.
+  const stats = {};
+  const app = await startAppStub({ handled: true, by: "Video sites (YouTube and others)", variantsHang: true, stats });
+  test.skip(!app, "no free port in the app range for the stub");
+  try {
+    await setCachedPort(context, app.port);
+    await context.route("https://www.youtube.com/**", route =>
+      route.fulfill({ contentType: "text/html", body: "<html><body>a video page</body></html>" }));
+
+    for (let i = 1; i <= 8; i++) {
+      const page = await context.newPage();
+      await page.goto(`https://www.youtube.com/watch?v=e2e-pileup-${i}`);
+      const popup = await openPopupFor(context, extensionId, page);
+      await expect(popup.locator("#list li button.row-action"), `popup #${i}`).toHaveAttribute("title", "Download");
+      await expect.poll(() => stats.variants || 0, { message: `lookup #${i} reached the app` }).toBeGreaterThanOrEqual(i);
+      await popup.close();
+      await page.close();
+    }
+  } finally {
+    app.server.closeAllConnections?.();
+    await new Promise(r => app.server.close(r));
+  }
+});
+
+test("a can-handle question that got no answer once is asked again, and the page is offered", async ({ context, extensionId }) => {
+  test.skip(await appAnsweringInRange() !== null, "a real app is listening — its real answer would be used");
+  const stats = {};
+  const app = await startAppStub({ handled: true, by: "Video sites (YouTube and others)", canHandleFailures: 1, stats });
+  test.skip(!app, "no free port in the app range for the stub");
+  try {
+    await setCachedPort(context, app.port);
+    const page = await openBlockedSitePage(context);
+
+    const popup = await openPopupFor(context, extensionId, page);
+    await expect(popup.locator("#list li button.row-action")).toHaveAttribute("title", "Download");
+    await expect(popup.locator("#empty")).toBeHidden();
+    expect(stats.canHandle).toBe(2);
   } finally {
     await new Promise(r => app.server.close(r));
   }
