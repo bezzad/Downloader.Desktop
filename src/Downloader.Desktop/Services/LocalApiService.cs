@@ -73,6 +73,18 @@ public static class LocalApiService
                 yield return p;
     }
 
+    /// <summary>
+    /// What to SHOW for the API's address. When a port is bound it is that port; when nothing is bound
+    /// there is no address, so the range it tries is shown instead.
+    /// <para>Naming the preferred port while the listener was down (what this used to do) read as
+    /// "it only ever tries 15151" — reported exactly that way — when in fact every port in the range
+    /// had been tried and was busy.</para>
+    /// </summary>
+    public static string DescribeAddress(int effectivePort) =>
+        effectivePort != 0
+            ? $"127.0.0.1:{effectivePort}"
+            : $"127.0.0.1:{PortRange[0]}–{PortRange[^1]}";
+
     /// <summary>Raised (on the UI thread) after the listener state changes: a successful bind — including
     /// a LATE bind from the startup retry — or a stop. Lets the Settings status row and the fallback
     /// notification react even when the API comes up seconds after launch.</summary>
@@ -429,6 +441,10 @@ public static class LocalApiService
         {
             ["defaultSavePath"] = config.Settings.DefaultSavePath,
             ["version"] = UpdateService.CurrentVersion.ToString(),
+            // The accent the app is wearing, so the extension's popup can paint itself the same colour
+            // instead of carrying a hand-copied palette that drifts (a colour is not a secret; the rule
+            // above is about not echoing the settings OBJECT).
+            ["accentColor"] = ThemeService.HexOf(config.Settings.AccentColor),
         });
     }
 

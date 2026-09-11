@@ -15,6 +15,10 @@ const test = base.test.extend({
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "downloader-ext-e2e-"));
     const context = await base.chromium.launchPersistentContext(userDataDir, {
       headless: false, // MV3 extensions need a real (or new-headless) browser session
+      // Escape hatch for a machine that already has a Chromium but not the exact build this
+      // Playwright version downloads (a CI container with PLAYWRIGHT_BROWSERS_PATH pre-populated).
+      // Unset everywhere else, so the normal `npx playwright install` path is unchanged.
+      ...(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}),
       args: [
         `--disable-extensions-except=${EXTENSION_PATH}`,
         `--load-extension=${EXTENSION_PATH}`

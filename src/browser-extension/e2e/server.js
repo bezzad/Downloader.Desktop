@@ -75,6 +75,17 @@ function start() {
       return;
     }
 
+    // ?stall=1 answers with headers and then NEVER sends a body. That is the one thing a normal
+    // static route cannot reproduce: the extension still SNIFFS the response (it only needs the
+    // headers), while the popup's own probe of it times out and is aborted. A manifest in that state
+    // is the real-world case this exists for — on a page full of videos the probes routinely do not
+    // come back, and everything downstream then has only the URL to judge a rendition by.
+    if (/[?&]stall=1/.test(req.url)) {
+      res.writeHead(200, { "Content-Type": MIME[path.extname(urlPath)] || "application/octet-stream" });
+      res.flushHeaders(); // Node buffers otherwise, and without headers on the wire nothing is sniffed
+      return; // deliberately no res.end()
+    }
+
     const filePath = path.join(ROOT, urlPath);
     if (!filePath.startsWith(ROOT)) { res.writeHead(403).end(); return; }
     fs.stat(filePath, (err, stat) => {

@@ -45,6 +45,14 @@ public static class ThemeService
     public static AccentOption Find(string key) =>
         Accents.FirstOrDefault(a => a.Key == key) ?? Accents[0];
 
+    /// <summary>The accent as a plain "#RRGGBB" string — what a non-Avalonia client (the browser
+    /// extension, over /api/settings) needs to paint itself in the same colour the app is wearing.</summary>
+    public static string HexOf(string key)
+    {
+        var c = Find(key).Color;
+        return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+    }
+
     /// <summary>Apply both the Light/Dark variant and the accent from the given config.</summary>
     public static void Apply(Config config)
     {

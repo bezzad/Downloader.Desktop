@@ -88,7 +88,9 @@ public static class ExtensionInstallService
         // No overall timeout: the cancellation token governs. A whole-request timeout truncates a slow
         // download and then reports a checksum mismatch, which is the wrong diagnosis (see the plugin
         // binaries' Timeout.InfiniteTimeSpan for the same reason).
-        var c = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        // Through the user's proxy, like everything else the app fetches.
+        var c = AppProxy.CreateClient();
+        c.Timeout = Timeout.InfiniteTimeSpan;
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
         c.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Downloader.Desktop", ver));
         return c;

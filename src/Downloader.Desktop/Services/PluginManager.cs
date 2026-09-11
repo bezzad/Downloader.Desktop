@@ -496,6 +496,12 @@ public sealed class PluginManager
         private Microsoft.Extensions.Logging.ILogger _logger;
         public Microsoft.Extensions.Logging.ILogger Logger =>
             _logger ??= AppLog.Factory.CreateLogger($"plugin:{_plugin.Id}");
+
+        // The proxy the user configured, handed to every plugin — built-in or third-party — so none of
+        // them needs a proxy setting, or any proxy code, of its own. Read per request, so a change in
+        // Settings reaches a client the plugin built at Initialize (see AppProxy).
+        public System.Net.Http.HttpClient CreateHttpClient() => AppProxy.CreateClient();
+        public string ProxyAddress => AppProxy.Address;
     }
 
     /// <summary>

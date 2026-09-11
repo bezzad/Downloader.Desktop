@@ -56,14 +56,25 @@ const APP_TIMEOUT_MS = { ping: 2000, add: 20000, ask: 8000, variants: 120000, co
 // dot stayed unset and a Download button sat on "…" with no error, because nothing ever resolved.
 // The abort releases the socket; the race is the belt to that braces, so a fetch that ignores the
 // signal still cannot wedge the caller (and a stubbed fetch in tests behaves the same way).
-async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask) {
+// `cancel` (optional) is the caller's own AbortSignal: a request nobody is waiting for any more is
+// dropped at once instead of holding one of the browser's few connections to the app to its deadline.
+async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask, cancel = null) {
+  if (cancel?.aborted) throw new Error("the request was cancelled");
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   let timer = null;
+  let onCancel = null;
   const expired = new Promise((_, reject) => {
     timer = setTimeout(() => {
       try { controller?.abort(); } catch { /* already gone */ }
       reject(new Error("the app did not answer in time"));
     }, timeoutMs);
+    if (cancel) {
+      onCancel = () => {
+        try { controller?.abort(); } catch { /* already gone */ }
+        reject(new Error("the request was cancelled"));
+      };
+      cancel.addEventListener("abort", onCancel, { once: true });
+    }
   });
   try {
     return await Promise.race([
@@ -72,6 +83,7 @@ async function appFetch(url, init = {}, timeoutMs = APP_TIMEOUT_MS.ask) {
     ]);
   } finally {
     clearTimeout(timer);
+    if (onCancel) cancel.removeEventListener("abort", onCancel);
   }
 }
 
@@ -616,8 +628,13 @@ async function pingApp() {
 
 // Does the running app claim this page? Discovers the port the same way every other call does.
 async function askAppCanHandlePage(url) {
-  const port = await discoverAppPort();
-  return await appCanHandlePage(url, port);
+  const answer = await appCanHandlePage(url, await discoverAppPort());
+  if (answer.answered) return answer;
+  // One retry. This answer decides what the popup TELLS the user about their setup, and the popup is
+  // open for a moment — a single missed answer (a service worker still waking, a request that raced
+  // something else) must not be presented as a fact about their machine.
+  await new Promise(r => setTimeout(r, CAN_HANDLE_RETRY_MS));
+  return await appCanHandlePage(url, await discoverAppPort());
 }
 
 // The qualities behind a page the app claims (1080p / 720p / audio-only …), asked of the app's
@@ -625,7 +642,7 @@ async function askAppCanHandlePage(url) {
 // caller, so asking without the cookies we already captured would report "no choices" for exactly
 // the pages this exists for. Never throws — an unreachable or older app (404) answers with an empty
 // list, which renders the page as one plain Download exactly as before this existed.
-async function appPageVariants(url, cookies, port) {
+async function appPageVariants(url, cookies, port, cancel = null) {
   if (!url || port == null) return { variants: [], error: null };
   try {
     const body = { url };
@@ -635,20 +652,71 @@ async function appPageVariants(url, cookies, port) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    }), APP_TIMEOUT_MS.variants);
-    if (!res.ok) return { variants: [], error: null };
+    }), APP_TIMEOUT_MS.variants, cancel);
+    if (!res.ok) return { variants: [], error: variantLookupFailureNote(res.status) };
     const json = await res.json();
     return { variants: Array.isArray(json?.variants) ? json.variants : [], error: json?.error ?? null };
   } catch {
-    return { variants: [], error: null };
+    return { variants: [], error: VARIANT_LOOKUP_NO_ANSWER };
   }
 }
 
+// What the row says when the lookup never produced an answer at all (the app stopped, or the request
+// outlived its timeout). There is no reason to quote in that case, so it is named here.
+const VARIANT_LOOKUP_NO_ANSWER = "The app didn't answer when asked what this page offers.";
+
+// What the row says when the app answered the lookup with a failure status. Returning a note matters:
+// an empty list and a FAILED list used to look identical in the popup — one plain Download button,
+// nothing said — so a missing quality/audio picker had no visible explanation.
+function variantLookupFailureNote(status) {
+  // 404 is an app older than this endpoint. It has no qualities to report and never had, so there is
+  // nothing to warn about: the row stays one plain Download, exactly as before the endpoint existed.
+  if (status === 404) return null;
+  return `The app couldn't list what this page offers (HTTP ${status}).`;
+}
+
+// At most this many quality lookups hold a connection to the app at once. THIS is why the popup on
+// YouTube "usually" said to install a plugin the user had: a lookup runs the site tool (seconds, up to
+// a minute), the browser keeps it going after the popup that asked has closed, and a browser allows
+// only SIX connections to one host. A few popups later every one of them was held by a lookup, so the
+// next popup's /ping and /api/can-handle could not even be sent — they timed out in the browser's own
+// queue and the app was never asked (reproduced against the real app: 6 open lookups → ping false after
+// 2011 ms, can-handle unanswered, nothing in the app's log). "Reload until it works" was waiting for
+// lookups to finish.
+const MAX_VARIANT_LOOKUPS = 2;
+
+// Runs keyed async tasks under a cap: a second ask for a key already in flight shares that request, and
+// a new key beyond the cap cancels the OLDEST (one popup is open at a time, so the oldest lookup is one
+// nobody is looking at any more). `task` receives an AbortSignal. Pure — unit-tested.
+function createLookupLimiter(max = MAX_VARIANT_LOOKUPS) {
+  const inFlight = new Map(); // insertion order = age
+  const run = (key, task) => {
+    const existing = inFlight.get(key);
+    if (existing) return existing.promise;
+    while (inFlight.size >= max) {
+      const [oldestKey, oldest] = inFlight.entries().next().value;
+      inFlight.delete(oldestKey);
+      try { oldest.controller.abort(); } catch { /* already gone */ }
+    }
+    const entry = { controller: new AbortController(), promise: null };
+    entry.promise = Promise.resolve()
+      .then(() => task(entry.controller.signal))
+      .finally(() => { if (inFlight.get(key) === entry) inFlight.delete(key); });
+    inFlight.set(key, entry);
+    return entry.promise;
+  };
+  run.inFlightCount = () => inFlight.size;
+  return run;
+}
+
+const variantLookups = createLookupLimiter();
+
 // As above, discovering the port and capturing the page's live cookies first (background-page use).
+// Goes through `variantLookups`, so these long requests can never crowd out the short ones.
 async function askAppPageVariants(url) {
   const port = await discoverAppPort();
   if (port == null) return { variants: [], error: null };
-  return await appPageVariants(url, await captureCookies(url), port);
+  return await variantLookups(url, async signal => appPageVariants(url, await captureCookies(url), port, signal));
 }
 
 // The version badge in the popup header ("v1.7"). A trailing zero patch is dropped — extension
@@ -690,14 +758,18 @@ async function probeSize(url, { signal } = {}) {
 // Parses an HLS MASTER playlist's #EXT-X-STREAM-INF variants into [{ uri, resolution, bandwidth }].
 // Returns [] when the URL isn't fetchable, or when it's actually a variant/media playlist (no
 // #EXT-X-STREAM-INF entries) — callers fall back to treating it as one plain file.
+// Variants of a master playlist. `[]` means the playlist WAS read and lists none (so it is a media
+// playlist — one rendition); `null` means it could not be read at all (offline, aborted, 404). The
+// difference matters: "could not read it" is not evidence that a link is a rendition, and treating
+// it as such would drop a perfectly good master from the popup.
 async function parseHlsMaster(url, { signal } = {}) {
   let text;
   try {
     const res = await fetch(url, { signal });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     text = await res.text();
   } catch {
-    return [];
+    return null;
   }
   const lines = text.split(/\r?\n/);
   const variants = [];
@@ -823,29 +895,45 @@ const SITE_MEDIA_PLUGIN_NAME = "Video sites (YouTube and others)";
 // plugins that are actually enabled. Never throws: an unreachable or older app (404) answers "no", which
 // reproduces the behaviour from before this endpoint existed.
 async function appCanHandlePage(url, port) {
-  if (!url || port == null) return { handled: false, by: null };
+  if (!url || port == null) return { handled: false, by: null, answered: false };
   try {
     const res = await appFetch(withIdentity(`${APP_HOST}:${port}/api/can-handle?url=${encodeURIComponent(url)}`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
-    if (!res.ok) return { handled: false, by: null };
+    // A 404 is an app older than this endpoint. That IS an answer — such an app has no page handling
+    // at all — and it is the case this branch was written for.
+    if (res.status === 404) return { handled: false, by: null, answered: true };
+    if (!res.ok) return { handled: false, by: null, answered: false };
     const body = await res.json();
-    return { handled: body?.handled === true, by: body?.by ?? null };
+    return { handled: body?.handled === true, by: body?.by ?? null, answered: true };
   } catch {
-    return { handled: false, by: null };
+    return { handled: false, by: null, answered: false };
   }
 }
+
+/** How long to wait before asking a second time when the first attempt got no answer at all. */
+const CAN_HANDLE_RETRY_MS = 400;
 
 // What the popup shows for a page on a site whose video can't be sniffed off the network (MSE/DRM).
 // Pure, so both branches are unit-tested: with a plugin that claims the page the page itself is
 // offered to the app; without one the user is told which plugin would do it. Deliberately never "you
 // must be signed in" — that was the old wording and it is wrong: the people who see it ARE signed in,
 // and signing in again changes nothing (issue #9 follow-up).
-function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName }) {
+function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName, answered = true }) {
   if (!hostUnsupported) return { mode: "normal", message: null };
   // The app CAN take this page, so there is nothing to explain and nothing to warn about: the popup
   // shows the page as an ordinary row with a Download button, exactly like a sniffed file. A block of
   // red text where the video item belongs was the whole complaint — it read as an error for a page
   // that downloads perfectly well. `handler` is the plugin's name, shown as the row's quiet sub-line.
   if (appHandlesPage) return { mode: "offer", message: null, handler: handlerName || null };
+  // Nobody ANSWERED. Saying "install the plugin" here states something about the user's machine that
+  // was never established — and it was told to someone who had the plugin installed all along (the
+  // answer only failed intermittently). An unanswered question is reported as one.
+  if (!answered) {
+    return {
+      mode: "unknown",
+      message: "Downloader didn't answer when asked whether it can download from this site. "
+        + "Close and reopen this popup to try again.",
+    };
+  }
   return {
     mode: "unsupported",
     message: "This site streams video in a format Downloader can't capture from the page. "
@@ -933,8 +1021,69 @@ function groupQualityHeight(group) {
   return best;
 }
 
-// True for the one type that always leads: an HLS master playlist.
+// True when an `.m3u8` link is one RENDITION of a stream rather than the master that lists them all.
+// A master never names a resolution in its own path; a rendition is the thing that path exists to
+// distinguish (`…/pl/avc1/720x1280/name.m3u8`, `…/hls/1280x720/index.m3u8`).
+//
+// It matters because a rendition of a master that keeps its audio in a separate `#EXT-X-MEDIA` group
+// is VIDEO ONLY — downloading it gives a silent file (reported repeatedly on x.com). A probe proves
+// this properly (see popup.js), but the probe can still be in flight or have timed out when the user
+// clicks, and until then the URL is all there is to go on.
+// Path segments that name ONE track of a stream rather than the stream itself. A master playlist is
+// addressed by the stream; a rendition is addressed by the codec, the bitrate or the resolution it
+// carries, because that is the only thing distinguishing it from its siblings.
+const AUDIO_PATH_WORDS = ["audio", "aud", "mp4a", "aac", "opus", "vorbis", "ac3", "eac3", "mp3"];
+const VIDEO_PATH_WORDS = ["video", "vid", "avc1", "avc", "h264", "hevc", "hvc1", "vp9", "vp09", "av01"];
+
+// Does any segment of this URL's path equal one of `words`? Segment equality, not a substring match:
+// a host or file name that merely CONTAINS "aud" is not an audio track.
+function pathNames(url, words) {
+  let pathname;
+  try { pathname = decodeURIComponent(new URL(url).pathname); }
+  catch { pathname = typeof url === "string" ? url : ""; }
+  return pathname.toLowerCase().split("/").some(seg => words.includes(seg));
+}
+
+// True when a link is an AUDIO-ONLY rendition: downloading it gives sound and no picture. Reported
+// on x.com (…/pl/mp4a/128000/…m3u8, whose segments live under /aud/).
+function looksAudioOnlyUrl(url) {
+  return pathNames(url, AUDIO_PATH_WORDS);
+}
+
+function isHlsRenditionUrl(url) {
+  if (extOf(url) !== "m3u8") return false;
+  // A resolution catches the video renditions; the codec/track words catch the audio one, which
+  // names no resolution at all — that gap is how an audio-only playlist reached a user as "the
+  // video", with sound and a blank picture.
+  return qualityHeightFromUrl(url) != null
+    || pathNames(url, AUDIO_PATH_WORDS) || pathNames(url, VIDEO_PATH_WORDS);
+}
+
+// A plain-text report of what the popup found on a page: the page itself, every link it offered
+// (and which of them it judged a master or a rendition), and every link that was sniffed at all.
+// This is what a "it downloaded without sound" report needs in order to be reproduced — the master
+// playlist URL cannot be derived from a rendition's, so without it the report is unanswerable.
+// LINKS ONLY: no cookies, no headers, nothing from the session. Those are secrets, and a block of
+// text the user pastes into an issue is the last place they should appear.
+function describeDetectedLinks({ pageUrl = "", version = "", groups = [], sniffed = [] } = {}) {
+  const lines = [`Downloader extension ${version}`.trim(), `Page: ${pageUrl}`, ""];
+  lines.push(groups.length ? "Offered:" : "Offered: (nothing)");
+  for (const g of groups) {
+    const what = g?.isMaster ? "hls master" : g?.isRendition ? "hls rendition" : g?.kind || "?";
+    lines.push(`- [${what}] ${g?.key ?? ""}`);
+    for (const o of g?.options || [])
+      if (o?.url && o.url !== g?.key) lines.push(`    option: ${o.url}${o.variantId ? ` (variant ${o.variantId})` : ""}`);
+  }
+  lines.push("", "Sniffed:");
+  for (const url of sniffed) lines.push(`- ${url}`);
+  return lines.join("\n");
+}
+
+// True for the one type that always leads: an HLS MASTER playlist. A rendition is deliberately not a
+// leader — its URL names a resolution, so it would otherwise outrank the master it belongs to (whose
+// own URL names none) and sit at the very top of the list as the silent copy of the video.
 function leadsList(group) {
+  if (group?.isRendition) return false;
   return extOf(groupTypeUrl(group)) === "m3u8";
 }
 
@@ -1081,6 +1230,164 @@ async function fetchAppDefaultSavePath(port = null) {
   } catch {
     return null;
   }
+}
+
+// The short label a quality CHIP carries. The picker is a row of chips, not a dropdown, so a label has
+// to fit one: "640x480" is the height everyone reads it by, and the size estimate belongs in the row's
+// own size column, not repeated on every chip. The full text stays as the chip's tooltip.
+function chipLabel(text) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  const head = t.split(" (")[0].trim();          // "1080p (~120 MB)" -> "1080p"
+  const wxh = head.match(/^(\d+)\s*[x\u00d7]\s*(\d+)$/i);
+  if (wxh) return `${wxh[2]}p`;                   // "640x480" -> "480p"
+  if (/^audio/i.test(head)) return "Audio";       // "Audio only" -> "Audio"
+  return head;
+}
+
+// ---------------- Theme: follow the app's accent (not its light/dark) ----------------
+//
+// The popup's palette is the app's, but it was a hand-copied one: choosing Blue in the app's settings
+// left the extension teal for ever. The app reports the colour it is actually wearing over
+// /api/settings, so the popup wears the same one. Light vs dark deliberately stays with the BROWSER
+// (prefers-color-scheme): the popup is drawn inside the browser's own chrome and should not be the one
+// dark surface in a light window.
+
+/** Is this a plain "#rrggbb" colour? Anything else is refused rather than written into a style. */
+function isHexColor(value) {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim());
+}
+
+/** The dark ink used on a light accent — the same near-black the dark theme already uses. */
+const ACCENT_DARK_INK = "#06222A";
+
+/** sRGB relative luminance (WCAG) of a "#rrggbb" colour. */
+function luminance(hex) {
+  const n = parseInt(hex.trim().slice(1), 16);
+  const channel = c => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+}
+
+/** How little contrast white may have on the accent before the fill takes dark ink instead. */
+const ACCENT_INK_MIN = 2.8;
+
+/**
+ * Ink for text sitting ON this accent. WHITE by default, because that is what the app itself puts on
+ * an accent fill (its nav selection, its accent buttons) and what this design does — matching the app
+ * is the whole point, and picking "whichever has the higher contrast" quietly overrode the design for
+ * every accent (it put dark ink on the default teal, which is not what either product looks like).
+ * The dark ink is the exception, for an accent so bright that white stops being readable on it: only
+ * the amber one, at about 2.5:1.
+ */
+function accentInk(hex) {
+  if (!isHexColor(hex)) return "#FFFFFF";
+  return contrastRatio("#FFFFFF", hex) >= ACCENT_INK_MIN ? "#FFFFFF" : ACCENT_DARK_INK;
+}
+
+/** The page behind accent-coloured TEXT, per theme (popup.css's --bg). */
+const ACCENT_BACKDROP = { light: "#E9EFF3", dark: "#0B121A" };
+
+/** WCAG contrast ratio between two "#rrggbb" colours. */
+function contrastRatio(a, b) {
+  const la = luminance(a), lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** Linear blend of two "#rrggbb" colours (t=0 returns a, t=1 returns b). */
+function mixHex(a, b, t) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+  const ch = (shift) => {
+    const from = (x >> shift) & 255, to = (y >> shift) & 255;
+    return Math.round(from + (to - from) * t).toString(16).padStart(2, "0");
+  };
+  return `#${ch(16)}${ch(8)}${ch(0)}`.toUpperCase();
+}
+
+/** The floor an accent must clear as TEXT before it is darkened or lightened at all. */
+const ACCENT_TEXT_MIN = 3.0;
+
+/**
+ * The accent as TEXT on the popup's own background — links, the type badge, the row's arrow. A fill
+ * can pick its ink (accentInk); text cannot, so a colour that has stopped reading has to move. It
+ * moves as LITTLE as possible: the chosen accent is the design, and darkening every accent to a 4.5
+ * body-text target repainted links visibly darker than the design in every theme. The floor is the
+ * 3:1 that UI text and icons are held to, which leaves blue, purple and the dark theme untouched and
+ * rescues only the light-on-light cases (amber, and the teal at 2.5:1).
+ */
+function accentTextColor(hex, dark = false) {
+  if (!isHexColor(hex)) return null;
+  const backdrop = dark ? ACCENT_BACKDROP.dark : ACCENT_BACKDROP.light;
+  const towards = dark ? "#FFFFFF" : "#000000";
+  let best = hex.trim().toUpperCase();
+  for (let t = 0; t <= 0.8001; t += 0.05) {
+    best = mixHex(hex.trim(), towards, t);
+    if (contrastRatio(best, backdrop) >= ACCENT_TEXT_MIN) break;
+  }
+  return best;
+}
+
+/** The CSS custom properties an accent decides. Returns null for anything that is not a colour. */
+function accentTokens(hex) {
+  if (!isHexColor(hex)) return null;
+  const h = hex.trim();
+  const n = parseInt(h.slice(1), 16);
+  const rgb = `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+  return {
+    "--accent": h,
+    "--on-accent": accentInk(h),
+    // The row/badge tint is the accent at low alpha — it has to move with it or a blue accent keeps
+    // teal badges.
+    "--tint": `rgba(${rgb}, .12)`,
+    // Both themes are written, not just the current one: the popup follows the BROWSER's light/dark,
+    // which can flip while these values are cached, and a stale text colour would be unreadable.
+    "--accent-text": accentTextColor(h, false),
+    "--accent-text-dark": accentTextColor(h, true)
+  };
+}
+
+/** Paints an accent onto a document (inline custom properties beat the stylesheet's :root defaults). */
+function applyAccent(root, hex) {
+  const tokens = accentTokens(hex);
+  if (!root || !tokens) return false;
+  for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
+  return true;
+}
+
+/** The accent the app is wearing right now, or null (unreachable, older app, or a non-colour). */
+async function fetchAppAccent(port = null) {
+  try {
+    const p = port ?? await discoverAppPort();
+    if (p == null) return null;
+    const res = await appFetch(withIdentity(`${appBase(p)}/api/settings`), withIdentityHeaders(), APP_TIMEOUT_MS.ask);
+    if (!res.ok) return null;
+    const body = await res.json();
+    return isHexColor(body?.accentColor) ? body.accentColor.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Paints the last known accent at once, then asks the app and repaints if it has changed. The cache is
+ * what stops the popup opening teal and flicking to blue a moment later, and it keeps the colour right
+ * while the app is closed.
+ */
+async function syncAccent(root) {
+  let cached = null;
+  try {
+    const r = await api.storage.local.get({ appAccent: "" });
+    cached = isHexColor(r.appAccent) ? r.appAccent : null;
+  } catch { /* private window, or storage denied — fall through to the stylesheet default */ }
+  if (cached) applyAccent(root, cached);
+
+  const live = await fetchAppAccent();
+  if (!live || live === cached) return cached;
+  applyAccent(root, live);
+  try { api.storage.local.set({ appAccent: live }); } catch { /* optional */ }
+  return live;
 }
 
 // ---------------- Download interception (issue #9) ----------------
@@ -1444,12 +1751,17 @@ if (typeof module !== "undefined") {
     groupKey, extractQualityToken, runProbesBounded,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
-    appPageVariants, askAppPageVariants,
+    createLookupLimiter, MAX_VARIANT_LOOKUPS,
+    appPageVariants, askAppPageVariants, variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+    isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
     shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
+    chipLabel,
+    isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
+    contrastRatio, mixHex, luminance,
     candidatePorts, discoverAppPort, APP_PORT_RANGE,
     appFetch, APP_TIMEOUT_MS,
     captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, handOffUrls,

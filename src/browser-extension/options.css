@@ -1,66 +1,104 @@
-/* Matches popup.css: same system palette, accent and control shapes, wider layout for a full page. */
-:root { color-scheme: light dark; }
+/* Matches popup.css: the same app-derived palette (App.axaml's two ColorPaletteResources), accent
+   and control shapes, in a wider layout for a full page. */
+:root {
+  color-scheme: light dark;
+  --bg: #E9EFF3;
+  --text: #16242B;
+  --muted: #5C6B73;
+  --line: #C6D2DA;
+  --soft: #E7EEF2;
+  --field: #FFFFFF;
+  --accent: #0E8FB3;
+  --on-accent: #FFFFFF;
+  --tint: rgba(14, 143, 179, .08);
+  --accent-text: var(--accent);
+  --accent-text-dark: var(--accent);
+  --accent-fg: var(--accent-text);
+  --tint-line: rgba(14, 143, 179, .45);
+  --ok: #1FA971;
+  --bad: #E5594F;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B121A;
+    --text: #EAF1F4;
+    --muted: #93A4AD;
+    --line: #283642;
+    --soft: #1B2833;
+    --field: #0F1822;
+    --accent: #2DBED6;
+    --on-accent: #06222A;
+    --tint: rgba(45, 190, 214, .10);
+    --accent-fg: var(--accent-text-dark);
+    --tint-line: rgba(45, 190, 214, .45);
+  }
+}
 * { box-sizing: border-box; }
 body {
   max-width: 640px;
   margin: 0 auto;
   padding-bottom: 24px;
   font: 13px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--bg);
+  color: var(--text);
 }
 header {
   display: flex; align-items: center; gap: 8px;
-  padding: 14px 16px; border-bottom: 1px solid rgba(128,128,128,.25);
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+}
+.mark {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px;
+  background: var(--accent); color: var(--on-accent);
+  display: flex; align-items: center; justify-content: center;
 }
 .title { font-weight: 600; font-size: 15px; flex: 1; }
-.status { font-size: 12px; color: #888; }
-.status.on { color: #1FA971; }
-.status.off { color: #E5594F; }
+.status { font-size: 12px; color: var(--muted); }
+.status.on { color: var(--ok); }
+.status.off { color: var(--bad); }
 
 section, fieldset, footer { padding: 14px 16px; }
 fieldset { border: none; margin: 0; }
 fieldset[disabled] { opacity: .5; }
-footer { border-top: 1px solid rgba(128,128,128,.25); }
+footer { border-top: 1px solid var(--line); }
 
 .section-head {
-  margin: 14px 0 8px; color: #888; font-size: 11px;
+  margin: 14px 0 8px; color: var(--muted); font-size: 11px;
   text-transform: uppercase; letter-spacing: .4px;
 }
 .section-head:first-child { margin-top: 0; }
 
 .toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.toggle input { accent-color: #0E8FB3; width: 16px; height: 16px; }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
 
 .field { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
-.field label { min-width: 110px; color: #888; }
+.field label { min-width: 110px; color: var(--muted); }
 
-.hint { margin: 4px 0 0; color: #888; font-size: 12px; }
+.hint { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 
 textarea, select {
   width: 100%; padding: 7px 9px; border-radius: 7px; font: inherit;
-  border: 1px solid rgba(128,128,128,.4); background: Field; color: FieldText;
+  border: 1px solid var(--line); background: var(--field); color: var(--text);
 }
 select { width: auto; flex: 1; }
 textarea { resize: vertical; }
 
 button {
   cursor: pointer; border: none; border-radius: 7px; padding: 7px 11px;
-  background: rgba(128,128,128,.18); color: CanvasText; font: inherit;
+  background: var(--soft); color: var(--text); font: inherit;
 }
-button:hover { background: rgba(128,128,128,.30); }
-button.primary { background: #0E8FB3; color: #fff; }
-button.primary:hover { background: #0c7c9c; }
-button.link { background: none; color: #0E8FB3; padding: 0 2px; }
+button:hover { background: var(--line); }
+button.primary { background: var(--accent); color: var(--on-accent); }
+button.primary:hover { filter: brightness(1.08); }
+button.link { background: none; color: var(--accent-fg); padding: 0 2px; }
 
 .row { display: flex; gap: 8px; margin-top: 12px; }
 
 .callout {
   margin: 14px 16px; padding: 14px 16px;
-  border: 1px solid rgba(14,143,179,.45); border-radius: 10px;
-  background: rgba(14,143,179,.08);
+  border: 1px solid var(--tint-line); border-radius: 10px;
+  background: var(--tint);
 }
 .callout h2 { margin: 0 0 8px; font-size: 14px; }
 .callout p { margin: 0 0 8px; }
 
-.saved { color: #1FA971; font-size: 12px; }
+.saved { color: var(--ok); font-size: 12px; }

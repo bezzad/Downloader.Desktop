@@ -77,12 +77,13 @@ test("HLS master expands into a quality picker with an estimated size, with no d
   // regression: this used to produce 3+ near-duplicate cards for one video).
   await expect(cards).toHaveCount(1);
 
-  const select = cards.first().locator("select.quality");
-  const optionTexts = await select.locator("option").allTextContents();
-  expect(optionTexts.some(t => t.includes("320x240"))).toBeTruthy();
-  expect(optionTexts.some(t => t.includes("640x480"))).toBeTruthy();
+  // The chips carry the short label; the full one ("640x480") is their tooltip.
+  const chips = cards.first().locator(".qband .chip");
+  const titles = await chips.evaluateAll(els => els.map(e => e.title));
+  expect(titles.some(t => t.includes("320x240"))).toBeTruthy();
+  expect(titles.some(t => t.includes("640x480"))).toBeTruthy();
 
-  await expect(cards.first().locator(".size-line")).toContainText("~"); // HLS = always an estimate
+  await expect(cards.first().locator(".size-val")).toContainText("~"); // HLS = always an estimate
 });
 
 test("an implausibly tiny junk .m3u8 is filtered out entirely", async ({ context, extensionId }) => {
@@ -106,7 +107,7 @@ test("direct-file quality variants are grouped into one card", async ({ context,
 
   const cards = popup.locator("#list li");
   await expect(cards).toHaveCount(1); // both qualities grouped into ONE card
-  await expect(cards.first().locator("select.quality option")).toHaveCount(2);
+  await expect(cards.first().locator(".qband .chip")).toHaveCount(2);
 });
 
 test("choosing a quality sends the MASTER plus that quality's id, not the rendition URL", async ({ context, extensionId }) => {
@@ -129,13 +130,13 @@ test("choosing a quality sends the MASTER plus that quality's id, not the rendit
     await popup.waitForTimeout(3000);
 
     const card = popup.locator("#list li").first();
-    const select = card.locator("select.quality");
-    // The picker lists the master's variants in playlist order; pick the 640x480 one by its label.
-    const labels = await select.locator("option").allTextContents();
-    const wanted = labels.findIndex(t => t.includes("640x480"));
+    const chips = card.locator(".qband .chip");
+    // The band lists the master's variants in playlist order; pick the 640x480 one by its tooltip.
+    const titles = await chips.evaluateAll(els => els.map(e => e.title));
+    const wanted = titles.findIndex(t => t.includes("640x480"));
     expect(wanted).toBeGreaterThanOrEqual(0);
-    await select.selectOption({ index: wanted });
-    await card.locator("button.primary").click();
+    await chips.nth(wanted).click();
+    await card.locator("button.row-action").click();
 
     await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
     const sent = app.adds[0].url;
@@ -145,4 +146,70 @@ test("choosing a quality sends the MASTER plus that quality's id, not the rendit
   } finally {
     await new Promise(r => app.server.close(r));
   }
+});
+
+test("a rendition the master does not list is dropped, not offered beside it", async ({ context, extensionId }) => {
+  // The "downloaded without sound" report (x.com): the popup showed the rendition as its own row,
+  // ABOVE the master — its URL names 720x1280 while a master's names no resolution at all — so the
+  // top row, the one that gets clicked, was the video-only copy. The child-URI dedup could not help
+  // here because the master does not list this URL.
+  const page = await context.newPage();
+  await page.goto("/hls-orphan-rendition.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  await expect(popup.locator("#list li")).toHaveCount(1);
+  await expect(popup.locator("#list li").first()).toContainText("master.m3u8");
+  await expect(popup.locator("li", { hasText: "rogue.m3u8" })).toHaveCount(0);
+  // The audio rendition too. Dropping only the video one is what made the audio track the top row,
+  // so the next download arrived with sound and no picture.
+  await expect(popup.locator("li", { hasText: "aud.m3u8" })).toHaveCount(0);
+});
+
+test("a rendition with no master anywhere is still offered, and says it may have no sound", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/hls-rendition-only.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  const cards = popup.locator("#list li");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first().locator(".size-line")).toContainText("may have no sound");
+});
+
+test("an audio-only rendition with no master says it is audio, not video", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/hls-audio-only.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  await popup.waitForTimeout(3000);
+
+  const cards = popup.locator("#list li");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first().locator(".size-line")).toContainText("Audio track only");
+});
+
+test("an audio-only rendition is listed BELOW a real video file, never above it", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/hls-audio-vs-file.html");
+  await page.waitForTimeout(1500);
+
+  const popup = await openPopupFor(context, extensionId, page);
+  // Read the list AS FIRST RENDERED, before any probe result lands. That window is the one that
+  // matters: the popup shows rows immediately and the user clicks the top one, while the manifest
+  // probes are still in flight (they get 8s, and there are usually many of them on a feed page).
+  // Until a probe answers, the URL is the only thing that can say this playlist is an audio track.
+  // The stalled fetch keeps it that way for the length of the assertion.
+  await expect(popup.locator("#list li")).toHaveCount(2);
+  const titles = await popup.locator("#list li .name").allTextContents();
+  const video = titles.findIndex(t => t.includes("movie_720p.mp4"));
+  const audio = titles.findIndex(t => t.includes("aud.m3u8"));
+  expect(video).toBeGreaterThanOrEqual(0);
+  expect(audio).toBeGreaterThanOrEqual(0);
+  expect(video).toBeLessThan(audio);
 });

@@ -137,4 +137,7 @@ async function showAppStatus() {
     els.typeMode.value = "allow";
     await save();
   });
+
+  // Same accent the popup and the app wear.
+  syncAccent(document.documentElement);
 })();

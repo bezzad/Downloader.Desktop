@@ -26,12 +26,17 @@ public sealed class YtDlpBinary : IYtDlp
     private readonly string _dataDir;
     private readonly HttpClient _http;
     private readonly ILogger _log;
+    private readonly string? _proxy;
     private string? _resolved;
     private string? _denoResolved; // "" = provisioning failed, don't retry
 
-    public YtDlpBinary(string dataDirectory, HttpClient? http = null, ILogger? logger = null)
+    public YtDlpBinary(string dataDirectory, HttpClient? http = null, ILogger? logger = null,
+                       string? proxyAddress = null)
     {
         _dataDir = dataDirectory;
+        // yt-dlp is a separate program, so the host's HttpClient proxy cannot reach it — it has to be
+        // passed on the command line. The host supplies the address; this plugin holds no setting.
+        _proxy = string.IsNullOrWhiteSpace(proxyAddress) ? null : proxyAddress.Trim();
         // The default HttpClient timeout (100 s) covers the WHOLE body read — on a slow link a ~45 MB
         // binary gets cut off mid-stream. Rely on the caller's CancellationToken instead.
         _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
@@ -53,7 +58,7 @@ public sealed class YtDlpBinary : IYtDlp
         if (!string.IsNullOrEmpty(cookieFilePath))
         {
             _log.LogInformation("Trying extension-supplied cookies for {Url}", url);
-            var (co, cstderr, ccode) = await RunAsync(exe, BuildArgs(url, cookieFilePath, deno), cancellationToken)
+            var (co, cstderr, ccode) = await RunAsync(exe, BuildArgs(url, cookieFilePath, deno, proxy: _proxy), cancellationToken)
                 .ConfigureAwait(false);
             if (ccode == 0 && !string.IsNullOrWhiteSpace(co))
             {
@@ -64,7 +69,7 @@ public sealed class YtDlpBinary : IYtDlp
         }
 
         // Anonymous — works for public content and touches no user data at all.
-        var (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, deno), cancellationToken)
+        var (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, deno, proxy: _proxy), cancellationToken)
             .ConfigureAwait(false);
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
         {
@@ -77,7 +82,7 @@ public sealed class YtDlpBinary : IYtDlp
         // after a failure, so the happy path pays nothing, then retry once.
         if (await TryRefreshYtDlpAsync(exe, cancellationToken).ConfigureAwait(false))
         {
-            (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, deno), cancellationToken)
+            (stdout, stderr, exitCode) = await RunAsync(exe, BuildArgs(url, null, deno, proxy: _proxy), cancellationToken)
                 .ConfigureAwait(false);
             if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
                 return stdout;
@@ -88,7 +93,7 @@ public sealed class YtDlpBinary : IYtDlp
         if (IsTwitter(url))
         {
             _log.LogInformation("Retrying {Url} via the Twitter syndication API (cookie-free)", url);
-            var (so, se, scode) = await RunAsync(exe, BuildArgs(url, null, deno, SyndicationArgs), cancellationToken)
+            var (so, se, scode) = await RunAsync(exe, BuildArgs(url, null, deno, SyndicationArgs, _proxy), cancellationToken)
                 .ConfigureAwait(false);
             if (scode == 0 && !string.IsNullOrWhiteSpace(so))
                 return so;
@@ -111,9 +116,11 @@ public sealed class YtDlpBinary : IYtDlp
     // inexplicable. There is deliberately
     // no --cookies-from-browser here or anywhere else: reading a browser's cookie store is exactly the
     // infostealer behaviour the extension exists to avoid (issue #4, guarded by NoShellSpawnTests).
-    internal static string BuildArgs(string url, string? cookieFile, string? denoPath, string? extractorArgs = null) =>
+    internal static string BuildArgs(string url, string? cookieFile, string? denoPath,
+                                     string? extractorArgs = null, string? proxy = null) =>
         (denoPath is null ? "" : $"--js-runtimes \"deno:{denoPath}\" ")
         + (cookieFile is null ? "" : $"--cookies \"{cookieFile}\" ")
+        + (string.IsNullOrWhiteSpace(proxy) ? "" : $"--proxy \"{proxy.Trim()}\" ")
         + (string.IsNullOrEmpty(extractorArgs) ? "" : $"--extractor-args \"{extractorArgs}\" ")
         + $"-J --no-playlist \"{url}\"";
 
@@ -151,7 +158,7 @@ public sealed class YtDlpBinary : IYtDlp
         var deno = await TryEnsureDenoAsync(cancellationToken).ConfigureAwait(false);
         _log.LogInformation("Re-extracting {Url} through the {Client} player client", url, playerClient);
 
-        var args = BuildArgs(url, cookieFilePath, deno, YouTubeClientArgs(playerClient));
+        var args = BuildArgs(url, cookieFilePath, deno, YouTubeClientArgs(playerClient), _proxy);
         var (stdout, stderr, exitCode) = await RunAsync(exe, args, cancellationToken).ConfigureAwait(false);
         if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
         {

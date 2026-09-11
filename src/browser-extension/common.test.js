@@ -11,6 +11,7 @@ const {
   runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
+  isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
   buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
@@ -24,7 +25,12 @@ const {
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
   INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
-  unsupportedSiteState, appCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
+  createLookupLimiter, MAX_VARIANT_LOOKUPS, askAppPageVariants,
+  variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
+  chipLabel,
+  isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
+  contrastRatio,
   appFetch, APP_TIMEOUT_MS, awaitAddTicket
 } = require("./common.js");
 
@@ -79,9 +85,13 @@ test("parseHlsMaster returns [] for a variant/media playlist (no STREAM-INF)", a
   assert.deepEqual(variants, []);
 });
 
-test("parseHlsMaster returns [] when the fetch fails", async () => {
+test("parseHlsMaster returns null when the playlist cannot be read at all", async () => {
+  // Not []: "I could not read it" is not evidence that the link is a rendition, and the popup drops
+  // rows on exactly that evidence. A master behind a hiccup must not vanish from the list.
   global.fetch = async () => { throw new Error("network down"); };
-  assert.deepEqual(await parseHlsMaster("https://cdn.example.com/x.m3u8"), []);
+  assert.equal(await parseHlsMaster("https://cdn.example.com/x.m3u8"), null);
+  global.fetch = async () => ({ ok: false, status: 404, text: async () => "" });
+  assert.equal(await parseHlsMaster("https://cdn.example.com/x.m3u8"), null);
 });
 
 test("probeSize reads Content-Length from a HEAD response", async () => {
@@ -189,6 +199,66 @@ test("a quality anywhere in the path counts, not just a trailing token", () => {
   assert.equal(qualityHeightFromUrl("https://c/clip.mp4"), null);
   // A query string is not the file's identity — only the path is read.
   assert.equal(qualityHeightFromUrl("https://c/clip.mp4?label=1080p"), null);
+});
+
+test("an HLS rendition is recognised by the resolution in its path", () => {
+  // The real x.com shape from the "downloaded without sound" report: the master lives at
+  // .../pl/<token>.m3u8 and names no resolution; the rendition's whole path exists to name one.
+  assert.equal(isHlsRenditionUrl("https://video.twimg.com/amplify_video/1/pl/avc1/720x1280/x.m3u8"), true);
+  assert.equal(isHlsRenditionUrl("https://video.twimg.com/amplify_video/1/pl/x.m3u8"), false);
+  assert.equal(isHlsRenditionUrl("https://c/hls/1280x720/index.m3u8"), true);
+  assert.equal(isHlsRenditionUrl("https://c/movie_1080p.mp4"), false); // not a playlist at all
+});
+
+test("an audio-only rendition is recognised, and never mistaken for the video", () => {
+  // The second x.com report: the fix for the video rendition demoted it, which let the AUDIO
+  // rendition rise to the top instead — so the download arrived with sound and no picture. It names
+  // no resolution at all (.../pl/mp4a/128000/...), so a resolution test alone can never catch it.
+  const audio = "https://video.twimg.com/amplify_video/2/pl/mp4a/128000/CxVLE33iD6GdbnVb.m3u8";
+  const video = "https://video.twimg.com/amplify_video/2/pl/avc1/720x1280/Dk9C-H8GkOsKiI2M.m3u8";
+  const master = "https://video.twimg.com/amplify_video/2/pl/CxVLE33iD6GdbnVb.m3u8";
+  assert.equal(looksAudioOnlyUrl(audio), true);
+  assert.equal(looksAudioOnlyUrl(video), false);
+  assert.equal(looksAudioOnlyUrl(master), false);
+  // BOTH tracks are renditions; only the master is not.
+  assert.equal(isHlsRenditionUrl(audio), true);
+  assert.equal(isHlsRenditionUrl(video), true);
+  assert.equal(isHlsRenditionUrl(master), false);
+});
+
+test("a track word must be a whole path segment, not a substring", () => {
+  // "audio" inside a host or a file name says nothing about what the playlist carries.
+  assert.equal(looksAudioOnlyUrl("https://audiocdn.example/stream/master.m3u8"), false);
+  assert.equal(looksAudioOnlyUrl("https://c/s/my-audiobook.m3u8"), false);
+  assert.equal(looksAudioOnlyUrl("https://c/audio/track.m3u8"), true);
+});
+
+test("an HLS rendition never leads the list, even though its URL names a quality", () => {
+  // Without this the rendition (1280 from "720x1280") outranked the master (no quality in its URL)
+  // and sat at the TOP of the popup — so the row the user clicked first was the silent one.
+  const master = group("https://c/pl/token.m3u8");
+  const rendition = group("https://c/pl/avc1/720x1280/token.m3u8");
+  rendition.isRendition = true;
+  assert.equal(leadsList(master), true);
+  assert.equal(leadsList(rendition), false);
+  assert.deepEqual(sortDetectedGroups([rendition, master]).map(g => g.key),
+    ["https://c/pl/token.m3u8", "https://c/pl/avc1/720x1280/token.m3u8"]);
+});
+
+test("the bug-report block names the master, the rendition and every sniffed link", () => {
+  const text = describeDetectedLinks({
+    pageUrl: "https://x.com/u/status/1",
+    version: "1.15.0",
+    groups: [{ key: "https://c/pl/token.m3u8", kind: "hls", isMaster: true,
+               options: [{ url: "https://c/pl/avc1/720x1280/token.m3u8", variantId: "1200000" }] }],
+    sniffed: ["https://c/pl/token.m3u8", "https://c/pl/avc1/720x1280/token.m3u8"]
+  });
+  assert.match(text, /Page: https:\/\/x\.com\/u\/status\/1/);
+  assert.match(text, /\[hls master\] https:\/\/c\/pl\/token\.m3u8/);
+  assert.match(text, /variant 1200000/);
+  assert.match(text, /Sniffed:/);
+  // Links only. A block the user pastes into a public issue must never carry their session.
+  assert.doesNotMatch(text, /cookie/i);
 });
 
 test("an HLS master always leads the list", () => {
@@ -1262,21 +1332,26 @@ test("an ordinary site is left alone", () => {
 test("asking the app what it can handle survives an old app, an error and no app at all", async () => {
   const realFetch = global.fetch;
   try {
-    global.fetch = async () => ({ ok: true, json: async () => ({ handled: true, by: "Video sites (YouTube and others)" }) });
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ handled: true, by: "Video sites (YouTube and others)" }) });
     assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
-      { handled: true, by: "Video sites (YouTube and others)" });
+      { handled: true, by: "Video sites (YouTube and others)", answered: true });
 
     // An app older than this endpoint 404s — that must read as "no", exactly as before it existed.
     global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
-    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151), { handled: false, by: null });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
+      { handled: false, by: null, answered: true });
 
+    // A failure is "no" as far as the caller's flow goes, but it is NOT an answer (see the tests at
+    // the end of this file): the popup must not turn it into a claim about the user's setup.
     global.fetch = async () => { throw new Error("connection refused"); };
-    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151), { handled: false, by: null });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", 15151),
+      { handled: false, by: null, answered: false });
 
     // No port discovered at all — never even attempts a request.
     let called = false;
     global.fetch = async () => { called = true; };
-    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null), { handled: false, by: null });
+    assert.deepEqual(await appCanHandlePage("https://youtube.com/watch?v=a", null),
+      { handled: false, by: null, answered: false });
     assert.equal(called, false);
   } finally {
     global.fetch = realFetch;
@@ -1766,4 +1841,318 @@ test("awaitAddTicket with no ticket is a failed hand-off, not an endless wait", 
   const res = await awaitAddTicket("http://127.0.0.1:15151", null, fastTicket);
   assert.equal(res.ok, false);
   assert.equal(res.reason, "add-cancelled");
+});
+
+// A lookup the app never answered, or answered with a failure, used to come back indistinguishable
+// from "this page offers no choices" — so a missing quality/audio-only picker had no explanation
+// anywhere the user could see (the reason went only to the app's log).
+test("a failed quality lookup comes back with a reason, not a bare empty list", async () => {
+  const realFetch = global.fetch;
+  try {
+    global.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    const failed = await appPageVariants("https://youtube.com/watch?v=a", [], 15151);
+    assert.deepEqual(failed.variants, []);
+    assert.match(failed.error, /HTTP 500/);
+
+    // Nothing answered at all (app stopped, or the request outlived its timeout).
+    global.fetch = async () => { throw new Error("connection refused"); };
+    const silent = await appPageVariants("https://youtube.com/watch?v=a", [], 15151);
+    assert.equal(silent.error, VARIANT_LOOKUP_NO_ANSWER);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("an app too old for the endpoint is not reported as a failure", () => {
+  // A 404 is an app that never had qualities to report: the row stays one plain Download, exactly as
+  // before this endpoint existed, and warning about it would be noise on every older install.
+  assert.equal(variantLookupFailureNote(404), null);
+  assert.match(variantLookupFailureNote(503), /HTTP 503/);
+});
+
+// ---- Following the app's accent (the popup's palette used to be a hand-copied constant) ----
+
+test("an accent fill takes white ink, as the app and the design both do", () => {
+  // The app puts white on its accent (nav selection, accent buttons) and so does this design, so
+  // white is the rule and dark ink is the exception — picking "whichever contrasts more" silently
+  // overrode BOTH for the default teal, which is how the popup ended up not looking like either.
+  assert.equal(accentInk("#16A4C2"), "#FFFFFF"); // Teal (the app's default)
+  assert.equal(accentInk("#2F7DE1"), "#FFFFFF"); // Blue
+  assert.equal(accentInk("#8A60E6"), "#FFFFFF"); // Purple
+  assert.equal(accentInk("#2BA86B"), "#FFFFFF"); // Green
+  assert.equal(accentInk("#E2922E"), "#06222A"); // Amber — white measures ~2.5:1 here, too little
+  // The exception is decided by measurement, not by a list: white on white is the extreme case.
+  assert.equal(accentInk("#FFFFFF"), "#06222A");
+  assert.equal(accentInk("#000000"), "#FFFFFF");
+});
+
+test("only a real colour is ever written into a style", () => {
+  assert.equal(isHexColor("#2F7DE1"), true);
+  assert.equal(isHexColor("#2f7de1 "), true); // trimmed
+  for (const bad of ["red", "#2F7DE", "#2F7DE1; background: url(x)", "", null, 42, "#GGGGGG"])
+    assert.equal(isHexColor(bad), false, String(bad));
+  assert.equal(accentTokens("javascript:alert(1)"), null);
+
+  // The tint is the accent at low alpha: a blue accent must not keep teal badges.
+  const tokens = accentTokens("#2F7DE1");
+  assert.equal(tokens["--accent"], "#2F7DE1");
+  assert.equal(tokens["--on-accent"], "#FFFFFF");
+  assert.equal(tokens["--tint"], "rgba(47, 125, 225, .12)");
+});
+
+test("applyAccent writes the custom properties, and refuses a non-colour", () => {
+  const written = {};
+  const root = { style: { setProperty: (k, v) => { written[k] = v; } } };
+  assert.equal(applyAccent(root, "#8A60E6"), true);
+  assert.equal(written["--accent"], "#8A60E6");
+  assert.equal(applyAccent(root, "nope"), false);
+  assert.equal(applyAccent(null, "#8A60E6"), false);
+});
+
+test("the accent comes from the app, and a failure leaves the stylesheet's own palette", async () => {
+  const realFetch = global.fetch;
+  const savedStorage = global.chrome.storage;
+  try {
+    global.chrome.storage = { local: { get: async d => ({ ...d }), set: () => {} } };
+
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ accentColor: "#2BA86B" }) });
+    assert.equal(await fetchAppAccent(15151), "#2BA86B");
+
+    // An app too old for the field, a refusal, and an unreachable app are all "keep what you have".
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ defaultSavePath: "/x" }) });
+    assert.equal(await fetchAppAccent(15151), null);
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.equal(await fetchAppAccent(15151), null);
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.equal(await fetchAppAccent(15151), null);
+
+    // A colour that is not a colour never reaches a style.
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ accentColor: "expression(evil)" }) });
+    assert.equal(await fetchAppAccent(15151), null);
+  } finally {
+    global.fetch = realFetch;
+    global.chrome.storage = savedStorage;
+  }
+});
+
+test("syncAccent paints the cached accent first, then the app's, and caches the change", async () => {
+  const realFetch = global.fetch;
+  const savedStorage = global.chrome.storage;
+  try {
+    const painted = [];
+    const root = { style: { setProperty: (k, v) => { if (k === "--accent") painted.push(v); } } };
+    let stored = "#16A4C2";
+    global.chrome.storage = {
+      local: { get: async d => ({ ...d, appAccent: stored }), set: o => { stored = o.appAccent; } }
+    };
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ accentColor: "#2F7DE1" }) });
+
+    // Cached first: without it the popup opens in the previous accent and flicks to the new one.
+    assert.equal(await syncAccent(root), "#2F7DE1");
+    assert.deepEqual(painted, ["#16A4C2", "#2F7DE1"]);
+    assert.equal(stored, "#2F7DE1");
+
+    // Unchanged: no second paint, and nothing rewritten.
+    painted.length = 0;
+    assert.equal(await syncAccent(root), "#2F7DE1");
+    assert.deepEqual(painted, ["#2F7DE1"]);
+  } finally {
+    global.fetch = realFetch;
+    global.chrome.storage = savedStorage;
+  }
+});
+
+test("the accent as TEXT moves only as far as it must to keep reading", () => {
+  // A fill picks its ink; text cannot, so a colour that has stopped reading has to move — but the
+  // chosen accent IS the design, so it moves as little as possible. An earlier 4.5 body-text target
+  // repainted every link visibly darker than the design; the floor is the 3:1 that UI text is held to.
+  for (const hex of ["#16A4C2", "#2F7DE1", "#8A60E6", "#2BA86B", "#E2922E"]) {
+    const light = accentTextColor(hex, false);
+    const dark = accentTextColor(hex, true);
+    assert.ok(contrastRatio(light, "#E9EFF3") >= 3, `${hex} light -> ${light}`);
+    assert.ok(contrastRatio(dark, "#0B121A") >= 3, `${hex} dark -> ${dark}`);
+  }
+
+  // Untouched wherever it already reads — blue and purple in both themes, and everything in dark.
+  assert.equal(accentTextColor("#2F7DE1", false), "#2F7DE1");
+  assert.equal(accentTextColor("#8A60E6", false), "#8A60E6");
+  assert.equal(accentTextColor("#16A4C2", true), "#16A4C2");
+  assert.notEqual(accentTextColor("#E2922E", false), "#E2922E");
+
+  // Both themes travel together (the browser's scheme can flip while the value is cached).
+  const tokens = accentTokens("#E2922E");
+  assert.equal(tokens["--accent-text"], accentTextColor("#E2922E", false));
+  assert.equal(tokens["--accent-text-dark"], accentTextColor("#E2922E", true));
+  assert.equal(accentTextColor("not a colour", false), null);
+});
+
+test("a quality chip carries the short label, not the whole option text", () => {
+  // The picker is a row of chips: a label has to fit one, and the size estimate belongs in the row's
+  // own size column rather than repeated on every chip.
+  assert.equal(chipLabel("1080p (≈120 MB)"), "1080p");
+  assert.equal(chipLabel("640x480"), "480p");      // the height is what people read it by
+  assert.equal(chipLabel("1920×1080"), "1080p");   // the × form too
+  assert.equal(chipLabel("Audio only (≈4 MB)"), "Audio");
+  assert.equal(chipLabel("1200 kbps"), "1200 kbps"); // nothing to shorten: left alone
+  assert.equal(chipLabel(""), "");
+  assert.equal(chipLabel(null), "");
+});
+
+// ---- "We could not ask" must never be reported as "you do not have the plugin" ----
+
+test("a can-handle lookup that got no answer is marked unanswered, and a 404 is an answer", async () => {
+  const realFetch = global.fetch;
+  try {
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ handled: true, by: "Video sites" }) });
+    const yes = await appCanHandlePage("https://youtube.com/watch?v=a", 15151);
+    assert.deepEqual(yes, { handled: true, by: "Video sites", answered: true });
+
+    // An app older than the endpoint genuinely has no page handling — that IS an answer.
+    global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", 15151)).answered, true);
+
+    // A server error or an unreachable app is NOT an answer, however tempting it is to treat it as one.
+    global.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", 15151)).answered, false);
+    global.fetch = async () => { throw new Error("connection refused"); };
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", 15151)).answered, false);
+    assert.equal((await appCanHandlePage("https://youtube.com/watch?v=a", null)).answered, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("an unanswered lookup never tells the user to install a plugin", () => {
+  // The real report: the message named a plugin the author had installed all along — the answer had
+  // only failed intermittently (reloading the page a few times made it work). A claim about someone's
+  // machine needs an answer behind it.
+  const unknown = unsupportedSiteState({
+    hostUnsupported: true, appHandlesPage: false, handlerName: null, answered: false
+  });
+  assert.equal(unknown.mode, "unknown");
+  assert.doesNotMatch(unknown.message, /install/i);
+  assert.doesNotMatch(unknown.message, /plugin/i);
+  assert.ok(!unknown.message.includes(SITE_MEDIA_PLUGIN_NAME));
+
+  // An actual "no plugin claims this" still says so, and still names the plugin that would.
+  const answered = unsupportedSiteState({
+    hostUnsupported: true, appHandlesPage: false, handlerName: null, answered: true
+  });
+  assert.equal(answered.mode, "unsupported");
+  assert.ok(answered.message.includes(SITE_MEDIA_PLUGIN_NAME));
+});
+
+test("a can-handle lookup that goes unanswered is asked once more", async () => {
+  const realFetch = global.fetch;
+  const savedStorage = global.chrome.storage;
+  try {
+    global.chrome.storage = { local: { get: async d => ({ ...d }), set: () => {} } };
+    let calls = 0;
+    global.fetch = async url => {
+      if (String(url).includes("/ping")) return { ok: true, status: 200, json: async () => ({}) };
+      calls++;
+      // Unanswered first, then the real answer — the shape of the reported flake.
+      if (calls === 1) throw new Error("no answer");
+      return { ok: true, status: 200, json: async () => ({ handled: true, by: "Video sites" }) };
+    };
+    const answer = await askAppCanHandlePage("https://youtube.com/watch?v=a");
+    assert.equal(answer.handled, true);
+    assert.equal(calls, 2);
+  } finally {
+    global.fetch = realFetch;
+    global.chrome.storage = savedStorage;
+  }
+});
+
+// ── Why the can-handle question went unanswered in the first place ──────────────────────────────────
+// Quality lookups (/api/variants) run the site tool and outlive the popup that started them, and a
+// browser allows six connections to one host. Enough of them left open meant the next popup's /ping and
+// /api/can-handle could not be sent at all. Lookups are now capped and cancellable.
+
+test("the lookup limiter shares a key in flight and cancels the oldest beyond the cap", async () => {
+  const run = createLookupLimiter(2);
+  const finish = new Map();
+  const signals = {};
+  let started = 0;
+  const task = key => signal => {
+    started++;
+    signals[key] = signal;
+    return new Promise(resolve => finish.set(key, resolve));
+  };
+  const tick = async () => { for (let i = 0; i < 3; i++) await Promise.resolve(); };
+
+  const a1 = run("a", task("a"));
+  assert.equal(run("a", task("a")), a1, "a second ask for the same page shares the request");
+  run("b", task("b"));
+  await tick();
+  assert.equal(started, 2);
+  assert.equal(run.inFlightCount(), 2);
+
+  run("c", task("c"));
+  await tick();
+  assert.equal(signals.a.aborted, true, "the oldest lookup is cancelled to make room");
+  assert.equal(signals.b.aborted, false);
+  assert.equal(run.inFlightCount(), 2);
+
+  for (const done of finish.values()) done("ok");
+  await a1;
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(run.inFlightCount(), 0, "finished lookups free their slot");
+});
+
+test("appFetch drops a cancelled request at once instead of holding it to its deadline", async () => {
+  const realFetch = global.fetch;
+  let sawAbort = false;
+  try {
+    global.fetch = (url, init) => new Promise((_, reject) => {
+      init.signal.addEventListener("abort", () => { sawAbort = true; reject(new Error("aborted")); });
+    });
+    const controller = new AbortController();
+    const started = Date.now();
+    const pending = appFetch("http://127.0.0.1:15151/api/variants", {}, 60000, controller.signal);
+    controller.abort();
+    await assert.rejects(pending, /cancelled|aborted/);
+    assert.ok(Date.now() - started < 1000);
+    assert.equal(sawAbort, true, "the underlying request is aborted, which frees its connection");
+
+    // Already cancelled before it starts: no request is made at all.
+    let called = false;
+    global.fetch = async () => { called = true; };
+    await assert.rejects(appFetch("http://127.0.0.1:15151/x", {}, 60000, controller.signal), /cancelled/);
+    assert.equal(called, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("quality lookups for many pages never hold more than the cap of connections to the app", async () => {
+  const realFetch = global.fetch;
+  const hanging = [];
+  let open = 0, maxOpen = 0;
+  try {
+    global.fetch = (url, init) => {
+      if (String(url).includes("/ping")) return Promise.resolve({ ok: true, status: 200 });
+      if (!String(url).includes("/api/variants")) return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+      // Like a real fetch: an already-cancelled request never opens a connection.
+      if (init?.signal?.aborted) return Promise.reject(new Error("aborted"));
+      open++; maxOpen = Math.max(maxOpen, open);
+      return new Promise((resolve, reject) => {
+        let closed = false;
+        const close = () => { if (!closed) { closed = true; open--; } };
+        hanging.push(() => { close(); resolve({ ok: true, status: 200, json: async () => ({ variants: [] }) }); });
+        init?.signal?.addEventListener("abort", () => { close(); reject(new Error("aborted")); });
+      });
+    };
+    // Six popups opened on six videos, each leaving its lookup running — the reported pile-up.
+    const lookups = [1, 2, 3, 4, 5, 6].map(i => askAppPageVariants(`https://www.youtube.com/watch?v=v${i}`));
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    assert.ok(maxOpen <= MAX_VARIANT_LOOKUPS, `at most ${MAX_VARIANT_LOOKUPS} lookups hold a connection (saw ${maxOpen})`);
+    assert.ok(MAX_VARIANT_LOOKUPS < 6, "the cap leaves the browser's connections free for /ping and /api/can-handle");
+
+    for (const done of hanging) done();
+    const results = await Promise.all(lookups);
+    assert.equal(results.length, 6, "a cancelled lookup still answers (with a note), it never throws");
+  } finally {
+    global.fetch = realFetch;
+  }
 });

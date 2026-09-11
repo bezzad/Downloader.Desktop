@@ -53,6 +53,12 @@ public interface IDownloadManager
     /// <summary>Loads persisted items from the given config into <see cref="Items"/>.</summary>
     void Initialize(Config config);
 
+    /// <summary>
+    /// Brings the periodic scheduler in line with the config's schedule list — it runs only while there is
+    /// something to schedule. Call it after adding or removing a schedule.
+    /// </summary>
+    void SyncScheduler();
+
     /// <summary>Adds a new download descriptor and (optionally) starts it immediately.</summary>
     DownloadItemViewModel Add(DownloadItem item, bool autoStart);
 

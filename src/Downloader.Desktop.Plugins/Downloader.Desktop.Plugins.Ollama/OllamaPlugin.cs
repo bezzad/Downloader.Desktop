@@ -18,7 +18,7 @@ public sealed class OllamaPlugin : IDownloaderPlugin
 {
     public string Id => "com.bezzad.ollama-models";
     public string Name => "Ollama Models";
-    public string Version => "1.2.0";
+    public string Version => "1.3.0";
     public string Author => "bezzad";
     public string Description =>
         "Download Ollama models by name (e.g. gemma3:12b), by ollama.com link, or from a HuggingFace model "
@@ -27,11 +27,14 @@ public sealed class OllamaPlugin : IDownloaderPlugin
     public void Initialize(IPluginContext context)
     {
         context.Logger.LogInformation("Ollama Models plugin initialized");
-        var registry = new HttpOllamaRegistry();
+        // One client from the host for both registries: it carries the user's proxy setting, and the
+        // address is re-read per request, so a later change in Settings needs no restart.
+        var http = context.CreateHttpClient();
+        var registry = new HttpOllamaRegistry(http: http);
         context.RegisterResolver(new OllamaResolver(registry));
         context.RegisterPostDownloadAction(new AddToOllamaAction(registry));
 
-        var huggingFace = new HttpHuggingFaceApi();
+        var huggingFace = new HttpHuggingFaceApi(http);
         context.RegisterResolver(new HuggingFaceResolver(huggingFace));
         context.RegisterPostDownloadAction(new AddHuggingFaceToOllamaAction(huggingFace));
     }

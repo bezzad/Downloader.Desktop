@@ -7,7 +7,12 @@
 </head>
 <body>
   <header>
-    <img src="icons/icon48.png" alt="" width="24" height="24" />
+    <!-- The app mark: an accent tile with the download glyph, as the design draws it. It is drawn
+         rather than an image so it follows the accent the app is wearing (see common.js syncAccent);
+         the PNG stays the toolbar/store icon, where a browser needs a real image. -->
+    <span class="mark" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path
+      d="M8 2.2v7.3"/><path d="M4.8 6.6 8 9.8l3.2-3.2"/><path d="M2.8 13.2h10.4"/></svg></span>
     <span class="title">Downloader settings</span>
     <span id="status" class="status">Checking app…</span>
   </header>

@@ -22,25 +22,44 @@
 #   scripts/dev-run.sh --no-run        build + install only
 #   scripts/dev-run.sh --root <dir>    install into another plugins root (e.g. the snap's)
 #   scripts/dev-run.sh --no-extension  leave the installed browser extension alone
+#   scripts/dev-run.sh --print-paths   show the folders this would write to, then stop
 #   scripts/dev-run.sh -- --minimized  everything after `--` is passed to the app
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src="$repo/src"
-root="${XDG_CONFIG_HOME:-$HOME/.config}/Downloader/plugins"
+
+# Where the APP keeps its per-user data (Environment.SpecialFolder.ApplicationData). This has to match
+# the app exactly, or everything below writes into a folder nothing reads: on macOS that is
+# ~/Library/Application Support, NOT ~/.config. A hardcoded ~/.config made every plugin and extension
+# refresh silently do nothing there, and the browser went on loading the previous build.
+if [[ "$(uname -s)" == Darwin ]]; then
+  data_root="$HOME/Library/Application Support/Downloader"
+else
+  data_root="${XDG_CONFIG_HOME:-$HOME/.config}/Downloader"
+fi
+root="$data_root/plugins"
 run=1
 extension=1
+print_paths=0
 app_args=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-run) run=0; shift ;;
+    --print-paths) print_paths=1; shift ;;
     --no-extension) extension=0; shift ;;
     --root) root="$2"; shift 2 ;;
     --) shift; app_args=("$@"); break ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ $print_paths -eq 1 ]]; then
+  echo "plugins:   $root"
+  echo "extension: $data_root/extension"
+  exit 0
+fi
 
 # Project directory -> the plugin id it installs as (the folder name the app expects).
 optional_plugins=(
@@ -69,7 +88,7 @@ for entry in "${optional_plugins[@]}"; do
   mkdir -p "$root/$id"
   cp "$dll" "$root/$id/"
   [[ -f "$out/$project.deps.json" ]] && cp "$out/$project.deps.json" "$root/$id/"
-  version=$(grep -oPm1 '(?<=<Version>)[^<]+' "$src/Downloader.Desktop.Plugins/$project/$project.csproj" || true)
+  version=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$src/Downloader.Desktop.Plugins/$project/$project.csproj" | head -1)
   echo "    $id ${version:+($version)}"
 done
 
@@ -78,11 +97,16 @@ done
 # is not there, so a file added to one list has to be added to the other.
 if [[ $extension -eq 1 ]]; then
   ext_src="$src/browser-extension"
-  ext_root="${XDG_CONFIG_HOME:-$HOME/.config}/Downloader/extension"
+  ext_root="$data_root/extension"
   ext_files=(background.js common.js popup.html popup.css popup.js options.html options.css options.js)
   for target in chrome firefox; do
     dest="$ext_root/$target"
-    [[ -d "$dest" ]] || continue   # that browser's copy was never installed from the app
+    # Say so rather than skipping in silence: "I ran dev-run.sh and the browser still shows the old
+    # version" is otherwise indistinguishable from the refresh having worked.
+    if [[ ! -d "$dest" ]]; then
+      echo "    $target: nothing installed at $dest — install it from the app first (Settings -> browser extension)"
+      continue
+    fi
     cp "${ext_files[@]/#/$ext_src/}" "$dest/"
     mkdir -p "$dest/icons" && cp "$ext_src"/icons/* "$dest/icons/"
     # Firefox needs its own manifest (event page + gecko id); Chrome/Edge take the default one.
@@ -91,7 +115,7 @@ if [[ $extension -eq 1 ]]; then
     else
       cp "$ext_src/manifest.json" "$dest/"
     fi
-    echo "==> Extension refreshed in $dest ($(grep -oPm1 '(?<="version": ")[^"]+' "$dest/manifest.json"))"
+    echo "==> Extension refreshed in $dest ($(sed -n 's|.*"version"[ ]*:[ ]*"\([^"]*\)".*|\1|p' "$dest/manifest.json" | head -1))"
   done
   echo "    reload it in the browser (chrome://extensions → Reload) to pick the change up"
 fi

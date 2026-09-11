@@ -174,6 +174,10 @@ public class RevealInFolderTests : IDisposable
         ShellLauncher.RunOverride = null;
         ShellLauncher.OpenOverride = null;
 
+        // One of the few tests that MEANS to start a real process, so it opts out of the suite-wide
+        // block that keeps a leaked code path from running commands on the machine running the suite.
+        using var real = ShellLauncher.AllowRealProcessStart();
+
         // Found by path rather than assumed: "false"/"true" live in /bin on Linux and macOS, but a
         // machine that has neither should skip, not fail on someone else's filesystem layout.
         var no = Where("false");
@@ -192,6 +196,7 @@ public class RevealInFolderTests : IDisposable
             return;
 
         ShellLauncher.RunOverride = null; // the real launcher, not whatever seam ran before this
+        using var real = ShellLauncher.AllowRealProcessStart();
         var sleep = Where("sleep");
         Assert.SkipWhen(sleep is null, "this machine has no 'sleep' command to run");
 
@@ -202,5 +207,8 @@ public class RevealInFolderTests : IDisposable
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void RunChecked_reports_failure_for_a_command_that_does_not_exist()
-        => Assert.False(ShellLauncher.RunChecked(TimeSpan.FromSeconds(5), "definitely-not-a-real-command-xyz"));
+    {
+        using var real = ShellLauncher.AllowRealProcessStart();
+        Assert.False(ShellLauncher.RunChecked(TimeSpan.FromSeconds(5), "definitely-not-a-real-command-xyz"));
+    }
 }

@@ -31,8 +31,8 @@ public sealed class SiteMediaResolver : ILinkResolver
     private readonly ILogger _log;
     private readonly IMediaProbe _probe;
 
-    public SiteMediaResolver(IYtDlp ytDlp, ILogger? logger = null)
-        : this(ytDlp, logger, probe: null) { }
+    public SiteMediaResolver(IYtDlp ytDlp, ILogger? logger = null, HttpClient? http = null)
+        : this(ytDlp, logger, probe: http is null ? null : new HttpMediaProbe(http)) { }
 
     internal SiteMediaResolver(IYtDlp ytDlp, ILogger? logger, IMediaProbe? probe)
     {

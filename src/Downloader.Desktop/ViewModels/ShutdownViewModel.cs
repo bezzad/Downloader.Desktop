@@ -75,6 +75,14 @@ public class ShutdownViewModel : ViewModelBase
         _onElapsed?.Invoke();
     }
 
+    /// <summary>
+    /// Stops the countdown WITHOUT firing either callback — for a caller that is dismissing the dialog
+    /// itself (the tray's "cancel shutdown", the suite between tests). Closing the window is not enough:
+    /// the timer lives on the dispatcher, not on the window, so a dialog that is closed while its
+    /// countdown still runs reaches zero anyway and powers the machine off.
+    /// </summary>
+    internal void StopCountdown() => Stop();
+
     private void Stop()
     {
         if (_timer == null)

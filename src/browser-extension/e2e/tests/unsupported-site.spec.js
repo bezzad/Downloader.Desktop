@@ -23,8 +23,12 @@ test("a known-unsupported host always shows the explanatory message, even with i
   const popup = await openPopupFor(context, extensionId, page);
   await popup.waitForTimeout(1500);
 
+  // The point of this test is the LIST: none of that incidental junk may be offered as downloadable,
+  // and a message stands where it would have been. WHICH message depends on what the app said — with
+  // no app running here it is the honest "nobody answered", not a claim that a plugin is missing
+  // (the extension cannot know that without an answer). Either way the mode is not "normal".
   await expect(popup.locator("#empty")).toBeVisible();
-  await expect(popup.locator("#empty")).toHaveClass(/unsupported/);
+  await expect(popup.locator("#empty")).toHaveClass(/unsupported|unknown/);
   await expect(popup.locator("#list li")).toHaveCount(0);
 });
 

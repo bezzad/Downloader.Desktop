@@ -8,44 +8,70 @@
 </head>
 <body>
   <header>
-    <img src="icons/icon48.png" alt="" width="22" height="22" />
+    <!-- The app mark: an accent tile with the download glyph, as the design draws it. It is drawn
+         rather than an image so it follows the accent the app is wearing (see common.js syncAccent);
+         the PNG stays the toolbar/store icon, where a browser needs a real image. -->
+    <span class="mark" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path
+      d="M8 2.2v7.3"/><path d="M4.8 6.6 8 9.8l3.2-3.2"/><path d="M2.8 13.2h10.4"/></svg></span>
     <span class="title-group">
       <span class="title">Downloader</span>
       <span id="version" class="version"></span>
     </span>
-    <span id="status" class="status off" title="Desktop app connection">●</span>
+    <span class="conn" title="Desktop app connection">
+      <span id="status" class="status off">●</span>
+      <span id="statusText">Connecting…</span>
+    </span>
   </header>
 
   <!-- Shown only when the app answers on none of its ports. Silence there is indistinguishable from
        a broken extension, and leaves the user nothing to check (issue #9). -->
   <p id="appMissing" class="notfound" style="display:none"></p>
 
-  <section>
-    <div class="row">
-      <input id="manualUrl" type="text" placeholder="Paste a link to download…" />
-      <button id="sendManual" class="primary">Send</button>
+  <section class="compact">
+    <div class="linkbox">
+      <!-- Icons are inline SVG (never emoji): they inherit the theme colour and stay crisp. -->
+      <span class="ic" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+        stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path
+        d="M6.6 9.4 9.4 6.6"/><path d="M7.4 4.9 9 3.3a2.4 2.4 0 0 1 3.4 3.4l-1.6 1.6"/><path
+        d="M8.6 11.1 7 12.7a2.4 2.4 0 0 1-3.4-3.4l1.6-1.6"/></svg></span>
+      <input id="manualUrl" type="text" placeholder="Paste a link…" />
+      <button id="sendManual" class="link send">Send</button>
     </div>
   </section>
 
-  <section>
-    <div class="section-head">
-      <span>Detected media</span>
-      <button id="scanLinks" class="link">Scan page links</button>
-    </div>
-    <!-- One list, ordered by media type (manifests first). The old "Main media" / "Other detected"
-         split hid the page's own video behind a collapsed section whenever the relevance guess
-         missed, which on a feed page was most of the time. -->
-    <ul id="list" class="list"></ul>
-    <p id="empty" class="empty">No media detected on this page yet.</p>
-  </section>
+  <div class="section-head">
+    <span id="listCount">Detected media</span>
+    <button id="scanLinks" class="link"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle
+      cx="7.1" cy="7.1" r="4.3"/><path d="M10.4 10.4 13.4 13.4"/></svg>Scan page</button>
+  </div>
+  <!-- One list, ordered by media type (manifests first). The old "Main media" / "Other detected"
+       split hid the page's own video behind a collapsed section whenever the relevance guess
+       missed, which on a feed page was most of the time. -->
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="empty">No media detected on this page yet.</p>
 
+  <!-- One row: the silent-add switch, the bulk action, and the two utilities as icons. -->
   <footer>
     <label class="mode" title="Silently adds and starts downloads in the app. Turn off to review each link in the app's Add dialog instead.">
       <input id="silentMode" type="checkbox" checked />
-      <span>Add silently (no dialog)</span>
+      <span class="track"></span>
+      <span>Add silently</span>
     </label>
-    <button id="sendAll" class="primary wide">Download all listed</button>
-    <button id="openOptions" class="link">Settings &amp; download interception</button>
+    <button id="sendAll" class="primary"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path
+      d="M8 2.2v7.3"/><path d="M4.8 6.6 8 9.8l3.2-3.2"/><path d="M2.8 13.2h10.4"/></svg><span id="sendAllLabel">All</span></button>
+    <!-- For bug reports: the exact links this page offered, so "it downloaded without sound" can be
+         reproduced without asking the reporter to dig through devtools. Links only — never cookies. -->
+    <button id="copyLinks" class="icon" title="Copy the detected links (for a bug report)"
+      aria-label="Copy the detected links"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect
+      x="5.6" y="5.6" width="8.1" height="8.1" rx="1.5"/><path d="M10.4 5.6V3.8a1.5 1.5 0 0 0-1.5-1.5H3.8a1.5 1.5 0 0 0-1.5 1.5v5.1a1.5 1.5 0 0 0 1.5 1.5h1.8"/></svg></button>
+    <button id="openOptions" class="icon" title="Settings &amp; download interception"
+      aria-label="Settings"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle
+      cx="8" cy="8" r="2.3"/><path d="M8 1.6v1.8M8 12.6v1.8M2.4 8h1.8M11.8 8h1.8M4 4l1.3 1.3M10.7 10.7 12 12M12 4l-1.3 1.3M5.3 10.7 4 12"/></svg></button>
   </footer>
 
   <script src="common.js"></script>

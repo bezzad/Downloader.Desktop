@@ -33,8 +33,15 @@ public sealed class HlsPlugin : IDownloaderPlugin, IHasRuntimeDependencies
 
     public void Initialize(IPluginContext context)
     {
-        var http = new HttpClient();
-        _ffmpeg = new FfmpegBinary(context.DataDirectory, http, context.Logger);
+        // From the host, so the user's proxy setting applies without this plugin knowing anything
+        // about proxies. Kept for the plugin's life: the address is re-read on every request.
+        var http = context.CreateHttpClient();
+
+        // ffmpeg is a ~80 MB download and must not be cut off by HttpClient's default 100s timeout;
+        // the cancellation token governs it instead. (It used to share the client above.)
+        var tools = context.CreateHttpClient();
+        tools.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+        _ffmpeg = new FfmpegBinary(context.DataDirectory, tools, context.Logger);
 
         context.RegisterResolver(new HlsResolver(http, logger: context.Logger));
         context.RegisterResolver(new DashResolver(http, logger: context.Logger));

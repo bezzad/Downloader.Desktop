@@ -28,7 +28,9 @@ public sealed class WebsitePlugin : IDownloaderPlugin
     public void Initialize(IPluginContext context)
     {
         context.Logger.LogInformation("Website offline copy plugin initialized");
-        context.RegisterResolver(new WebsiteResolver());
-        context.RegisterTransferProvider(new WebsiteTransferProvider(context.Logger));
+        // A client each: the two have different timeouts (a quick content-type probe vs a crawl that
+        // may run for minutes). Both carry the user's proxy — this plugin has no proxy code of its own.
+        context.RegisterResolver(new WebsiteResolver(context.CreateHttpClient()));
+        context.RegisterTransferProvider(new WebsiteTransferProvider(context.Logger, context.CreateHttpClient()));
     }
 }

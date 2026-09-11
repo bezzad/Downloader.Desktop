@@ -62,6 +62,8 @@ public sealed class MyPlugin : IDownloaderPlugin
         // ctx.RegisterPostProcessor(new MyPostProc());    // combine/transform after download
         // ctx.DataDirectory  → a per-plugin writable folder (download ffmpeg here on first use)
         // ctx.Logger.LogInformation("…") → standard ILogger (Microsoft.Extensions.Logging) → app log
+        // ctx.CreateHttpClient()  → an HttpClient that already honours the user's proxy setting
+        // ctx.ProxyAddress        → that proxy as a string, for a TOOL you spawn (yt-dlp --proxy)
     }
 }
 ```
@@ -114,6 +116,31 @@ First-party plugins live in `src/Downloader.Desktop.Plugins/` and ship two ways 
   add an entry to `packaging/plugins/optional-plugins.json`, and the release workflow builds + publishes it
   + regenerates `plugins-catalog.json`. Do **not** add a `ProjectReference` to it from the app.
 
+## Networking: use the host's HttpClient
+
+Call **`ctx.CreateHttpClient()`** instead of `new HttpClient()`, and your plugin honours the proxy the
+user set in the app's Settings — with no proxy setting, and no proxy code, of its own:
+
+```csharp
+public void Initialize(IPluginContext ctx)
+{
+    var http = ctx.CreateHttpClient();          // build it once, keep it for the plugin's life
+    ctx.RegisterResolver(new MyResolver(http));
+}
+```
+
+Keeping one client is the right thing to do anyway (a client per request exhausts sockets), and it
+costs nothing here: the proxy is resolved **per request**, so a user who changes it in Settings is
+followed immediately — no restart, and nothing to subscribe to.
+
+If your plugin runs a separate program, no `HttpClient` of ours can reach it; pass
+**`ctx.ProxyAddress`** on its command line (exactly what the site-media plugin does with yt-dlp's
+`--proxy`). It is null when the user set none — never pass an empty value, which many tools read as
+"force direct".
+
+Both members have default implementations, so a plugin using them still compiles against an older
+host — it simply gets an unproxied client there.
+
 ## Interface reference
 | Interface | Purpose | Implement when |
 |---|---|---|
@@ -122,7 +149,7 @@ First-party plugins live in `src/Downloader.Desktop.Plugins/` and ship two ways 
 | `ITransferProvider` / `ITransfer` | Own a whole download the engine can't do (a torrent, a site crawl…). The host runs your `ITransfer` end-to-end: `ProgressChanged` drives the row, `Pause()`/`Resume()` are called by the row buttons, the `StartAsync` cancellation token trips on Stop/Remove, and the returned path becomes the finished file. Tip: claim a dedicated URL scheme (the Website plugin uses `websitezip:`) and hand it out via a `SubstituteUrl` variant. | The core HTTP engine can't fetch it. |
 | `IPostProcessor` | Combine/transform downloaded files. | You need mux/concat/decrypt/checksum. |
 | `IPostDownloadAction` | A user-initiated action offered on a completed download your resolver produced (e.g. "Add to Ollama"): `Label`, `CanOffer(sourceUrl, filePath)`, `ExecuteAsync`. Shown as a button on the completion notification and the finished row; runs only on click; never modify the downloaded file. | You want a one-click follow-up on the finished file. |
-| `IPluginContext` | Given to `Initialize`: register*, `DataDirectory`, `Logger` (`ILogger`). | — |
+| `IPluginContext` | Given to `Initialize`: register*, `DataDirectory`, `Logger` (`ILogger`), `CreateHttpClient()`, `ProxyAddress`. | — |
 
 Types: `DownloadPlan { SuggestedFileName, Parts[], PostProcess }`, `DownloadPart { Url, Kind, Headers, ExpectedSize }`,
 `PostProcess { Kind, Recipe }`, `TransferProgress { Percentage, BytesReceived, TotalBytes, BytesPerSecond }`.
