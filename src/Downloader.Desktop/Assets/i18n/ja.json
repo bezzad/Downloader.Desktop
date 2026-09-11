@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "ローカル API アドレス",
   "Set_LocalApiConnected": "接続済み",
   "Set_LocalApiOffline": "実行されていません",
+  "Set_LocalApiRetry": "再試行",
   "LocalApi_PortChangedTitle": "ローカル API のポートが変更されました",
   "LocalApi_PortChangedMsg": "ポート 15151 が使用中のため、Downloader は現在 127.0.0.1:{0} で待ち受けています。ブラウザ拡張機能は自動的に再接続します。",
   "Sec_AppUpdates": "アプリと更新",

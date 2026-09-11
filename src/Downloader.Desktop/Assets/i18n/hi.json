@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "लोकल API पता",
   "Set_LocalApiConnected": "कनेक्टेड",
   "Set_LocalApiOffline": "चालू नहीं",
+  "Set_LocalApiRetry": "पुनः प्रयास",
   "LocalApi_PortChangedTitle": "लोकल API पोर्ट बदल गया",
   "LocalApi_PortChangedMsg": "पोर्ट 15151 व्यस्त था, इसलिए Downloader अब 127.0.0.1:{0} पर सुन रहा है। ब्राउज़र एक्सटेंशन स्वतः फिर से कनेक्ट हो जाएगा।",
   "Sec_AppUpdates": "ऐप और अपडेट",

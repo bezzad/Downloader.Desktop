@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "Adreso de loka API",
   "Set_LocalApiConnected": "konektita",
   "Set_LocalApiOffline": "ne funkcias",
+  "Set_LocalApiRetry": "Reprovi",
   "LocalApi_PortChangedTitle": "La pordo de la loka API ŝanĝiĝis",
   "LocalApi_PortChangedMsg": "La pordo 15151 estis okupata, do Downloader nun aŭskultas ĉe 127.0.0.1:{0}. La retumila kromaĵo rekonektiĝos aŭtomate.",
   "Sec_AppUpdates": "APLIKAĴO KAJ ĜISDATIGOJ",

@@ -1892,3 +1892,25 @@ direct. Now they all go through `Services/AppProxy`.
 - **This container CAN build .NET now**: `curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s --
   --channel 10.0 --install-dir /tmp/dotnet` then `export PATH=/tmp/dotnet:$PATH`. The old note that
   the SDK host is blocked is out of date — restore is fine and the full suite runs in ~60 s.
+
+## "The local API only tried 15151" — it didn't; the row was lying (2026-09-11)
+Reported as "couldn't run on 15151, Settings shows 127.0.0.1:15151 … not running, we must try the
+next port too". The fallback (`PortRange` 15151–15155) and the ~1-minute background retry both
+already existed and both had run. What was wrong was the DISPLAY and the dead end after it:
+- **`SettingViewModel.LocalApiAddress` fell back to `PreferredPort` when nothing was bound**, so a
+  down listener printed a port it had never held — indistinguishable from "it only tries 15151".
+  Now `LocalApiService.DescribeAddress(effectivePort)` (pure, tested): the bound port when there is
+  one, otherwise the RANGE (`127.0.0.1:15151–15155`). Never invent an address you do not have.
+- **The background retry gives up after `MaxRetries`(12) × 5 s and then nothing offers a way back** —
+  the only cure was toggling the feature off and on, which no user would guess. Added a **Retry**
+  button in the local-API row (`CanRetryLocalApi` = enabled && !running, `RetryLocalApiCommand` →
+  `LocalApiService.Start()`, which walks every candidate AND re-arms the background retry). Key
+  `Set_LocalApiRetry` in all 16 packs.
+- Diagnosing a real one: every failed bind is already logged per port
+  (`Local API could not bind 127.0.0.1:<p>`) in the app log, and the usual cause is leftover copies of
+  the app still holding ports (repeated `dev-run.sh` launches during a session will do it) — check
+  with `lsof -iTCP:15151-15155 -sTCP:LISTEN -n -P`.
+- Test (`Integration/LocalApiRetryTests`) reuses the `PortIsFree` guard from
+  `Start_retries_in_background_until_a_port_frees_up`: blocking every port is the scenario, and a
+  macOS prefix can be refused while the port stays free, so it leaves rather than assert. Verified it
+  really exercises the path here by breaking `CanRetryLocalApi` and watching it fail.

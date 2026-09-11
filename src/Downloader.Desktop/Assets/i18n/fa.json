@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "نشانی API محلی",
   "Set_LocalApiConnected": "متصل",
   "Set_LocalApiOffline": "در حال اجرا نیست",
+  "Set_LocalApiRetry": "تلاش دوباره",
   "LocalApi_PortChangedTitle": "پورت API محلی تغییر کرد",
   "LocalApi_PortChangedMsg": "پورت ۱۵۱۵۱ اشغال بود، بنابراین Downloader اکنون روی 127.0.0.1:{0} گوش می‌دهد. افزونهٔ مرورگر به‌طور خودکار دوباره متصل می‌شود.",
   "Sec_AppUpdates": "برنامه و به‌روزرسانی‌ها",

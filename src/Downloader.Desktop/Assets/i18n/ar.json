@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "عنوان واجهة API المحلية",
   "Set_LocalApiConnected": "متصل",
   "Set_LocalApiOffline": "غير مُشغَّل",
+  "Set_LocalApiRetry": "إعادة المحاولة",
   "LocalApi_PortChangedTitle": "تغيّر منفذ واجهة API المحلية",
   "LocalApi_PortChangedMsg": "كان المنفذ 15151 مشغولاً، لذا يستمع Downloader الآن على 127.0.0.1:{0}. ستعيد إضافة المتصفح الاتصال تلقائيًا.",
   "Sec_AppUpdates": "التطبيق والتحديثات",

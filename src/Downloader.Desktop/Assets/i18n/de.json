@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "Lokale-API-Adresse",
   "Set_LocalApiConnected": "verbunden",
   "Set_LocalApiOffline": "läuft nicht",
+  "Set_LocalApiRetry": "Erneut versuchen",
   "LocalApi_PortChangedTitle": "Lokaler-API-Port geändert",
   "LocalApi_PortChangedMsg": "Port 15151 war belegt, daher lauscht Downloader jetzt auf 127.0.0.1:{0}. Die Browsererweiterung verbindet sich automatisch neu.",
   "Sec_AppUpdates": "APP & UPDATES",

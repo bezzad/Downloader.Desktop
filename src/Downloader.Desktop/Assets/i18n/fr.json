@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "Adresse de l'API locale",
   "Set_LocalApiConnected": "connecté",
   "Set_LocalApiOffline": "non actif",
+  "Set_LocalApiRetry": "Réessayer",
   "LocalApi_PortChangedTitle": "Le port de l'API locale a changé",
   "LocalApi_PortChangedMsg": "Le port 15151 était occupé, Downloader écoute donc maintenant sur 127.0.0.1:{0}. L'extension du navigateur se reconnectera automatiquement.",
   "Sec_AppUpdates": "APPLICATION ET MISES À JOUR",

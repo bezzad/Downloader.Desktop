@@ -307,6 +307,11 @@
                                      Fill="{Binding LocalApiStatusBrush}" />
                             <TextBlock Text="{Binding LocalApiStatusText}" VerticalAlignment="Center"
                                        Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="12" />
+                            <!-- The background retry gives up after ~a minute; without this the only
+                                 way back was toggling the feature off and on again. -->
+                            <Button Content="{i18n:Tr Set_LocalApiRetry}" FontSize="12" Padding="10 4"
+                                    Command="{Binding RetryLocalApiCommand}"
+                                    IsVisible="{Binding CanRetryLocalApi}" />
                         </StackPanel>
                     </Grid>
 

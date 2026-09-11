@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "Indirizzo API locale",
   "Set_LocalApiConnected": "connesso",
   "Set_LocalApiOffline": "non in esecuzione",
+  "Set_LocalApiRetry": "Riprova",
   "LocalApi_PortChangedTitle": "La porta dell'API locale è cambiata",
   "LocalApi_PortChangedMsg": "La porta 15151 era occupata, quindi Downloader ora è in ascolto su 127.0.0.1:{0}. L'estensione del browser si riconnetterà automaticamente.",
   "Sec_AppUpdates": "APP E AGGIORNAMENTI",

@@ -41,6 +41,7 @@ public class SettingViewModel : ViewModelBase
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
+        RetryLocalApiCommand = ReactiveCommand.Create(RetryLocalApi);
         InstallExtensionCommand = ReactiveCommand.CreateFromTask(async () =>
         {
             await DialogHelper.ShowExtensionInstall();
@@ -317,14 +318,7 @@ public class SettingViewModel : ViewModelBase
     }
 
     /// <summary>The effective loopback address the local API bound to, e.g. "127.0.0.1:15151".</summary>
-    public string LocalApiAddress
-    {
-        get
-        {
-            var port = LocalApiService.EffectivePort != 0 ? LocalApiService.EffectivePort : LocalApiService.PreferredPort;
-            return $"127.0.0.1:{port}";
-        }
-    }
+    public string LocalApiAddress => LocalApiService.DescribeAddress(LocalApiService.EffectivePort);
 
     /// <summary>Live "connected" / "not running" indicator for the local API row.</summary>
     public string LocalApiStatusText =>
@@ -339,12 +333,26 @@ public class SettingViewModel : ViewModelBase
     /// <summary>Opens the "Install browser extension" dialog — the entry point for the whole flow.</summary>
     public ICommand InstallExtensionCommand { get; }
 
+    /// <summary>Try the whole port range again, now. The background retry gives up after about a
+    /// minute, and the only way back after that was toggling the feature off and on — which is not
+    /// something a user should have to discover. Shown only while the API is enabled but down.</summary>
+    public bool CanRetryLocalApi => S.EnableBrowserIntegration && !LocalApiService.IsRunning;
+
+    public ICommand RetryLocalApiCommand { get; }
+
+    private void RetryLocalApi()
+    {
+        LocalApiService.Start(); // walks every candidate port again AND re-arms the background retry
+        RaiseLocalApiStatus();
+    }
+
     private void RaiseLocalApiStatus()
     {
         this.RaisePropertyChanged(nameof(LocalApiAddress));
         this.RaisePropertyChanged(nameof(LocalApiStatusText));
         this.RaisePropertyChanged(nameof(IsLocalApiRunning));
         this.RaisePropertyChanged(nameof(LocalApiStatusBrush));
+        this.RaisePropertyChanged(nameof(CanRetryLocalApi));
     }
 
 

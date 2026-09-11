@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "Local API address",
   "Set_LocalApiConnected": "connected",
   "Set_LocalApiOffline": "not running",
+  "Set_LocalApiRetry": "Retry",
   "LocalApi_PortChangedTitle": "Local API port changed",
   "LocalApi_PortChangedMsg": "Port 15151 was busy, so Downloader is now listening on 127.0.0.1:{0}. The browser extension will reconnect automatically.",
   "Sec_AppUpdates": "APP & UPDATES",

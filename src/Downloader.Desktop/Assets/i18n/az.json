@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "Yerli API ünvanı",
   "Set_LocalApiConnected": "qoşulub",
   "Set_LocalApiOffline": "işləmir",
+  "Set_LocalApiRetry": "Yenidən cəhd",
   "LocalApi_PortChangedTitle": "Yerli API portu dəyişdi",
   "LocalApi_PortChangedMsg": "15151 portu məşğul idi, ona görə Downloader indi 127.0.0.1:{0} ünvanını dinləyir. Brauzer plagini avtomatik yenidən qoşulacaq.",
   "Sec_AppUpdates": "TƏTBİQ & YENİLƏMƏLƏR",

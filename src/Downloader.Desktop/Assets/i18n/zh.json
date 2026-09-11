@@ -140,6 +140,7 @@
   "Set_LocalApiStatus": "本地 API 地址",
   "Set_LocalApiConnected": "已连接",
   "Set_LocalApiOffline": "未运行",
+  "Set_LocalApiRetry": "重试",
   "LocalApi_PortChangedTitle": "本地 API 端口已更改",
   "LocalApi_PortChangedMsg": "端口 15151 被占用，因此 Downloader 现在监听 127.0.0.1:{0}。浏览器扩展将自动重新连接。",
   "Sec_AppUpdates": "应用与更新",
