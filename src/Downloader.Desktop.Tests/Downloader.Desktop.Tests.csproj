@@ -60,6 +60,12 @@
             <Link>Fixtures\%(RecursiveDir)%(Filename)%(Extension)</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <!-- The plugin SDK assembly exactly as v2.12.0 shipped it (from that release's macOS bundle):
+             OldHostCompatibilityTests loads today's catalog plugins against it. -->
+        <None Include="Plugins\Fixtures\OldSdk\**\*">
+            <Link>Fixtures\OldSdk\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <!-- Stage the built GitHub plugin DLL into <testout>/plugins-sample so the integration test can load it.

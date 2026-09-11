@@ -295,6 +295,17 @@ public sealed class PluginManager
         return true;
     }
 
+    /// <summary>The folder a loaded plugin was read from, or null (not installed, or registered in memory).
+    /// An update backs this folder up first, so a replacement that cannot load puts it back.</summary>
+    public string InstalledFolder(string pluginId)
+    {
+        lock (_gate)
+        {
+            var source = _plugins.FirstOrDefault(p => p.Descriptor.Id == pluginId)?.SourcePath;
+            return string.IsNullOrWhiteSpace(source) ? null : Path.GetDirectoryName(source);
+        }
+    }
+
     /// <summary>True if a plugin with this id is currently loaded.</summary>
     public bool IsInstalled(string pluginId)
     {

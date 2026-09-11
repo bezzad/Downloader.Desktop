@@ -227,6 +227,45 @@ public class PluginInstallFlowTests : IDisposable
         Assert.NotEqual("0.1.0", pm.InstalledVersion("com.bezzad.ollama-models"));
     }
 
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public async Task An_update_that_cannot_load_keeps_the_copy_that_worked()
+    {
+        // The v2.13.0 report: plugins built against a newer SDK could not load in an older app, and
+        // pressing Update removed the working copy BEFORE the new one failed — the plugin was just gone.
+        Localizer.Instance.Load("en");
+        const string id = "com.bezzad.ollama-models";
+        var pm = new PluginManager();
+        var good = RealPluginZip();
+        var goodServer = Serve(good);
+        Assert.True((await PluginCatalogService.InstallOrUpdateAsync(
+            pm, Entry(id, "1.0.0", goodServer.Url + "p.zip", Sha256(good)), TestContext.Current.CancellationToken)).Success);
+        var installedVersion = pm.InstalledVersion(id);
+
+        // A verified package the app cannot load: a checksum match proves only that it is the file named.
+        var broken = ZipWith("not-a-plugin.txt", "nothing loadable here");
+        var brokenServer = Serve(broken);
+        var result = await PluginCatalogService.InstallOrUpdateAsync(
+            pm, Entry(id, "2.0.0", brokenServer.Url + "p.zip", Sha256(broken)), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.True(pm.IsInstalled(id), "a failed update must leave the previous copy installed");
+        Assert.Equal(installedVersion, pm.InstalledVersion(id));
+
+        // …and on disk, so it is still there after the app restarts.
+        var afterRestart = new PluginManager();
+        afterRestart.LoadFromDirectory(Path.Combine(_root, id));
+        Assert.True(afterRestart.IsInstalled(id));
+    }
+
+    private byte[] ZipWith(string entryName, string content)
+    {
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        using (var w = new StreamWriter(archive.CreateEntry(entryName).Open()))
+            w.Write(content);
+        return ms.ToArray();
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Installing_nothing_is_refused()
     {

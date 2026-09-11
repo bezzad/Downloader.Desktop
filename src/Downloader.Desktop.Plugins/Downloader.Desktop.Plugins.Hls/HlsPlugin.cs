@@ -35,11 +35,12 @@ public sealed class HlsPlugin : IDownloaderPlugin, IHasRuntimeDependencies
     {
         // From the host, so the user's proxy setting applies without this plugin knowing anything
         // about proxies. Kept for the plugin's life: the address is re-read on every request.
-        var http = context.CreateHttpClient();
+        // Through HostCompat: an app older than v2.13.0 has no CreateHttpClient.
+        var http = HostCompat.CreateHttpClient(context);
 
         // ffmpeg is a ~80 MB download and must not be cut off by HttpClient's default 100s timeout;
         // the cancellation token governs it instead. (It used to share the client above.)
-        var tools = context.CreateHttpClient();
+        var tools = HostCompat.CreateHttpClient(context);
         tools.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
         _ffmpeg = new FfmpegBinary(context.DataDirectory, tools, context.Logger);
 

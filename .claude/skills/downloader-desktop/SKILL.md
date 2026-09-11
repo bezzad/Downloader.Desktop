@@ -2029,3 +2029,25 @@ signal aborts the socket). Pinned by the e2e pile-up spec in `site-support.spec.
 long-running app request the extension adds must go through a cap too, or it will do this again.
 The Claude-in-Chrome tools cannot open `chrome-extension://` pages, so drive a real-app reproduction
 from a Playwright script (`sw.evaluate(...)` calls common.js globals directly), not the MCP browser.
+
+## A new SDK member breaks every OLDER app a catalog plugin is installed into (v2.13.0, fixed 2.13.1)
+- **Symptom (Windows, app < 2.13.0)**: Settings → Plugins → Add reads *"The downloaded package contained no
+  plugin."*, and pressing **Update** makes an installed plugin disappear.
+- **Cause**: 4c42789 added `IPluginContext.CreateHttpClient()`/`ProxyAddress` and every catalog plugin began
+  calling them. The default interface implementation lives in the NEW SDK; an older app loads its OWN SDK,
+  so `Initialize` threw `MissingMethodException` → no plugin registered. The catalog still said
+  `minAppVersion` 1.7.0/2.1.0, so old apps were offered it. And `InstallOrUpdateAsync` removed the working
+  copy BEFORE the new one failed to load.
+- **Fixes, keep all three**: (1) `packaging/plugins/optional-plugins.json` `minAppVersion` = the app version
+  that introduced the newest SDK member a plugin uses (the live `plugins-catalog.json` on the v2.13.0 release
+  was re-uploaded with it, which takes effect for every installed app at once); (2) each plugin calls newer
+  members through its own `HostCompat` (non-inlined call + `catch (MissingMethodException)` → a plain
+  client); (3) an update backs up the plugin folder and `Restore`s it if the new package fails to load or its
+  tools fail to install.
+- **Proof**: `Plugins/OldHostCompatibilityTests` loads each catalog plugin against the REAL v2.12.0 SDK
+  (`Plugins/Fixtures/OldSdk/v2.12.0`, from that release's macOS bundle — the only platform whose tarball has
+  loose assemblies) via a non-collectible ALC + `DispatchProxy.Create(Type, Type)` for the old
+  `IPluginContext`. It failed on the unfixed plugins. `PluginInstallFlowTests.An_update_that_cannot_load_keeps_the_copy_that_worked`
+  pins the rollback.
+- **Rule for the next SDK addition**: a plugin that calls it either goes through `HostCompat` or its catalog
+  `minAppVersion` moves to the app release that ships the member. Refresh the old-SDK fixture when you do.
