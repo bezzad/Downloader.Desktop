@@ -193,3 +193,11 @@ those fail — `error: cannot pull with rebase: You have unstaged changes` — b
 attempts per step before it recovers. v2.8.0 survived it (the pushes still landed, exit 0), but it turns a
 clean run into a minute of red herrings in the log. If you need to edit during the ~15 min asset wait,
 either commit it or hold it until the script exits.
+
+## A silent exit 1 right after "Updating Homebrew" = the macOS checksum download failed (2026-09-11, v2.13.0)
+The report said "Homebrew: not started" with no error line. `ARM_SHA="$(sha256_of_asset …)"` downloads the
+archive with `gh release download` (5 tries); when all fail, `set -e` exits on the assignment itself, before
+the `|| die` on the same line runs — so no message. The archive was fine (curl fetched it seconds later).
+Fixed with `|| true` inside the substitution so the `die` names the cause. Either way the answer is the
+same: re-run `release.sh X.Y.Z` — it resumes and every post-tag step is idempotent. General rule for this
+script: any `VAR="$(cmd)"` that can fail needs `|| true` inside, or it dies silently.

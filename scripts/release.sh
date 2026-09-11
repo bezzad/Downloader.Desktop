@@ -507,8 +507,10 @@ rm -f "$NOTES_TMP"
 
 # --- 5. update Homebrew (tap repo + in-repo mirror) ------------------------
 step "Updating Homebrew cask in $TAP_REPO"
-ARM_SHA="$(sha256_of_asset "$TAG" "Downloader-osx-arm64.tar.gz")"; [[ -n "$ARM_SHA" ]] || die "failed to checksum arm64 archive"
-X64_SHA="$(sha256_of_asset "$TAG" "Downloader-osx-x64.tar.gz")"; [[ -n "$X64_SHA" ]] || die "failed to checksum x64 archive"
+# `|| true`: under set -e a failed download inside "$(…)" exits right here, BEFORE the die below can say
+# why — v2.13.0 stopped at this step with no message at all. Let the empty value reach the die instead.
+ARM_SHA="$(sha256_of_asset "$TAG" "Downloader-osx-arm64.tar.gz" || true)"; [[ -n "$ARM_SHA" ]] || die "failed to download/checksum the arm64 archive — re-run to resume"
+X64_SHA="$(sha256_of_asset "$TAG" "Downloader-osx-x64.tar.gz" || true)"; [[ -n "$X64_SHA" ]] || die "failed to download/checksum the x64 archive — re-run to resume"
 ok "arm64 sha256 = $ARM_SHA"
 ok "x64   sha256 = $X64_SHA"
 
