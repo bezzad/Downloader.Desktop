@@ -1704,6 +1704,16 @@ re-derive any of this**, and in particular do not start by reading the blamed te
 - Next occurrence, grab the artifact BEFORE re-running (a re-run replaces it) and point the analysis
   workflow at it by committing a new `DEFAULT_RUN_ID`; the walk to the captured exception is automated.
 
+**It RECURRED after the PerAssembly fix (2026-09-11, run 34609494951).** windows-latest/Debug, the
+same signature exactly — `Test Run Aborted`, `Total tests: Unknown`, `Passed: 11`, a 3-minute
+inactivity hangdump, blaming `UI.ShutdownAndThemeTests.Apply_tolerates_a_config_with_no_settings`
+— on commit `3c7392f`, which touches NO C# at all (it is an extension-only commit), with the other
+five legs green and the three later pushes green. So `AvaloniaTestIsolation(PerAssembly)` (f1c94d2)
+made it RARER, not impossible: do not read "fixed" as "gone", and keep diagnosing an abort by the
+signature rather than by the diff. The artifact for that run (284 MB, both hangdumps + the
+`Sequence_*.xml`) is still on the run if anyone wants to analyse it with
+`.github/workflows/analyze-hang-dump.yml` before it expires.
+
 ## Queue naming (rename propagation, name-first creation, batch suggestion) — 2026-09-07
 - **A queue rename must go through `IDownloadManager.RenameQueue`.** `QueueActionTarget` (the toolbar's
   Start/Stop-queue menus) snapshots the name it was built with, and a row's `QueueName` is a computed
