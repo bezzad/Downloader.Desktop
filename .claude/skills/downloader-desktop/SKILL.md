@@ -2069,3 +2069,52 @@ from a Playwright script (`sw.evaluate(...)` calls common.js globals directly), 
   the setting points at a dead port). Both fail on the old code.
 - **Still true and worth knowing**: `Initialize` leaks that global, so a test can change what a LATER test's
   clients do. If a non-loopback case ever bites, restore `AppProxy.AddressSource` in the offending fixture.
+
+## CI failure families as of 2026-09-12 (what each one actually was)
+Inventory of the last 100 `.NET Desktop` runs (39 red) plus the Extension workflow, and what fixed them:
+- **4× `Extension` red (2026-09-11)**: the bump guard — extension code changed without a manifest bump.
+  Self-resolving; the 1.19.0 bump commit turned it green. Not a defect.
+- **ubuntu/Release: `PluginInstallFlowTests` ×4 + `ExtensionCatalogServiceTests`**: the loopback-vs-proxy
+  bug (see the AppProxy note above). Fixed.
+- **windows/Release: `ShutdownCancelTests.Cancelling_through_the_service_stops_the_countdown_for_good`**:
+  the TEST. `Schedule()` runs synchronously, so `IsScheduled` is true the moment it returns — but the test
+  pumped the dispatcher BEFORE asserting, and with a 1-second countdown that pump could run the countdown
+  to zero (or an earlier test's posted `Close`), leaving `IsScheduled` false. Now: cancel first for a known
+  baseline, 3-second countdown, assert with no pump in between, then wait 6 s to catch a leaked timer.
+- **macOS/Release: `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`**: still open.
+  It is NOT reproducible in isolation — a macOS CI probe (`.github/workflows/probe-flaky-test.yml`, which
+  repeats one test on a chosen runner OS) ran it **20 times: 0 failures**, and 25 single-core Release runs
+  here were green. So it needs the full suite around it. The assertion now prints the row's error, progress,
+  attempt and saved-file count, so the next full-suite failure names the reason instead of just the status.
+- **windows/Debug + windows/Release: the hang** — see below.
+
+## The CI hang: the dump finally named the exception (2026-09-11 run 34609494951)
+`.github/workflows/analyze-hang-dump.yml` (point `DEFAULT_RUN_ID` at the run and push) walked the headless
+session's faulted dispatch task to its captured exception:
+
+    System.InvalidOperationException: The calling thread cannot access this object because a different
+    thread owns it.            (_dispatchTask m_stateFlags 0x231008 = FAULTED, CTS _state 0 = not cancelled)
+
+So the session loop dies of a **thread-affinity violation**; after that every worker parks in
+`AvaloniaTestCase.Run` on a completion source nothing will set — no failure, no timeout, and the abort
+blames whichever innocent test came next (11 / 653 / 810 / 1202 tests in, on different runs).
+**`AvaloniaTestIsolation(PerAssembly)` did not end it** — 9bfc3a4 (windows/Release) aborted after 653.
+What the dump could NOT give is the call site: the captured copy has `StackTraceString: <none>`.
+`TestSupport/ThreadAffinityWatch.cs` (module initializer, first-chance handler) now prints that exact
+exception WITH its stack to stderr, so the next occurrence names the offender in the CI log. Look for
+`=== THREAD-AFFINITY VIOLATION` in the failing leg.
+
+## "Check for updates does nothing" (reported on 2.12.0, fixed 2026-09-12)
+Every outcome was reported ONLY through `NotificationService.Notify`, which returns early when the
+notifications switch is off, and a check that THREW reported nothing anywhere at all (`AppLog.Error`, with
+logging off by default). So a failed or suppressed check was indistinguishable from a dead button.
+`UpdateFlow.LastCheckMessage` now records the outcome, Settings shows it under the button
+(`SettingViewModel.UpdateStatusText`), and a manual check reports via `NotificationService.Inform` (direct
+feedback, not gated by the switch). Rule: **a button the user pressed must report its own outcome in the
+window; an OS notification is a courtesy, never the answer.**
+
+## Screenshots re-render differently on this box (2026-09-12)
+A `DLDESKTOP_CAPTURE=1` run rewrote ALL 23 PNGs with whole-window pixel differences (bbox 1,16 → 999,611)
+though only a hidden Settings line had changed — font rendering here differs from whatever generated the
+committed set. The UI itself renders correctly. Don't commit that churn; regenerate only when a capture
+shows a REAL change (compare with PIL `ImageChops.difference` + `getbbox()` before committing).
