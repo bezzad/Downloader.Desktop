@@ -17,13 +17,13 @@ on:
   workflow_dispatch:
     inputs:
       filter:
-        description: Test filter to repeat
+        description: Test filter to repeat ("all" runs the whole suite)
         required: false
-        default: MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion
+        default: all
       runs:
         description: How many times to repeat it
         required: false
-        default: '20'
+        default: '5'
       os:
         description: Runner to reproduce on
         required: false
@@ -32,8 +32,10 @@ on:
         options: [macos-latest, windows-latest, ubuntu-latest]
 
 env:
-  DEFAULT_FILTER: MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion
-  DEFAULT_RUNS: '20'
+  # "all" = the whole suite. The two open failures (MemoryReleaseTests on macOS, and the hang) BOTH need
+  # the full suite around them: the single test passed 20/20 here in isolation.
+  DEFAULT_FILTER: all
+  DEFAULT_RUNS: '5'
 
 jobs:
   probe:
@@ -61,9 +63,14 @@ jobs:
           failed=0
           for i in $(seq 1 "$runs"); do
             echo "::group::attempt $i"
-            if ! dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -c Release --no-build \
-                 --nologo -v q --filter "FullyQualifiedName~$filter"; then
-              failed=$((failed + 1))
+            # --blame-hang so an attempt that hangs is killed and NAMED rather than burning the job's
+            # timeout, and the suite's ThreadAffinityWatch prints the violation's stack to stderr.
+            if [ "$filter" = "all" ]; then
+              dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -c Release --no-build \
+                --nologo -v q --blame-hang --blame-hang-timeout 180s || failed=$((failed + 1))
+            else
+              dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -c Release --no-build \
+                --nologo -v q --filter "FullyQualifiedName~$filter" || failed=$((failed + 1))
             fi
             echo "::endgroup::"
           done
