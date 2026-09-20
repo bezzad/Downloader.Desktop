@@ -273,6 +273,19 @@ public class MainViewModel : ViewModelBase
     /// events cannot be mistaken for the user re-arranging it.</summary>
     private bool _applyingLayout;
 
+    /// <summary>The size the window reported just BEFORE the remembered layout was applied, and when
+    /// that happened. The platform confirms a resize/move ASYNCHRONOUSLY, so the restore's own echo
+    /// arrives once <see cref="_applyingLayout"/> is already back to false — and the first echo
+    /// carries the NEW position with this OLD size (measured on a real Ubuntu/Wayland session).
+    /// Recording that pair persists a size the user never chose.</summary>
+    private Size? _preRestoreSize;
+    private DateTime _layoutAppliedAt = DateTime.MinValue;
+
+    /// <summary>How long a stale echo is still expected after a restore. A backstop only — the echo
+    /// is identified by its SIZE, so a genuine resize in the first moments is still recorded, and a
+    /// window manager that refuses our size cannot leave the app deaf to the user for ever.</summary>
+    internal static TimeSpan LayoutEchoGrace { get; set; } = TimeSpan.FromSeconds(2);
+
     /// <summary>Applies the remembered layout (see <see cref="WindowLayoutPolicy"/>) to the main window.
     /// Everything that could be wrong with it — a screen that is gone, a size bigger than this desktop,
     /// a corrupt record — is already handled by the policy; this just assigns the result.</summary>
@@ -284,6 +297,7 @@ public class MainViewModel : ViewModelBase
         try
         {
             _applyingLayout = true;
+            _preRestoreSize = window.ClientSize;
 
             // The window's own declared size is the fallback: it is what a first run gets.
             var fallbackWidth = double.IsFinite(window.Width) ? window.Width : window.ClientSize.Width;
@@ -316,6 +330,7 @@ public class MainViewModel : ViewModelBase
         finally
         {
             _applyingLayout = false;
+            _layoutAppliedAt = DateTime.UtcNow;
         }
     }
 
@@ -364,9 +379,17 @@ public class MainViewModel : ViewModelBase
             CaptureWindowLayout(window);
     }
 
-    private void CaptureWindowLayout(Window window)
+    internal void CaptureWindowLayout(Window window)
     {
         if (_applyingLayout || _config == null || window == null)
+            return;
+
+        // Drop the restore's own echo: shortly after applying the layout the window reports the new
+        // position while still carrying its PRE-restore size, and storing that pair would quietly
+        // replace the remembered size with the old one. Matched on the size itself, so a real resize
+        // — even one made immediately — is still recorded.
+        if (WindowLayoutPolicy.IsRestoreEcho(
+                window.ClientSize, _preRestoreSize, DateTime.UtcNow - _layoutAppliedAt, LayoutEchoGrace))
             return;
 
         try

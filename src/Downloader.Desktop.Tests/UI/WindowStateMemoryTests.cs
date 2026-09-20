@@ -198,6 +198,27 @@ public class WindowStateMemoryTests : IDisposable
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
+    public void A_resize_after_the_echo_has_settled_is_still_recorded()
+    {
+        // The echo is identified by its SIZE, not by a time window, so a resize made right after
+        // launch — the case a blanket grace period would have swallowed — is still recorded.
+        var config = QuietConfig();
+        config.MainWindow = new WindowLayout { Width = 1240, Height = 700, X = 140, Y = 90 };
+
+        var (_, window) = Start(config);
+        try
+        {
+            window.Width = 1320;
+            window.Height = 760;
+            Pump(() => Math.Abs(config.MainWindow.Width - 1320) < 1);
+
+            Assert.Equal(1320, config.MainWindow.Width, 0);
+            Assert.Equal(760, config.MainWindow.Height, 0);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
     public void Minimizing_does_not_overwrite_what_is_remembered()
     {
         var config = QuietConfig();

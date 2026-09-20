@@ -209,6 +209,53 @@ public class WindowLayoutPolicyTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_restores_own_stale_echo_is_recognised()
+    {
+        // The real sequence, measured on Ubuntu/Wayland: the layout is applied (1240x700), and the
+        // platform's first event back still reports the PRE-restore size (1000x620). Treating that as
+        // the user's choice is what silently replaced the remembered size with the old one.
+        Assert.True(WindowLayoutPolicy.IsRestoreEcho(
+            current: new Size(1000, 620),
+            preRestore: new Size(1000, 620),
+            sinceApplied: TimeSpan.FromMilliseconds(30),
+            grace: TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_real_resize_right_after_launch_is_not_an_echo()
+    {
+        // Why the rule matches on SIZE and not merely on "it is early": a blanket grace period would
+        // throw away a resize the user made in the first moments.
+        Assert.False(WindowLayoutPolicy.IsRestoreEcho(
+            current: new Size(1320, 760),
+            preRestore: new Size(1000, 620),
+            sinceApplied: TimeSpan.FromMilliseconds(30),
+            grace: TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_window_manager_that_refuses_our_size_cannot_mute_the_user_for_ever()
+    {
+        // Same size as before the restore, but long afterwards: this is the user, not an echo. Without
+        // the time limit the app would ignore every resize for the rest of the session.
+        Assert.False(WindowLayoutPolicy.IsRestoreEcho(
+            current: new Size(1000, 620),
+            preRestore: new Size(1000, 620),
+            sinceApplied: TimeSpan.FromSeconds(30),
+            grace: TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void With_nothing_restored_there_is_no_echo_to_ignore()
+    {
+        Assert.False(WindowLayoutPolicy.IsRestoreEcho(
+            current: new Size(1000, 620),
+            preRestore: null,
+            sinceApplied: TimeSpan.FromMilliseconds(30),
+            grace: TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void A_normal_window_is_captured_whole()
     {
         var captured = WindowLayoutPolicy.Capture(

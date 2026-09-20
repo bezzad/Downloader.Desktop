@@ -2118,3 +2118,34 @@ A `DLDESKTOP_CAPTURE=1` run rewrote ALL 23 PNGs with whole-window pixel differen
 though only a hidden Settings line had changed — font rendering here differs from whatever generated the
 committed set. The UI itself renders correctly. Don't commit that churn; regenerate only when a capture
 shows a REAL change (compare with PIL `ImageChops.difference` + `getbbox()` before committing).
+
+## The window layout was "not kept" — the restore's own echo, and a tray-resident instance (2026-09-20)
+Reported as "I change size/position, close, reopen with `dev-run.sh`, nothing is kept" on Ubuntu/Wayland.
+Both halves of the feature were actually working; what bit was the test procedure and one real defect.
+- **Diagnose it in two steps, in this order.** First `python3 -c` the `MainWindow` key out of
+  `~/.config/Downloader/config.json` — that alone splits "never saved" from "never restored". Then run the
+  app with `EnableLogging=true` and temporary `AppLog.Warn` lines in
+  `RestoreWindowLayout`/`TrackWindowLayout`/`CaptureWindowLayout`; the log answers it outright. Verified on
+  this box: restore applies (1240x700 @120,90) and a resize IS captured and persisted across a quit.
+- **A tray-resident instance makes every relaunch a no-op, and then overwrites your file.**
+  `EnableSystemTray` defaults ON, so closing the window only HIDES it; the process keeps its `_config` in
+  memory. The next launch loses the single-instance race, forwards and exits — you are looking at the OLD
+  window from the OLD binary — and the survivor's autosave then writes its stale layout back over
+  `config.json`. It cost this session two wrong conclusions in a row. Kill it by PORT
+  (`ss -ltnp | grep 1515`, then `kill <pid>`), never by `pkill -f Downloader…` (that matches the invoking
+  shell — exit 144, the trap already documented above).
+- **THE REAL DEFECT: a restore is confirmed ASYNCHRONOUSLY, so it echoes back as "the user resized".**
+  `_applyingLayout` only guards synchronous re-entry. Measured here: the first event after applying carries
+  the NEW position with the PRE-restore SIZE (`client=1000,620 pos=120,90` right after applying 1240x700),
+  so the record is momentarily rewritten to the old size — and permanently, if the app exits before the
+  second event or the WM never sends one. Guard = `WindowLayoutPolicy.IsRestoreEcho(current, preRestore,
+  sinceApplied, grace)`: match the echo by its SIZE (a blanket time grace would swallow a genuine resize
+  made in the first second — the existing headless tests catch that), with the time limit only as a backstop
+  so a WM that refuses our size cannot mute the user for ever.
+- **A headless test CANNOT reproduce that echo** — Avalonia applies the size synchronously there, so
+  `ClientSize` is already correct when a test calls capture. A first attempt passed with the guard deleted,
+  i.e. it was a broken test by the standing rule. The honest cover is the pure rule
+  (`Unit/WindowLayoutPolicyTests`, 4 cases) plus the existing shell tests for the wiring.
+- **Simulating a user resize on Wayland**: there is no `xdotool`/`wmctrl` here, so drive it from inside the
+  app behind an env gate (a `DispatcherTimer` that sets `Width`/`Height`/`Position`), run, then read the
+  config. That is what proved the full loop end to end.

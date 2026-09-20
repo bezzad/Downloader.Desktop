@@ -96,6 +96,22 @@ public static class WindowLayoutPolicy
         return new Resolution(maximized, width, height, position);
     }
 
+    /// <summary>
+    /// Whether an incoming resize/move is the platform echoing the layout we just applied rather than
+    /// the user re-arranging the window.
+    ///
+    /// <para>A restore is confirmed ASYNCHRONOUSLY: measured on a real Ubuntu/Wayland session, the
+    /// first event back carries the NEW position with the size the window had BEFORE the restore, and
+    /// recording that pair replaces the remembered size with the old one — the window then reopens at
+    /// the wrong size, which is what "it doesn't keep my size" looks like.</para>
+    ///
+    /// <para>The echo is identified by its SIZE, so a genuine resize — even one made immediately after
+    /// launch — is still recorded; the time limit is only a backstop, so a window manager that refuses
+    /// our size cannot leave the app deaf to the user for ever.</para>
+    /// </summary>
+    public static bool IsRestoreEcho(Size current, Size? preRestore, TimeSpan sinceApplied, TimeSpan grace) =>
+        preRestore is { } stale && current == stale && sinceApplied >= TimeSpan.Zero && sinceApplied < grace;
+
     private static bool IsUsableSize(WindowLayout saved) =>
         saved != null &&
         double.IsFinite(saved.Width) && saved.Width > 0 &&
