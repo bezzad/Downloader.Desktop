@@ -24,9 +24,41 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     // real downloadable asset URL before the engine runs. Null in tests that don't need plugins.
     private readonly PluginManager _plugins;
 
-    public DownloadManager() { }
+    public DownloadManager() => HookCategories();
 
-    public DownloadManager(PluginManager plugins) => _plugins = plugins;
+    public DownloadManager(PluginManager plugins) : this() => _plugins = plugins;
+
+    public DownloadManager(PluginManager plugins, CategoryService categories) : this(plugins) =>
+        Categories = categories ?? Categories;
+
+    /// <summary>The file-type categories every row, the sidebar and the list filter resolve through.
+    /// Always present: a row must be able to answer what it is even before a config is loaded.</summary>
+    public CategoryService Categories { get; private set; } = new();
+
+    /// <summary>A download's category is derived, never stored, so an edited or reordered category
+    /// list has to make every row re-read it.</summary>
+    private void HookCategories() => Categories.Changed += () => OnUi(() =>
+    {
+        ReleaseMissingCategories();
+        foreach (var vm in Items)
+            vm.RaiseCategoryChanged();
+        NotifyList();
+    });
+
+    /// <summary>
+    /// Clears the explicit category of any download whose choice no longer exists — after the user
+    /// deleted that category, or after an import brought a different set. Leaving the id in place
+    /// would have the row silently fall back to detection while still claiming a choice, and would
+    /// resurrect it if a new category happened to reuse the id.
+    /// </summary>
+    private void ReleaseMissingCategories()
+    {
+        foreach (var vm in Items)
+        {
+            if (!string.IsNullOrWhiteSpace(vm.CategoryId) && Categories.ById(vm.CategoryId) is null)
+                vm.CategoryId = null;
+        }
+    }
 
     public ObservableCollection<DownloadItemViewModel> Items { get; } = new();
 
@@ -182,6 +214,10 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // wired up could have a stale queue cap). Extra queues keep their own caps from the Queues page.
         if (_config.Settings != null && _config.DefaultQueue is { } dq)
             dq.MaxConcurrent = Math.Max(1, _config.Settings.MaxConcurrentDownloads);
+
+        // Point the category service at this config's list before the rows are built, so every row
+        // resolves against the real categories rather than an empty set.
+        Categories.Initialize(_config);
 
         foreach (var existing in Items)
             existing.Detach();

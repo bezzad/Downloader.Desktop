@@ -22,6 +22,7 @@ public class DownloadsViewModel : ViewModelBase
 {
     private readonly IDownloadManager _manager;
     private StatusFilter _filter = StatusFilter.All;
+    private string _categoryFilter;
     private string _search;
 
     /// <summary>The shared config instance, for callers that need it (e.g. the Details dialog's persisted size).</summary>
@@ -124,6 +125,8 @@ public class DownloadsViewModel : ViewModelBase
     {
         this.RaisePropertyChanged(nameof(HasSelection));
         this.RaisePropertyChanged(nameof(SelectAllState));
+        this.RaisePropertyChanged(nameof(SelectedCount));
+        this.RaisePropertyChanged(nameof(SelectedCountText));
     }
 
     /// <summary>Filterable view bound to the DataGrid.</summary>
@@ -158,11 +161,16 @@ public class DownloadsViewModel : ViewModelBase
         RaiseSelectionChanged();
     }
 
-    /// <summary>The rows the toolbar acts on: checked rows plus any DataGrid-highlighted rows.</summary>
+    /// <summary>
+    /// The rows the toolbar acts on: checked or DataGrid-highlighted rows that are ALSO visible under
+    /// the active filters. The visibility clause matters — a filter can hide a row the user checked
+    /// earlier, and removing or stopping a download nobody can see is the kind of surprise a Remove
+    /// button must never spring.
+    /// </summary>
     private System.Collections.Generic.List<DownloadItemViewModel> SelectedTargets() =>
         _manager == null
             ? new System.Collections.Generic.List<DownloadItemViewModel>()
-            : _manager.Items.Where(i => i.IsChecked || _gridSelection.Contains(i)).ToList();
+            : _manager.Items.Where(i => (i.IsChecked || _gridSelection.Contains(i)) && PassesView(i)).ToList();
 
     /// <summary>True while at least one row is checked OR highlighted — drives the bulk buttons' enabled state.</summary>
     public bool HasSelection => SelectedTargets().Count > 0;
@@ -212,6 +220,52 @@ public class DownloadsViewModel : ViewModelBase
             _filter = value;
             Refresh();
         }
+    }
+
+    /// <summary>
+    /// Id of the category the list is narrowed to, or null for every category. Independent of the
+    /// status filter and the search box: all three are ANDed, and clearing this one leaves the other
+    /// two in force.
+    /// </summary>
+    public string CategoryFilter
+    {
+        get => _categoryFilter;
+        set
+        {
+            if (_categoryFilter == value)
+                return;
+
+            _categoryFilter = value;
+            this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(HasFilter));
+            Refresh();
+        }
+    }
+
+    /// <summary>True while anything is hiding rows. The toolbar states how many downloads are
+    /// selected only while this is true — with nothing hidden, the checkboxes say it already.</summary>
+    public bool HasFilter =>
+        !string.IsNullOrWhiteSpace(_categoryFilter) ||
+        _filter != StatusFilter.All ||
+        !string.IsNullOrWhiteSpace(_search);
+
+    /// <summary>How many downloads the bulk buttons would act on.</summary>
+    public int SelectedCount => SelectedTargets().Count;
+
+    /// <summary>"N selected", for the toolbar.</summary>
+    public string SelectedCountText => string.Format(Localizer.Instance["Toolbar_Selected"], SelectedCount);
+
+    /// <summary>Drops every filter at once — what the empty state's action does.</summary>
+    public void ClearFilters()
+    {
+        _categoryFilter = null;
+        _filter = StatusFilter.All;
+        _search = null;
+        this.RaisePropertyChanged(nameof(CategoryFilter));
+        this.RaisePropertyChanged(nameof(Filter));
+        this.RaisePropertyChanged(nameof(Search));
+        this.RaisePropertyChanged(nameof(HasFilter));
+        Refresh();
     }
 
     // ---- Tri-state column sorting (#12) ----
@@ -280,14 +334,32 @@ public class DownloadsViewModel : ViewModelBase
         ItemsView?.Refresh();
         this.RaisePropertyChanged(nameof(IsEmpty));
         this.RaisePropertyChanged(nameof(ShowQueue));
+        this.RaisePropertyChanged(nameof(HasFilter));
         RaiseSelectionChanged();
     }
+
+    /// <summary>
+    /// Everything the list is filtered by EXCEPT the category. The sidebar's per-category counts are
+    /// taken over this, so each number states exactly how many rows clicking that category will show.
+    /// </summary>
+    public bool MatchesExceptCategory(DownloadItemViewModel vm) => vm != null && PassesSearchAndStatus(vm);
 
     private bool Matches(object o)
     {
         if (o is not DownloadItemViewModel vm)
             return false;
 
+        // The category dimension. Judged on the download's RESOLVED category, so it applies to every
+        // row whatever its state — running, queued, paused, failed or completed — not only finished
+        // ones. Null means "every category" and leaves the other two filters alone.
+        if (!string.IsNullOrWhiteSpace(_categoryFilter) && vm.Category?.Id != _categoryFilter)
+            return false;
+
+        return PassesSearchAndStatus(vm);
+    }
+
+    private bool PassesSearchAndStatus(DownloadItemViewModel vm)
+    {
         if (!string.IsNullOrWhiteSpace(_search))
         {
             var s = _search.Trim();

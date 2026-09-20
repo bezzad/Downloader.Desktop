@@ -11,7 +11,7 @@ namespace Downloader.Desktop.Models;
 public class Config
 {
     /// <summary>Bumped when a load-time migration is added; see <see cref="EnsureValid"/>.</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>Config format version for one-time migrations. 0 = written before the field existed.</summary>
     public int SchemaVersion { get; set; }
@@ -20,6 +20,11 @@ public class Config
     public List<DownloadItem> Downloads { get; set; }
     public List<DownloadQueue> Queues { get; set; }
     public List<DownloadSchedule> Schedules { get; set; }
+    /// <summary>File-type categories in the user's order. Seeded with the built-ins on first run
+    /// and on upgrade; see <see cref="Services.CategoryService"/>.</summary>
+    public List<DownloadCategory> Categories { get; set; }
+    /// <summary>Whether the downloads page shows the category sidebar. Off until the user opens it.</summary>
+    public bool IsCategorySidebarOpen { get; set; }
     /// <summary>Ids of plugins the user turned OFF (so they stay disabled across restarts).</summary>
     public List<string> DisabledPlugins { get; set; }
     public bool IsThemeDarkMode { get; set; }
@@ -85,6 +90,7 @@ public class Config
                 new() { Name = DownloadQueue.DefaultName, MaxConcurrent = settings.MaxConcurrentDownloads }
             },
             Schedules = new List<DownloadSchedule>(),
+            Categories = Services.CategoryService.CreateDefaults(),
             IsThemeDarkMode = false,
             WindowSizes = new Dictionary<string, WindowSize>(),
             ServerConnectionLimits = new Dictionary<string, ServerConnectionLimit>()
@@ -109,6 +115,11 @@ public class Config
         if (Queues.Count == 0)
             Queues.Add(new DownloadQueue { Name = DownloadQueue.DefaultName, MaxConcurrent = Settings.MaxConcurrentDownloads });
         Schedules ??= new List<DownloadSchedule>();
+        // v1 → v2: categories did not exist. An empty list would leave every download pointing at a
+        // category that is not there, so seed the built-ins — which carry exactly the extensions the
+        // app already recognized, making the upgrade a visual no-op apart from the new column.
+        if (Categories == null || Categories.Count == 0)
+            Categories = Services.CategoryService.CreateDefaults();
         WindowSizes ??= new Dictionary<string, WindowSize>();
         ServerConnectionLimits ??= new Dictionary<string, ServerConnectionLimit>();
 

@@ -2,6 +2,7 @@ using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.Views;
 using System;
+using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -29,7 +30,7 @@ public class MainViewModel : ViewModelBase
     private StatusFilter _filter = StatusFilter.All;
     private DispatcherTimer _autoSaveTimer;
     private DateTime _lastSaveUtc;
-    private bool _isSidebarExpanded = true;
+    private bool _isCategorySidebarOpen;
 
     public MainViewModel(IFileService fileService, IDownloadManager downloadManager, PluginManager pluginManager = null)
     {
@@ -54,7 +55,9 @@ public class MainViewModel : ViewModelBase
         ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
         ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
-        ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
+        ToggleCategorySidebarCommand = ReactiveCommand.Create(() => IsCategorySidebarOpen = !IsCategorySidebarOpen);
+        AddCategoryCommand = ReactiveCommand.CreateFromTask(AddCategoryAsync);
+        ClearFiltersCommand = ReactiveCommand.Create(ClearFilters);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         // In-app Donate modal — opening a browser page gave no visible feedback ("it sound like
         // do nothing"); the modal shows the channels right in the app (USDT copies in-app).
@@ -95,7 +98,15 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
-    public ICommand ToggleSidebarCommand { get; }
+    /// <summary>Shows or hides the category sidebar. Two states only — the deleted nav rail's third,
+    /// icons-only state was part of what made it confusing.</summary>
+    public ICommand ToggleCategorySidebarCommand { get; }
+
+    /// <summary>Opens the editor for a brand-new category.</summary>
+    public ICommand AddCategoryCommand { get; }
+
+    /// <summary>Drops every filter at once — the empty state's way out.</summary>
+    public ICommand ClearFiltersCommand { get; }
     public ICommand ShowAboutCommand { get; }
     public ICommand DonateCommand { get; }
     public ICommand ApplyUpdateCommand { get; }
@@ -105,18 +116,49 @@ public class MainViewModel : ViewModelBase
 
     private void OnUpdateStateChanged() => this.RaisePropertyChanged(nameof(IsUpdateReady));
 
-    /// <summary>When false the left rail collapses to an icons-only strip.</summary>
-    public bool IsSidebarExpanded
+    /// <summary>
+    /// Whether the category sidebar is showing. Off on first run — it is an extra, not the way the
+    /// app works — and remembered across restarts once the user opens it.
+    /// </summary>
+    public bool IsCategorySidebarOpen
     {
-        get => _isSidebarExpanded;
+        get => _isCategorySidebarOpen;
         set
         {
-            this.RaiseAndSetIfChanged(ref _isSidebarExpanded, value);
-            this.RaisePropertyChanged(nameof(SidebarWidth));
+            if (_isCategorySidebarOpen == value)
+                return;
+
+            this.RaiseAndSetIfChanged(ref _isCategorySidebarOpen, value);
+            if (_config != null)
+            {
+                _config.IsCategorySidebarOpen = value;
+                SaveSoon();
+            }
+
+            if (value)
+                RefreshCategoryCounts();
         }
     }
 
-    public double SidebarWidth => _isSidebarExpanded ? 208 : 56;
+    /// <summary>The sidebar's rows: "All", then every category in the user's order.</summary>
+    public ObservableCollection<CategoryRowViewModel> CategoryRows { get; } = new();
+
+    /// <summary>Id of the category the list is narrowed to, or null for all of them.</summary>
+    public string SelectedCategoryId
+    {
+        get => Downloads?.CategoryFilter;
+        set
+        {
+            if (Downloads is null || Downloads.CategoryFilter == value)
+                return;
+
+            Downloads.CategoryFilter = value;
+            foreach (var row in CategoryRows)
+                row.IsSelected = row.Id == value;
+            this.RaisePropertyChanged();
+            RefreshCategoryCounts();
+        }
+    }
 
     public string DownloadUrl
     {
@@ -206,6 +248,14 @@ public class MainViewModel : ViewModelBase
         ((System.ComponentModel.INotifyPropertyChanged)Settings).PropertyChanged += (_, _) => SaveSoon();
 
         this.RaisePropertyChanged(nameof(Downloads));
+
+        // The sidebar's own state is persisted; the rows are rebuilt whenever the category list
+        // changes, from anywhere (the editor, a reorder, an import).
+        _isCategorySidebarOpen = _config.IsCategorySidebarOpen;
+        this.RaisePropertyChanged(nameof(IsCategorySidebarOpen));
+        RebuildCategoryRows();
+        _downloadManager.Categories.Changed += () => Dispatcher.UIThread.Post(RebuildCategoryRows);
+
         Navigate(NavSection.Downloads);
         OnStatsChanged();
 
@@ -717,6 +767,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(StoppedFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
+        RefreshCategoryCounts();
     }
 
     // Only refresh the (expensive) filtered grid when items actually move buckets,
@@ -747,6 +798,89 @@ public class MainViewModel : ViewModelBase
         if (Downloads != null)
             Downloads.Filter = filter;
         Navigate(NavSection.Downloads);
+        // The per-category counts state how many rows clicking that category would show, so they
+        // move with the status filter.
+        RefreshCategoryCounts();
+    }
+
+    // ---- Category sidebar --------------------------------------------------------------------
+
+    /// <summary>Rebuilds the sidebar rows from the category list (after an add, edit, delete,
+    /// reorder or import). Selection is kept when the chosen category is still there.</summary>
+    private void RebuildCategoryRows()
+    {
+        var chosen = Downloads?.CategoryFilter;
+        CategoryRows.Clear();
+        CategoryRows.Add(new CategoryRowViewModel(null, SelectCategory, EditCategory, MoveCategory));
+        foreach (var category in _downloadManager.Categories.Categories)
+            CategoryRows.Add(new CategoryRowViewModel(category, SelectCategory, EditCategory, MoveCategory));
+
+        // A category the user was filtering by can vanish (deleted, or absent from an import); fall
+        // back to showing everything rather than to a filter that matches nothing.
+        if (!string.IsNullOrWhiteSpace(chosen) && _downloadManager.Categories.ById(chosen) is null)
+            chosen = null;
+
+        foreach (var row in CategoryRows)
+            row.IsSelected = row.Id == chosen;
+        if (Downloads != null)
+            Downloads.CategoryFilter = chosen;
+
+        this.RaisePropertyChanged(nameof(SelectedCategoryId));
+        RefreshCategoryCounts();
+    }
+
+    /// <summary>Recomputes each row's count under everything EXCEPT the category filter, so each
+    /// number is exactly what clicking that row would show.</summary>
+    private void RefreshCategoryCounts()
+    {
+        if (Downloads is null || CategoryRows.Count == 0)
+            return;
+
+        var visible = _downloadManager.Items.Where(Downloads.MatchesExceptCategory).ToList();
+        foreach (var row in CategoryRows)
+            row.Count = row.IsAll ? visible.Count : visible.Count(i => i.Category?.Id == row.Id);
+    }
+
+    private void SelectCategory(string categoryId) => SelectedCategoryId = categoryId;
+
+    private void MoveCategory(CategoryRowViewModel row, int delta)
+    {
+        if (row?.Id is null)
+            return;
+
+        // The service renumbers and announces the change; the rebuild rides on that.
+        _downloadManager.Categories.Move(row.Id, delta);
+        RequestSave();
+    }
+
+    private async Task AddCategoryAsync() => await EditCategoryAsync(null);
+
+    private void EditCategory(CategoryRowViewModel row) => _ = EditCategoryAsync(row?.Category);
+
+    private async Task EditCategoryAsync(DownloadCategory category)
+    {
+        var edited = await DialogHelper.ShowCategoryEditor(_downloadManager.Categories, category);
+        if (edited is null)
+            return;
+
+        if (category is null)
+            _downloadManager.Categories.Add(edited);
+        else
+            _downloadManager.Categories.Update(edited);
+
+        RequestSave();
+    }
+
+    private void ClearFilters()
+    {
+        Downloads?.ClearFilters();
+        _filter = StatusFilter.All;
+        foreach (var row in CategoryRows)
+            row.IsSelected = row.IsAll;
+        this.RaisePropertyChanged(nameof(SelectedCategoryId));
+        this.RaisePropertyChanged(nameof(SearchText));
+        RaiseNavFlags();
+        RefreshCategoryCounts();
     }
 
     private void RaiseNavFlags()

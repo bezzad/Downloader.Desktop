@@ -198,6 +198,24 @@ public static class DialogHelper
         await view.ShowDialog(MainWindow);
     }
 
+    /// <summary>
+    /// Opens the category editor. Returns the edited copy to apply, or null when the user cancelled
+    /// or deleted the category (the delete is done by the editor itself, since only it knows the
+    /// category is removable).
+    /// </summary>
+    public static async Task<DownloadCategory> ShowCategoryEditor(CategoryService categories,
+        DownloadCategory editing)
+    {
+        if (MainWindow == null)
+            return null;
+
+        var vm = new CategoryEditorViewModel(categories, editing);
+        var view = new CategoryEditorView { DataContext = vm };
+        vm.View = view;
+        BeginModal(view);
+        return await view.ShowDialog<DownloadCategory>(MainWindow);
+    }
+
     /// <summary>Shows the in-app "update available" prompt (Download / Later). Non-modal Topmost window so
     /// it's visible even if the main window is hidden in the tray.</summary>
     public static void ShowUpdatePrompt(UpdateInfo info)

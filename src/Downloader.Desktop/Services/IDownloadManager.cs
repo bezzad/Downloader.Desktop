@@ -36,6 +36,9 @@ public interface IDownloadManager
     /// <summary>The shared config instance loaded at startup (null until <see cref="Initialize"/> runs).</summary>
     Config Config { get; }
 
+    /// <summary>The file-type categories every row, the sidebar and the list filter resolve through.</summary>
+    CategoryService Categories { get; }
+
     /// <summary>The post-download action label the resolving plugin offers for this completed item
     /// (e.g. "Add to Ollama"), or null when none applies.</summary>
     string PostDownloadActionLabel(DownloadItemViewModel vm);

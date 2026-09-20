@@ -1,0 +1,113 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:v="clr-namespace:Downloader.Desktop.Views"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        mc:Ignorable="d" d:DesignWidth="440" d:DesignHeight="430"
+        x:Class="Downloader.Desktop.Views.CategoryEditorView"
+        x:DataType="vm:CategoryEditorViewModel"
+        x:CompileBindings="True"
+        Width="440" Height="430" MinWidth="380" MinHeight="380"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        FontSize="{StaticResource DefaultFontSize}"
+        WindowDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        ShowInTaskbar="False"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="{Binding Title}">
+
+    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="10" ClipToBounds="True"
+            Background="{DynamicResource SystemRegionColor}">
+        <DockPanel>
+            <v:TitleBar DockPanel.Dock="Top" Title="{Binding Title}" ShowMinMax="False" />
+
+            <!-- Footer: Delete sits apart from Save/Cancel so it is never the button next to Save. -->
+            <Border DockPanel.Dock="Bottom" Padding="16 12"
+                    BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 1 0 0">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                    <Button Grid.Column="0" Classes="icon" Cursor="Hand"
+                            IsVisible="{Binding CanDelete}"
+                            Command="{Binding DeleteCommand}"
+                            ToolTip.Tip="{i18n:Tr Cat_Delete}">
+                        <PathIcon Data="{DynamicResource DeleteRegular}"
+                                  Foreground="{DynamicResource SystemErrorTextColor}" />
+                    </Button>
+                    <Button Grid.Column="2" Content="{i18n:Tr Add_Cancel}" Cursor="Hand"
+                            CornerRadius="8" Height="34" Padding="16 0" Margin="0 0 8 0"
+                            Command="{Binding CancelCommand}" />
+                    <Button Grid.Column="3" Classes="accent" Content="{i18n:Tr Add_Save}" Cursor="Hand"
+                            CornerRadius="8" Height="34" Padding="18 0"
+                            Command="{Binding SaveCommand}" IsDefault="True" />
+                </Grid>
+            </Border>
+
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="18 16" Spacing="14">
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{i18n:Tr Cat_Name}" Classes="section" />
+                        <TextBox Text="{Binding Name}" Height="34" CornerRadius="8"
+                                 VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{i18n:Tr Cat_Icon}" Classes="section" />
+                        <ListBox ItemsSource="{Binding Icons}" SelectedValue="{Binding Icon}"
+                                 SelectedValueBinding="{Binding Key}"
+                                 Background="Transparent" BorderThickness="0" Padding="0">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CategoryIconChoice">
+                                    <PathIcon Data="{Binding Geometry}" Width="18" Height="18" Margin="4" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{i18n:Tr Cat_Color}" Classes="section" />
+                        <ListBox ItemsSource="{Binding Colors}" SelectedValue="{Binding Color}"
+                                 SelectedValueBinding="{Binding Hex}"
+                                 Background="Transparent" BorderThickness="0" Padding="0">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CategoryColorChoice">
+                                    <Border Width="20" Height="20" CornerRadius="10" Margin="4"
+                                            Background="{Binding Brush}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{i18n:Tr Cat_Extensions}" Classes="section" />
+                        <TextBox Text="{Binding Extensions}" Height="34" CornerRadius="8"
+                                 VerticalContentAlignment="Center"
+                                 PlaceholderText="{i18n:Tr Cat_ExtensionsHint}" />
+                        <TextBlock Text="{i18n:Tr Cat_ExtensionsHint}" FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </StackPanel>
+
+                    <!-- Why a save was refused: an empty name, or one another category already has. -->
+                    <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource SystemErrorTextColor}" />
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</Window>

@@ -69,11 +69,16 @@ public class LogicTests
     [InlineData("report.pdf", "document")]
     [InlineData("setup.exe", "app")]
     [InlineData("ubuntu.iso", "disc")]
-    [InlineData("noextension", "file")]
-    [InlineData("", "file")]
-    public void GetFileKind_classifies_by_extension(string name, string expected)
+    [InlineData("noextension", "other")]
+    [InlineData("", "other")]
+    public void The_built_in_categories_classify_by_extension(string name, string expected)
     {
-        Assert.Equal(expected, DownloadItemViewModel.GetFileKind(name));
+        // The built-in categories must claim exactly what the app recognized before categories were
+        // data: this is the same table, now editable. Names are irrelevant here, so the key is used
+        // verbatim rather than pulling in the localizer (which needs the Avalonia runtime).
+        var categories = CategoryService.CreateDefaults(key => key);
+
+        Assert.Equal(expected, CategoryService.Detect(categories, name, null).Id);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

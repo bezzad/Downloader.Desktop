@@ -3,54 +3,54 @@
 > Separate repo (`../Downloader`). Must reach NuGet before task 6. Everything in groups 2–5 is
 > independent of it.
 
-- [ ] 1.1 Add a `ContentType` property to `RemoteFileInfo`, documented as the server's
+- [x] 1.1 Add a `ContentType` property to `RemoteFileInfo`, documented as the server's
       `Content-Type` header or null when the server did not send one
-- [ ] 1.2 Populate it in `SocketClient.GetFileInfoAsync` from the already-fetched `ResponseHeaders`
+- [x] 1.2 Populate it in `SocketClient.GetFileInfoAsync` from the already-fetched `ResponseHeaders`
       dictionary using `HttpHeaderNames.ContentType` — no extra request
-- [ ] 1.3 Set it to null on the best-effort fallback path in `RemoteFileResolver.GetFileInfoAsync`
-- [ ] 1.4 Add engine tests: a server sending `Content-Type` surfaces it; a server not sending one
+- [x] 1.3 Set it to null on the best-effort fallback path in `RemoteFileResolver.GetFileInfoAsync`
+- [x] 1.4 Add engine tests: a server sending `Content-Type` surfaces it; a server not sending one
       yields null; the fallback path yields null without throwing
 - [ ] 1.5 Release the engine package and note the version here
 
 ## 2. Category model and resolution
 
-- [ ] 2.1 Add a `DownloadCategory` model: identifier, name, icon key, color, extension list,
+- [x] 2.1 Add a `DownloadCategory` model: identifier, name, icon key, color, extension list,
       position, built-in flag
-- [ ] 2.2 Add `Config.Categories` and bump `Config.SchemaVersion`; seed the eight built-in
+- [x] 2.2 Add `Config.Categories` and bump `Config.SchemaVersion`; seed the eight built-in
       categories (Video, Audio, Image, Document, Archive, App, Disc, Other) with the exact extension
       sets from `DownloadItemViewModel.GetFileKind`, named in the app's current language
 - [ ] 2.3 Add a load-time migration: a configuration with no category list gets the built-ins; test
       that an existing config upgrades without losing settings, downloads, queues or schedules
-- [ ] 2.4 Add `DownloadItem.CategoryId` (nullable; null means detect) and persist it
-- [ ] 2.5 Add `DownloadItem.ContentType` to hold the MIME reported by the server or a client
-- [ ] 2.6 Add `Services/CategoryService`, registered in DI: holds the ordered list, resolves
+- [x] 2.4 Add `DownloadItem.CategoryId` (nullable; null means detect) and persist it
+- [x] 2.5 Add `DownloadItem.ContentType` to hold the MIME reported by the server or a client
+- [x] 2.6 Add `Services/CategoryService`, registered in DI: holds the ordered list, resolves
       `Resolve(item)` as override → extension → content type → Other, and raises a change
       notification when the list changes
-- [ ] 2.7 Implement extension-conflict precedence: the earliest category in the order wins; test
+- [x] 2.7 Implement extension-conflict precedence: the earliest category in the order wins; test
       that reordering two categories claiming the same extension flips which one wins
-- [ ] 2.8 Delete `DownloadItemViewModel.GetFileKind` and route `FileKind` through the service;
+- [x] 2.8 Delete `DownloadItemViewModel.GetFileKind` and route `FileKind` through the service;
       rewrite the `LogicTests` cases against the service, asserting the same extension mapping
-- [ ] 2.9 Test that a download with no name resolves to Other and re-resolves when the name arrives
-- [ ] 2.10 Test that creating a category claiming `epub` moves existing `.epub` downloads into it
+- [x] 2.9 Test that a download with no name resolves to Other and re-resolves when the name arrives
+- [x] 2.10 Test that creating a category claiming `epub` moves existing `.epub` downloads into it
       with no restart
 
 ## 3. Category management
 
-- [ ] 3.1 Add category create/edit: name, icon picked from the shipped icon set, color, extension
+- [x] 3.1 Add category create/edit: name, icon picked from the shipped icon set, color, extension
       list
-- [ ] 3.2 Enforce a non-empty name and refuse a duplicate name, showing why
+- [x] 3.2 Enforce a non-empty name and refuse a duplicate name, showing why
 - [ ] 3.3 Store the name verbatim and never translate it; test that a Japanese name survives a
       switch to English and that built-in names do not follow the language
-- [ ] 3.4 Allow deleting a user-created category and forbid deleting a built-in one
+- [x] 3.4 Allow deleting a user-created category and forbid deleting a built-in one
 - [ ] 3.5 On delete, clear the `CategoryId` of every download overridden to it and re-resolve;
       test both the detected and the overridden case
-- [ ] 3.6 Allow moving a category up and down; persist the order
-- [ ] 3.7 Render an unrecognized icon key as the default icon while preserving the key in the
+- [x] 3.6 Allow moving a category up and down; persist the order
+- [x] 3.7 Render an unrecognized icon key as the default icon while preserving the key in the
       configuration; test the round-trip
 
 ## 4. Sidebar
 
-- [ ] 4.1 Remove the nav-rail leftovers from `MainViewModel` (`SidebarWidth`'s two-value logic and
+- [x] 4.1 Remove the nav-rail leftovers from `MainViewModel` (`SidebarWidth`'s two-value logic and
       the unused members) and replace the old width test
 - [ ] 4.2 Add the toggle button immediately left of the "Paste download link" box; hidden state by
       default, two states only
@@ -122,7 +122,7 @@
 
 ## 8. Localization, polish and verification
 
-- [ ] 8.1 Add every new user-facing string to all 16 language packs (sidebar toggle tooltip,
+- [x] 8.1 Add every new user-facing string to all 16 language packs (sidebar toggle tooltip,
       "All", "Add category", the category editor labels, the empty state, the selected count, the
       automatic category option, export/import labels and their error messages)
 - [ ] 8.2 Check the sidebar and the Type column in right-to-left mode (Persian, Arabic): the

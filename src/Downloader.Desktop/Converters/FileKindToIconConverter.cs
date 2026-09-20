@@ -7,8 +7,13 @@ using Avalonia.Media;
 namespace Downloader.Desktop.Converters;
 
 /// <summary>
-/// Converts a <see cref="DownloadItemViewModel"/> file-kind string (video/audio/image/...) into an
-/// icon <see cref="Geometry"/> so each download row shows what kind of file it is.
+/// Converts a category's icon key (video/audio/image/…) into an icon <see cref="Geometry"/>, so a
+/// download row, the Type column and the sidebar all draw the same glyph for the same category.
+/// </summary>
+/// <remarks>
+/// A key this build does not recognize renders as the generic file icon. The key itself is never
+/// rewritten — a category list exported by a newer app must survive a round trip through an older
+/// one, and dropping the key would make that destructive.
 /// </summary>
 public class FileKindToIconConverter : IValueConverter
 {
@@ -24,6 +29,8 @@ public class FileKindToIconConverter : IValueConverter
         ["document"] = "M5.75 2A2.75 2.75 0 0 0 3 4.75v14.5A2.75 2.75 0 0 0 5.75 22h9.5A2.75 2.75 0 0 0 18 19.25V8.66c0-.46-.18-.9-.51-1.23l-4.92-4.92A1.75 1.75 0 0 0 11.34 2H5.75ZM4.5 4.75c0-.69.56-1.25 1.25-1.25H11V7c0 1.1.9 2 2 2h3.5v10.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25V4.75ZM12.5 4.41 15.59 7.5H13a.5.5 0 0 1-.5-.5V4.41Z",
         ["app"] = "M5.75 3A2.75 2.75 0 0 0 3 5.75v12.5A2.75 2.75 0 0 0 5.75 21h12.5A2.75 2.75 0 0 0 21 18.25V5.75A2.75 2.75 0 0 0 18.25 3H5.75ZM4.5 8.5h15v9.75c0 .69-.56 1.25-1.25 1.25H5.75c-.69 0-1.25-.56-1.25-1.25V8.5ZM7 6.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM9.5 6.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z",
         ["disc"] = "M12 2.25c5.38 0 9.75 4.37 9.75 9.75s-4.37 9.75-9.75 9.75S2.25 17.38 2.25 12 6.62 2.25 12 2.25Zm0 1.5A8.25 8.25 0 1 0 20.25 12 8.25 8.25 0 0 0 12 3.75ZM12 9.25a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5Z",
+        // The "All" sidebar entry: a stack of rows, i.e. every category at once.
+        ["all"] = "M4 6.25C4 5.56 4.56 5 5.25 5h13.5a.75.75 0 0 1 0 1.5H5.25A1.25 1.25 0 0 1 4 6.25Zm0 5.25c0-.41.34-.75.75-.75h14.5a.75.75 0 0 1 0 1.5H4.75a.75.75 0 0 1-.75-.75Zm.75 4.5a.75.75 0 0 0 0 1.5h14.5a.75.75 0 0 0 0-1.5H4.75Z",
         ["file"] = "M5.75 2A2.75 2.75 0 0 0 3 4.75v14.5A2.75 2.75 0 0 0 5.75 22h9.5A2.75 2.75 0 0 0 18 19.25V8.66c0-.46-.18-.9-.51-1.23l-4.92-4.92A1.75 1.75 0 0 0 11.34 2H5.75ZM4.5 4.75c0-.69.56-1.25 1.25-1.25H11V7c0 1.1.9 2 2 2h3.5v10.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25V4.75Z"
     };
 

@@ -123,6 +123,17 @@ public class DownloadItem
     /// single-use address the browser already spent — worth re-resolving once — rather than a bad link.</summary>
     public bool FromBrowserDownload { get; set; }
 
+    /// <summary>The file-type category the user explicitly chose for this download, or <c>null</c> for
+    /// "work it out". Kept nullable rather than resolved once and stored so that a row whose name arrives
+    /// late corrects itself, a category the user creates later adopts the files it claims, and "go back to
+    /// automatic" is simply clearing this. See <see cref="Services.CategoryService"/>.</summary>
+    public string CategoryId { get; set; }
+
+    /// <summary>The media type the server or the browser reported for this download, used to work out its
+    /// category when the file name carries no usable extension. Persisted — it is not a secret, and a
+    /// download resumed after a restart should not lose its type.</summary>
+    public string ContentType { get; set; }
+
     /// <summary>The resolver variant the user chose in the Add window (e.g. "720", "audio",
     /// "gemma3:12b"), persisted so a retry/restart re-resolves the SAME variant. Null = default pick.</summary>
     public string VariantId { get; set; }
