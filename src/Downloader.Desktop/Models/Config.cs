@@ -27,6 +27,11 @@ public class Config
     /// <summary>Last user-resized dimensions of each modal window type, keyed by a constant name (e.g. "AddDownload").</summary>
     public Dictionary<string, WindowSize> WindowSizes { get; set; }
 
+    /// <summary>The main window's remembered layout (maximized state + normal size/position).
+    /// Null means "nothing remembered" — deliberately NOT defaulted anywhere, so a fresh install and
+    /// a config written before this feature both fall back to the defaults in MainWindow.axaml.</summary>
+    public WindowLayout MainWindow { get; set; }
+
     /// <summary>Connection limits learned from servers that refused the configured count, keyed by host.
     /// See <see cref="ServerConnectionLimit"/>; missing or nonsensical entries simply mean "no memory".</summary>
     public Dictionary<string, ServerConnectionLimit> ServerConnectionLimits { get; set; }

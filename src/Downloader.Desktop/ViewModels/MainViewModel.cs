@@ -219,6 +219,134 @@ public class MainViewModel : ViewModelBase
 
     private bool _quitting;
 
+    /// <summary>True while the remembered layout is being applied, so the window's own resize/move
+    /// events cannot be mistaken for the user re-arranging it.</summary>
+    private bool _applyingLayout;
+
+    /// <summary>Applies the remembered layout (see <see cref="WindowLayoutPolicy"/>) to the main window.
+    /// Everything that could be wrong with it — a screen that is gone, a size bigger than this desktop,
+    /// a corrupt record — is already handled by the policy; this just assigns the result.</summary>
+    internal void RestoreWindowLayout(Window window)
+    {
+        if (window == null)
+            return;
+
+        try
+        {
+            _applyingLayout = true;
+
+            // The window's own declared size is the fallback: it is what a first run gets.
+            var fallbackWidth = double.IsFinite(window.Width) ? window.Width : window.ClientSize.Width;
+            var fallbackHeight = double.IsFinite(window.Height) ? window.Height : window.ClientSize.Height;
+
+            var layout = WindowLayoutPolicy.Resolve(
+                _config?.MainWindow, ScreenAreas(window),
+                window.MinWidth, window.MinHeight,
+                fallbackWidth, fallbackHeight,
+                window.RenderScaling);
+
+            window.Width = layout.Width;
+            window.Height = layout.Height;
+
+            if (layout.Position is { } position)
+            {
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.Position = position;
+            }
+
+            // Maximize LAST, so the size/position set above is what the window restores down to.
+            if (layout.IsMaximized)
+                window.WindowState = WindowState.Maximized;
+        }
+        catch (Exception ex)
+        {
+            // A window that opens at its default size is a far better outcome than one that fails to open.
+            AppLog.Error("Could not restore the window layout", ex);
+        }
+        finally
+        {
+            _applyingLayout = false;
+        }
+    }
+
+    /// <summary>Every connected screen's working area, primary first (the policy re-centres on it).
+    /// Empty when the platform reports no screens (headless, and some Linux sessions).</summary>
+    private static IReadOnlyList<PixelRect> ScreenAreas(Window window)
+    {
+        var areas = new List<PixelRect>();
+        try
+        {
+            var screens = window.Screens;
+            if (screens == null)
+                return areas;
+
+            var primary = screens.Primary;
+            if (primary != null)
+                areas.Add(primary.WorkingArea);
+            foreach (var screen in screens.All)
+            {
+                if (!ReferenceEquals(screen, primary))
+                    areas.Add(screen.WorkingArea);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Could not read the connected screens: " + ex.Message);
+        }
+        return areas;
+    }
+
+    /// <summary>Records the layout on every resize, move and maximize/restore, through the existing
+    /// debounced save — so an exit the app never sees still leaves the last layout on disk.</summary>
+    private void TrackWindowLayout(Window window)
+    {
+        window.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Window.WindowStateProperty || e.Property == TopLevel.ClientSizeProperty)
+                CaptureWindowLayout(window);
+        };
+        window.PositionChanged += (_, _) => CaptureWindowLayout(window);
+
+        // Record a baseline straight away when nothing is remembered yet: the window is shown before
+        // this runs, so the first maximize would otherwise have no normal bounds to keep and would
+        // store the maximized frame as the size to restore down to.
+        if (_config?.MainWindow == null)
+            CaptureWindowLayout(window);
+    }
+
+    private void CaptureWindowLayout(Window window)
+    {
+        if (_applyingLayout || _config == null || window == null)
+            return;
+
+        try
+        {
+            // A window that has not laid out yet reports no size; recording that would persist a
+            // zero-sized layout over a perfectly good one.
+            if (window.WindowState == WindowState.Normal &&
+                (window.ClientSize.Width <= 0 || window.ClientSize.Height <= 0))
+                return;
+
+            var captured = WindowLayoutPolicy.Capture(
+                window.WindowState, window.Position,
+                window.ClientSize.Width, window.ClientSize.Height,
+                _config.MainWindow);
+
+            // Minimized/full-screen hand back the same record — nothing to save.
+            if (captured == null || ReferenceEquals(captured, _config.MainWindow))
+                return;
+
+            _config.MainWindow = captured;
+            SaveSoon();   // already debounced; a resize drag costs two doubles per frame, no I/O
+        }
+        catch (Exception ex)
+        {
+            // These handlers run on the UI thread: an escaping exception would take the dispatcher —
+            // and with it the whole window — down.
+            AppLog.Error("Could not record the window layout", ex);
+        }
+    }
+
     /// <summary>
     /// Wires the system tray (#3), close-to-tray, run-at-startup (#4) and the update check (#6) once the
     /// config is loaded and the window exists.
@@ -227,6 +355,11 @@ public class MainViewModel : ViewModelBase
     {
         if (View is not Window window)
             return;
+
+        // Reopen the window the way the user left it (#15), then keep the record up to date as they
+        // resize/move/maximize it — waiting for a clean exit would miss a tray quit or an OS restart.
+        RestoreWindowLayout(window);
+        TrackWindowLayout(window);
 
         TrayService.Init(window, Quit);
         TrayService.NotificationsToggled = enabled =>

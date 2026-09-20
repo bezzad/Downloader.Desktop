@@ -75,8 +75,9 @@ smaller than its minimum.
 
 ### Requirement: A minimized window is never restored minimized
 
-The app SHALL treat a minimized main window as not maximized for the purposes of the remembered
-layout, and SHALL never restore the window into a minimized state.
+The app SHALL never record a minimized (or full-screen) window as the remembered layout — the last
+normal-or-maximized layout is kept instead — and SHALL never restore the window into a minimized
+state.
 
 #### Scenario: Exiting while minimized
 
