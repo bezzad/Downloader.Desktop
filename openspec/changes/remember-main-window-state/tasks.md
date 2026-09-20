@@ -64,4 +64,4 @@
       relaunch; move to a second monitor → disconnect it → relaunch; resize → OS restart → relaunch.
 - [x] 6.4 No screenshot refresh needed: no view markup or style changed (the only XAML touched was
       nothing — MainWindow.axaml is unmodified), so `docs/screenshots/` is untouched.
-- [ ] 6.5 Commit and push to `develop`; reference issue #15 in the commit message.
+- [x] 6.5 Commit and push to `develop`; reference issue #15 in the commit message.
