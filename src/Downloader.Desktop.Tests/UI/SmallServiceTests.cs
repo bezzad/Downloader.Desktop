@@ -425,32 +425,48 @@ public class SmallServiceTests : IDisposable
 
     /// <summary>The engine's info probe (Downloader 5.9.7) also reports the server's Content-Type,
     /// used to classify a file whose name carries no usable extension.</summary>
+    /// <remarks>
+    /// <see cref="UrlResolver"/>'s probe gate is a process-wide 3-slot semaphore: under CI's parallel
+    /// test execution, dozens of other tests can legitimately hold it, and a denied attempt gives up
+    /// for good rather than retrying (by design — a real caller falls back to a URL-derived name). So
+    /// this retries the call itself a few times rather than assuming one attempt gets a slot.
+    /// </remarks>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task The_info_probe_surfaces_the_servers_content_type()
     {
         using var server = new Plugins.Hls.LoopbackServer()
             .MapBytes("/release", new byte[] { 1, 2, 3 }, type: "application/x-my-app");
 
-        var info = await UrlResolver.ResolveFileInfoAsync(server.Url("release"));
+        RemoteFileInfo info = null;
+        for (var attempt = 0; attempt < 5 && info?.ContentType == null; attempt++)
+            info = await UrlResolver.ResolveFileInfoAsync(server.Url("release"));
 
-        Assert.Equal("application/x-my-app", info.ContentType);
+        Assert.Equal("application/x-my-app", info?.ContentType);
     }
 
     /// <summary>The background name/size probe fired for a newly added row also carries the server's
     /// Content-Type onto the item, so category detection can use it once it arrives.</summary>
+    /// <remarks>See <see cref="The_info_probe_surfaces_the_servers_content_type"/> on the shared probe
+    /// gate — a single add can lose the race under CI load, so this retries with a fresh add.</remarks>
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Adding_an_item_carries_the_probed_content_type_onto_it()
     {
         using var server = new Plugins.Hls.LoopbackServer()
             .MapBytes("/release", new byte[] { 1, 2, 3 }, type: "application/x-my-app");
-
         var manager = new DownloadManager();
-        var vm = manager.Add(new DownloadItem { Url = server.Url("release") }, autoStart: false);
 
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (string.IsNullOrWhiteSpace(vm.ContentType) && DateTime.UtcNow < deadline)
-            await Task.Delay(25);
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var vm = manager.Add(new DownloadItem { Url = server.Url("release") }, autoStart: false);
 
-        Assert.Equal("application/x-my-app", vm.ContentType);
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (string.IsNullOrWhiteSpace(vm.ContentType) && DateTime.UtcNow < deadline)
+                await Task.Delay(25);
+
+            if (vm.ContentType == "application/x-my-app")
+                return;
+        }
+
+        Assert.Fail("No attempt got the content type through the probe's shared concurrency gate.");
     }
 }
