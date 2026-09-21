@@ -11,7 +11,7 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Cursor" Value="Arrow" />
@@ -32,7 +32,7 @@
     </UserControl.Styles>
 
     <!-- The whole bar is the drag region; double-tap toggles maximize -->
-    <Grid ColumnDefinitions="Auto,*,Auto" Height="42"
+    <Grid ColumnDefinitions="Auto,*,Auto" Height="42" Margin="1"
           Background="{DynamicResource SystemChromeLowColor}"
           PointerPressed="OnDrag" DoubleTapped="OnToggleMaximize">
 
@@ -40,7 +40,7 @@
              a file name in the details window) can never push the caption buttons off-window.
              A horizontal StackPanel would give the text unbounded width — keep this a Grid. -->
         <Grid Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*"
-              Margin="14 0 8 0" VerticalAlignment="Center">
+              Margin="10 0 8 0" VerticalAlignment="Center">
             <Image Source="/Assets/downloader.png" Width="26" Height="26" VerticalAlignment="Center"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
             <TextBlock Grid.Column="1" Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold"
