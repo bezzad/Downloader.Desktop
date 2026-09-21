@@ -249,7 +249,11 @@ public class MainViewModel : ViewModelBase
         foreach (var vm in _downloadManager.Items)
             vm.RaisePostActionChanged();
 
-        Downloads = new DownloadsViewModel(_downloadManager);
+        // The empty state's "Clear filters" must reset the SHELL's filters too — the category
+        // sidebar's selection, the footer status pills and the search box all live up here. Without
+        // this the page clears its own state and the list refills while every control still shows
+        // the filter as applied.
+        Downloads = new DownloadsViewModel(_downloadManager) { ClearFiltersRequested = ClearFilters };
         Queues = new QueuesViewModel(_config, _downloadManager);
         Scheduler = new SchedulerViewModel(_config, _downloadManager);
         Settings = new SettingViewModel(_config, _downloadManager, _pluginManager); // Plugins live in Settings now
@@ -910,6 +914,9 @@ public class MainViewModel : ViewModelBase
     {
         Downloads?.ClearFilters();
         _filter = StatusFilter.All;
+        // Assigned to the field, not through the property: the setter would push it back into
+        // Downloads.Search, which has just been cleared.
+        _searchText = null;
         foreach (var row in CategoryRows)
             row.IsSelected = row.IsAll;
         this.RaisePropertyChanged(nameof(SelectedCategoryId));

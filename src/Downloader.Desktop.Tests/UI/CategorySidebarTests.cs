@@ -193,6 +193,46 @@ public class CategorySidebarTests
         }
     }
 
+    // ---- clearing the filters ------------------------------------------------------------------
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Clear_filters_resets_the_controls_that_show_the_filters_not_just_the_list()
+    {
+        // Regression (reported with screenshots): the empty state's button cleared the PAGE's filter
+        // state, so the list refilled — while the sidebar row stayed highlighted, the footer pill
+        // stayed active and the search box kept its text. The page and the shell hold the filters
+        // between them, and the button only ever reached the page.
+        var (main, manager) = Build();
+        Add(manager, "movie.mkv");
+        Add(manager, "song.mp3");
+        Dispatcher.UIThread.RunJobs();
+
+        main.SelectedCategoryId = "document";     // a category with nothing in it
+        main.ShowFailedCommand.Execute(null);
+        main.SearchText = "nothing-matches-this";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(main.Downloads.IsEmpty);
+        Assert.True(main.Downloads.HasFilter);
+
+        // Through the BUTTON the empty state actually binds to, not the method behind it.
+        main.Downloads.ClearFiltersCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        // The list comes back…
+        Assert.False(main.Downloads.IsEmpty);
+        Assert.False(main.Downloads.HasFilter);
+        Assert.Equal(2, main.Downloads.ItemsView.Cast<DownloadItemViewModel>().Count());
+
+        // …and so does every control that was showing a filter as applied.
+        Assert.Null(main.SelectedCategoryId);
+        Assert.True(main.CategoryRows[0].IsSelected);
+        Assert.DoesNotContain(main.CategoryRows.Skip(1), r => r.IsSelected);
+        Assert.True(main.IsAllSelected);
+        Assert.False(main.IsFailedSelected);
+        Assert.True(string.IsNullOrEmpty(main.SearchText));
+    }
+
     // ---- counts --------------------------------------------------------------------------------
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

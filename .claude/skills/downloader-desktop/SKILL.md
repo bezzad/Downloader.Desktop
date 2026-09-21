@@ -2229,3 +2229,28 @@ that reaches NuGet, the app's MIME leg only gets a value from the browser extens
   set `IsExpanded = true` and call `RebuildItems()` first.
 - `DeletePartialFileOnRemove` deletes ONLY `<final>.download`. Do not reuse `DiscardPartialFile` for
   this — that one also deletes the final file (correct for a retry, catastrophic for a Remove).
+
+## "Clear filters" needs BOTH halves — and the fallback hides a missing wire
+The filters live in two places: the page (`DownloadsViewModel`: category, status, search) and the shell
+(`MainViewModel`: the sidebar row selection, the footer pill flags, the search box text). The empty state's
+button binds to `DownloadsViewModel.ClearFiltersCommand`, which calls `ClearFiltersRequested` when set and
+otherwise falls back to clearing only the page. **`MainViewModel` must assign
+`Downloads = new DownloadsViewModel(_downloadManager) { ClearFiltersRequested = ClearFilters };`** — drop
+that initializer and the list refills while every control still shows the filter as applied (reported with
+screenshots: the grid came back but the sidebar row stayed highlighted). `MainViewModel.ClearFilters` also
+has to null `_searchText` **directly, not through the property** — the setter would push the value back
+into `Downloads.Search`, which was just cleared.
+Pinned by `UI/CategorySidebarTests.Clear_filters_resets_the_controls_that_show_the_filters_not_just_the_list`,
+which drives the COMMAND, not the method. The original test called `page.ClearFilters()` directly, so it
+passed while the button was broken — exactly the "a test that passes while the bug survives is a broken
+test" case.
+
+### Two process traps that let that ship
+- **A failed `assert` in a `python3 - <<'PY'` heredoc does NOT fail the Bash call** when later statements
+  are newline-separated rather than `&&`-chained. The traceback scrolls past, the build still runs, and the
+  edit silently never happened. Always `print()` a confirmation at the end of the script AND grep the file
+  for the new text afterwards — a green build proves nothing, because the fallback path compiles.
+- **`dotnet test` output is written when the run ENDS, not streamed.** A log holding only
+  "A total of 1 test files matched" with no `testhost` alive usually means the run is still going (the
+  harness had buffered it), NOT that it died. Wait for the completion notification instead of concluding
+  the host was torn down — several full runs were re-started here for no reason.
