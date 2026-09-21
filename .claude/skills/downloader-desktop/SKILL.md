@@ -2276,3 +2276,15 @@ style and the menus drift apart again. Two things to know when testing one:
   when the point is "this menu declares no local override".
 - Fluent part names used by the hover styles: `Border#PART_LayoutRoot` (the row's highlight) and
   `Viewbox#PART_IconPresenter` (the icon column). Covered by `UI/ContextMenuStyleTests`.
+
+## Deleting a category needs no clean-up pass over the downloads (2026-09-21)
+`CategoryService.Resolve` looks the item's `CategoryId` up in the LIVE list and, when it does not
+match one, falls straight through to `Detect` (extension → Content-Type → Other). So removing a
+category automatically re-homes everything that was in it — a `.zip` filed there lands back in
+Archives, not in Other. **Do not add a pass that nulls `CategoryId` on the affected downloads**: it
+buys nothing and it would destroy the user's explicit choice if the category ever came back (an
+import, an undo). The sidebar's Delete (`MainViewModel.DeleteCategoryAsync`, `internal` so tests
+drive it without a window) is gated by `CategoryRowViewModel.CanDelete` = not "All" and not built
+in, because `CategoryService.Remove` refuses a built-in and an item that silently does nothing is
+worse than no item. `DialogHelper.Confirm` returns **true** when `MainWindow` is null, so a headless
+test takes the confirmed path without stubbing anything.
