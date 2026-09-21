@@ -10,7 +10,8 @@
 - [x] 1.3 Set it to null on the best-effort fallback path in `RemoteFileResolver.GetFileInfoAsync`
 - [x] 1.4 Add engine tests: a server sending `Content-Type` surfaces it; a server not sending one
       yields null; the fallback path yields null without throwing
-- [ ] 1.5 Release the engine package and note the version here
+- [x] 1.5 Release the engine package and note the version here — released as **Downloader 5.9.7**
+      (tag `v5.9.7`, engine commit `216c21a`)
 
 ## 2. Category model and resolution
 
@@ -93,8 +94,8 @@
 
 > Depends on task 1.5.
 
-- [ ] 6.1 Bump the `Downloader` package reference to the version from task 1.5
-- [ ] 6.2 Carry `RemoteFileInfo.ContentType` through `UrlResolver` onto the download item
+- [x] 6.1 Bump the `Downloader` package reference to the version from task 1.5
+- [x] 6.2 Carry `RemoteFileInfo.ContentType` through `UrlResolver` onto the download item
 - [x] 6.3 Accept an optional `mime` value on `/api/add` (POST body and GET query) and record it; an
       add without it behaves exactly as before
 - [x] 6.4 Accept an optional category identifier on `/api/add`, applying it as an explicit choice and

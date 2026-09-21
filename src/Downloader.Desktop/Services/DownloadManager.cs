@@ -494,6 +494,10 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                 vm.PreviewName = info.FileName;
             if (info.FileSize > 0 && vm.Size is null or 0)
                 vm.Size = info.FileSize;
+            // Never overwrite a content type a client already gave us (e.g. the browser extension's
+            // `mime`) — that one comes from the same response the download will actually fetch.
+            if (!string.IsNullOrWhiteSpace(info.ContentType) && string.IsNullOrWhiteSpace(vm.ContentType))
+                vm.ContentType = info.ContentType;
         });
     }
 

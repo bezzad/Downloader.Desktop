@@ -422,4 +422,35 @@ public class SmallServiceTests : IDisposable
 
         Assert.Equal("some-release", name);
     }
+
+    /// <summary>The engine's info probe (Downloader 5.9.7) also reports the server's Content-Type,
+    /// used to classify a file whose name carries no usable extension.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_info_probe_surfaces_the_servers_content_type()
+    {
+        using var server = new Plugins.Hls.LoopbackServer()
+            .MapBytes("/release", new byte[] { 1, 2, 3 }, type: "application/x-my-app");
+
+        var info = await UrlResolver.ResolveFileInfoAsync(server.Url("release"));
+
+        Assert.Equal("application/x-my-app", info.ContentType);
+    }
+
+    /// <summary>The background name/size probe fired for a newly added row also carries the server's
+    /// Content-Type onto the item, so category detection can use it once it arrives.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Adding_an_item_carries_the_probed_content_type_onto_it()
+    {
+        using var server = new Plugins.Hls.LoopbackServer()
+            .MapBytes("/release", new byte[] { 1, 2, 3 }, type: "application/x-my-app");
+
+        var manager = new DownloadManager();
+        var vm = manager.Add(new DownloadItem { Url = server.Url("release") }, autoStart: false);
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (string.IsNullOrWhiteSpace(vm.ContentType) && DateTime.UtcNow < deadline)
+            await Task.Delay(25);
+
+        Assert.Equal("application/x-my-app", vm.ContentType);
+    }
 }
