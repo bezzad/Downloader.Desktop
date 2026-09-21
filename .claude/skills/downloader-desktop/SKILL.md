@@ -1772,9 +1772,9 @@ only while `Config.Schedules` is non-empty, `Dispose()` releases it (and the UI 
 schedule). Pinned by `UI/SchedulerLifetimeTests`. The 133 `Initialize` call sites were deliberately NOT
 rewritten — lazy start removes the leak at its source.
 
-## (superseded) The hang got WORSE after PerAssembly, and every test leaks a scheduler timer (2026-09-07)
-Evidence from four consecutive `develop` runs, counting legs killed by the job's 30-minute timeout
-while stuck in `Test` (no `[FAIL]` anywhere, so these are hangs, not failures):
+## The CI "hang": what it actually was (2026-09-07 → 2026-09-09, resolved — measured, not guessed)
+The original evidence, four consecutive `develop` runs, counting legs killed by the job's 30-minute
+timeout while stuck in `Test` (no `[FAIL]` anywhere, so these looked like hangs, not failures):
 
 | run | commit | hung legs |
 |-----|--------|-----------|
@@ -1783,25 +1783,41 @@ while stuck in `Test` (no `[FAIL]` anywhere, so these are hangs, not failures):
 | 574 | `104fc6c` | 3 |
 | 575 | `7ff5056` | 3 (macOS Debug+Release, Windows Release) |
 
-**ubuntu has never hung in any of them** — only Windows and macOS, in both Debug and Release. So
-`f1c94d2`'s note above ("PerAssembly fixes the hang, 8 clean local runs") is NOT what CI shows: the
-rate went UP after it. Do not treat that note as settled.
+**The one detail that turned out to be the answer: ubuntu never hung. Only Windows and macOS.** At the
+time that read as "PerAssembly made it worse". It didn't — the rate going up after `f1c94d2` was
+correlation, and the asymmetry was the tell: a GitHub ubuntu runner refuses a power-off, and the other
+two accept one. The suite was **switching the runner off**, which looks exactly like a hang from the
+outside (job killed on timeout, log and artifacts destroyed by the cancellation, no `[FAIL]`, no dump).
 
-**Unverified hypothesis, cheap to check first:** `DownloadManager.Initialize` calls `StartScheduler()`,
-which starts a 30-second `DispatcherTimer` that **nothing ever stops** — there is no `StopScheduler`
-and no `Dispose`. Under the old PerTest isolation each test got a fresh app + dispatcher, so those
-timers died with it; under PerAssembly ONE dispatcher serves the whole run, so every manager a test
-builds leaves a live timer behind. The test project calls `Initialize` in **133** places (144
-`new DownloadManager()`), so a full run ends with well over a hundred timers all ticking
-`EvaluateSchedules` on the one dispatcher the tests also need.
+Two real defects were found, and it is worth keeping them apart:
 
-To confirm on a machine with the SDK: run the exact CI command and count live timers (or log each
-`OnSchedulerTick`) near the end of the run; if it holds, the fix is a `StopScheduler`/`Dispose` the
-tests call, or not starting the timer at all while `Config.Schedules` is empty (which also spares
-every real user a pointless timer) — with a hook so adding a schedule starts it.
+1. **The cause of the "hang" — a cancelled shutdown countdown still fired.** Full chain in *THE SUITE
+   USED TO POWER THE MACHINE OFF* above. `ShutdownService.Close()` closed the dialog without stopping
+   the countdown, which lives on the dispatcher rather than the window; under PerAssembly the
+   dispatcher outlives the test, so the countdown reached zero later in the run and executed the real
+   `systemctl poweroff` / `shutdown /s /t 0` / `osascript … shut down` — after the arming test's
+   `finally` had cleared the stubs. **Also a production bug:** cancelling from the tray shut the user's
+   machine down 30 s later anyway. So PerAssembly did not *cause* this; it *exposed* it, by giving the
+   leaked timer a dispatcher long enough to reach zero.
+2. **A separate, genuine leak — the scheduler timer.** The hypothesis in this section's old text
+   *held* when it was finally measured (**405** timers started per run → **39** after the fix), but it
+   was never the hang: see *Every test leaked a scheduler timer too* above. Fixing it was right; it
+   just answered a different question.
 
-This was NOT changed blind: the fix touches production scheduling and this container has no .NET SDK
-to verify it, so it is written down rather than guessed at.
+**The guard rails that now make a repeat fail loudly instead of silently:**
+- `ShellLauncher.RealProcessStartBlocked` + `TestSupport/NoRealPowerOff` (`[ModuleInitializer]`, same
+  pattern as `NoRealNotifications`): the suite cannot start a real process at all, so the next leak of
+  this class fails a test instead of taking a machine down. `AllowRealProcessStart()` is the explicit
+  opt-out for the three `Unit/RevealInFolderTests` cases that mean to run a real command — without it
+  they passed for the wrong reason.
+- `scripts/ci-test.sh` bounds the run from *inside* the step, so a stall fails the STEP (log kept)
+  rather than the job being cancelled (log lost), after dumping the stuck test host. Prove it whenever
+  you doubt it: run the `.NET Desktop` workflow via **workflow_dispatch** with
+  `test_deadline_seconds=150`, `test_dump_lead_seconds=60`. Those inputs are empty on every push and
+  PR, so the real defaults apply and there is no "restore it" commit to forget.
+
+**Reading a red leg now:** `dotnet test exited 1` with `[FAIL]` lines is an ordinary test failure, not
+this. The signature of the old fault was the absence of all of that.
 
 ## "No sound" on x.com, part 2: the popup ranked the RENDITION above the master (2026-09-11, extension 1.15.0)
 Reported again on app 2.12.0 / extension 1.14.0 with
