@@ -2254,3 +2254,25 @@ test" case.
   "A total of 1 test files matched" with no `testhost` alive usually means the run is still going (the
   harness had buffered it), NOT that it died. Wait for the completion notification instead of concluding
   the host was torn down — several full runs were re-started here for no reason.
+
+## Running the suite from inside a snap-packaged terminal fails 14 update tests (2026-09-21)
+A session whose shell is launched by a snap (e.g. the **Rider snap** — `env | grep ^SNAP` shows
+`SNAP_NAME=rider`) inherits `SNAP`, and `UpdateFlow.IsManagedExternally` keys off exactly that. The whole
+update flow then self-disables, so `UI/UpdateFlowDecisionTests` (12), plus
+`SettingViewModelTests.The_update_button_follows_the_flow_it_is_driving` and
+`AppShellStartupTests.Auto_update_checks_the_app_and_the_plugins_without_installing_anything`, fail with
+`state Idle` / empty collections / the message *"This build updates through the store it was installed
+from"*. Nothing is wrong with the code. Confirm and work around it in one step:
+`unset SNAP SNAP_NAME SNAP_REVISION SNAP_INSTANCE_NAME; dotnet test …` → all 15 green. CI is unaffected.
+
+## Right-click menus are styled globally (App.axaml), never per menu
+`ContextMenu` / `MenuFlyoutPresenter` / `MenuItem` / menu `Separator` carry one app-wide look in
+`App.axaml` (rounded 10px card on `SystemAltHighColor`, 5px inset, 32px rows with a 6px `RowSelectionBrush`
+highlight). **Do not add a local `Padding`/`Background` to an individual menu** — a local value beats the
+style and the menus drift apart again. Two things to know when testing one:
+- Styles only reach a `ContextMenu` **once it is opened** (`menu.Open(target)` on a shown window, then
+  `Dispatcher.UIThread.RunJobs()`). Before that its `Padding`/`CornerRadius` read as defaults, so a test
+  that inspects an unopened menu asserts nothing. Assert `IsSet(TemplatedControl.PaddingProperty)` instead
+  when the point is "this menu declares no local override".
+- Fluent part names used by the hover styles: `Border#PART_LayoutRoot` (the row's highlight) and
+  `Viewbox#PART_IconPresenter` (the icon column). Covered by `UI/ContextMenuStyleTests`.

@@ -254,6 +254,57 @@
         </Style>
         <Style Selector="DataGridColumnHeader"><Setter Property="Cursor" Value="Hand" /></Style>
 
+        <!-- ===== Right-click menus (ContextMenu + MenuFlyout) =====
+             Fluent's default menu is a square, tight box that reads as a different product than
+             the rest of the app. One global look instead: the same rounded card surface as the
+             cards and dialogs, roomy rows that light up in the accent tint a selected grid row
+             uses, and hairline separators. ContextMenu and MenuFlyoutPresenter are two containers
+             for the same thing (right-click vs. a button's drop-down), so both are styled — that
+             way a menu looks identical wherever it is opened from. -->
+        <Style Selector="ContextMenu">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="MinWidth" Value="180" />
+        </Style>
+        <Style Selector="MenuFlyoutPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="MinWidth" Value="180" />
+        </Style>
+
+        <!-- Menu rows: a comfortable hit target with its own rounded highlight, inset from the
+             menu's border (the 5px padding above) so the highlight never touches the card edge. -->
+        <Style Selector="MenuItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="11 7" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <!-- The icon column is decoration next to the label, so it sits one step back in contrast. -->
+        <Style Selector="MenuItem /template/ Viewbox#PART_IconPresenter">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemBaseMediumHighColor}" />
+        </Style>
+
+        <!-- Hairline separator, inset so it reads as a grouping rule rather than a divider bar. -->
+        <Style Selector="ContextMenu Separator, MenuFlyoutPresenter Separator">
+            <Setter Property="Background" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="9 4" />
+        </Style>
+
         <!-- ===== Numeric stepper (#1): clean, compact, touch-friendly, hand cursor on the arrows =====
              Fixed height + centered alignment keeps the stepper identical everywhere (Settings, Queues,
              Details) instead of getting squashed in taller rows. Arrows are borderless (no clunky
