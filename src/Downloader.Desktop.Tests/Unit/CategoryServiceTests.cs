@@ -369,4 +369,15 @@ public class CategoryServiceTests
     {
         Assert.Equal(expected, CategoryService.ExtensionOf(name));
     }
+
+    /// <summary>A signed download link's query string has no dots of its own, so without stripping it
+    /// the "extension" read everything after the real one and matched nothing (reported: pasting a
+    /// batch of .mkv links with a `?md5=…&amp;expires=…` tail all landed on Other).</summary>
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData("https://host/path/movie.mkv?md5=abc&u=1&expires=123", "mkv")]
+    [InlineData("https://host/path/movie.mkv#fragment", "mkv")]
+    public void A_urls_query_string_or_fragment_does_not_leak_into_the_extension(string url, string expected)
+    {
+        Assert.Equal(expected, CategoryService.ExtensionOf(url));
+    }
 }

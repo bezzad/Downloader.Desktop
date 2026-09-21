@@ -52,6 +52,20 @@ public class AddDialogCategoryTests
         Assert.Contains("Cat_Audio", vm.CategoryChoices.First().Label);
     }
 
+    /// <summary>A signed link's `?md5=…&amp;expires=…` query string must not defeat extension
+    /// detection — reported: a batch of such .mkv links all landed on Other.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_batch_of_signed_links_with_a_query_string_still_resolves_its_type()
+    {
+        var (config, manager) = Build();
+        const string url =
+            "https://host/dl/Made.in.Korea.S01E01.720p.WEB-DL.mkv?md5=7ividju3I14Fk8jKCLIBkQ&u=447680&expires=1790174567";
+        var vm = new AddDownloadItemViewModel(config,
+            url + "\nhttps://host/dl/Made.in.Korea.S01E02.720p.WEB-DL.mkv?md5=x&u=1&expires=2", manager: manager);
+
+        Assert.Contains("Cat_Video", vm.CategoryChoices.First().Label);
+    }
+
     /// <summary>Pasting a batch of links into an already-open dialog must not leave the automatic
     /// entry frozen at whatever it showed for the empty/seed state — it follows the first link,
     /// batch or not, exactly like typing a single one does (#category-batch-stuck-on-other).</summary>

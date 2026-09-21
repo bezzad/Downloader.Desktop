@@ -103,13 +103,18 @@ public class CategoryService
         // same reason; this is the belt to that braces.
         ?? new DownloadCategory { Id = DownloadCategory.OtherId, Name = DownloadCategory.OtherId, Icon = "file" };
 
-    /// <summary>The file extension, lowercase and without its dot, or empty.</summary>
+    /// <summary>The file extension, lowercase and without its dot, or empty. Callers may pass a raw
+    /// URL (the Add dialog does, before anything has resolved a real file name) rather than a bare
+    /// file name — a signed download link's <c>?token=…&amp;expires=…</c> query string has no dots of
+    /// its own, so without stripping it <see cref="Path.GetExtension"/> reads everything after the
+    /// real extension as part of it and nothing matches.</summary>
     public static string ExtensionOf(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
             return string.Empty;
 
-        return Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
+        var path = fileName.Split('?', '#')[0];
+        return Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
     }
 
     /// <summary>The first category claiming this extension. "First" is by the user's order, which is
