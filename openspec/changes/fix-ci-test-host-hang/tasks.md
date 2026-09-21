@@ -9,9 +9,17 @@
 - [x] 1.2 On the timeout path the script collects a managed dump of the live `testhost` into
   `./TestResults` (installs `dotnet-dump` on demand, finds the process by `--name` since pid lookup has
   no portable spelling across the three runners). The existing `if: always()` upload carries it out.
-- [ ] 1.3 Prove the harness works: push once with a deliberately over-short deadline
-  (`CI_TEST_DEADLINE_SECONDS`), confirm on windows-latest AND macos-latest that the step fails at that
-  deadline, the log survives, and the artifact holds the dump. Then restore the real deadline.
+- [x] 1.3 Proven by run **35619203001** (2026-09-21). `CI_TEST_DEADLINE_SECONDS`/`CI_TEST_DUMP_LEAD_SECONDS`
+  are now `workflow_dispatch` inputs (`0c19598`) rather than a deliberately-red push to be reverted: empty
+  on every push and PR, so the real defaults apply and there is no "restore it" commit to forget. Run with
+  150s/60s: windows-latest (Debug+Release) and macos-latest/Debug were killed at the deadline, the step
+  FAILED with the log intact, and the Windows artifact holds a real 235 MB `hang-testhost.dmp` beside
+  `hang-report.txt`. It also confirmed the `KILLED` sentinel live — a SIGTERM'd `dotnet test` reported
+  wait status 0 on ubuntu/macOS and 143 on Windows.
+  **The proof also found two defects in the harness, both fixed in `ac110f7`** (see `design.md`): the
+  deadline drifted by however long the dump took (macOS/Release outlived its own 150s deadline and
+  PASSED), and macOS still fell through to the 6 GB core the script says it avoids (6,182,015,304 bytes,
+  1.84 GB per artifact, on both macOS legs).
 
 ## 2. Measure the leaked-scheduler-timer hypothesis (before touching production code)
 
@@ -61,15 +69,37 @@ and asked whether a command contained a shutdown. None did — the suite did it.
   of this class fails a test instead of taking a machine down. `AllowRealProcessStart()` is the explicit
   opt-out for the three `Unit/RevealInFolderTests` cases that mean to run `/bin/false`, `sleep` and a
   missing command — without it they passed for the wrong reason, which is worse than failing.
-- [ ] 4.4 Confirm on CI that this was the hang: the power-off explanation fits the signature the
-  scheduler timer never did (only Windows/macOS, which accept a power-off; ubuntu's runner refuses it;
-  no `[FAIL]`, no dump, log destroyed). Proof is task 5.1, not an argument.
+- [!] 4.4 **Answered, but not the way it was framed — the power-off was A cause, not THE cause.** It
+  explains the runs that died with the log destroyed (only Windows/macOS, which accept a power-off;
+  ubuntu's runner refuses it) and it is fixed. But on 2026-09-21 `ThreadAffinityWatch` finally caught the
+  *other* fault with a stack (run **35619162399**, ubuntu/Release): `Dispatcher.VerifyAccess()` throwing
+  inside `HeadlessUnitTestSession.EnsureSharedApplication()` → the shared session's dispatch loop faults →
+  every later test waits on a completion source nothing will set → `Passed: 4`, three minutes of nothing,
+  `Test Run Aborted`. That is hang-shaped and it is STILL LIVE.
+  Note what it means for `TestAppBuilder`'s reasoning: PerAssembly moved the failing call off the per-test
+  path, cutting ~1700 attempts per run to one — it did not remove the failure mode. Leading hypothesis and
+  the cheap way to measure it before touching anything are in `design.md`; this change's own history is
+  the argument for not fixing it blind.
 
 ## 5. Prove it, then write it down
 
 - [ ] 5.1 Five consecutive `.NET Desktop` runs on `develop` with all 6 legs green and **no re-runs**
   (the failure rate was ~1 leg in 6, so one green run proves nothing).
-- [ ] 5.2 Replace the SKILL.md section "The hang got WORSE after PerAssembly, and every test leaks a
-  scheduler timer (open)" with what was measured and fixed, including the shutdown chain and the
-  process-start block.
+  **BLOCKED, and honestly so — the counter has never got past one.** Three distinct faults were seen on
+  `develop` on 2026-09-21 alone, and only one of them is fixed:
+  | fault | seen | status |
+  |---|---|---|
+  | thread-affinity violation faulting the shared headless session (4.4) | 35619162399, ubuntu/Release | **live, unfixed** |
+  | `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion` — NRE on retry (`progress=100%, downloaded=0/65536, attempt=2`) | 35618287475, macOS/Release | **live, undiagnosed** |
+  | the two new content-type probe tests losing `UrlResolver`'s 3-slot gate | 35615966666, 35618287475 | fixed, `187c906` |
+  Only `187c906` has gone green on all six legs so far. Do not check this box by re-running until it is
+  green; a re-run is exactly what the "no re-runs" clause exists to forbid.
+- [x] 5.2 Done (`78245c8`). The superseded section is replaced with what was measured: the two defects
+  kept apart (the power-off chain that caused the "hang", the scheduler leak that did not), the detail
+  that answered it (ubuntu never hung because its runner refuses a power-off), the guard rails
+  (`RealProcessStartBlocked`, the in-step deadline and how to prove it), and how to tell an ordinary red
+  leg from that signature.
 - [ ] 5.3 `/opsx:sync` the `resource-management` delta, then `/opsx:archive` this change.
+  **Deliberately not done: this change is not finished.** 4.4 turned up a live cause and 5.1 has never
+  been met, so archiving now would file a solved case over a fault that is still failing CI. The change
+  stays active.
