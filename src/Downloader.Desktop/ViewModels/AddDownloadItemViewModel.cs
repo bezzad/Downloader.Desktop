@@ -172,6 +172,9 @@ public class AddDownloadItemViewModel : ViewModelBase
             TriggerVariantLookup();
             RefreshResolverBadge();
             SuggestQueueForBatch();
+            // The automatic entry names what the first link would resolve to (extension, then a probe
+            // fills in content type later) — it must move as the links change, batch or not.
+            RaiseCategoryChoicesChanged();
         }
     }
 
@@ -565,7 +568,8 @@ public class AddDownloadItemViewModel : ViewModelBase
     /// </summary>
     public List<CategoryChoice> CategoryChoices =>
         _categoryChoices ??= CategoryChoice.For(_manager?.Categories,
-            _manager?.Categories?.Resolve(null, Filename ?? ParsedUrls.FirstOrDefault(), null));
+            _manager?.Categories?.Resolve(null,
+                !string.IsNullOrWhiteSpace(Filename) ? Filename : ParsedUrls.FirstOrDefault(), null));
 
     /// <summary>The chosen entry. The automatic one (null id) leaves the download's category to be
     /// worked out, which is what the great majority of adds want.</summary>

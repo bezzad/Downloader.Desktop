@@ -52,6 +52,21 @@ public class AddDialogCategoryTests
         Assert.Contains("Cat_Audio", vm.CategoryChoices.First().Label);
     }
 
+    /// <summary>Pasting a batch of links into an already-open dialog must not leave the automatic
+    /// entry frozen at whatever it showed for the empty/seed state — it follows the first link,
+    /// batch or not, exactly like typing a single one does (#category-batch-stuck-on-other).</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_automatic_entry_follows_a_batch_pasted_into_an_open_dialog()
+    {
+        var (config, manager) = Build();
+        var vm = new AddDownloadItemViewModel(config, "", manager: manager);
+        Assert.Contains("Cat_Other", vm.CategoryChoices.First().Label); // nothing to go on yet
+
+        vm.Urls = "https://10.255.255.1/movie.mkv\nhttps://10.255.255.1/movie2.mkv";
+
+        Assert.Contains("Cat_Video", vm.CategoryChoices.First().Label);
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void A_plain_add_leaves_the_category_to_be_worked_out()
     {
