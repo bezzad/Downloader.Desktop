@@ -2149,3 +2149,59 @@ Both halves of the feature were actually working; what bit was the test procedur
 - **Simulating a user resize on Wayland**: there is no `xdotool`/`wmctrl` here, so drive it from inside the
   app behind an env gate (a `DispatcherTimer` that sets `Width`/`Height`/`Position`), run, then read the
   config. That is what proved the full loop end to end.
+
+## Categories (issue #16) — the four traps, and where the concept lives
+- **`Services/CategoryService` is the one authority.** Resolution is `CategoryId` (the user's explicit
+  choice) → file extension → `Content-Type` → Other. `DownloadItemViewModel.GetFileKind` is GONE; a row's
+  `Category`/`FileKind`/`CategoryName`/`CategoryColor`/`CategoryOrder` all come off the service via
+  `_manager.Categories`. `DownloadManager` owns the instance (always non-null, even before `Initialize`).
+- **`DownloadItem.CategoryId` is NULLABLE and `null` means "work it out".** Do not "simplify" it to a
+  resolved value: null is what lets a row whose name arrives late correct itself, lets a category created
+  later adopt the files it claims, and makes "back to automatic" expressible. `Detect(...)` is a pure static
+  over the list, so the whole precedence is testable with no service instance.
+- **A category's `Position` does three jobs**: sidebar order, the grid Type column's sort key, and which
+  category wins when two claim the same extension (earliest). Never sort the Type column on a NAME — that
+  orders by the alphabet of whichever language is loaded.
+- **Category NAMES are user data and are never translated**, including the built-ins: they are named in the
+  app's language at the moment they are created and keep those names. The ONLY sidebar label that is
+  interface text is "All", and it is rendered with `{i18n:Tr Cat_All}` in the XAML (which refreshes on a
+  language switch via `Localizer.Tick`) — NOT through the row's `Name`. Subscribing the shell to
+  `Localizer.Instance.PropertyChanged` was tried and reverted: the singleton outlives every window, so it
+  leaks a handler per `MainViewModel` with nothing to unsubscribe it.
+
+### TRAP 1 — announcing anything mid-`DownloadManager.Initialize` wipes the download list
+`Categories.Initialize(_config)` was originally called BEFORE the row loop. It raises `Changed` →
+`NotifyList()` → `MainViewModel.OnListChanged` → `RequestSave()`, and the save does
+`_config.Downloads = Items.Select(...)` while `Items` is still **empty**. `Initialize` then iterates that
+emptied list: **every saved download gone, silently, on every launch.** The call now sits AFTER the rows are
+built (a row resolves its category lazily, so nothing needs it sooner). Pinned by
+`UI/CategorySidebarTests.Starting_up_with_a_saved_download_list_keeps_every_download`, verified to fail on
+the old ordering. **Rule: nothing inside `Initialize` may raise `ListChanged`/`StatsChanged` before `Items`
+is repopulated.** It was invisible to 1920 green tests and only showed up because the screenshot capture
+rendered an empty grid — when a capture looks wrong, believe it.
+
+### TRAP 2 — a VM list property rebuilt on every read cannot back a ComboBox
+`CategoryChoices` returned a fresh `List<CategoryChoice>` per get, so `SelectedItem` (matched by reference)
+never found itself and the combo rendered blank. Cache the list in a field and null it in the
+`Raise…Changed` method that rebuilds it (`AddDownloadItemViewModel`, `DownloadDetailsViewModel`). A row's
+right-click menu is fine either way — a `MenuFlyout` materializes its items when it opens.
+
+### TRAP 3 — never run the Playwright e2e suite and `dotnet test` at the same time
+The e2e stub app binds the local-API range **15151–15155**, so a concurrent C# run fails
+`AppShellStartupTests.Browser_integration_turned_on_binds_the_local_api` for a reason that has nothing to do
+with the code. Same family as the "two dotnet test runs in one tree" note. Check with
+`ss -ltnp | grep 1515` before believing such a failure.
+
+### TRAP 4 — `interception.spec.js` asserted a cancel it never waited for
+"a signed link with no extension in its path is still intercepted by type" polled only `app.adds.length`,
+then asserted the BROWSER download's state immediately — but the add and the cancel are two steps, so under
+load it read `in_progress`. Now polled. If it fails again, run the spec alone first (it passes 3/3 in
+isolation); a whole-suite-only failure there is timing, not the extension.
+
+### Engine: `RemoteFileInfo.ContentType` (added, NOT yet released)
+`bezzad/Downloader` `develop` commit `216c21a` adds it, populated in `SocketClient.GetFileInfoAsync` from
+the `ResponseHeaders` dictionary the size probe ALREADY fills and then discarded — no extra request. Until
+that reaches NuGet, the app's MIME leg only gets a value from the browser extension's `mime` field
+(`/api/add`), and `UrlResolver` does not read it. Engine repo test command:
+`dotnet test src/Downloader.Test/Downloader.Test.csproj -p:TargetFrameworks=net10.0 -f net10.0` (a plain
+`-f net10.0` is not enough — the TFM list itself has to be overridden).
