@@ -593,6 +593,41 @@ test("sendToAppSilently omits the quality when none was chosen", async () => {
   assert.ok(!seen.endpoint.includes("variantId"));
 });
 
+test("sendToAppSilently carries the observed media type in the GET form", async () => {
+  // The app files a download under a type from its name, and falls back to this when the name has no
+  // usable extension — which is the common case for a signed CDN link. Not a secret, so it travels in
+  // the query and does not force the POST form.
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+
+  const result = await sendToAppSilently(
+    "http://127.0.0.1:15151", "https://cdn.example.com/d/8f3a2b", null, [], { mime: "video/mp4" });
+
+  assert.equal(result, "ok");
+  assert.match(seen.endpoint, /[?&]mime=video%2Fmp4(&|$)/);
+  assert.notEqual(seen.opts && seen.opts.method, "POST");
+});
+
+test("sendToAppSilently carries the observed media type in the JSON form too", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+  const cookies = [{ name: "auth_token", value: "v", domain: ".x.com", path: "/", secure: true }];
+
+  await sendToAppSilently(
+    "http://127.0.0.1:15151", "https://cdn.example.com/d/8f3a2b", null, cookies, { mime: "audio/mpeg" });
+
+  assert.equal(JSON.parse(seen.opts.body).mime, "audio/mpeg");
+});
+
+test("sendToAppSilently omits the media type when none is known", async () => {
+  let seen = null;
+  global.fetch = async (endpoint, opts) => { seen = { endpoint, opts }; return { ok: true, status: 201 }; };
+
+  await sendToAppSilently("http://127.0.0.1:15151", "https://example.com/a.zip", null, []);
+
+  assert.ok(!seen.endpoint.includes("mime"));
+});
+
 test("a DASH manifest is deliberately never surfaced", () => {
   // The app CAN download a .mpd (its streaming plugin handles DASH), but the popup cannot probe one
   // for a size or read a quality off it, so it could only ever be a nameless, sizeless row that the

@@ -71,6 +71,22 @@ user-owned dimension of the list.
   toggle is repurposed for the two-state category sidebar.
 - **Docs/screenshots** — the main window layout changes, so `docs/screenshots/` must be regenerated.
 
+## Open at the end of the implementing session (2026-09-20)
+
+Three tasks are deliberately left unchecked, all one dependency:
+
+- **1.5 — release the engine package.** The engine change itself is done and green
+  (`bezzad/Downloader` `develop`, commit `216c21a`: `RemoteFileInfo.ContentType`, populated from
+  headers the probe already fetched, 11/11 resolver tests pass). Publishing it to NuGet is an
+  outward-facing action and needs the author's explicit go-ahead, so it was not done unattended.
+- **6.1 / 6.2** — bump the package reference and read `ContentType` through `UrlResolver`. Blocked on
+  1.5: the property does not exist in any published version yet.
+
+Nothing else waits on them. Detection currently runs extension → `Content-Type` **from the browser
+extension only** → Other, which is exactly today's behaviour plus the extension's `mime`. When the
+engine release lands, the pasted-link path gains the same leg by bumping one reference and reading
+one property.
+
 ## Design proposals considered
 
 Two proposals were put forward during exploration; the change adopts the author's, with four

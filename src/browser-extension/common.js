@@ -300,6 +300,10 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   // Which rendition of an expandable link (an HLS master's qualities) the user picked. Like savePath it
   // travels fine in a query, so it is deliberately NOT part of `hasContext`.
   const variantId = typeof context?.variantId === "string" ? context.variantId.trim() : "";
+  // The media type we already worked out from the response headers. The app uses it to file the
+  // download under a type when the name carries no usable extension. Like savePath it travels fine
+  // in a query, so it is deliberately NOT part of `hasContext`.
+  const mime = typeof context?.mime === "string" ? context.mime.trim() : "";
   const hasContext = (cookies && cookies.length) || referer || (headers && Object.keys(headers).length);
   if (hasContext) {
     const body = { url };
@@ -312,6 +316,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
     if (headers && Object.keys(headers).length) body.headers = headers;
     if (savePath) body.path = savePath;
     if (variantId) body.variantId = variantId;
+    if (mime) body.mime = mime;
     Object.assign(body, extensionIdentity());
     const res = await postAdd(base, body);
     if (res.ok) return "ok";
@@ -322,6 +327,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   if (filename) endpoint += `&filename=${encodeURIComponent(filename)}`;
   if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
   if (variantId) endpoint += `&variantId=${encodeURIComponent(variantId)}`;
+  if (mime) endpoint += `&mime=${encodeURIComponent(mime)}`;
   try {
     const res = await appFetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }), APP_TIMEOUT_MS.add);
     if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
@@ -571,6 +577,10 @@ async function handOffToApp(url, filename, context) {
   // the same reason it does in sendToApp — the dialog would discard the pick the user just made.
   const variantId = typeof context?.variantId === "string" ? context.variantId.trim() : "";
   if (variantId) body.variantId = variantId;
+  // What the browser said this is. The app files the download under a type from it when the name
+  // carries no usable extension — which is the common case for a signed CDN link.
+  const mime = typeof context?.mime === "string" ? context.mime.trim() : "";
+  if (mime) body.mime = mime;
   const wantsDialog = !variantId && (await getAddMode()) === "dialog";
   if (wantsDialog) body.confirm = true;
   Object.assign(body, extensionIdentity());

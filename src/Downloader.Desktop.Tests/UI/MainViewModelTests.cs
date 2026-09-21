@@ -169,20 +169,19 @@ public class MainViewModelTests
     // ---- sidebar and inputs ------------------------------------------------
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void Collapsing_the_sidebar_narrows_it()
+    public void The_category_sidebar_starts_hidden_and_toggles_between_two_states()
     {
         var (main, _) = Build();
-        var expandedWidth = main.SidebarWidth;
 
-        main.ToggleSidebarCommand.Execute(null);
-        var collapsed = main.SidebarWidth;
+        // Off on first run: it is an extra, not the way the app works. (The nav rail this replaces
+        // also had an icons-only middle state; there is deliberately no third state now.)
+        Assert.False(main.IsCategorySidebarOpen);
 
-        Assert.NotEqual(expandedWidth, collapsed);
-        Assert.True(collapsed < expandedWidth);
+        main.ToggleCategorySidebarCommand.Execute(null);
+        Assert.True(main.IsCategorySidebarOpen);
 
-        main.ToggleSidebarCommand.Execute(null);
-        Assert.Equal(expandedWidth, main.SidebarWidth);
-        Assert.True(main.IsSidebarExpanded);
+        main.ToggleCategorySidebarCommand.Execute(null);
+        Assert.False(main.IsCategorySidebarOpen);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
@@ -258,7 +257,9 @@ public class MainViewModelTests
         Assert.NotNull(main.ShowAboutCommand);
         Assert.NotNull(main.DonateCommand);
         Assert.NotNull(main.ApplyUpdateCommand);
-        Assert.NotNull(main.ToggleSidebarCommand);
+        Assert.NotNull(main.ToggleCategorySidebarCommand);
+        Assert.NotNull(main.AddCategoryCommand);
+        Assert.NotNull(main.ClearFiltersCommand);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

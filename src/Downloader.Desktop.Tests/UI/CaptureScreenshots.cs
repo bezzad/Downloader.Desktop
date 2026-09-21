@@ -249,10 +249,23 @@ public class CaptureScreenshots
 
         vm.ShowDownloadsCommand.Execute(null);
 
-        // Persian (RTL) home to verify translation + right-to-left mirroring.
+        // The category sidebar (off by default, so it needs opening) — this is the shot that shows the
+        // new Type column beside it.
+        vm.IsCategorySidebarOpen = true;
+        Pump();
+        Save(window, "categories-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "categories-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // Persian (RTL) home to verify translation + right-to-left mirroring — captured with the
+        // sidebar OPEN, since mirroring a column of its own is the part worth looking at.
         Localizer.Instance.Load("fa");
+        Pump();
         Save(window, "home-fa-dark.png");
         Localizer.Instance.Load("en");
+        vm.IsCategorySidebarOpen = false;
+        Pump();
 
         // Details window (dark) — needs a live Configuration so the speed-limit numeric shows.
         var detItem = manager.Items.First();

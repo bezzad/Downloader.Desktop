@@ -215,10 +215,6 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         if (_config.Settings != null && _config.DefaultQueue is { } dq)
             dq.MaxConcurrent = Math.Max(1, _config.Settings.MaxConcurrentDownloads);
 
-        // Point the category service at this config's list before the rows are built, so every row
-        // resolves against the real categories rather than an empty set.
-        Categories.Initialize(_config);
-
         foreach (var existing in Items)
             existing.Detach();
         Items.Clear();
@@ -236,6 +232,12 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                 item.QueueId = _config.DefaultQueue?.Id;
             Items.Add(new DownloadItemViewModel(item, this));
         }
+
+        // Point the category service at this config's list — AFTER the rows exist. A row resolves its
+        // category lazily, so nothing needs it sooner, and doing it earlier announced a change while
+        // Items was still empty: the shell answers that by saving, and a save writes the item list
+        // back over Config.Downloads. That wiped the user's downloads on every launch.
+        Categories.Initialize(_config);
 
         SyncScheduler();
     }

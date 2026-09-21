@@ -76,6 +76,47 @@
             <Setter Property="Width" Value="16" />
         </Style>
 
+        <!-- ===== Category sidebar =====
+             Deliberately quieter than the old nav rail: a selected category is tinted, not filled
+             with the accent, so the list beside it stays the loudest thing on the page. -->
+        <Style Selector="Button.cat">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10 7" />
+            <Setter Property="Margin" Value="0 1" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.cat:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="Button.cat.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <Style Selector="Button.cat.selected TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <!-- An empty category stays listed, just dimmed. Hiding and re-showing rows as downloads
+             arrive would make the sidebar twitch under the pointer. -->
+        <Style Selector="Button.cat.empty">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+        <!-- "Add category": present, but never competing with the categories themselves. -->
+        <Style Selector="Button.catadd">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10 7" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+        </Style>
+        <Style Selector="Button.catadd:pointerover">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.catadd:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+
         <!-- Small transparent icon button (table row actions, toolbar) -->
         <Style Selector="Button.icon">
             <Setter Property="Background" Value="Transparent" />

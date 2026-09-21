@@ -181,9 +181,12 @@ collection) · `QueuesViewModel` · `SchedulerViewModel` · `SettingViewModel` �
 Rows/items: `DownloadItemViewModel` (one grid row; live progress staged off-thread and flushed by a
 single shared 250 ms `DispatcherTimer`) · `ChunkProgressViewModel`, `MirrorEntryViewModel`,
 `QueueRowViewModel`, `QueueItemViewModel`, `ScheduleRowViewModel`, `PluginRowViewModel`,
-`CatalogPluginRowViewModel`, `VariantOptionViewModel`.
+`CatalogPluginRowViewModel`, `VariantOptionViewModel`, `CategoryRowViewModel` (one sidebar row),
+`CategoryChoice` (one entry of a "which category?" picker, shared by the row menu, the Add dialog
+and the Details window).
 
-Dialogs: `AddDownloadItemViewModel` (multi-URL + folder + link variants) ·
+Dialogs: `AddDownloadItemViewModel` (multi-URL + folder + link variants + category) ·
+`CategoryEditorViewModel` (name/icon/color/extensions; edits a clone so cancelling changes nothing) ·
 `DownloadDetailsViewModel` (per-connection segmented strip, live speed limit, mirror editor) ·
 `AboutViewModel` · `DonateViewModel` · `ConfirmViewModel` · `ShutdownViewModel` ·
 `UpdatePromptViewModel` · `NotchViewModel`.
@@ -197,12 +200,18 @@ Plugins are a collapsible Settings section.
 
 Windows/pages: `MainWindow`, `DownloadsView`, `QueuesView`, `SchedulerView`, `SettingView`,
 `PluginsView`, `AddDownloadItemView`, `DownloadDetailsView`, `AboutView`, `DonateView`,
-`ConfirmView`, `ShutdownView`, `UpdatePromptView`, `NotchView`.
+`ConfirmView`, `ShutdownView`, `UpdatePromptView`, `NotchView`, `CategoryEditorView`.
+
+**Category sidebar**: optional, off by default, toggled by the button immediately left of the
+"Paste download link" box, and shown only on the Downloads page. Two states — open or closed; the
+deleted nav rail's third icons-only state is deliberately not back.
 
 Shared chrome/helpers: `TitleBar` (custom chrome drawn inside the client area; drags via
 `BeginMoveDrag`) · `ResizeGrips` + `WindowResize.cs` · `PageViewCache.cs` · `UrlBoxPaste.cs`.
 
-Support: `Converters/FileKindToIconConverter.cs`, `Converters/StatusToBrushConverter.cs`,
+Support: `Converters/FileKindToIconConverter.cs` (icon key → geometry; an unknown key draws the
+generic file icon and the key itself is never rewritten), `Converters/StatusToBrushConverter.cs`,
+`Converters/HexToBrushConverter.cs` (a category's colour, falling back to the accent),
 `Behaviors/NumericCoerce.cs`.
 
 ### `Assets/`
@@ -368,10 +377,12 @@ Repo-local skills live in `.claude/skills/` (`downloader-desktop`, `release`, `c
 | Add/alter a download-lifecycle rule | `Services/DownloadManager.cs` — guard at the choke point, not in the VM or the button. |
 | Change queue concurrency behavior | `DownloadManager`'s pump + `DownloadSettings.MaxConcurrentDownloads`, which is kept in lockstep with the **primary** queue's `MaxConcurrent`. |
 | Add a setting | `Models/DownloadSettings.cs` (+ `ToConfiguration()` if it maps to the engine) → `ViewModels/SettingViewModel.cs` → `Views/SettingView.axaml`. |
+| Change how a download's type is worked out | `Services/CategoryService.cs` — the one authority. Resolution is override → extension → `Content-Type` → Other, and a category's **position** is simultaneously its sidebar order, the grid's Type sort key and which category wins a shared extension. |
 | Add a page | `ViewModels/Navigation.cs` (`NavSection`) → new VM → new View → `MainViewModel.CurrentPage` switch → `MainWindow` toolbar. |
 | Add UI text | `Assets/i18n/en.json` first, then the other 15 packs; bind `{i18n:Tr Key}`. |
 | Support a new link type | A plugin `ILinkResolver` — not app code. Copy the GitHub plugin. |
 | Add an automation endpoint | `Services/LocalApiService.cs` (+ `CliParser`/`CliRunner` for a verb), and `docs/local-api.md`. |
+| Add something to the portable settings file | `Services/SettingsPortability.cs`. Everything in `DownloadSettings` is carried automatically; add to `MachineSpecific` anything that only means something on the machine that wrote it. |
 | Publish an extension store listing | `packaging/extension/targets.json` — set that target's `storeUrl`. Data, not code. |
 | Support another browser | `BrowserDetector.Candidates` (+ per-family steps in `ExtensionTargetRow` if it is a new family). |
 | Ship a new version | `scripts/release.sh X.Y.Z` (see the `release` skill). |

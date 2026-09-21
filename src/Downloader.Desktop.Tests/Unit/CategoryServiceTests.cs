@@ -265,6 +265,84 @@ public class CategoryServiceTests
         Assert.Equal(4, changes);
     }
 
+    // ---- upgrading an existing configuration ---------------------------------------------------
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_configuration_written_before_categories_existed_gets_the_built_ins()
+    {
+        // What a pre-categories config.json deserializes to: everything else present, no categories.
+        var config = new Config
+        {
+            SchemaVersion = 1,
+            Settings = DownloadSettings.New(),
+            Downloads = new List<DownloadItem> { new() { Url = "https://10.255.255.1/a.mp4", FileName = "a.mp4" } },
+            Queues = new List<DownloadQueue> { new() { Name = "Main", MaxConcurrent = 2 } },
+            Schedules = new List<DownloadSchedule> { new() },
+            Categories = null
+        };
+
+        config.EnsureValid();
+
+        // An empty list would leave every download pointing at a category that is not there.
+        Assert.Equal(8, config.Categories.Count);
+        Assert.Equal(Config.CurrentSchemaVersion, config.SchemaVersion);
+        // Nothing the user already had is disturbed.
+        Assert.Single(config.Downloads);
+        Assert.Single(config.Queues);
+        Assert.Equal("Main", config.Queues[0].Name);
+        Assert.Equal(2, config.Queues[0].MaxConcurrent);
+        Assert.Single(config.Schedules);
+        // And every existing download still resolves exactly as it did before the upgrade — the
+        // built-ins carry the extension table the app already used.
+        Assert.Null(config.Downloads[0].CategoryId);
+        Assert.Equal("video", CategoryService.Detect(config.Categories, "a.mp4", null).Id);
+        // The sidebar stays out of the way until asked for.
+        Assert.False(config.IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void An_upgrade_does_not_overwrite_categories_that_are_already_there()
+    {
+        var config = Config.New();
+        config.Categories = new List<DownloadCategory>
+        {
+            new() { Id = "only", Name = "Only one", Icon = "file" }
+        };
+
+        config.EnsureValid();
+
+        Assert.Single(config.Categories);
+        Assert.Equal("only", config.Categories[0].Id);
+    }
+
+    // ---- names are the user's data, not interface text -----------------------------------------
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_name_is_stored_exactly_as_typed_whatever_the_script()
+    {
+        var service = Service();
+        service.Add(new DownloadCategory { Name = "音楽", Icon = "audio" });
+
+        Assert.Equal("音楽", service.Categories.Last().Name);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Built_in_names_are_fixed_when_they_are_created_and_do_not_follow_the_language()
+    {
+        // Created while the app was in one language…
+        var persian = CategoryService.CreateDefaults(key => key == "Cat_Video" ? "ویدیو" : key);
+        var config = Config.New();
+        config.Categories = persian;
+        var service = Service(config);
+
+        Assert.Equal("ویدیو", service.ById("video").Name);
+
+        // …and from then on the name is data, not interface text: switching the app's language must
+        // not rewrite what the user is looking at (and may have renamed themselves).
+        Localizer.Instance.Load("en");
+        Assert.Equal("ویدیو", service.ById("video").Name);
+    }
+
     // ---- parsing -----------------------------------------------------------------------------
 
     [Theory(Timeout = TestTimeouts.DefaultMs)]

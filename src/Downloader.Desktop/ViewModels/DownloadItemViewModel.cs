@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Linq;
@@ -222,6 +223,17 @@ public class DownloadItemViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// "Change category" entries for the row's right-click menu: the automatic option (naming what
+    /// the app would pick) plus every category. Rebuilt on each read — the menu materializes when it
+    /// opens, and the list is eight-ish items.
+    /// </summary>
+    public List<CategoryChoice> CategoryChoices =>
+        CategoryChoice.For(_manager?.Categories,
+            _manager?.Categories?.Resolve(null, !string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName : _previewName,
+                _item.ContentType),
+            id => CategoryId = id);
+
     /// <summary>Re-raises everything derived from the category — after the row's own choice changed,
     /// or after the category list itself did.</summary>
     public void RaiseCategoryChanged()
@@ -231,6 +243,7 @@ public class DownloadItemViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(CategoryName));
         this.RaisePropertyChanged(nameof(CategoryColor));
         this.RaisePropertyChanged(nameof(CategoryOrder));
+        this.RaisePropertyChanged(nameof(CategoryChoices));
     }
 
     /// <summary>The media type the server or the browser reported, an input to category detection.</summary>

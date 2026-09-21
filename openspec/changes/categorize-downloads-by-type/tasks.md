@@ -19,7 +19,7 @@
 - [x] 2.2 Add `Config.Categories` and bump `Config.SchemaVersion`; seed the eight built-in
       categories (Video, Audio, Image, Document, Archive, App, Disc, Other) with the exact extension
       sets from `DownloadItemViewModel.GetFileKind`, named in the app's current language
-- [ ] 2.3 Add a load-time migration: a configuration with no category list gets the built-ins; test
+- [x] 2.3 Add a load-time migration: a configuration with no category list gets the built-ins; test
       that an existing config upgrades without losing settings, downloads, queues or schedules
 - [x] 2.4 Add `DownloadItem.CategoryId` (nullable; null means detect) and persist it
 - [x] 2.5 Add `DownloadItem.ContentType` to hold the MIME reported by the server or a client
@@ -39,10 +39,10 @@
 - [x] 3.1 Add category create/edit: name, icon picked from the shipped icon set, color, extension
       list
 - [x] 3.2 Enforce a non-empty name and refuse a duplicate name, showing why
-- [ ] 3.3 Store the name verbatim and never translate it; test that a Japanese name survives a
+- [x] 3.3 Store the name verbatim and never translate it; test that a Japanese name survives a
       switch to English and that built-in names do not follow the language
 - [x] 3.4 Allow deleting a user-created category and forbid deleting a built-in one
-- [ ] 3.5 On delete, clear the `CategoryId` of every download overridden to it and re-resolve;
+- [x] 3.5 On delete, clear the `CategoryId` of every download overridden to it and re-resolve;
       test both the detected and the overridden case
 - [x] 3.6 Allow moving a category up and down; persist the order
 - [x] 3.7 Render an unrecognized icon key as the default icon while preserving the key in the
@@ -52,41 +52,41 @@
 
 - [x] 4.1 Remove the nav-rail leftovers from `MainViewModel` (`SidebarWidth`'s two-value logic and
       the unused members) and replace the old width test
-- [ ] 4.2 Add the toggle button immediately left of the "Paste download link" box; hidden state by
+- [x] 4.2 Add the toggle button immediately left of the "Paste download link" box; hidden state by
       default, two states only
-- [ ] 4.3 Persist the shown/hidden state in the configuration and restore it on launch; test both
+- [x] 4.3 Persist the shown/hidden state in the configuration and restore it on launch; test both
       directions
-- [ ] 4.4 Build the sidebar: an "All" entry, then every category in order with its icon, name and
+- [x] 4.4 Build the sidebar: an "All" entry, then every category in order with its icon, name and
       count, with a low-emphasis "Add" entry below the list
-- [ ] 4.5 Show empty categories de-emphasized rather than hiding them
-- [ ] 4.6 Make the counts respect the active status filter; test the Failed-plus-Video combination
-- [ ] 4.7 Mark the selected category visually
-- [ ] 4.8 Wire up create, edit and reorder from the sidebar
+- [x] 4.5 Show empty categories de-emphasized rather than hiding them
+- [x] 4.6 Make the counts respect the active status filter; test the Failed-plus-Video combination
+- [x] 4.7 Mark the selected category visually
+- [x] 4.8 Wire up create, edit and reorder from the sidebar
 
 ## 5. Filtering, the Type column and overrides
 
-- [ ] 5.1 Add the category dimension to `DownloadsViewModel.Matches`, combining with the status
+- [x] 5.1 Add the category dimension to `DownloadsViewModel.Matches`, combining with the status
       filter and the search text; test all three together
-- [ ] 5.2 Make "All" clear only the category dimension, leaving the status filter and search intact
-- [ ] 5.3 Confirm the filter applies to every state (running, queued, paused, failed, completed),
+- [x] 5.2 Make "All" clear only the category dimension, leaving the status filter and search intact
+- [x] 5.3 Confirm the filter applies to every state (running, queued, paused, failed, completed),
       not just completed; add a test with a running download
-- [ ] 5.4 Add an empty-state message with an action that clears the filters
-- [ ] 5.5 Add the Type column to `DownloadsView`, immediately before Name: category icon in the
+- [x] 5.4 Add an empty-state message with an action that clears the filters
+- [x] 5.5 Add the Type column to `DownloadsView`, immediately before Name: category icon in the
       category color, tooltip naming the category
-- [ ] 5.6 Remove the type icon from the Name cell
-- [ ] 5.7 Make the Type column sortable by the category's position, not alphabetically; test that
+- [x] 5.6 Remove the type icon from the Name cell
+- [x] 5.7 Make the Type column sortable by the category's position, not alphabetically; test that
       the order does not change with the app's language
-- [ ] 5.8 Rescope the header select-all checkbox to the filtered view, including its
+- [x] 5.8 Rescope the header select-all checkbox to the filtered view, including its
       checked/indeterminate state
-- [ ] 5.9 Show the selected count in the toolbar while a filter is active
-- [ ] 5.10 Test that select-all under a category filter selects only the visible rows and that a
+- [x] 5.9 Show the selected count in the toolbar while a filter is active
+- [x] 5.10 Test that select-all under a category filter selects only the visible rows and that a
       bulk remove leaves the filtered-out downloads untouched
-- [ ] 5.11 Add the category chooser to the Add-download dialog, with an automatic option that names
+- [x] 5.11 Add the category chooser to the Add-download dialog, with an automatic option that names
       the detected category
-- [ ] 5.12 Add the category chooser to the Details window; test that changing it mid-download does
+- [x] 5.12 Add the category chooser to the Details window; test that changing it mid-download does
       not interrupt the download
-- [ ] 5.13 Add a category submenu to the download row's right-click menu
-- [ ] 5.14 Test that an override persists across a restart and that choosing automatic restores
+- [x] 5.13 Add a category submenu to the download row's right-click menu
+- [x] 5.14 Test that an override persists across a restart and that choosing automatic restores
       detection
 
 ## 6. MIME detection
@@ -95,29 +95,29 @@
 
 - [ ] 6.1 Bump the `Downloader` package reference to the version from task 1.5
 - [ ] 6.2 Carry `RemoteFileInfo.ContentType` through `UrlResolver` onto the download item
-- [ ] 6.3 Accept an optional `mime` value on `/api/add` (POST body and GET query) and record it; an
+- [x] 6.3 Accept an optional `mime` value on `/api/add` (POST body and GET query) and record it; an
       add without it behaves exactly as before
-- [ ] 6.4 Accept an optional category identifier on `/api/add`, applying it as an explicit choice and
+- [x] 6.4 Accept an optional category identifier on `/api/add`, applying it as an explicit choice and
       ignoring an unknown identifier; pre-select it in the dialog on the confirm path
-- [ ] 6.5 Test the precedence: extension wins over content type; content type is used when there is
+- [x] 6.5 Test the precedence: extension wins over content type; content type is used when there is
       no usable extension; neither yields Other
 
 ## 7. Export and import
 
-- [ ] 7.1 Define the export format: a version stamp, the settings, the categories, and a reserved
+- [x] 7.1 Define the export format: a version stamp, the settings, the categories, and a reserved
       always-null `iconData` field per category
-- [ ] 7.2 Exclude download data, queues, schedules, the save folder, the resolved local API port and
+- [x] 7.2 Exclude download data, queues, schedules, the save folder, the resolved local API port and
       the remembered window sizes; test that none of them appear in an export
-- [ ] 7.3 Add the export action to Settings with a save-file picker; cancelling writes nothing and
+- [x] 7.3 Add the export action to Settings with a save-file picker; cancelling writes nothing and
       raises no error
-- [ ] 7.4 Add the import action to Settings with an open-file picker; apply without a restart
-- [ ] 7.5 Validate before applying: reject a corrupt file leaving the current state untouched;
+- [x] 7.4 Add the import action to Settings with an open-file picker; apply without a restart
+- [x] 7.5 Validate before applying: reject a corrupt file leaving the current state untouched;
       ignore unrecognized fields from a newer version; refuse a file with an empty category list
-- [ ] 7.6 Clear overrides pointing at categories that the imported set does not contain
-- [ ] 7.7 Test a cross-platform round trip: an export produced with Linux-style paths in the
+- [x] 7.6 Clear overrides pointing at categories that the imported set does not contain
+- [x] 7.7 Test a cross-platform round trip: an export produced with Linux-style paths in the
       settings imports on Windows with every category name, icon, color, extension list and position
       intact
-- [ ] 7.8 Test that imported categories re-categorize existing downloads that have no override, and
+- [x] 7.8 Test that imported categories re-categorize existing downloads that have no override, and
       that downloads with an override keep it when the category still exists
 
 ## 8. Localization, polish and verification
@@ -125,13 +125,13 @@
 - [x] 8.1 Add every new user-facing string to all 16 language packs (sidebar toggle tooltip,
       "All", "Add category", the category editor labels, the empty state, the selected count, the
       automatic category option, export/import labels and their error messages)
-- [ ] 8.2 Check the sidebar and the Type column in right-to-left mode (Persian, Arabic): the
+- [x] 8.2 Check the sidebar and the Type column in right-to-left mode (Persian, Arabic): the
       sidebar mirrors and the Type column stays adjacent to Name
-- [ ] 8.3 Bump the plugin versions of any plugin whose source changed (none expected — confirm)
-- [ ] 8.4 `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` ends with 0 warnings
-- [ ] 8.5 `dotnet test -v q --nologo` fully green, including the new tests
-- [ ] 8.6 Run the browser-extension suites (`node --test src/browser-extension/common.test.js` and
+- [x] 8.3 Bump the plugin versions of any plugin whose source changed (none expected — confirm)
+- [x] 8.4 `dotnet build Downloader.Desktop.sln -t:Rebuild --nologo` ends with 0 warnings
+- [x] 8.5 `dotnet test -v q --nologo` fully green, including the new tests
+- [x] 8.6 Run the browser-extension suites (`node --test src/browser-extension/common.test.js` and
       the Playwright suite) — unchanged, but the standing rule requires them green
-- [ ] 8.7 Regenerate `docs/screenshots/` with the capture test, view the PNGs to confirm the sidebar
+- [x] 8.7 Regenerate `docs/screenshots/` with the capture test, view the PNGs to confirm the sidebar
       and the Type column render correctly, and commit only what changed
-- [ ] 8.8 Update `CLAUDE.md` and `docs/codebase-index.md` with the new service, models and views
+- [x] 8.8 Update `CLAUDE.md` and `docs/codebase-index.md` with the new service, models and views

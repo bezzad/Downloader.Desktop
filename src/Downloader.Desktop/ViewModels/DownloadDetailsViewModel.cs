@@ -31,6 +31,43 @@ public class DownloadDetailsViewModel : ViewModelBase
     public string PartsSummary => Parts.Count == 0 ? string.Empty
         : string.Format(L(_planMode ? "Det_SegCount" : "Det_ConnCount"), Parts.Count);
     public bool HasQueue => !string.IsNullOrWhiteSpace(Item?.QueueName);
+
+    // ---- category ------------------------------------------------------------------------------
+
+    private CategoryChoice _selectedCategory;
+    private List<CategoryChoice> _categoryChoices;
+
+    /// <summary>The category picker, same list and order as everywhere else. Cached, because the
+    /// bound ComboBox matches its selection by reference (see the Add dialog for the same reason).</summary>
+    public List<CategoryChoice> CategoryChoices =>
+        _categoryChoices ??= Item?.CategoryChoices ?? new List<CategoryChoice>();
+
+    /// <summary>
+    /// The download's category. Changing it only re-tags the row — nothing about the transfer is
+    /// touched, so it is safe while the download is running.
+    /// </summary>
+    public CategoryChoice SelectedCategory
+    {
+        get => _selectedCategory ??= CategoryChoices.FirstOrDefault(c => c.Id == Item?.CategoryId)
+                                     ?? CategoryChoices.FirstOrDefault();
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _selectedCategory, value);
+            if (Item != null)
+                Item.CategoryId = value?.Id;
+        }
+    }
+
+    /// <summary>Re-reads the picker after the category list changed underneath it.</summary>
+    public void RaiseCategoryChanged()
+    {
+        var chosenId = _selectedCategory?.Id;
+        _categoryChoices = null;
+        _selectedCategory = null;
+        this.RaisePropertyChanged(nameof(CategoryChoices));
+        _selectedCategory = CategoryChoices.FirstOrDefault(c => c.Id == chosenId);
+        this.RaisePropertyChanged(nameof(SelectedCategory));
+    }
     public bool HasConfig => Item?.Configuration != null;
     public int Connections => Item?.Configuration?.ChunkCount ?? 0;
 

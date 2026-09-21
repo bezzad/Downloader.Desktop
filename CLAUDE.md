@@ -250,6 +250,33 @@ Rough order to turn the current skeleton into the MVP above:
    - The **CLI add path is unconditionally silent** (a script cannot answer a modal) and the legacy
      `/add?url=` endpoint is untouched.
 
+19. ✅ **Categorize downloads by file type (issue #16, `categorize-downloads-by-type`)** (DONE, 2026-09-20):
+   - **File type stopped being decoration.** The eight built-in kinds became editable, reorderable
+     `DownloadCategory` records on `Config` (schema v1 → v2, seeded on upgrade with exactly the
+     extension table `DownloadItemViewModel.GetFileKind` used to hold, so the upgrade is a visual
+     no-op apart from the new column). `Services/CategoryService` is the single authority;
+     `GetFileKind` is gone.
+   - **A download's category is a nullable `DownloadItem.CategoryId` where `null` means "work it
+     out"** — that is what lets a row whose name arrives late correct itself, lets a category created
+     later adopt the files it claims, and makes "back to automatic" expressible at all.
+   - **One number does three jobs**: a category's position is its order in the sidebar, the sort key
+     of the grid's new Type column (sorting on a NAME would order by the alphabet of whichever
+     language is loaded), and which category wins when two claim the same extension.
+   - **Resolution**: the user's choice → the file extension → the `Content-Type` → Other. The MIME
+     leg needed `RemoteFileInfo.ContentType`, added in the sibling engine repo (the header was
+     already being fetched and discarded) — **pending a NuGet release**, so `UrlResolver` does not
+     read it yet; the browser extension's `mime` (sent for years, ignored by the app) is read now.
+   - **Optional left sidebar**, off by default, toggled beside the paste box, state persisted. Two
+     states only — the nav rail deleted in `71793e5` had a third and that was part of what made it
+     confusing. Counts respect the status filter, so each number is what clicking it will show.
+   - **BREAKING (behavioural): "select all" now covers only the rows the filters are showing.** It
+     previously acted on the whole list, which with a filter able to hide rows meant Remove deleting
+     downloads the user could not see.
+   - **Settings export/import** (`Services/SettingsPortability`): settings + categories only, with
+     no file-system paths and nothing platform-specific, so a file written on Linux imports on
+     Windows. Validated whole before anything is applied; a file listing no categories is refused.
+   - Extension 1.21.0. 1922 app tests + 181 extension tests + 40 Playwright e2e green, 0 warnings.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

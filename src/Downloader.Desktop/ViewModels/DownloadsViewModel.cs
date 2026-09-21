@@ -57,6 +57,13 @@ public class DownloadsViewModel : ViewModelBase
         StopSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Cancel(i)), hasSelection);
         RemoveSelectedCommand = ReactiveCommand.Create(RemoveSelected, hasSelection);
         StopAllCommand = ReactiveCommand.Create(() => _manager.StopAll());
+        ClearFiltersCommand = ReactiveCommand.Create(() =>
+        {
+            if (ClearFiltersRequested is null)
+                ClearFilters();
+            else
+                ClearFiltersRequested();
+        });
 
         // Track row check-state so HasSelection / SelectAllState stay in sync with the row checkboxes.
         foreach (var item in manager.Items)
@@ -138,6 +145,9 @@ public class DownloadsViewModel : ViewModelBase
     public ICommand StopSelectedCommand { get; }
     public ICommand RemoveSelectedCommand { get; }
     public ICommand StopAllCommand { get; }
+
+    /// <summary>The empty state's way out when the filters, not the download list, are why it is empty.</summary>
+    public ICommand ClearFiltersCommand { get; }
 
     /// <summary>Menu entries for "Start queue ▾" — one per queue, each starting that queue's items. Mutated in
     /// place by <see cref="RebuildQueueTargets"/> so the bound MenuFlyout refreshes live on queue add/remove.</summary>
@@ -254,6 +264,12 @@ public class DownloadsViewModel : ViewModelBase
 
     /// <summary>"N selected", for the toolbar.</summary>
     public string SelectedCountText => string.Format(Localizer.Instance["Toolbar_Selected"], SelectedCount);
+
+    /// <summary>
+    /// Set by the shell so the empty state's "Clear filters" also resets the footer status pills and
+    /// the search box, which live up there. Unset (design time, tests) it clears this page's own.
+    /// </summary>
+    public Action ClearFiltersRequested { get; set; }
 
     /// <summary>Drops every filter at once — what the empty state's action does.</summary>
     public void ClearFilters()

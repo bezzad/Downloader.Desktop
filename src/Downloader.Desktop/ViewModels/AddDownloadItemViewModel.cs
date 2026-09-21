@@ -93,6 +93,8 @@ public class AddDownloadItemViewModel : ViewModelBase
                 _selectedQueue = config.Queues.FirstOrDefault(q =>
                     string.Equals(q.Id, apiRequest.Queue, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(q.Name, apiRequest.Queue, StringComparison.OrdinalIgnoreCase)) ?? _selectedQueue;
+            // The category the caller asked for, when it still exists — same rule as the silent path.
+            PreselectCategory(LocalApiService.ResolveCategoryId(apiRequest.Category, config));
         }
 
         _parsed = SplitUrls(_urls);
@@ -523,6 +525,8 @@ public class AddDownloadItemViewModel : ViewModelBase
             // A non-empty value the user typed wins over a later auto-resolve; clearing it re-enables resolve.
             _userTypedName = !string.IsNullOrWhiteSpace(value);
             this.RaiseAndSetIfChanged(ref _fileName, value);
+            // The automatic entry names the category this name would land in, so it moves with it.
+            RaiseCategoryChoicesChanged();
         }
     }
 
@@ -547,6 +551,55 @@ public class AddDownloadItemViewModel : ViewModelBase
     /// <summary>The button only shows when the dialog has a manager to create queues through
     /// (design-time / legacy constructions don't).</summary>
     public bool CanAddQueue => _manager != null;
+
+    // ---- category ------------------------------------------------------------------------------
+
+    private CategoryChoice _selectedCategory;
+    private List<CategoryChoice> _categoryChoices;
+
+    /// <summary>
+    /// The category picker: "Automatic (…)" first, then every category. The list is CACHED, not
+    /// rebuilt per read — a ComboBox matches its selection by reference, so handing out a fresh list
+    /// each time would leave it permanently showing nothing. It is rebuilt when the typed name
+    /// changes, because the automatic entry names what the app would pick from that name.
+    /// </summary>
+    public List<CategoryChoice> CategoryChoices =>
+        _categoryChoices ??= CategoryChoice.For(_manager?.Categories,
+            _manager?.Categories?.Resolve(null, Filename ?? ParsedUrls.FirstOrDefault(), null));
+
+    /// <summary>The chosen entry. The automatic one (null id) leaves the download's category to be
+    /// worked out, which is what the great majority of adds want.</summary>
+    public CategoryChoice SelectedCategory
+    {
+        get => _selectedCategory ??= CategoryChoices.FirstOrDefault();
+        set => this.RaiseAndSetIfChanged(ref _selectedCategory, value);
+    }
+
+    /// <summary>The picker only earns its space once there are categories to pick from.</summary>
+    public bool HasCategories => _manager?.Categories?.Categories.Count > 0;
+
+    /// <summary>Re-reads the picker after the name (and so the automatic entry's label) changed.</summary>
+    private void RaiseCategoryChoicesChanged()
+    {
+        var chosenId = _selectedCategory?.Id;
+        _categoryChoices = null;
+        _selectedCategory = null;
+        this.RaisePropertyChanged(nameof(CategoryChoices));
+        // Keep the user's pick across a rebuild; only the automatic entry's wording moved.
+        _selectedCategory = CategoryChoices.FirstOrDefault(c => c.Id == chosenId);
+        this.RaisePropertyChanged(nameof(SelectedCategory));
+    }
+
+    /// <summary>Pre-selects a category a programmatic add asked for, when it still exists.</summary>
+    internal void PreselectCategory(string categoryId)
+    {
+        if (string.IsNullOrWhiteSpace(categoryId))
+            return;
+
+        var match = CategoryChoices.FirstOrDefault(c => c.Id == categoryId);
+        if (match != null)
+            SelectedCategory = match;
+    }
 
     /// <summary>True while the inline "name the new queue" row is showing.</summary>
     public bool IsAddingQueue
@@ -643,6 +696,7 @@ public class AddDownloadItemViewModel : ViewModelBase
                 // The resolver names each variant distinctly; a typed name only applies to a lone pick.
                 FileName = chosen.Count == 1 && !string.IsNullOrWhiteSpace(Filename) ? Filename.Trim() : null,
                 VariantId = v.SubstituteUrl == null ? v.Id : null,
+                CategoryId = SelectedCategory?.Id,
                 Group = vGroup,
                 QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
                 Status = DownloadStatus.Created,
@@ -659,6 +713,7 @@ public class AddDownloadItemViewModel : ViewModelBase
             SaveFolder = folder,
             // Custom name only applies to a single download; batches always auto-resolve.
             FileName = single && !string.IsNullOrWhiteSpace(Filename) ? Filename.Trim() : null,
+            CategoryId = SelectedCategory?.Id,
             Group = group,
             QueueId = SelectedQueue?.Id ?? _config?.DefaultQueue?.Id,
             Status = DownloadStatus.Created,
@@ -692,6 +747,10 @@ public class AddDownloadItemViewModel : ViewModelBase
         foreach (var item in items)
         {
             item.FromBrowserDownload = _apiRequest.FromBrowser;
+            // The media type the caller observed: an input to categorization, not something the user
+            // edits, so it rides along whether or not they changed the link.
+            if (string.IsNullOrWhiteSpace(item.ContentType) && !string.IsNullOrWhiteSpace(_apiRequest.Mime))
+                item.ContentType = _apiRequest.Mime.Trim();
             LocalApiService.ApplyRequestContext(item, _apiRequest);
         }
         return items;

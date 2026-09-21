@@ -39,6 +39,8 @@ public class SettingViewModel : ViewModelBase
         SwitchThemeCommand = ReactiveCommand.Create(SwitchTheme);
         OpenLogsFolderCommand = ReactiveCommand.Create(OpenLogsFolder);
         ExportLogsCommand = ReactiveCommand.CreateFromTask(ExportLogs);
+        ExportSettingsCommand = ReactiveCommand.CreateFromTask(ExportSettingsAsync);
+        ImportSettingsCommand = ReactiveCommand.CreateFromTask(ImportSettingsAsync);
         EmailLogsCommand = ReactiveCommand.Create(EmailLogs);
         ResetDefaultsCommand = ReactiveCommand.Create(ResetDefaults);
         RetryLocalApiCommand = ReactiveCommand.Create(RetryLocalApi);
@@ -134,6 +136,12 @@ public class SettingViewModel : ViewModelBase
     public ICommand SwitchThemeCommand { get; }
     public ICommand OpenLogsFolderCommand { get; }
     public ICommand ExportLogsCommand { get; }
+
+    /// <summary>Writes the portable part of the configuration — settings and categories — to a file.</summary>
+    public ICommand ExportSettingsCommand { get; }
+
+    /// <summary>Reads one back, on this or any other machine.</summary>
+    public ICommand ImportSettingsCommand { get; }
     public ICommand EmailLogsCommand { get; }
     public ICommand ResetDefaultsCommand { get; }
     public ICommand CheckUpdateCommand { get; }
@@ -697,6 +705,87 @@ public class SettingViewModel : ViewModelBase
 
     /// <summary>Opens a URL/path with the OS default handler. Returns false if it couldn't start.</summary>
     private static bool OpenInShell(string target) => ShellLauncher.TryOpen(target);
+
+    /// <summary>
+    /// Exports settings and categories. Nothing machine-specific goes in (see
+    /// <see cref="SettingsPortability"/>), so the file applies cleanly on another operating system.
+    /// </summary>
+    internal async Task ExportSettingsAsync()
+    {
+        var target = await DialogHelper.SaveFilePicker(Localizer.Instance["Set_Export"],
+            SettingsPortability.DefaultFileName);
+        if (target == null)
+            return; // cancelled — write nothing, say nothing
+
+        try
+        {
+            await System.IO.File.WriteAllTextAsync(target.LocalPath, SettingsPortability.Export(_config));
+            NotificationService.Inform(Localizer.Instance["Set_SettingsFile"],
+                Localizer.Instance["Set_ExportDone"], isError: false);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Settings export failed", ex);
+            NotificationService.Inform(Localizer.Instance["Set_SettingsFile"], ex.Message, isError: true);
+        }
+    }
+
+    /// <summary>
+    /// Imports settings and categories, validating the whole file before anything is applied so a bad
+    /// one leaves the current setup untouched.
+    /// </summary>
+    internal async Task ImportSettingsAsync()
+    {
+        var source = await DialogHelper.OpenFilePicker(Localizer.Instance["Set_Import"], "JSON", "json");
+        if (source == null)
+            return;
+
+        string json;
+        try
+        {
+            json = await System.IO.File.ReadAllTextAsync(source.LocalPath);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Settings import could not read the file", ex);
+            NotificationService.Inform(Localizer.Instance["Set_SettingsFile"], ex.Message, isError: true);
+            return;
+        }
+
+        ApplyImport(json);
+    }
+
+    /// <summary>The part of an import that does not touch the file system — the test seam.</summary>
+    internal ImportProblem ApplyImport(string json)
+    {
+        var problem = SettingsPortability.TryParse(json, _config, out var imported);
+        if (problem != ImportProblem.None)
+        {
+            NotificationService.Inform(Localizer.Instance["Set_SettingsFile"],
+                Localizer.Instance[problem == ImportProblem.NoCategories ? "Set_ImportEmpty" : "Set_ImportFailed"],
+                isError: true);
+            return problem;
+        }
+
+        SettingsPortability.Apply(_config, imported);
+
+        // Re-point the live services at what just landed, so the sidebar, the grid and the engine all
+        // use the imported values without a restart.
+        _manager?.Categories.Initialize(_config);
+        ThemeService.Apply(_config);
+        Localizer.Instance.Load(S.Language);
+        AppLog.SetEnabled(S.EnableLogging);
+        NotificationService.Enabled = S.EnableNotifications;
+        _manager?.ApplyGlobalSpeedLimit(S.MaximumBytesPerSecond);
+
+        // Empty name tells the bindings every property changed, refreshing the whole page (and
+        // triggering the debounced save) — same mechanism Reset to defaults uses.
+        this.RaisePropertyChanged(string.Empty);
+
+        NotificationService.Inform(Localizer.Instance["Set_SettingsFile"], Localizer.Instance["Set_ImportDone"],
+            isError: false);
+        return ImportProblem.None;
+    }
 
     private static async Task ExportLogs()
     {

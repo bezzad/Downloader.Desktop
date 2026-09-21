@@ -141,6 +141,20 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
+
+            <!-- Category. "Automatic (…)" names what the app would pick, so leaving it alone is an
+                 informed choice rather than a shrug. -->
+            <StackPanel Spacing="4" IsVisible="{Binding HasCategories}">
+                <TextBlock Text="{i18n:Tr Cat_Category}" />
+                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding CategoryChoices}"
+                          SelectedItem="{Binding SelectedCategory}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:CategoryChoice">
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
         </StackPanel>
 
         <!-- Resolver variants (video qualities / model tags): own star row so the list takes exactly the

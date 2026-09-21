@@ -718,12 +718,29 @@ public static class LocalApiService
             QueueId = queue?.Id ?? config.DefaultQueue?.Id,
             FromBrowserDownload = req.FromBrowser,
             VariantId = string.IsNullOrWhiteSpace(req.VariantId) ? null : req.VariantId.Trim(),
+            ContentType = string.IsNullOrWhiteSpace(req.Mime) ? null : req.Mime.Trim(),
+            // An id no category has is ignored, not refused: the download is still what the caller
+            // asked for, and detection files it where the app would have anyway.
+            CategoryId = ResolveCategoryId(req.Category, config),
             Status = DownloadStatus.Created,
             LastTry = DateTime.Now
         };
 
         ApplyRequestContext(item, req);
         return item;
+    }
+
+    /// <summary>The requested category's id when it exists (matched by id or, for convenience, by name),
+    /// otherwise null so the category is worked out from the file itself.</summary>
+    internal static string ResolveCategoryId(string requested, Config config)
+    {
+        if (string.IsNullOrWhiteSpace(requested) || config?.Categories is null)
+            return null;
+
+        var wanted = requested.Trim();
+        return config.Categories.FirstOrDefault(c =>
+            string.Equals(c.Id, wanted, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(c.Name, wanted, StringComparison.OrdinalIgnoreCase))?.Id;
     }
 
     /// <summary>Copies a request's per-download context (cookies, headers, referer) onto an item. Shared by
@@ -1024,6 +1041,20 @@ public sealed class ApiAddRequest
     /// directions — see <see cref="LocalApiService.ShouldConfirm"/>.</summary>
     public bool? Confirm { get; set; }
 
+    /// <summary>
+    /// The media type the caller observed for this link (the browser extension has already worked it
+    /// out from the response headers). Used only to work out the download's category when the file
+    /// name carries no usable extension; an absent value changes nothing.
+    /// </summary>
+    public string Mime { get; set; }
+
+    /// <summary>
+    /// The file-type category the caller wants this download filed under, as an explicit choice. An
+    /// id no category has is IGNORED rather than refused — a caller working from a stale list should
+    /// still get its download, just categorized the way the app would have done anyway.
+    /// </summary>
+    public string Category { get; set; }
+
     /// <summary>Human-readable validation error, or null when the request is usable.</summary>
     public string Error { get; set; }
 
@@ -1040,7 +1071,9 @@ public sealed class ApiAddRequest
                 Path = GetString(root, "path"),
                 Queue = GetString(root, "queue"),
                 Referer = GetString(root, "referer"),
-                VariantId = GetString(root, "variantId")
+                VariantId = GetString(root, "variantId"),
+                Mime = GetString(root, "mime"),
+                Category = GetString(root, "category")
             };
             if (root.TryGetProperty("fromBrowser", out var fromBrowser) &&
                 fromBrowser.ValueKind is JsonValueKind.False or JsonValueKind.True)
@@ -1082,7 +1115,9 @@ public sealed class ApiAddRequest
             Path = LocalApiService.QueryParam(requestUri, "path"),
             Queue = LocalApiService.QueryParam(requestUri, "queue"),
             Referer = LocalApiService.QueryParam(requestUri, "referer"),
-            VariantId = LocalApiService.QueryParam(requestUri, "variantId")
+            VariantId = LocalApiService.QueryParam(requestUri, "variantId"),
+            Mime = LocalApiService.QueryParam(requestUri, "mime"),
+            Category = LocalApiService.QueryParam(requestUri, "category")
         };
         if (LocalApiService.QueryParam(requestUri, "fromBrowser") is { } fromBrowser)
             req.FromBrowser = !fromBrowser.Equals("false", StringComparison.OrdinalIgnoreCase) && fromBrowser != "0";
@@ -1111,7 +1146,9 @@ public sealed class ApiAddRequest
         ["start"] = Start,
         // Referer travels with a forwarded CLI add (it is not a credential); cookies and headers never do.
         ["referer"] = Referer,
-        ["variantId"] = VariantId
+        ["variantId"] = VariantId,
+        ["mime"] = Mime,
+        ["category"] = Category
     });
 
     private ApiAddRequest Validate()

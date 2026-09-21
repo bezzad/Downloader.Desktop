@@ -125,7 +125,10 @@ async function onDownloadCreated(item) {
     if (!url) return;
     const referer = await refererFor(item);
     const headers = referer ? { Referer: referer } : null;
-    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers, mirrors });
+    // The media type we already had to work out to decide whether to intercept at all. Sending it
+    // costs nothing and is the only thing that can file a name-less signed CDN link under a type.
+    const mime = item?.mime || seen?.contentType || null;
+    const result = await handOffToApp(url, suggestedNameOf(item), { referer, headers, mirrors, mime });
 
     // The app didn't take it. Say nothing and change nothing: the browser download is still running,
     // which is the outcome the user already had. In dialog mode (issue #13) this is also the branch a
