@@ -11,6 +11,19 @@ on:
   pull_request:
     branches: [ "**" ]
   workflow_dispatch:
+    # Proving the hang harness needs a run that actually hits the deadline, and the only honest way to
+    # get one is to make the deadline shorter than the suite. As dispatch inputs it is re-runnable at
+    # any time and costs `develop` no red push run: left empty (every push, every PR) the script's own
+    # real defaults apply, so there is no "remember to restore it" commit to forget.
+    inputs:
+      test_deadline_seconds:
+        description: "Test-run deadline in seconds (empty = the script's 900). Set ~150 to prove the watchdog fires."
+        required: false
+        type: string
+      test_dump_lead_seconds:
+        description: "How long before the deadline to grab the dump (empty = the script's 120). Must be < the deadline."
+        required: false
+        type: string
 
 env:
   # Opt into Node.js 24 for JS-based actions still bundling Node 20 (e.g. upload-artifact).
@@ -61,6 +74,10 @@ jobs:
       # timeout-minutes stays as an outer net (script deadline + dump lead + kill grace < this).
       shell: bash
       timeout-minutes: 20
+      # Empty on every push/PR, so `${VAR:-default}` in the script falls back to the real bounds.
+      env:
+        CI_TEST_DEADLINE_SECONDS: ${{ inputs.test_deadline_seconds }}
+        CI_TEST_DUMP_LEAD_SECONDS: ${{ inputs.test_dump_lead_seconds }}
       run: scripts/ci-test.sh ${{ matrix.configuration }}
 
     - name: Upload test results
