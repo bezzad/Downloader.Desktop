@@ -86,8 +86,8 @@
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:CategoryColorChoice">
-                                        <Border Width="20" Height="20" CornerRadius="10" Margin="4"
-                                                Background="{Binding Brush}" />
+                                        <Border Width="20" Height="20" CornerRadius="1" Margin="4"
+                                                Background="{Binding Brush}"/>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
