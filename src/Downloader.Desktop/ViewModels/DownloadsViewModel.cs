@@ -56,6 +56,11 @@ public class DownloadsViewModel : ViewModelBase
         PauseSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)), hasSelection);
         StopSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Cancel(i)), hasSelection);
         RemoveSelectedCommand = ReactiveCommand.Create(RemoveSelected, hasSelection);
+        // Archive/Restore are selection-driven exactly like Start/Pause/Stop: always on the toolbar,
+        // greyed out with nothing selected. A button that came and went with the selection count would be
+        // the only one in the row behaving that way, and would shift the toolbar under the user's pointer.
+        ArchiveSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Archive(i)), hasSelection);
+        UnarchiveSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Unarchive(i)), hasSelection);
         StopAllCommand = ReactiveCommand.Create(() => _manager.StopAll());
         ClearFiltersCommand = ReactiveCommand.Create(() =>
         {
@@ -144,6 +149,12 @@ public class DownloadsViewModel : ViewModelBase
     public ICommand PauseSelectedCommand { get; }
     public ICommand StopSelectedCommand { get; }
     public ICommand RemoveSelectedCommand { get; }
+
+    /// <summary>Files every selected download away.</summary>
+    public ICommand ArchiveSelectedCommand { get; }
+
+    /// <summary>Puts every selected archived download back in the working list.</summary>
+    public ICommand UnarchiveSelectedCommand { get; }
     public ICommand StopAllCommand { get; }
 
     /// <summary>The empty state's way out when the filters, not the download list, are why it is empty.</summary>
@@ -376,6 +387,20 @@ public class DownloadsViewModel : ViewModelBase
 
     private bool PassesSearchAndStatus(DownloadItemViewModel vm)
     {
+        // Archiving is a separate axis from a download's state: an archived download is still Failed or
+        // Completed, and reads that way again once it is restored. So the archived view shows archived
+        // rows WHATEVER their state, and every status filter — All included — rejects them. Search still
+        // applies on both sides, which is what makes a large archive usable.
+        if (_filter == StatusFilter.Archived)
+        {
+            if (!vm.IsArchived)
+                return false;
+        }
+        else if (vm.IsArchived)
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(_search))
         {
             var s = _search.Trim();

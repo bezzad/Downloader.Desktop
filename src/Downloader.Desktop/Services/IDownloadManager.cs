@@ -78,6 +78,13 @@ public interface IDownloadManager
     void Retry(DownloadItemViewModel vm);
     Task Remove(DownloadItemViewModel vm);
 
+    /// <summary>Files a download away — stops it first if it is in flight or waiting, then takes it out of
+    /// the working list without deleting its record or its file.</summary>
+    void Archive(DownloadItemViewModel vm);
+
+    /// <summary>Puts an archived download back in the working list, in the state it was filed away in.</summary>
+    void Unarchive(DownloadItemViewModel vm);
+
     /// <summary>Resumes every paused/stopped/ready item.</summary>
     void StartAll();
 

@@ -125,6 +125,34 @@ public class ExtensionInstallLocalizationTests
         Assert.True(missing.Count == 0, "Untranslated install-extension strings: " + string.Join(", ", missing));
     }
 
+    /// <summary>Archiving (issue #17) reaches the user as three words and one setting. A pack that lacks
+    /// them falls back to the raw key, which is how an English-looking "Action_Archive" ends up on a
+    /// Persian toolbar.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Every_pack_carries_the_archive_wording()
+    {
+        string[] keys =
+        {
+            "Status_Archived", "Action_Archive", "Action_Restore",
+            "Set_DeletePartialOnRemove", "Set_DeletePartialOnRemove_Hint",
+        };
+
+        var missing = new System.Collections.Generic.List<string>();
+        foreach (var lang in Languages)
+        {
+            Localizer.Instance.Load(lang);
+            foreach (var key in keys)
+            {
+                var value = Localizer.Instance[key];
+                if (string.IsNullOrWhiteSpace(value) || value == key)
+                    missing.Add($"{lang}:{key}");
+            }
+        }
+        Localizer.Instance.Load("en");
+
+        Assert.True(missing.Count == 0, "Untranslated archive strings: " + string.Join(", ", missing));
+    }
+
     /// <summary>The two format strings are what tell the user which version they have and which is
     /// available — a pack that drops a placeholder silently loses that.</summary>
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

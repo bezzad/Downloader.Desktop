@@ -31,6 +31,7 @@
   "Status_Queued": "क़तार में",
   "Status_Done": "पूर्ण",
   "Status_Failed": "विफल",
+  "Status_Archived": "संग्रहीत",
   "Status_Stopped": "रुके हुए",
   "Status_TotalDownloaded": "अब तक कुल डाउनलोड",
   "Grid_SelectAll": "सभी चुनें",
@@ -40,6 +41,8 @@
   "Action_Resume": "जारी रखें",
   "Action_Retry": "पुनः प्रयास",
   "Action_Remove": "हटाएँ",
+  "Action_Archive": "संग्रह करें",
+  "Action_Restore": "पुनर्स्थापित करें",
   "Action_StartQueue": "क़तार शुरू करें",
   "Action_StopQueue": "क़तार बंद करें",
   "Action_StopAll": "सब बंद करें",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "सेटिंग निर्यात हो गईं।",
   "Set_ImportDone": "सेटिंग आयात हो गईं।",
   "Set_ImportFailed": "यह फ़ाइल सेटिंग निर्यात के रूप में नहीं पढ़ी जा सकी। कुछ भी नहीं बदला।",
-  "Set_ImportEmpty": "इस फ़ाइल में कोई श्रेणी नहीं है, इसलिए इसे आयात नहीं किया गया।"
+  "Set_ImportEmpty": "इस फ़ाइल में कोई श्रेणी नहीं है, इसलिए इसे आयात नहीं किया गया।",
+  "Set_DeletePartialOnRemove": "डाउनलोड हटाते समय अधूरी फ़ाइल भी मिटाएँ",
+  "Set_DeletePartialOnRemove_Hint": "अधूरा डाउनलोड हटाने पर आधी डाउनलोड हुई फ़ाइल भी डिस्क से मिटा दी जाती है। पूरी हो चुकी फ़ाइलें कभी नहीं मिटाई जातीं।"
 }

@@ -2205,3 +2205,27 @@ that reaches NuGet, the app's MIME leg only gets a value from the browser extens
 (`/api/add`), and `UrlResolver` does not read it. Engine repo test command:
 `dotnet test src/Downloader.Test/Downloader.Test.csproj -p:TargetFrameworks=net10.0 -f net10.0` (a plain
 `-f net10.0` is not enough — the TFM list itself has to be overridden).
+
+## Archiving is a separate axis from status — and two tests that looked fine while proving nothing
+- `DownloadItem.IsArchived` is persisted, and `StatusFilter.Archived` is NOT a status bucket:
+  `DownloadsViewModel.PassesSearchAndStatus` answers the archived filter on the flag alone and makes
+  **every** other filter, **All included**, reject archived rows. Folding it into the status enum would
+  destroy the row's real state (an archived Failed download must read Failed again once restored).
+- **The invariant: an archived download is never running or queued.** `DownloadManager.Archive` calls
+  `Cancel` first; `Start`/`Resume`/`Retry` clear the flag first. Every exclusion elsewhere (the pump,
+  `StartAll`/`StopAll`, `TotalSpeed`, the counts, `QueuesViewModel.Mine`) is only SAFE because of it —
+  without the stop-first half, a hidden row would keep downloading. Both halves belong in the manager:
+  bulk actions reach it directly and bypass anything the buttons enforce.
+- **Two tests passed against deliberately broken code, for the same reason:** archiving stops the row,
+  so a test that archives a RUNNING download and then checks it is not started / not in `ActiveCount`
+  is really only testing `Cancel`. To test an exclusion, archive something the stop cannot affect — a
+  **Completed** row for the counts, and a row forced back to **Paused** after archiving for the pump.
+  Verified by reverting each `!i.IsArchived` in turn and watching the test go red; three assertions
+  now bite (`No_path_leaves_a_download_both_archived_and_live`, `The_pump_will_not_resume_an_archived_row`,
+  `An_archived_row_is_absent_from_the_counts_and_the_totals`).
+- A capped-out item added with `autoStart: true` carries `DownloadStatus.None`, **not** `Created` —
+  the manager treats both as "waiting for a slot", so assert on either, never on one.
+- A `QueueRowViewModel` holds no item wrappers while collapsed: a test that inspects `card.Items` must
+  set `IsExpanded = true` and call `RebuildItems()` first.
+- `DeletePartialFileOnRemove` deletes ONLY `<final>.download`. Do not reuse `DiscardPartialFile` for
+  this — that one also deletes the final file (correct for a retry, catastrophic for a Remove).

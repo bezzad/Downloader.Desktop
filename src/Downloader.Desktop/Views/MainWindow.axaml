@@ -166,7 +166,7 @@
 
             <!-- Downloads-list actions, pinned right; hidden on the Settings/Scheduler/Queues pages -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
-                        IsVisible="{Binding IsDownloadsSelected}">
+                        IsVisible="{Binding IsWorkingListSelected}">
                 <!-- With a filter hiding rows, the checkboxes alone no longer say how much a bulk
                      action reaches, so the count says it out loud. -->
                 <TextBlock Text="{Binding Downloads.SelectedCountText}" VerticalAlignment="Center"
@@ -189,6 +189,12 @@
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
                         <TextBlock Text="{i18n:Tr Action_Stop}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.ArchiveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Archive}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ArchiveRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Archive}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
                 <Button Classes="tool" Command="{Binding Downloads.RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
@@ -243,6 +249,24 @@
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource StopAllRegular}" HorizontalAlignment="Center" />
                         <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- The archived view's actions. Same slot, same mechanism as the page-level swap above:
+                 both clusters are hidden while a management page is open. -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                        IsVisible="{Binding IsArchivedSelected}">
+                <Button Classes="tool" Command="{Binding Downloads.UnarchiveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Restore}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ArchiveRestoreRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Restore}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource DeleteRegular}" HorizontalAlignment="Center" Foreground="#E5594F" />
+                        <TextBlock Text="{i18n:Tr Action_Remove}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -307,6 +331,16 @@
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <TextBlock Text="{Binding FailedFilterCount}" />
                             <TextBlock Text="{i18n:Tr Status_Failed}" />
+                        </StackPanel>
+                    </Button>
+                    <!-- Archived is a separate axis, not a status: it lists the downloads the user filed
+                         away, whatever state they are in, and every pill to its left excludes them. -->
+                    <Button Classes="filterpill" Classes.active="{Binding IsArchivedSelected}"
+                            Command="{Binding ShowArchivedCommand}" ToolTip.Tip="{i18n:Tr Status_Archived}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <PathIcon Data="{DynamicResource ArchiveRegular}" Height="11" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ArchivedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Archived}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>

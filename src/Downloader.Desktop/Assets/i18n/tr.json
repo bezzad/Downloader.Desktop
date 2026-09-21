@@ -31,6 +31,7 @@
   "Status_Queued": "kuyrukta",
   "Status_Done": "tamam",
   "Status_Failed": "başarısız",
+  "Status_Archived": "arşivlenmiş",
   "Status_Stopped": "durduruldu",
   "Status_TotalDownloaded": "Şimdiye kadar toplam indirilen",
   "Grid_SelectAll": "Tümünü seç",
@@ -40,6 +41,8 @@
   "Action_Resume": "Sürdür",
   "Action_Retry": "Yeniden dene",
   "Action_Remove": "Kaldır",
+  "Action_Archive": "Arşivle",
+  "Action_Restore": "Geri yükle",
   "Action_StartQueue": "Kuyruğu başlat",
   "Action_StopQueue": "Kuyruğu durdur",
   "Action_StopAll": "Tümünü durdur",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Ayarlar dışa aktarıldı.",
   "Set_ImportDone": "Ayarlar içe aktarıldı.",
   "Set_ImportFailed": "Bu dosya bir ayar dışa aktarımı olarak okunamadı. Hiçbir şey değişmedi.",
-  "Set_ImportEmpty": "Bu dosyada hiç kategori yok, bu yüzden içe aktarılmadı."
+  "Set_ImportEmpty": "Bu dosyada hiç kategori yok, bu yüzden içe aktarılmadı.",
+  "Set_DeletePartialOnRemove": "İndirmeyi kaldırırken yarım kalan dosyayı da sil",
+  "Set_DeletePartialOnRemove_Hint": "Tamamlanmamış bir indirmeyi kaldırdığınızda yarım inen dosya da diskten silinir. Tamamlanmış dosyalar asla silinmez."
 }

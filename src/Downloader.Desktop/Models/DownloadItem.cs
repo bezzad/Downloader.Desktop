@@ -97,6 +97,12 @@ public class DownloadItem
     public DateTime? LastTry { get; set; }
     public DownloadStatus Status { get; set; }
 
+    /// <summary>True when the user filed this download away: it keeps its record, its file and its state,
+    /// but leaves the working list (every status filter, All included) and takes no part in queues, bulk
+    /// actions or the status-bar totals. An archived download is never running or queued — archiving stops
+    /// it first, and starting/resuming/retrying it clears this flag (see <see cref="Services.DownloadManager"/>).</summary>
+    public bool IsArchived { get; set; }
+
     /// <summary>True when the user set a per-item speed cap in the details dialog, so global speed-limit
     /// changes must NOT override it. Defaults false → the item follows the global limit.</summary>
     public bool HasCustomSpeedLimit { get; set; }

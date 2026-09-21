@@ -31,6 +31,7 @@
   "Status_Queued": "en file",
   "Status_Done": "terminés",
   "Status_Failed": "échecs",
+  "Status_Archived": "archivés",
   "Status_Stopped": "arrêtés",
   "Status_TotalDownloaded": "Total téléchargé jusqu’ici",
   "Grid_SelectAll": "Tout sélectionner",
@@ -40,6 +41,8 @@
   "Action_Resume": "Reprendre",
   "Action_Retry": "Réessayer",
   "Action_Remove": "Supprimer",
+  "Action_Archive": "Archiver",
+  "Action_Restore": "Restaurer",
   "Action_StartQueue": "Démarrer la file",
   "Action_StopQueue": "Arrêter la file",
   "Action_StopAll": "Tout arrêter",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Réglages exportés.",
   "Set_ImportDone": "Réglages importés.",
   "Set_ImportFailed": "Ce fichier n'a pas pu être lu comme un export de réglages. Rien n'a été modifié.",
-  "Set_ImportEmpty": "Ce fichier ne contient aucune catégorie, il n'a donc pas été importé."
+  "Set_ImportEmpty": "Ce fichier ne contient aucune catégorie, il n'a donc pas été importé.",
+  "Set_DeletePartialOnRemove": "Supprimer le fichier partiel en retirant un téléchargement",
+  "Set_DeletePartialOnRemove_Hint": "Lorsque vous retirez un téléchargement inachevé, supprime aussi du disque le fichier à moitié téléchargé. Les fichiers terminés ne sont jamais supprimés."
 }

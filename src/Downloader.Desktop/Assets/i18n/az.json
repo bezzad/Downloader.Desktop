@@ -31,6 +31,7 @@
   "Status_Queued": "növbədə",
   "Status_Done": "hazır",
   "Status_Failed": "uğursuz",
+  "Status_Archived": "arxivlənmiş",
   "Status_Stopped": "dayandırılıb",
   "Status_TotalDownloaded": "İndiyədək endirilən ümumi həcm",
   "Grid_SelectAll": "Hamısını seç",
@@ -40,6 +41,8 @@
   "Action_Resume": "Davam et",
   "Action_Retry": "Yenidən cəhd",
   "Action_Remove": "Sil",
+  "Action_Archive": "Arxivləşdir",
+  "Action_Restore": "Bərpa et",
   "Action_StartQueue": "Növbəni başlat",
   "Action_StopQueue": "Növbəni dayandır",
   "Action_StopAll": "Hamısını dayandır",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Parametrlər ixrac edildi.",
   "Set_ImportDone": "Parametrlər idxal edildi.",
   "Set_ImportFailed": "Bu fayl parametr ixracı kimi oxunmadı. Heç nə dəyişmədi.",
-  "Set_ImportEmpty": "Bu faylda heç bir kateqoriya yoxdur, ona görə idxal edilmədi."
+  "Set_ImportEmpty": "Bu faylda heç bir kateqoriya yoxdur, ona görə idxal edilmədi.",
+  "Set_DeletePartialOnRemove": "Yükləməni silərkən yarımçıq faylı da sil",
+  "Set_DeletePartialOnRemove_Hint": "Tamamlanmamış yükləməni siləndə yarımçıq yüklənmiş fayl da diskdən silinir. Tamamlanmış fayllar heç vaxt silinmir."
 }

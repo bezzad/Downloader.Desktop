@@ -31,6 +31,7 @@
   "Status_Queued": "in coda",
   "Status_Done": "completati",
   "Status_Failed": "falliti",
+  "Status_Archived": "archiviati",
   "Status_Stopped": "fermati",
   "Status_TotalDownloaded": "Totale scaricato finora",
   "Grid_SelectAll": "Seleziona tutto",
@@ -40,6 +41,8 @@
   "Action_Resume": "Riprendi",
   "Action_Retry": "Riprova",
   "Action_Remove": "Rimuovi",
+  "Action_Archive": "Archivia",
+  "Action_Restore": "Ripristina",
   "Action_StartQueue": "Avvia coda",
   "Action_StopQueue": "Ferma coda",
   "Action_StopAll": "Ferma tutto",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Impostazioni esportate.",
   "Set_ImportDone": "Impostazioni importate.",
   "Set_ImportFailed": "Impossibile leggere quel file come esportazione di impostazioni. Nulla è stato modificato.",
-  "Set_ImportEmpty": "Quel file non elenca categorie, quindi non è stato importato."
+  "Set_ImportEmpty": "Quel file non elenca categorie, quindi non è stato importato.",
+  "Set_DeletePartialOnRemove": "Elimina il file incompleto quando rimuovi un download",
+  "Set_DeletePartialOnRemove_Hint": "Quando rimuovi un download non terminato, elimina dal disco anche il file scaricato a metà. I file completati non vengono mai eliminati."
 }

@@ -31,6 +31,7 @@
   "Status_Queued": "待機中",
   "Status_Done": "完了",
   "Status_Failed": "失敗",
+  "Status_Archived": "アーカイブ済み",
   "Status_Stopped": "停止中",
   "Status_TotalDownloaded": "これまでの合計ダウンロード量",
   "Grid_SelectAll": "すべて選択",
@@ -40,6 +41,8 @@
   "Action_Resume": "再開",
   "Action_Retry": "再試行",
   "Action_Remove": "削除",
+  "Action_Archive": "アーカイブ",
+  "Action_Restore": "元に戻す",
   "Action_StartQueue": "キューを開始",
   "Action_StopQueue": "キューを停止",
   "Action_StopAll": "すべて停止",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "設定を書き出しました。",
   "Set_ImportDone": "設定を読み込みました。",
   "Set_ImportFailed": "このファイルは設定の書き出しとして読み取れませんでした。何も変更されていません。",
-  "Set_ImportEmpty": "このファイルにはカテゴリが含まれていないため、読み込みませんでした。"
+  "Set_ImportEmpty": "このファイルにはカテゴリが含まれていないため、読み込みませんでした。",
+  "Set_DeletePartialOnRemove": "ダウンロードを削除するとき未完了のファイルも削除する",
+  "Set_DeletePartialOnRemove_Hint": "未完了のダウンロードを削除すると、途中まで保存されたファイルもディスクから削除します。完了したファイルが削除されることはありません。"
 }

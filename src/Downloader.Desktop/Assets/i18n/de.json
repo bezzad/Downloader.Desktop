@@ -31,6 +31,7 @@
   "Status_Queued": "in Warteschlange",
   "Status_Done": "fertig",
   "Status_Failed": "fehlgeschlagen",
+  "Status_Archived": "archiviert",
   "Status_Stopped": "gestoppt",
   "Status_TotalDownloaded": "Bisher insgesamt heruntergeladen",
   "Grid_SelectAll": "Alle auswählen",
@@ -40,6 +41,8 @@
   "Action_Resume": "Fortsetzen",
   "Action_Retry": "Wiederholen",
   "Action_Remove": "Entfernen",
+  "Action_Archive": "Archivieren",
+  "Action_Restore": "Wiederherstellen",
   "Action_StartQueue": "Warteschlange starten",
   "Action_StopQueue": "Warteschlange stoppen",
   "Action_StopAll": "Alle stoppen",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Einstellungen exportiert.",
   "Set_ImportDone": "Einstellungen importiert.",
   "Set_ImportFailed": "Diese Datei konnte nicht als Einstellungsexport gelesen werden. Es wurde nichts geändert.",
-  "Set_ImportEmpty": "Diese Datei enthält keine Kategorien und wurde daher nicht importiert."
+  "Set_ImportEmpty": "Diese Datei enthält keine Kategorien und wurde daher nicht importiert.",
+  "Set_DeletePartialOnRemove": "Beim Entfernen eines Downloads die unfertige Datei löschen",
+  "Set_DeletePartialOnRemove_Hint": "Wenn Sie einen unfertigen Download entfernen, wird auch die halb heruntergeladene Datei von der Festplatte gelöscht. Fertige Dateien werden nie gelöscht."
 }

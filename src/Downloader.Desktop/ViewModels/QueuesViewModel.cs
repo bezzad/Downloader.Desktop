@@ -124,7 +124,7 @@ public class QueuesViewModel : ViewModelBase
         // the downloads themselves survive (they move to the default queue), but their place in
         // this queue's order/cap is lost.
         var unfinished = _manager.Items.Count(i =>
-            i.GetItem().QueueId == row.Queue.Id && i.Status != DownloadStatus.Completed);
+            i.GetItem().QueueId == row.Queue.Id && !i.IsArchived && i.Status != DownloadStatus.Completed);
         if (unfinished > 0)
         {
             var confirmed = await ConfirmRemoval(
@@ -242,7 +242,7 @@ public class QueueRowViewModel : ViewModelBase
             return;
         }
 
-        var mine = _manager?.Items.Where(i => i.GetItem().QueueId == Queue.Id).ToList()
+        var mine = _manager?.Items.Where(i => i.GetItem().QueueId == Queue.Id && !i.IsArchived).ToList()
                    ?? new List<DownloadItemViewModel>();
 
         // Same rows in the same order → keep the wrappers (and their bound UI) as-is.
@@ -278,8 +278,11 @@ public class QueueRowViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsRunning));
     }
 
+    // Archived downloads belong to a queue on paper but take no part in it — they are inert by the
+    // Archive/Start invariant, so listing or counting them here would describe work that will never run.
     private IEnumerable<DownloadItemViewModel> Mine =>
-        _manager?.Items.Where(i => i.GetItem().QueueId == Queue.Id) ?? Enumerable.Empty<DownloadItemViewModel>();
+        _manager?.Items.Where(i => i.GetItem().QueueId == Queue.Id && !i.IsArchived)
+        ?? Enumerable.Empty<DownloadItemViewModel>();
 
     public IEnumerable<DownloadQueue> OtherQueues => _parent?.QueuesOtherThan(this) ?? Enumerable.Empty<DownloadQueue>();
 

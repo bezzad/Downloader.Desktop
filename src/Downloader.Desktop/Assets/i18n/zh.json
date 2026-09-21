@@ -31,6 +31,7 @@
   "Status_Queued": "排队中",
   "Status_Done": "已完成",
   "Status_Failed": "失败",
+  "Status_Archived": "已归档",
   "Status_Stopped": "已停止",
   "Status_TotalDownloaded": "迄今为止总下载量",
   "Grid_SelectAll": "全选",
@@ -40,6 +41,8 @@
   "Action_Resume": "继续",
   "Action_Retry": "重试",
   "Action_Remove": "移除",
+  "Action_Archive": "归档",
+  "Action_Restore": "还原",
   "Action_StartQueue": "启动队列",
   "Action_StopQueue": "停止队列",
   "Action_StopAll": "全部停止",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "设置已导出。",
   "Set_ImportDone": "设置已导入。",
   "Set_ImportFailed": "无法将该文件读取为设置导出文件。未做任何更改。",
-  "Set_ImportEmpty": "该文件未列出任何分类，因此未导入。"
+  "Set_ImportEmpty": "该文件未列出任何分类，因此未导入。",
+  "Set_DeletePartialOnRemove": "移除下载时删除未完成的文件",
+  "Set_DeletePartialOnRemove_Hint": "移除未完成的下载时，同时从磁盘删除下载了一半的文件。已完成的文件永远不会被删除。"
 }

@@ -31,6 +31,7 @@
   "Status_Queued": "في الانتظار",
   "Status_Done": "منتهية",
   "Status_Failed": "فشلت",
+  "Status_Archived": "مؤرشَف",
   "Status_Stopped": "متوقفة",
   "Status_TotalDownloaded": "إجمالي ما تم تنزيله حتى الآن",
   "Grid_SelectAll": "تحديد الكل",
@@ -40,6 +41,8 @@
   "Action_Resume": "استئناف",
   "Action_Retry": "إعادة المحاولة",
   "Action_Remove": "إزالة",
+  "Action_Archive": "أرشفة",
+  "Action_Restore": "استعادة",
   "Action_StartQueue": "بدء قائمة الانتظار",
   "Action_StopQueue": "إيقاف قائمة الانتظار",
   "Action_StopAll": "إيقاف الكل",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "تم تصدير الإعدادات.",
   "Set_ImportDone": "تم استيراد الإعدادات.",
   "Set_ImportFailed": "تعذّرت قراءة هذا الملف كتصدير للإعدادات. لم يتغير شيء.",
-  "Set_ImportEmpty": "هذا الملف لا يحتوي على تصنيفات، لذلك لم يتم استيراده."
+  "Set_ImportEmpty": "هذا الملف لا يحتوي على تصنيفات، لذلك لم يتم استيراده.",
+  "Set_DeletePartialOnRemove": "حذف الملف الناقص عند إزالة تنزيل",
+  "Set_DeletePartialOnRemove_Hint": "عند إزالة تنزيل غير مكتمل، احذف أيضًا الملف المنزَّل جزئيًا من القرص. لا تُحذف الملفات المكتملة أبدًا."
 }

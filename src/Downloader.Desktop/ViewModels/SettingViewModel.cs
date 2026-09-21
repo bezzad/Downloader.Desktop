@@ -429,6 +429,13 @@ public class SettingViewModel : ViewModelBase
         set { S.RememberLastSavePath = value; this.RaisePropertyChanged(); }
     }
 
+    /// <summary>Whether Remove also deletes a download's half-finished file. Never the completed one.</summary>
+    public bool DeletePartialFileOnRemove
+    {
+        get => S.DeletePartialFileOnRemove;
+        set { S.DeletePartialFileOnRemove = value; this.RaisePropertyChanged(); }
+    }
+
     public int ChunkCount
     {
         get => S.ChunkCount;

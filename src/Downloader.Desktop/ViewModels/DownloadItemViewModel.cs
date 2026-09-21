@@ -113,6 +113,8 @@ public class DownloadItemViewModel : ViewModelBase
         {
             if (_manager != null) await _manager.Remove(this);
         });
+        ArchiveCommand = ReactiveCommand.Create(() => _manager?.Archive(this));
+        UnarchiveCommand = ReactiveCommand.Create(() => _manager?.Unarchive(this));
         OpenFolderCommand = ReactiveCommand.Create(OpenContainingFolder);
         OpenFileCommand = ReactiveCommand.Create(OpenFile);
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Url));
@@ -141,6 +143,12 @@ public class DownloadItemViewModel : ViewModelBase
     public ICommand CancelCommand { get; }
     public ICommand RetryCommand { get; }
     public ICommand RemoveCommand { get; }
+
+    /// <summary>Files this download away (stopping it first if it is in flight).</summary>
+    public ICommand ArchiveCommand { get; }
+
+    /// <summary>Puts it back in the working list — the same row slot shows this while the archived view is on.</summary>
+    public ICommand UnarchiveCommand { get; }
     public ICommand OpenFolderCommand { get; }
     public ICommand OpenFileCommand { get; }
     public ICommand CopyUrlCommand { get; }
@@ -503,6 +511,15 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(PostActionLabel));
             this.RaisePropertyChanged(nameof(HasPostAction));
         }
+    }
+
+    /// <summary>True when the user archived this download (write-through to the model, like Status). Set it
+    /// through <see cref="Services.IDownloadManager.Archive"/>/<c>Unarchive</c> — they keep the invariant that
+    /// an archived download is never running or queued.</summary>
+    public bool IsArchived
+    {
+        get => _item.IsArchived;
+        set { _item.IsArchived = value; this.RaisePropertyChanged(); }
     }
 
     /// <summary>True when this item opts out of the global speed limit (write-through to the model, like Status).</summary>

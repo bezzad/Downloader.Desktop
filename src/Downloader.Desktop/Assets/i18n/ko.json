@@ -31,6 +31,7 @@
   "Status_Queued": "대기 중",
   "Status_Done": "완료",
   "Status_Failed": "실패",
+  "Status_Archived": "보관됨",
   "Status_Stopped": "중지됨",
   "Status_TotalDownloaded": "지금까지 총 다운로드",
   "Grid_SelectAll": "모두 선택",
@@ -40,6 +41,8 @@
   "Action_Resume": "재개",
   "Action_Retry": "다시 시도",
   "Action_Remove": "제거",
+  "Action_Archive": "보관",
+  "Action_Restore": "복원",
   "Action_StartQueue": "대기열 시작",
   "Action_StopQueue": "대기열 정지",
   "Action_StopAll": "모두 정지",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "설정을 내보냈습니다.",
   "Set_ImportDone": "설정을 가져왔습니다.",
   "Set_ImportFailed": "이 파일을 설정 내보내기로 읽을 수 없습니다. 아무것도 변경되지 않았습니다.",
-  "Set_ImportEmpty": "이 파일에는 분류가 없어 가져오지 않았습니다."
+  "Set_ImportEmpty": "이 파일에는 분류가 없어 가져오지 않았습니다.",
+  "Set_DeletePartialOnRemove": "다운로드를 제거할 때 미완성 파일도 삭제",
+  "Set_DeletePartialOnRemove_Hint": "완료되지 않은 다운로드를 제거하면 절반만 받은 파일도 디스크에서 삭제합니다. 완료된 파일은 절대 삭제되지 않습니다."
 }

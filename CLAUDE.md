@@ -277,6 +277,32 @@ Rough order to turn the current skeleton into the MVP above:
      Windows. Validated whole before anything is applied; a file listing no categories is refused.
    - Extension 1.21.0. 1922 app tests + 181 extension tests + 40 Playwright e2e green, 0 warnings.
 
+20. ✅ **Archive downloads out of the working list (issue #17, `archive-downloads`)** (DONE, 2026-09-21):
+   - The list only ever grew: the sole way to shorten it was **Remove**, which destroys the record. A
+     download can now be **archived** — it keeps its record, its file and its state, and leaves the
+     working list.
+   - **The invariant everything else rests on: an archived download is never running or queued.**
+     `DownloadManager.Archive` stops an in-flight or waiting row BEFORE setting the flag, and
+     `Start`/`Resume`/`Retry` clear the flag before doing anything else. Without that pair, excluding
+     archived rows from the pump would strand a download that keeps running where nobody can see it.
+     Both halves live in the manager, not the buttons — bulk actions bypass a view-level guard.
+   - **Archiving is a SEPARATE AXIS from a download's state**, not a seventh status bucket: an archived
+     download is still Failed/Completed and reads that way again when restored. So
+     `StatusFilter.Archived` matches on the flag alone and every other filter — **All included** —
+     rejects archived rows, as do `AllCount` and the five `*FilterCount`s.
+   - Exclusion is applied at each iteration site (`PumpQueue`, `StartAll`/`StartQueue`,
+     `StopAll`/`StopQueue`, `TotalSpeed`, the counts, `QueuesViewModel.Mine`) rather than by filtering
+     `Items` globally — that collection is also the master ordering drag-reorder and the pump priority
+     read.
+   - **UI:** a seventh footer pill; an Archive icon in the row strip (Restore in the archived view);
+     an Archive button on the toolbar beside Remove, enabled by selection like Start/Pause/Stop; and the
+     cluster swaps to **Restore + Remove** while the Archived filter is on, through the same `IsVisible`
+     mechanism that already hides it on a management page.
+   - **New setting `DeletePartialFileOnRemove`** (default off): Remove also deletes the engine's
+     `<name>.download` sidecar. A COMPLETED file is never deleted — Remove is one click on a grid row.
+   - Wording in all 16 packs. **BREAKING (behavioural):** an archived unfinished download is no longer
+     resumed by "start all".
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

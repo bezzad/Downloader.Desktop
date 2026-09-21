@@ -31,6 +31,7 @@
   "Status_Queued": "queued",
   "Status_Done": "done",
   "Status_Failed": "failed",
+  "Status_Archived": "archived",
   "Status_Stopped": "stopped",
   "Status_TotalDownloaded": "Total downloaded so far",
   "Grid_SelectAll": "Select all",
@@ -40,6 +41,8 @@
   "Action_Resume": "Resume",
   "Action_Retry": "Retry",
   "Action_Remove": "Remove",
+  "Action_Archive": "Archive",
+  "Action_Restore": "Restore",
   "Action_StartQueue": "Start queue",
   "Action_StopQueue": "Stop queue",
   "Action_StopAll": "Stop all",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Settings exported.",
   "Set_ImportDone": "Settings imported.",
   "Set_ImportFailed": "That file could not be read as a settings export. Nothing was changed.",
-  "Set_ImportEmpty": "That file lists no categories, so it was not imported."
+  "Set_ImportEmpty": "That file lists no categories, so it was not imported.",
+  "Set_DeletePartialOnRemove": "Delete the partial file when removing a download",
+  "Set_DeletePartialOnRemove_Hint": "When you remove an unfinished download, also delete the half-downloaded file from disk. Finished files are never deleted."
 }

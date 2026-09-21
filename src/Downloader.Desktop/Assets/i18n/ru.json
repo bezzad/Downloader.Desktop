@@ -31,6 +31,7 @@
   "Status_Queued": "в очереди",
   "Status_Done": "готово",
   "Status_Failed": "ошибки",
+  "Status_Archived": "в архиве",
   "Status_Stopped": "остановлены",
   "Status_TotalDownloaded": "Всего загружено на данный момент",
   "Grid_SelectAll": "Выбрать всё",
@@ -40,6 +41,8 @@
   "Action_Resume": "Продолжить",
   "Action_Retry": "Повторить",
   "Action_Remove": "Удалить",
+  "Action_Archive": "В архив",
+  "Action_Restore": "Восстановить",
   "Action_StartQueue": "Запустить очередь",
   "Action_StopQueue": "Остановить очередь",
   "Action_StopAll": "Остановить всё",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Настройки экспортированы.",
   "Set_ImportDone": "Настройки импортированы.",
   "Set_ImportFailed": "Этот файл не удалось прочитать как экспорт настроек. Ничего не изменено.",
-  "Set_ImportEmpty": "В этом файле нет категорий, поэтому он не импортирован."
+  "Set_ImportEmpty": "В этом файле нет категорий, поэтому он не импортирован.",
+  "Set_DeletePartialOnRemove": "Удалять незавершённый файл при удалении загрузки",
+  "Set_DeletePartialOnRemove_Hint": "При удалении незавершённой загрузки недокачанный файл также удаляется с диска. Завершённые файлы никогда не удаляются."
 }

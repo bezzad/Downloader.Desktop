@@ -49,6 +49,7 @@ public class MainViewModel : ViewModelBase
         ShowStoppedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Stopped));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
+        ShowArchivedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Archived));
         // Management pages open in-window: the central ContentControl swaps between the downloads
         // list and Queues/Scheduler/Settings; the toolbar's Downloads button returns to the list.
         ShowDownloadsCommand = ReactiveCommand.Create(() => Navigate(NavSection.Downloads));
@@ -94,6 +95,7 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowStoppedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
+    public ICommand ShowArchivedCommand { get; }
     public ICommand ShowDownloadsCommand { get; }
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
@@ -184,7 +186,13 @@ public class MainViewModel : ViewModelBase
     public bool IsStoppedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Stopped;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
+    public bool IsArchivedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Archived;
     public bool IsDownloadsSelected => _section == NavSection.Downloads;
+
+    /// <summary>The downloads page showing the working list — i.e. not the archived view. The toolbar's
+    /// Start/Pause/Stop/Archive cluster is bound to this and the Restore/Remove cluster to
+    /// <see cref="IsArchivedSelected"/>, so opening a management page hides both.</summary>
+    public bool IsWorkingListSelected => IsDownloadsSelected && !IsArchivedSelected;
     public bool IsQueuesSelected => _section == NavSection.Queues;
     public bool IsSchedulerSelected => _section == NavSection.Scheduler;
     public bool IsSettingsSelected => _section == NavSection.Settings;
@@ -195,22 +203,25 @@ public class MainViewModel : ViewModelBase
     /// <summary>Cumulative bytes downloaded across all rows, human-readable (#18). Recomputed on the
     /// stats pump — a single O(n) sum per 250 ms tick, negligible next to the per-row flush.</summary>
     public string TotalDownloadedText =>
-        DownloadItemViewModel.FormatBytes(_downloadManager.Items.Sum(i => i.Downloaded));
+        DownloadItemViewModel.FormatBytes(_downloadManager.Items.Where(i => !i.IsArchived).Sum(i => i.Downloaded));
     public int ActiveCount => _downloadManager.ActiveCount;
     public int QueuedCount => _downloadManager.QueuedCount;
     public int CompletedCount => _downloadManager.CompletedCount;
 
     // ---- Footer filter counts (each matches its StatusFilter bucket exactly, so the buttons are disjoint) ----
-    public int AllCount => _downloadManager.Items.Count;
+    // Archived items are excluded from EVERY status count, All included — a pill's number has to be the
+    // number of rows clicking it shows, and the archived ones are only ever shown by the Archived pill.
+    public int AllCount => _downloadManager.Items.Count(i => !i.IsArchived);
     public int ActiveFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Running);
+        !i.IsArchived && i.Status is DownloadStatus.Running);
     public int QueuedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Created or DownloadStatus.None);
+        !i.IsArchived && i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int StoppedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Paused or DownloadStatus.Stopped);
-    public int CompletedFilterCount => _downloadManager.Items.Count(i => i.Status == DownloadStatus.Completed);
+        !i.IsArchived && i.Status is DownloadStatus.Paused or DownloadStatus.Stopped);
+    public int CompletedFilterCount => _downloadManager.Items.Count(i => !i.IsArchived && i.Status == DownloadStatus.Completed);
     public int FailedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Failed);
+        !i.IsArchived && i.Status is DownloadStatus.Failed);
+    public int ArchivedFilterCount => _downloadManager.Items.Count(i => i.IsArchived);
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
     {
@@ -790,6 +801,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(StoppedFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
+        this.RaisePropertyChanged(nameof(ArchivedFilterCount));
         RefreshCategoryCounts();
     }
 
@@ -915,6 +927,8 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsStoppedSelected));
         this.RaisePropertyChanged(nameof(IsCompletedSelected));
         this.RaisePropertyChanged(nameof(IsFailedSelected));
+        this.RaisePropertyChanged(nameof(IsArchivedSelected));
+        this.RaisePropertyChanged(nameof(IsWorkingListSelected));
         this.RaisePropertyChanged(nameof(IsQueuesSelected));
         this.RaisePropertyChanged(nameof(IsSchedulerSelected));
         this.RaisePropertyChanged(nameof(IsSettingsSelected));

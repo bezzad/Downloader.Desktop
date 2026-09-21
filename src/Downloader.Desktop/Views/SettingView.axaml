@@ -108,6 +108,16 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding RememberLastSavePath}" />
                     </Grid>
 
+                    <!-- Off by default: Remove drops the record only, which is what it has always done. -->
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_DeletePartialOnRemove}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_DeletePartialOnRemove_Hint}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding DeletePartialFileOnRemove}" />
+                    </Grid>
+
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Set_Language}" />

@@ -188,7 +188,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="" Width="168">
+                <DataGridTemplateColumn Header="" Width="192">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
@@ -213,6 +213,13 @@
                                 </Button>
                                 <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
                                     <PathIcon Data="{DynamicResource FolderRegular}" />
+                                </Button>
+                                <!-- Archive / Restore share one slot: a row is only ever one of the two. -->
+                                <Button Classes="icon" Command="{Binding ArchiveCommand}" IsVisible="{Binding !IsArchived}" ToolTip.Tip="{i18n:Tr Action_Archive}">
+                                    <PathIcon Data="{DynamicResource ArchiveRegular}" />
+                                </Button>
+                                <Button Classes="icon" Command="{Binding UnarchiveCommand}" IsVisible="{Binding IsArchived}" ToolTip.Tip="{i18n:Tr Action_Restore}">
+                                    <PathIcon Data="{DynamicResource ArchiveRestoreRegular}" />
                                 </Button>
                                 <Button Classes="icon" Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
                                     <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />

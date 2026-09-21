@@ -31,6 +31,7 @@
   "Status_Queued": "envicigitaj",
   "Status_Done": "pretaj",
   "Status_Failed": "malsukcesaj",
+  "Status_Archived": "arkivitaj",
   "Status_Stopped": "haltigitaj",
   "Status_TotalDownloaded": "Entute elŝutita ĝis nun",
   "Grid_SelectAll": "Elekti ĉion",
@@ -40,6 +41,8 @@
   "Action_Resume": "Daŭrigi",
   "Action_Retry": "Reprovi",
   "Action_Remove": "Forigi",
+  "Action_Archive": "Arkivi",
+  "Action_Restore": "Restarigi",
   "Action_StartQueue": "Eki vicon",
   "Action_StopQueue": "Halti vicon",
   "Action_StopAll": "Halti ĉion",
@@ -389,5 +392,7 @@
   "Set_ExportDone": "Agordoj eksportitaj.",
   "Set_ImportDone": "Agordoj importitaj.",
   "Set_ImportFailed": "Tiu dosiero ne legeblis kiel agorda eksporto. Nenio ŝanĝiĝis.",
-  "Set_ImportEmpty": "Tiu dosiero listigas neniun kategorion, do ĝi ne estis importita."
+  "Set_ImportEmpty": "Tiu dosiero listigas neniun kategorion, do ĝi ne estis importita.",
+  "Set_DeletePartialOnRemove": "Forigi la partan dosieron kiam vi forigas elŝuton",
+  "Set_DeletePartialOnRemove_Hint": "Kiam vi forigas nefinitan elŝuton, ankaŭ forigu la duone elŝutitan dosieron de la disko. Finitaj dosieroj neniam estas forigataj."
 }
