@@ -60,5 +60,5 @@
 
 - [x] 8.1 `dotnet build Downloader.Desktop.sln -t:Rebuild` — 0 warnings, 0 errors
 - [x] 8.2 Full `dotnet test` green (bounded run per the skill file)
-- [ ] 8.3 Regenerate the affected screenshots and check them by eye
+- [x] 8.3 Regenerate the affected screenshots and check them by eye
 - [x] 8.4 Update `CLAUDE.md` (roadmap entry) and the skill file with anything a future session would re-derive
