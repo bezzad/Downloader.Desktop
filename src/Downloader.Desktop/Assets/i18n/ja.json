@@ -375,6 +375,7 @@
   "Cat_Extensions": "拡張子",
   "Cat_ExtensionsHint": "カンマ区切りで入力します。例: mp4, mkv, avi",
   "Cat_Delete": "カテゴリを削除",
+  "Cat_DeleteConfirm": "「{0}」を削除しますか？ダウンロードは残り、再び自動で分類されます。",
   "Cat_MoveUp": "上へ",
   "Cat_MoveDown": "下へ",
   "Cat_NameRequired": "カテゴリの名前を入力してください。",

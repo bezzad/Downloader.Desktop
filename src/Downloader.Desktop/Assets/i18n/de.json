@@ -375,6 +375,7 @@
   "Cat_Extensions": "Dateiendungen",
   "Cat_ExtensionsHint": "Mit Kommas trennen, zum Beispiel: mp4, mkv, avi",
   "Cat_Delete": "Kategorie löschen",
+  "Cat_DeleteConfirm": "„{0}“ löschen? Die Downloads bleiben erhalten und werden wieder automatisch einsortiert.",
   "Cat_MoveUp": "Nach oben",
   "Cat_MoveDown": "Nach unten",
   "Cat_NameRequired": "Geben Sie einen Namen für die Kategorie ein.",

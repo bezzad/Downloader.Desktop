@@ -375,6 +375,7 @@
   "Cat_Extensions": "Dosiersufiksoj",
   "Cat_ExtensionsHint": "Disigu per komoj, ekzemple: mp4, mkv, avi",
   "Cat_Delete": "Forigi kategorion",
+  "Cat_DeleteConfirm": "Ĉu forigi “{0}”? Ĝiaj elŝutoj restas kaj denove estos ordigitaj aŭtomate.",
   "Cat_MoveUp": "Movi supren",
   "Cat_MoveDown": "Movi malsupren",
   "Cat_NameRequired": "Enigu nomon por la kategorio.",

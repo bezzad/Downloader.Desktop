@@ -375,6 +375,7 @@
   "Cat_Extensions": "Dosya uzantıları",
   "Cat_ExtensionsHint": "Virgülle ayırın, örneğin: mp4, mkv, avi",
   "Cat_Delete": "Kategoriyi sil",
+  "Cat_DeleteConfirm": "“{0}” silinsin mi? İndirmeleri korunur ve yeniden otomatik olarak sınıflandırılır.",
   "Cat_MoveUp": "Yukarı taşı",
   "Cat_MoveDown": "Aşağı taşı",
   "Cat_NameRequired": "Kategori için bir ad girin.",

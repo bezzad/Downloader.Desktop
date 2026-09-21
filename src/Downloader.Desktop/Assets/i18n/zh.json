@@ -375,6 +375,7 @@
   "Cat_Extensions": "文件扩展名",
   "Cat_ExtensionsHint": "用逗号分隔，例如：mp4, mkv, avi",
   "Cat_Delete": "删除分类",
+  "Cat_DeleteConfirm": "删除“{0}”？其中的下载会保留，并重新按自动规则归类。",
   "Cat_MoveUp": "上移",
   "Cat_MoveDown": "下移",
   "Cat_NameRequired": "请输入分类名称。",

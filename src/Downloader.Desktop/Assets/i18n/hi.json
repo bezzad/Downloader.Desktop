@@ -375,6 +375,7 @@
   "Cat_Extensions": "फ़ाइल एक्सटेंशन",
   "Cat_ExtensionsHint": "अल्पविराम से अलग करें, जैसे: mp4, mkv, avi",
   "Cat_Delete": "श्रेणी हटाएँ",
+  "Cat_DeleteConfirm": "“{0}” हटाएँ? इसके डाउनलोड बने रहेंगे और फिर से अपने-आप वर्गीकृत होंगे।",
   "Cat_MoveUp": "ऊपर ले जाएँ",
   "Cat_MoveDown": "नीचे ले जाएँ",
   "Cat_NameRequired": "श्रेणी के लिए एक नाम दर्ज करें।",

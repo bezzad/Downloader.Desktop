@@ -375,6 +375,7 @@
   "Cat_Extensions": "امتدادات الملفات",
   "Cat_ExtensionsHint": "افصل بينها بفواصل، مثال: mp4, mkv, avi",
   "Cat_Delete": "حذف التصنيف",
+  "Cat_DeleteConfirm": "حذف «{0}»؟ ستبقى تنزيلاته وسُيعاد تصنيفها تلقائيًا.",
   "Cat_MoveUp": "نقل لأعلى",
   "Cat_MoveDown": "نقل لأسفل",
   "Cat_NameRequired": "أدخل اسمًا للتصنيف.",

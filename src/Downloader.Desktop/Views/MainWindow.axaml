@@ -406,6 +406,17 @@
                                                     <PathIcon Data="{DynamicResource ChevronDownRegular}" Width="14" Height="14" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
+                                            <!-- Only for a category the user made: a built-in one cannot
+                                                 be removed, so the item is absent rather than dead. -->
+                                            <Separator IsVisible="{Binding CanDelete}" />
+                                            <MenuItem Header="{i18n:Tr Cat_Delete}" Command="{Binding DeleteCommand}"
+                                                      IsVisible="{Binding CanDelete}"
+                                                      Foreground="{DynamicResource DangerColor}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{DynamicResource DeleteRegular}" Width="14" Height="14"
+                                                              Foreground="{DynamicResource DangerColor}" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                     <Grid ColumnDefinitions="Auto,*,Auto">

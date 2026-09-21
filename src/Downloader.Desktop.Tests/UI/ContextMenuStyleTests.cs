@@ -71,7 +71,7 @@ public class ContextMenuStyleTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void The_category_menu_offers_edit_and_both_moves_each_with_an_icon()
+    public void The_category_menu_offers_edit_both_moves_and_delete_each_with_an_icon()
     {
         Localizer.Instance.Load("en");
         var config = Config.New();
@@ -96,7 +96,7 @@ public class ContextMenuStyleTests
 
         Assert.NotNull(menu);
         var items = menu.Items.OfType<MenuItem>().ToList();
-        Assert.Equal(3, items.Count);
+        Assert.Equal(4, items.Count);
         Assert.All(items, i => Assert.IsType<PathIcon>(i.Icon));
         // The look is the global style's job, and a local value would beat it — so the menu must
         // not set one. (Styles only reach a menu once it is opened, hence the check on the setter

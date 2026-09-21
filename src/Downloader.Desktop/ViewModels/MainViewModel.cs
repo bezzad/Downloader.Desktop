@@ -850,9 +850,10 @@ public class MainViewModel : ViewModelBase
     {
         var chosen = Downloads?.CategoryFilter;
         CategoryRows.Clear();
-        CategoryRows.Add(new CategoryRowViewModel(null, SelectCategory, EditCategory, MoveCategory));
+        CategoryRows.Add(new CategoryRowViewModel(null, SelectCategory, EditCategory, MoveCategory, DeleteCategory));
         foreach (var category in _downloadManager.Categories.Categories)
-            CategoryRows.Add(new CategoryRowViewModel(category, SelectCategory, EditCategory, MoveCategory));
+            CategoryRows.Add(new CategoryRowViewModel(category, SelectCategory, EditCategory, MoveCategory,
+                DeleteCategory));
 
         // A category the user was filtering by can vanish (deleted, or absent from an import); fall
         // back to showing everything rather than to a filter that matches nothing.
@@ -895,6 +896,26 @@ public class MainViewModel : ViewModelBase
     private async Task AddCategoryAsync() => await EditCategoryAsync(null);
 
     private void EditCategory(CategoryRowViewModel row) => _ = EditCategoryAsync(row?.Category);
+
+    private void DeleteCategory(CategoryRowViewModel row) => _ = DeleteCategoryAsync(row);
+
+    /// <summary>Deletes a user-created category after asking. The downloads that were in it are
+    /// untouched: a <see cref="DownloadItem.CategoryId"/> that no longer names a live category falls
+    /// through to automatic detection, which is what the confirmation promises.</summary>
+    internal async Task DeleteCategoryAsync(CategoryRowViewModel row)
+    {
+        if (row?.CanDelete != true)
+            return;
+
+        var confirmed = await DialogHelper.Confirm(Localizer.Instance["Cat_Delete"],
+            string.Format(Localizer.Instance["Cat_DeleteConfirm"], row.Name));
+        if (!confirmed)
+            return;
+
+        // The service renumbers and announces the change; the sidebar rebuild rides on that.
+        if (_downloadManager.Categories.Remove(row.Id))
+            RequestSave();
+    }
 
     private async Task EditCategoryAsync(DownloadCategory category)
     {

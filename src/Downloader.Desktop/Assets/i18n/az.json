@@ -375,6 +375,7 @@
   "Cat_Extensions": "Fayl uzantıları",
   "Cat_ExtensionsHint": "Vergüllə ayırın, məsələn: mp4, mkv, avi",
   "Cat_Delete": "Kateqoriyanı sil",
+  "Cat_DeleteConfirm": "“{0}” silinsin? Onun yükləmələri saxlanılır və yenidən avtomatik olaraq təsnif edilir.",
   "Cat_MoveUp": "Yuxarı daşı",
   "Cat_MoveDown": "Aşağı daşı",
   "Cat_NameRequired": "Kateqoriya üçün ad daxil edin.",

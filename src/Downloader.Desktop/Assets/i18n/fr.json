@@ -375,6 +375,7 @@
   "Cat_Extensions": "Extensions de fichier",
   "Cat_ExtensionsHint": "Séparez-les par des virgules, par exemple : mp4, mkv, avi",
   "Cat_Delete": "Supprimer la catégorie",
+  "Cat_DeleteConfirm": "Supprimer « {0} » ? Ses téléchargements sont conservés et seront de nouveau classés automatiquement.",
   "Cat_MoveUp": "Monter",
   "Cat_MoveDown": "Descendre",
   "Cat_NameRequired": "Saisissez un nom pour la catégorie.",

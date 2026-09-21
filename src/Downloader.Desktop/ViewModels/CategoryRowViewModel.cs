@@ -16,13 +16,14 @@ public class CategoryRowViewModel : ViewModelBase
     private bool _isSelected;
 
     public CategoryRowViewModel(DownloadCategory category, Action<string> select, Action<CategoryRowViewModel> edit,
-        Action<CategoryRowViewModel, int> move)
+        Action<CategoryRowViewModel, int> move, Action<CategoryRowViewModel> delete = null)
     {
         Category = category;
         SelectCommand = ReactiveCommand.Create(() => select?.Invoke(category?.Id));
         EditCommand = ReactiveCommand.Create(() => edit?.Invoke(this));
         MoveUpCommand = ReactiveCommand.Create(() => move?.Invoke(this, -1));
         MoveDownCommand = ReactiveCommand.Create(() => move?.Invoke(this, 1));
+        DeleteCommand = ReactiveCommand.Create(() => delete?.Invoke(this));
     }
 
     /// <summary>The category, or null for the "All" row.</summary>
@@ -69,10 +70,15 @@ public class CategoryRowViewModel : ViewModelBase
     /// <summary>Built-in categories can be edited and reordered, but never deleted.</summary>
     public bool CanEdit => !IsAll;
 
+    /// <summary>Only a category the user created can be deleted — <see cref="CategoryService.Remove"/>
+    /// refuses a built-in one, so offering the item for one would be a button that does nothing.</summary>
+    public bool CanDelete => !IsAll && Category?.IsBuiltIn == false;
+
     public ICommand SelectCommand { get; }
     public ICommand EditCommand { get; }
     public ICommand MoveUpCommand { get; }
     public ICommand MoveDownCommand { get; }
+    public ICommand DeleteCommand { get; }
 
     /// <summary>Re-reads everything that comes off the category itself (after an edit).</summary>
     public void RaiseCategoryChanged()

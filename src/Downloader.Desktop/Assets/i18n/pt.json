@@ -375,6 +375,7 @@
   "Cat_Extensions": "Extensões de arquivo",
   "Cat_ExtensionsHint": "Separe com vírgulas, por exemplo: mp4, mkv, avi",
   "Cat_Delete": "Excluir categoria",
+  "Cat_DeleteConfirm": "Excluir “{0}”? Os downloads são mantidos e voltam a ser classificados automaticamente.",
   "Cat_MoveUp": "Mover para cima",
   "Cat_MoveDown": "Mover para baixo",
   "Cat_NameRequired": "Digite um nome para a categoria.",
