@@ -1846,11 +1846,20 @@ one-shot, so two arms in one process measure nothing): touch `Dispatcher.UIThrea
 `HeadlessUnitTestSession.GetOrStartForAssembly(...)` and dispatch → **hangs**; the same without the
 touch → passes in ~170 ms. Measured: 240 s kill vs 173 ms.
 
-**The fix: `TestSupport/HeadlessSessionFirst.cs`** — an `ITestPipelineStartup` that starts the session
-**and dispatches once** before any test runs, so the binding lands on the session thread and test order
-stops mattering. Pinned by `Unit/HeadlessSessionBindingTests`.
+**NOT YET FIXED — and the obvious fix is WORSE, so do not re-apply it.** `HeadlessSessionFirst`, an
+`ITestPipelineStartup` that started the session and dispatched once before any test, looked right on
+every local signal: the hung arm went to 19 ms and the full suite passed **1967/1967**. On CI it took
+the `Test Run Aborted / Total tests: Unknown` abort from ~1 leg in 6 to **4 in 6** (runs on `214b186`
+and `2d584b8`), and was reverted in `389f71b`.
 
-Two ways to get this wrong, both tried, both in the file so nobody retries them:
+Read that as the real lesson here: **a green local suite does not clear a change to the headless
+session's lifetime.** Whatever the runner does with that session on CI, pre-empting it is not free.
+The next attempt should measure on CI (the workflow_dispatch deadline inputs make a cheap harness) and
+should probably aim at making the FIRST touch happen on the session thread without taking the session
+up early — not at owning the session's startup.
+
+Three ways to get this wrong, all tried, all recorded so nobody retries them:
+- **Starting the session at pipeline startup makes the abort far more likely** (above).
 - **`[ModuleInitializer]` breaks the run outright.** It also runs in the DISCOVERY process, where
   building the Avalonia app blocks xunit v3's handshake: *"Test process did not respond within 60
   seconds"*.
@@ -1858,8 +1867,8 @@ Two ways to get this wrong, both tried, both in the file so nobody retries them:
   lazily from `DispatchCore`, i.e. on the first dispatch — so "start the session early" is not a fix,
   "dispatch early" is.
 
-**If you ever add a test that must run before the app exists**, remember the binding is already taken by
-then, and that is deliberate.
+**Reading a red leg:** `Test Run Aborted / Total tests: Unknown` with no `[FAIL]` is THIS. An ordinary
+`dotnet test exited 1` with `[FAIL]` lines is not.
 
 ## "No sound" on x.com, part 2: the popup ranked the RENDITION above the master (2026-09-11, extension 1.15.0)
 Reported again on app 2.12.0 / extension 1.14.0 with
