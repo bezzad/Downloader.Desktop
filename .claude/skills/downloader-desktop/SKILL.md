@@ -1789,7 +1789,11 @@ correlation, and the asymmetry was the tell: a GitHub ubuntu runner refuses a po
 two accept one. The suite was **switching the runner off**, which looks exactly like a hang from the
 outside (job killed on timeout, log and artifacts destroyed by the cancellation, no `[FAIL]`, no dump).
 
-Two real defects were found, and it is worth keeping them apart:
+**There were TWO causes with one signature.** The power-off below explains the runs whose log was
+destroyed; the dispatcher binding race (its own section, next) explains the ones that stopped dead with
+the log intact. Fixing either alone left the other still failing CI.
+
+Three real defects were found, and it is worth keeping them apart:
 
 1. **The cause of the "hang" — a cancelled shutdown countdown still fired.** Full chain in *THE SUITE
    USED TO POWER THE MACHINE OFF* above. `ShutdownService.Close()` closed the dialog without stopping
@@ -1803,6 +1807,8 @@ Two real defects were found, and it is worth keeping them apart:
    *held* when it was finally measured (**405** timers started per run → **39** after the fix), but it
    was never the hang: see *Every test leaked a scheduler timer too* above. Fixing it was right; it
    just answered a different question.
+3. **The dispatcher binding race — the OTHER hang, and the one PerAssembly did not remove.** See the
+   next section; this is the one to suspect if a run ever stops dead again.
 
 **The guard rails that now make a repeat fail loudly instead of silently:**
 - `ShellLauncher.RealProcessStartBlocked` + `TestSupport/NoRealPowerOff` (`[ModuleInitializer]`, same
@@ -1818,6 +1824,42 @@ Two real defects were found, and it is worth keeping them apart:
 
 **Reading a red leg now:** `dotnet test exited 1` with `[FAIL]` lines is an ordinary test failure, not
 this. The signature of the old fault was the absence of all of that.
+
+## The dispatcher binding race — the other CI hang (2026-09-21, FIXED — reproduced deterministically)
+**`Dispatcher.UIThread` is a process-global singleton that binds to whichever thread reaches it FIRST.**
+That one sentence is the whole bug. Tests run sequentially but their ORDER is not fixed, so whenever a
+plain `[Fact]` that reaches dispatcher-touching production code (`DownloadManager.OnUi`, the UI pump,
+the tray and notch services) happened to run before the first `[AvaloniaFact]`, the singleton bound to
+the xunit thread. The session thread's `EnsureSharedApplication()` → `SetupUnsafe()` → `new
+Compositor(...)` → `RenderLoop.Add` then failed its own `Dispatcher.VerifyAccess()` and faulted the
+shared session's dispatch loop; every later test awaited a completion source nothing would ever set.
+Nothing fails, nothing times out — the run just stops, and the abort blames whichever innocent test was
+next.
+
+**This is what `AvaloniaTestIsolation(PerAssembly)` did NOT fix.** `TestAppBuilder`'s comment argues it
+is safe because the failing call moves off the per-test path. The call fails there too: PerAssembly cut
+~1700 attempts per run to one, so the rate dropped and the fault looked solved — and when that one
+attempt loses, it takes the whole run instead of one test.
+
+**Reproduce it in 30 seconds** (two arms, one variable, EACH IN ITS OWN PROCESS — the binding is a
+one-shot, so two arms in one process measure nothing): touch `Dispatcher.UIThread`, then
+`HeadlessUnitTestSession.GetOrStartForAssembly(...)` and dispatch → **hangs**; the same without the
+touch → passes in ~170 ms. Measured: 240 s kill vs 173 ms.
+
+**The fix: `TestSupport/HeadlessSessionFirst.cs`** — an `ITestPipelineStartup` that starts the session
+**and dispatches once** before any test runs, so the binding lands on the session thread and test order
+stops mattering. Pinned by `Unit/HeadlessSessionBindingTests`.
+
+Two ways to get this wrong, both tried, both in the file so nobody retries them:
+- **`[ModuleInitializer]` breaks the run outright.** It also runs in the DISCOVERY process, where
+  building the Avalonia app blocks xunit v3's handshake: *"Test process did not respond within 60
+  seconds"*.
+- **Starting the session without dispatching does nothing.** `EnsureSharedApplication()` is called
+  lazily from `DispatchCore`, i.e. on the first dispatch — so "start the session early" is not a fix,
+  "dispatch early" is.
+
+**If you ever add a test that must run before the app exists**, remember the binding is already taken by
+then, and that is deliberate.
 
 ## "No sound" on x.com, part 2: the popup ranked the RENDITION above the master (2026-09-11, extension 1.15.0)
 Reported again on app 2.12.0 / extension 1.14.0 with
