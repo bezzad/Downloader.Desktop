@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Linq;
@@ -112,6 +113,8 @@ public class DownloadItemViewModel : ViewModelBase
         {
             if (_manager != null) await _manager.Remove(this);
         });
+        ArchiveCommand = ReactiveCommand.Create(() => _manager?.Archive(this));
+        UnarchiveCommand = ReactiveCommand.Create(() => _manager?.Unarchive(this));
         OpenFolderCommand = ReactiveCommand.Create(OpenContainingFolder);
         OpenFileCommand = ReactiveCommand.Create(OpenFile);
         CopyUrlCommand = ReactiveCommand.CreateFromTask(() => DialogHelper.CopyTextAsync(Url));
@@ -140,6 +143,12 @@ public class DownloadItemViewModel : ViewModelBase
     public ICommand CancelCommand { get; }
     public ICommand RetryCommand { get; }
     public ICommand RemoveCommand { get; }
+
+    /// <summary>Files this download away (stopping it first if it is in flight).</summary>
+    public ICommand ArchiveCommand { get; }
+
+    /// <summary>Puts it back in the working list — the same row slot shows this while the archived view is on.</summary>
+    public ICommand UnarchiveCommand { get; }
     public ICommand OpenFolderCommand { get; }
     public ICommand OpenFileCommand { get; }
     public ICommand CopyUrlCommand { get; }
@@ -170,7 +179,7 @@ public class DownloadItemViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(DisplayName));
             this.RaisePropertyChanged(nameof(NameTooltip));
                 this.RaisePropertyChanged(nameof(IsNamePending));
-                this.RaisePropertyChanged(nameof(FileKind));
+                RaiseCategoryChanged();
             }
         }
     }
@@ -186,23 +195,78 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Re-raises <see cref="QueueName"/> after the item is moved to another queue.</summary>
     public void RaiseQueueNameChanged() => this.RaisePropertyChanged(nameof(QueueName));
 
-    /// <summary>Coarse file category (video/audio/image/archive/document/app/disc/file) by extension.</summary>
-    public string FileKind => GetFileKind(!string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName : _previewName);
+    /// <summary>
+    /// The file-type category this download belongs to, never null once a manager is attached.
+    /// Derived on every read rather than stored, so a name that arrives late, a category the user
+    /// creates later, and an imported category list all take effect without touching the row.
+    /// </summary>
+    public DownloadCategory Category =>
+        _manager?.Categories?.Resolve(_item);
 
-    public static string GetFileKind(string name)
+    /// <summary>Key of the icon to draw for this row's category.</summary>
+    public string FileKind => Category?.Icon ?? "file";
+
+    /// <summary>The category's name, shown as the Type cell's tooltip.</summary>
+    public string CategoryName => Category?.Name ?? string.Empty;
+
+    /// <summary>The category's color, as the Type cell's icon brush.</summary>
+    public string CategoryColor => Category?.Color;
+
+    /// <summary>The Type column sorts on this — the category's place in the USER's order, not the
+    /// alphabet, so the grouping is the one they arranged and does not change with the language.</summary>
+    public int CategoryOrder => Category?.Position ?? int.MaxValue;
+
+    /// <summary>The category the user explicitly chose, or null for "work it out".</summary>
+    public string CategoryId
     {
-        var ext = Path.GetExtension(name ?? string.Empty).TrimStart('.').ToLowerInvariant();
-        return ext switch
+        get => _item.CategoryId;
+        set
         {
-            "mp4" or "mkv" or "avi" or "mov" or "webm" or "flv" or "wmv" or "m4v" or "mpeg" or "mpg" or "m3u8" or "ts" => "video",
-            "mp3" or "wav" or "flac" or "aac" or "ogg" or "m4a" or "wma" or "opus" => "audio",
-            "jpg" or "jpeg" or "png" or "gif" or "bmp" or "webp" or "svg" or "ico" or "tif" or "tiff" or "heic" => "image",
-            "zip" or "rar" or "7z" or "tar" or "gz" or "bz2" or "xz" or "zst" => "archive",
-            "pdf" or "doc" or "docx" or "txt" or "rtf" or "xls" or "xlsx" or "ppt" or "pptx" or "csv" or "md" or "epub" => "document",
-            "exe" or "msi" or "apk" or "deb" or "rpm" or "dmg" or "appimage" or "pkg" => "app",
-            "iso" or "img" or "bin" or "vhd" => "disc",
-            _ => "file"
-        };
+            if (_item.CategoryId == value)
+                return;
+
+            _item.CategoryId = value;
+            this.RaisePropertyChanged();
+            RaiseCategoryChanged();
+        }
+    }
+
+    /// <summary>
+    /// "Change category" entries for the row's right-click menu: the automatic option (naming what
+    /// the app would pick) plus every category. Rebuilt on each read — the menu materializes when it
+    /// opens, and the list is eight-ish items.
+    /// </summary>
+    public List<CategoryChoice> CategoryChoices =>
+        CategoryChoice.For(_manager?.Categories,
+            _manager?.Categories?.Resolve(null, !string.IsNullOrWhiteSpace(_item.FileName) ? _item.FileName : _previewName,
+                _item.ContentType),
+            id => CategoryId = id);
+
+    /// <summary>Re-raises everything derived from the category — after the row's own choice changed,
+    /// or after the category list itself did.</summary>
+    public void RaiseCategoryChanged()
+    {
+        this.RaisePropertyChanged(nameof(Category));
+        this.RaisePropertyChanged(nameof(FileKind));
+        this.RaisePropertyChanged(nameof(CategoryName));
+        this.RaisePropertyChanged(nameof(CategoryColor));
+        this.RaisePropertyChanged(nameof(CategoryOrder));
+        this.RaisePropertyChanged(nameof(CategoryChoices));
+    }
+
+    /// <summary>The media type the server or the browser reported, an input to category detection.</summary>
+    public string ContentType
+    {
+        get => _item.ContentType;
+        set
+        {
+            if (_item.ContentType == value)
+                return;
+
+            _item.ContentType = value;
+            this.RaisePropertyChanged();
+            RaiseCategoryChanged();
+        }
     }
 
     private string _previewName;
@@ -226,7 +290,7 @@ public class DownloadItemViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(DisplayName));
             this.RaisePropertyChanged(nameof(NameTooltip));
                 this.RaisePropertyChanged(nameof(IsNamePending));
-                this.RaisePropertyChanged(nameof(FileKind));
+                RaiseCategoryChanged();
             }
         }
     }
@@ -447,6 +511,15 @@ public class DownloadItemViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(PostActionLabel));
             this.RaisePropertyChanged(nameof(HasPostAction));
         }
+    }
+
+    /// <summary>True when the user archived this download (write-through to the model, like Status). Set it
+    /// through <see cref="Services.IDownloadManager.Archive"/>/<c>Unarchive</c> — they keep the invariant that
+    /// an archived download is never running or queued.</summary>
+    public bool IsArchived
+    {
+        get => _item.IsArchived;
+        set { _item.IsArchived = value; this.RaisePropertyChanged(); }
     }
 
     /// <summary>True when this item opts out of the global speed limit (write-through to the model, like Status).</summary>

@@ -32,7 +32,7 @@ Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
 4. **Build once per logical chunk**, not after every edit; `Edit` already fails loudly on a bad match, so don't re-`Read` a file just to confirm an edit landed.
 5. For a small, well-scoped fix, target the one file the Code map names, edit, then one build+filtered-test — that's the whole loop.
 
-## Engine (`Downloader` 5.9.5) quick reference
+## Engine (`Downloader` 5.9.8) quick reference
 - `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
 - `DownloadService(DownloadConfiguration cfg, ILoggerFactory factory = null)` — implements `IDownloadService`: same events (`DownloadStarted/DownloadProgressChanged/ChunkDownloadProgressChanged/DownloadFileCompleted`), plus `Package`, `Pause()`, `Resume()`, `CancelAsync()`/`CancelTaskAsync()`, `Clear()`, and `AddLogger(ILogger)`.
 - **Multi-URL / mirrors** are first-class: `DownloadFileTaskAsync(string[] urls, DirectoryInfo folder, ct)` (auto-resolves name), `(string[] urls, string fileName, ct)`, and package overloads. `DownloadPackage.Urls` is `string[]`. So the data model should carry `List<string> Urls` (first = primary, rest = mirrors), not a separate `Url` + `Mirrors`.
@@ -1772,9 +1772,9 @@ only while `Config.Schedules` is non-empty, `Dispose()` releases it (and the UI 
 schedule). Pinned by `UI/SchedulerLifetimeTests`. The 133 `Initialize` call sites were deliberately NOT
 rewritten — lazy start removes the leak at its source.
 
-## (superseded) The hang got WORSE after PerAssembly, and every test leaks a scheduler timer (2026-09-07)
-Evidence from four consecutive `develop` runs, counting legs killed by the job's 30-minute timeout
-while stuck in `Test` (no `[FAIL]` anywhere, so these are hangs, not failures):
+## The CI "hang": what it actually was (2026-09-07 → 2026-09-09, resolved — measured, not guessed)
+The original evidence, four consecutive `develop` runs, counting legs killed by the job's 30-minute
+timeout while stuck in `Test` (no `[FAIL]` anywhere, so these looked like hangs, not failures):
 
 | run | commit | hung legs |
 |-----|--------|-----------|
@@ -1783,25 +1783,92 @@ while stuck in `Test` (no `[FAIL]` anywhere, so these are hangs, not failures):
 | 574 | `104fc6c` | 3 |
 | 575 | `7ff5056` | 3 (macOS Debug+Release, Windows Release) |
 
-**ubuntu has never hung in any of them** — only Windows and macOS, in both Debug and Release. So
-`f1c94d2`'s note above ("PerAssembly fixes the hang, 8 clean local runs") is NOT what CI shows: the
-rate went UP after it. Do not treat that note as settled.
+**The one detail that turned out to be the answer: ubuntu never hung. Only Windows and macOS.** At the
+time that read as "PerAssembly made it worse". It didn't — the rate going up after `f1c94d2` was
+correlation, and the asymmetry was the tell: a GitHub ubuntu runner refuses a power-off, and the other
+two accept one. The suite was **switching the runner off**, which looks exactly like a hang from the
+outside (job killed on timeout, log and artifacts destroyed by the cancellation, no `[FAIL]`, no dump).
 
-**Unverified hypothesis, cheap to check first:** `DownloadManager.Initialize` calls `StartScheduler()`,
-which starts a 30-second `DispatcherTimer` that **nothing ever stops** — there is no `StopScheduler`
-and no `Dispose`. Under the old PerTest isolation each test got a fresh app + dispatcher, so those
-timers died with it; under PerAssembly ONE dispatcher serves the whole run, so every manager a test
-builds leaves a live timer behind. The test project calls `Initialize` in **133** places (144
-`new DownloadManager()`), so a full run ends with well over a hundred timers all ticking
-`EvaluateSchedules` on the one dispatcher the tests also need.
+**There were TWO causes with one signature.** The power-off below explains the runs whose log was
+destroyed; the dispatcher binding race (its own section, next) explains the ones that stopped dead with
+the log intact. Fixing either alone left the other still failing CI.
 
-To confirm on a machine with the SDK: run the exact CI command and count live timers (or log each
-`OnSchedulerTick`) near the end of the run; if it holds, the fix is a `StopScheduler`/`Dispose` the
-tests call, or not starting the timer at all while `Config.Schedules` is empty (which also spares
-every real user a pointless timer) — with a hook so adding a schedule starts it.
+Three real defects were found, and it is worth keeping them apart:
 
-This was NOT changed blind: the fix touches production scheduling and this container has no .NET SDK
-to verify it, so it is written down rather than guessed at.
+1. **The cause of the "hang" — a cancelled shutdown countdown still fired.** Full chain in *THE SUITE
+   USED TO POWER THE MACHINE OFF* above. `ShutdownService.Close()` closed the dialog without stopping
+   the countdown, which lives on the dispatcher rather than the window; under PerAssembly the
+   dispatcher outlives the test, so the countdown reached zero later in the run and executed the real
+   `systemctl poweroff` / `shutdown /s /t 0` / `osascript … shut down` — after the arming test's
+   `finally` had cleared the stubs. **Also a production bug:** cancelling from the tray shut the user's
+   machine down 30 s later anyway. So PerAssembly did not *cause* this; it *exposed* it, by giving the
+   leaked timer a dispatcher long enough to reach zero.
+2. **A separate, genuine leak — the scheduler timer.** The hypothesis in this section's old text
+   *held* when it was finally measured (**405** timers started per run → **39** after the fix), but it
+   was never the hang: see *Every test leaked a scheduler timer too* above. Fixing it was right; it
+   just answered a different question.
+3. **The dispatcher binding race — the OTHER hang, and the one PerAssembly did not remove.** See the
+   next section; this is the one to suspect if a run ever stops dead again.
+
+**The guard rails that now make a repeat fail loudly instead of silently:**
+- `ShellLauncher.RealProcessStartBlocked` + `TestSupport/NoRealPowerOff` (`[ModuleInitializer]`, same
+  pattern as `NoRealNotifications`): the suite cannot start a real process at all, so the next leak of
+  this class fails a test instead of taking a machine down. `AllowRealProcessStart()` is the explicit
+  opt-out for the three `Unit/RevealInFolderTests` cases that mean to run a real command — without it
+  they passed for the wrong reason.
+- `scripts/ci-test.sh` bounds the run from *inside* the step, so a stall fails the STEP (log kept)
+  rather than the job being cancelled (log lost), after dumping the stuck test host. Prove it whenever
+  you doubt it: run the `.NET Desktop` workflow via **workflow_dispatch** with
+  `test_deadline_seconds=150`, `test_dump_lead_seconds=60`. Those inputs are empty on every push and
+  PR, so the real defaults apply and there is no "restore it" commit to forget.
+
+**Reading a red leg now:** `dotnet test exited 1` with `[FAIL]` lines is an ordinary test failure, not
+this. The signature of the old fault was the absence of all of that.
+
+## The dispatcher binding race — the other CI hang (2026-09-21, FIXED — reproduced deterministically)
+**`Dispatcher.UIThread` is a process-global singleton that binds to whichever thread reaches it FIRST.**
+That one sentence is the whole bug. Tests run sequentially but their ORDER is not fixed, so whenever a
+plain `[Fact]` that reaches dispatcher-touching production code (`DownloadManager.OnUi`, the UI pump,
+the tray and notch services) happened to run before the first `[AvaloniaFact]`, the singleton bound to
+the xunit thread. The session thread's `EnsureSharedApplication()` → `SetupUnsafe()` → `new
+Compositor(...)` → `RenderLoop.Add` then failed its own `Dispatcher.VerifyAccess()` and faulted the
+shared session's dispatch loop; every later test awaited a completion source nothing would ever set.
+Nothing fails, nothing times out — the run just stops, and the abort blames whichever innocent test was
+next.
+
+**This is what `AvaloniaTestIsolation(PerAssembly)` did NOT fix.** `TestAppBuilder`'s comment argues it
+is safe because the failing call moves off the per-test path. The call fails there too: PerAssembly cut
+~1700 attempts per run to one, so the rate dropped and the fault looked solved — and when that one
+attempt loses, it takes the whole run instead of one test.
+
+**Reproduce it in 30 seconds** (two arms, one variable, EACH IN ITS OWN PROCESS — the binding is a
+one-shot, so two arms in one process measure nothing): touch `Dispatcher.UIThread`, then
+`HeadlessUnitTestSession.GetOrStartForAssembly(...)` and dispatch → **hangs**; the same without the
+touch → passes in ~170 ms. Measured: 240 s kill vs 173 ms.
+
+**NOT YET FIXED — and the obvious fix is WORSE, so do not re-apply it.** `HeadlessSessionFirst`, an
+`ITestPipelineStartup` that started the session and dispatched once before any test, looked right on
+every local signal: the hung arm went to 19 ms and the full suite passed **1967/1967**. On CI it took
+the `Test Run Aborted / Total tests: Unknown` abort from ~1 leg in 6 to **4 in 6** (runs on `214b186`
+and `2d584b8`), and was reverted in `389f71b`.
+
+Read that as the real lesson here: **a green local suite does not clear a change to the headless
+session's lifetime.** Whatever the runner does with that session on CI, pre-empting it is not free.
+The next attempt should measure on CI (the workflow_dispatch deadline inputs make a cheap harness) and
+should probably aim at making the FIRST touch happen on the session thread without taking the session
+up early — not at owning the session's startup.
+
+Three ways to get this wrong, all tried, all recorded so nobody retries them:
+- **Starting the session at pipeline startup makes the abort far more likely** (above).
+- **`[ModuleInitializer]` breaks the run outright.** It also runs in the DISCOVERY process, where
+  building the Avalonia app blocks xunit v3's handshake: *"Test process did not respond within 60
+  seconds"*.
+- **Starting the session without dispatching does nothing.** `EnsureSharedApplication()` is called
+  lazily from `DispatchCore`, i.e. on the first dispatch — so "start the session early" is not a fix,
+  "dispatch early" is.
+
+**Reading a red leg:** `Test Run Aborted / Total tests: Unknown` with no `[FAIL]` is THIS. An ordinary
+`dotnet test exited 1` with `[FAIL]` lines is not.
 
 ## "No sound" on x.com, part 2: the popup ranked the RENDITION above the master (2026-09-11, extension 1.15.0)
 Reported again on app 2.12.0 / extension 1.14.0 with
@@ -2051,3 +2118,272 @@ from a Playwright script (`sw.evaluate(...)` calls common.js globals directly), 
   pins the rollback.
 - **Rule for the next SDK addition**: a plugin that calls it either goes through `HostCompat` or its catalog
   `minAppVersion` moves to the app release that ships the member. Refresh the old-SDK fixture when you do.
+
+## A proxy must never apply to loopback — it made CI fail in unrelated tests (2026-09-12)
+- **Symptom**: ubuntu/Release legs failing with `PluginInstallFlowTests` → *"Could not download the plugin"*
+  (4 at once) and `ExtensionCatalogServiceTests.Entries_resolve_against_the_release_assets` resolving 0
+  entries. Both talk to their own `HttpListener` on 127.0.0.1, and nothing about them had changed.
+- **Cause**: `AppProxy.AddressSource` is process-wide and `DownloadManager.Initialize` points it at a test's
+  `Config` **without ever restoring it**. `SettingViewModelTests` (whose `Build()` calls `Initialize`) then
+  sets `vm.ProxyAddress = "http://127.0.0.1:8080"`, so from that test on, every `AppProxy.CreateClient()`
+  request in the process — including every loopback one — went through a proxy that was not there. Order
+  dependent, hence "intermittent": it never reproduced locally when the classes ran in the other order.
+- **Fix**: `AppProxy.LiveProxy` bypasses `Uri.IsLoopback` destinations (127.0.0.0/8, ::1, localhost) in BOTH
+  `GetProxy` and `IsBypassed`. That is also the correct product behaviour — the app reaches its own local API
+  over loopback, and a user's proxy has no business intercepting it (curl/browsers/`BypassOnLocal` agree).
+- Pinned by `Unit/AppProxyTests.A_proxy_is_never_applied_to_this_machine` (+ the end-to-end
+  `A_dead_proxy_setting_cannot_break_a_request_to_this_machine`, which fetches from a loopback server while
+  the setting points at a dead port). Both fail on the old code.
+- **Still true and worth knowing**: `Initialize` leaks that global, so a test can change what a LATER test's
+  clients do. If a non-loopback case ever bites, restore `AppProxy.AddressSource` in the offending fixture.
+
+## CI failure families as of 2026-09-12 (what each one actually was)
+Inventory of the last 100 `.NET Desktop` runs (39 red) plus the Extension workflow, and what fixed them:
+- **4× `Extension` red (2026-09-11)**: the bump guard — extension code changed without a manifest bump.
+  Self-resolving; the 1.19.0 bump commit turned it green. Not a defect.
+- **ubuntu/Release: `PluginInstallFlowTests` ×4 + `ExtensionCatalogServiceTests`**: the loopback-vs-proxy
+  bug (see the AppProxy note above). Fixed.
+- **windows/Release: `ShutdownCancelTests.Cancelling_through_the_service_stops_the_countdown_for_good`**:
+  the TEST. `Schedule()` runs synchronously, so `IsScheduled` is true the moment it returns — but the test
+  pumped the dispatcher BEFORE asserting, and with a 1-second countdown that pump could run the countdown
+  to zero (or an earlier test's posted `Close`), leaving `IsScheduled` false. Now: cancel first for a known
+  baseline, 3-second countdown, assert with no pump in between, then wait 6 s to catch a leaked timer.
+- **macOS/Release: `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`**: still open.
+  It is NOT reproducible in isolation — a macOS CI probe (`.github/workflows/probe-flaky-test.yml`, which
+  repeats one test on a chosen runner OS) ran it **20 times: 0 failures**, and 25 single-core Release runs
+  here were green. So it needs the full suite around it. The assertion now prints the row's error, progress,
+  attempt and saved-file count, so the next full-suite failure names the reason instead of just the status.
+- **windows/Debug + windows/Release: the hang** — see below.
+
+## The CI hang: the dump finally named the exception (2026-09-11 run 34609494951)
+`.github/workflows/analyze-hang-dump.yml` (point `DEFAULT_RUN_ID` at the run and push) walked the headless
+session's faulted dispatch task to its captured exception:
+
+    System.InvalidOperationException: The calling thread cannot access this object because a different
+    thread owns it.            (_dispatchTask m_stateFlags 0x231008 = FAULTED, CTS _state 0 = not cancelled)
+
+So the session loop dies of a **thread-affinity violation**; after that every worker parks in
+`AvaloniaTestCase.Run` on a completion source nothing will set — no failure, no timeout, and the abort
+blames whichever innocent test came next (11 / 653 / 810 / 1202 tests in, on different runs).
+**`AvaloniaTestIsolation(PerAssembly)` did not end it** — 9bfc3a4 (windows/Release) aborted after 653.
+What the dump could NOT give is the call site: the captured copy has `StackTraceString: <none>`.
+`TestSupport/ThreadAffinityWatch.cs` (module initializer, first-chance handler) now prints that exact
+exception WITH its stack to stderr, so the next occurrence names the offender in the CI log. Look for
+`=== THREAD-AFFINITY VIOLATION` in the failing leg.
+
+## "Check for updates does nothing" (reported on 2.12.0, fixed 2026-09-12)
+Every outcome was reported ONLY through `NotificationService.Notify`, which returns early when the
+notifications switch is off, and a check that THREW reported nothing anywhere at all (`AppLog.Error`, with
+logging off by default). So a failed or suppressed check was indistinguishable from a dead button.
+`UpdateFlow.LastCheckMessage` now records the outcome, Settings shows it under the button
+(`SettingViewModel.UpdateStatusText`), and a manual check reports via `NotificationService.Inform` (direct
+feedback, not gated by the switch). Rule: **a button the user pressed must report its own outcome in the
+window; an OS notification is a courtesy, never the answer.**
+
+## Screenshots re-render differently on this box (2026-09-12)
+A `DLDESKTOP_CAPTURE=1` run rewrote ALL 23 PNGs with whole-window pixel differences (bbox 1,16 → 999,611)
+though only a hidden Settings line had changed — font rendering here differs from whatever generated the
+committed set. The UI itself renders correctly. Don't commit that churn; regenerate only when a capture
+shows a REAL change (compare with PIL `ImageChops.difference` + `getbbox()` before committing).
+
+## The window layout was "not kept" — the restore's own echo, and a tray-resident instance (2026-09-20)
+Reported as "I change size/position, close, reopen with `dev-run.sh`, nothing is kept" on Ubuntu/Wayland.
+Both halves of the feature were actually working; what bit was the test procedure and one real defect.
+- **Diagnose it in two steps, in this order.** First `python3 -c` the `MainWindow` key out of
+  `~/.config/Downloader/config.json` — that alone splits "never saved" from "never restored". Then run the
+  app with `EnableLogging=true` and temporary `AppLog.Warn` lines in
+  `RestoreWindowLayout`/`TrackWindowLayout`/`CaptureWindowLayout`; the log answers it outright. Verified on
+  this box: restore applies (1240x700 @120,90) and a resize IS captured and persisted across a quit.
+- **A tray-resident instance makes every relaunch a no-op, and then overwrites your file.**
+  `EnableSystemTray` defaults ON, so closing the window only HIDES it; the process keeps its `_config` in
+  memory. The next launch loses the single-instance race, forwards and exits — you are looking at the OLD
+  window from the OLD binary — and the survivor's autosave then writes its stale layout back over
+  `config.json`. It cost this session two wrong conclusions in a row. Kill it by PORT
+  (`ss -ltnp | grep 1515`, then `kill <pid>`), never by `pkill -f Downloader…` (that matches the invoking
+  shell — exit 144, the trap already documented above).
+- **THE REAL DEFECT: a restore is confirmed ASYNCHRONOUSLY, so it echoes back as "the user resized".**
+  `_applyingLayout` only guards synchronous re-entry. Measured here: the first event after applying carries
+  the NEW position with the PRE-restore SIZE (`client=1000,620 pos=120,90` right after applying 1240x700),
+  so the record is momentarily rewritten to the old size — and permanently, if the app exits before the
+  second event or the WM never sends one. Guard = `WindowLayoutPolicy.IsRestoreEcho(current, preRestore,
+  sinceApplied, grace)`: match the echo by its SIZE (a blanket time grace would swallow a genuine resize
+  made in the first second — the existing headless tests catch that), with the time limit only as a backstop
+  so a WM that refuses our size cannot mute the user for ever.
+- **A headless test CANNOT reproduce that echo** — Avalonia applies the size synchronously there, so
+  `ClientSize` is already correct when a test calls capture. A first attempt passed with the guard deleted,
+  i.e. it was a broken test by the standing rule. The honest cover is the pure rule
+  (`Unit/WindowLayoutPolicyTests`, 4 cases) plus the existing shell tests for the wiring.
+- **Simulating a user resize on Wayland**: there is no `xdotool`/`wmctrl` here, so drive it from inside the
+  app behind an env gate (a `DispatcherTimer` that sets `Width`/`Height`/`Position`), run, then read the
+  config. That is what proved the full loop end to end.
+
+## Categories (issue #16) — the four traps, and where the concept lives
+- **`Services/CategoryService` is the one authority.** Resolution is `CategoryId` (the user's explicit
+  choice) → file extension → `Content-Type` → Other. `DownloadItemViewModel.GetFileKind` is GONE; a row's
+  `Category`/`FileKind`/`CategoryName`/`CategoryColor`/`CategoryOrder` all come off the service via
+  `_manager.Categories`. `DownloadManager` owns the instance (always non-null, even before `Initialize`).
+- **`DownloadItem.CategoryId` is NULLABLE and `null` means "work it out".** Do not "simplify" it to a
+  resolved value: null is what lets a row whose name arrives late correct itself, lets a category created
+  later adopt the files it claims, and makes "back to automatic" expressible. `Detect(...)` is a pure static
+  over the list, so the whole precedence is testable with no service instance.
+- **A category's `Position` does three jobs**: sidebar order, the grid Type column's sort key, and which
+  category wins when two claim the same extension (earliest). Never sort the Type column on a NAME — that
+  orders by the alphabet of whichever language is loaded.
+- **Category NAMES are user data and are never translated**, including the built-ins: they are named in the
+  app's language at the moment they are created and keep those names. The ONLY sidebar label that is
+  interface text is "All", and it is rendered with `{i18n:Tr Cat_All}` in the XAML (which refreshes on a
+  language switch via `Localizer.Tick`) — NOT through the row's `Name`. Subscribing the shell to
+  `Localizer.Instance.PropertyChanged` was tried and reverted: the singleton outlives every window, so it
+  leaks a handler per `MainViewModel` with nothing to unsubscribe it.
+
+### TRAP 1 — announcing anything mid-`DownloadManager.Initialize` wipes the download list
+`Categories.Initialize(_config)` was originally called BEFORE the row loop. It raises `Changed` →
+`NotifyList()` → `MainViewModel.OnListChanged` → `RequestSave()`, and the save does
+`_config.Downloads = Items.Select(...)` while `Items` is still **empty**. `Initialize` then iterates that
+emptied list: **every saved download gone, silently, on every launch.** The call now sits AFTER the rows are
+built (a row resolves its category lazily, so nothing needs it sooner). Pinned by
+`UI/CategorySidebarTests.Starting_up_with_a_saved_download_list_keeps_every_download`, verified to fail on
+the old ordering. **Rule: nothing inside `Initialize` may raise `ListChanged`/`StatsChanged` before `Items`
+is repopulated.** It was invisible to 1920 green tests and only showed up because the screenshot capture
+rendered an empty grid — when a capture looks wrong, believe it.
+
+### TRAP 2 — a VM list property rebuilt on every read cannot back a ComboBox
+`CategoryChoices` returned a fresh `List<CategoryChoice>` per get, so `SelectedItem` (matched by reference)
+never found itself and the combo rendered blank. Cache the list in a field and null it in the
+`Raise…Changed` method that rebuilds it (`AddDownloadItemViewModel`, `DownloadDetailsViewModel`). A row's
+right-click menu is fine either way — a `MenuFlyout` materializes its items when it opens.
+
+### TRAP 3 — never run the Playwright e2e suite and `dotnet test` at the same time
+The e2e stub app binds the local-API range **15151–15155**, so a concurrent C# run fails
+`AppShellStartupTests.Browser_integration_turned_on_binds_the_local_api` for a reason that has nothing to do
+with the code. Same family as the "two dotnet test runs in one tree" note. Check with
+`ss -ltnp | grep 1515` before believing such a failure.
+
+### TRAP 4 — `interception.spec.js` asserted a cancel it never waited for
+"a signed link with no extension in its path is still intercepted by type" polled only `app.adds.length`,
+then asserted the BROWSER download's state immediately — but the add and the cancel are two steps, so under
+load it read `in_progress`. Now polled. If it fails again, run the spec alone first (it passes 3/3 in
+isolation); a whole-suite-only failure there is timing, not the extension.
+
+### Engine: `RemoteFileInfo.ContentType` (added, NOT yet released)
+`bezzad/Downloader` `develop` commit `216c21a` adds it, populated in `SocketClient.GetFileInfoAsync` from
+the `ResponseHeaders` dictionary the size probe ALREADY fills and then discarded — no extra request. Until
+that reaches NuGet, the app's MIME leg only gets a value from the browser extension's `mime` field
+(`/api/add`), and `UrlResolver` does not read it. Engine repo test command:
+`dotnet test src/Downloader.Test/Downloader.Test.csproj -p:TargetFrameworks=net10.0 -f net10.0` (a plain
+`-f net10.0` is not enough — the TFM list itself has to be overridden).
+
+## Archiving is a separate axis from status — and two tests that looked fine while proving nothing
+- `DownloadItem.IsArchived` is persisted, and `StatusFilter.Archived` is NOT a status bucket:
+  `DownloadsViewModel.PassesSearchAndStatus` answers the archived filter on the flag alone and makes
+  **every** other filter, **All included**, reject archived rows. Folding it into the status enum would
+  destroy the row's real state (an archived Failed download must read Failed again once restored).
+- **The invariant: an archived download is never running or queued.** `DownloadManager.Archive` calls
+  `Cancel` first; `Start`/`Resume`/`Retry` clear the flag first. Every exclusion elsewhere (the pump,
+  `StartAll`/`StopAll`, `TotalSpeed`, the counts, `QueuesViewModel.Mine`) is only SAFE because of it —
+  without the stop-first half, a hidden row would keep downloading. Both halves belong in the manager:
+  bulk actions reach it directly and bypass anything the buttons enforce.
+- **Two tests passed against deliberately broken code, for the same reason:** archiving stops the row,
+  so a test that archives a RUNNING download and then checks it is not started / not in `ActiveCount`
+  is really only testing `Cancel`. To test an exclusion, archive something the stop cannot affect — a
+  **Completed** row for the counts, and a row forced back to **Paused** after archiving for the pump.
+  Verified by reverting each `!i.IsArchived` in turn and watching the test go red; three assertions
+  now bite (`No_path_leaves_a_download_both_archived_and_live`, `The_pump_will_not_resume_an_archived_row`,
+  `An_archived_row_is_absent_from_the_counts_and_the_totals`).
+- A capped-out item added with `autoStart: true` carries `DownloadStatus.None`, **not** `Created` —
+  the manager treats both as "waiting for a slot", so assert on either, never on one.
+- A `QueueRowViewModel` holds no item wrappers while collapsed: a test that inspects `card.Items` must
+  set `IsExpanded = true` and call `RebuildItems()` first.
+- `DeletePartialFileOnRemove` deletes ONLY `<final>.download`. Do not reuse `DiscardPartialFile` for
+  this — that one also deletes the final file (correct for a retry, catastrophic for a Remove).
+
+## "Clear filters" needs BOTH halves — and the fallback hides a missing wire
+The filters live in two places: the page (`DownloadsViewModel`: category, status, search) and the shell
+(`MainViewModel`: the sidebar row selection, the footer pill flags, the search box text). The empty state's
+button binds to `DownloadsViewModel.ClearFiltersCommand`, which calls `ClearFiltersRequested` when set and
+otherwise falls back to clearing only the page. **`MainViewModel` must assign
+`Downloads = new DownloadsViewModel(_downloadManager) { ClearFiltersRequested = ClearFilters };`** — drop
+that initializer and the list refills while every control still shows the filter as applied (reported with
+screenshots: the grid came back but the sidebar row stayed highlighted). `MainViewModel.ClearFilters` also
+has to null `_searchText` **directly, not through the property** — the setter would push the value back
+into `Downloads.Search`, which was just cleared.
+Pinned by `UI/CategorySidebarTests.Clear_filters_resets_the_controls_that_show_the_filters_not_just_the_list`,
+which drives the COMMAND, not the method. The original test called `page.ClearFilters()` directly, so it
+passed while the button was broken — exactly the "a test that passes while the bug survives is a broken
+test" case.
+
+### Two process traps that let that ship
+- **A failed `assert` in a `python3 - <<'PY'` heredoc does NOT fail the Bash call** when later statements
+  are newline-separated rather than `&&`-chained. The traceback scrolls past, the build still runs, and the
+  edit silently never happened. Always `print()` a confirmation at the end of the script AND grep the file
+  for the new text afterwards — a green build proves nothing, because the fallback path compiles.
+- **`dotnet test` output is written when the run ENDS, not streamed.** A log holding only
+  "A total of 1 test files matched" with no `testhost` alive usually means the run is still going (the
+  harness had buffered it), NOT that it died. Wait for the completion notification instead of concluding
+  the host was torn down — several full runs were re-started here for no reason.
+
+## Running the suite from inside a snap-packaged terminal fails 14 update tests (2026-09-21)
+A session whose shell is launched by a snap (e.g. the **Rider snap** — `env | grep ^SNAP` shows
+`SNAP_NAME=rider`) inherits `SNAP`, and `UpdateFlow.IsManagedExternally` keys off exactly that. The whole
+update flow then self-disables, so `UI/UpdateFlowDecisionTests` (12), plus
+`SettingViewModelTests.The_update_button_follows_the_flow_it_is_driving` and
+`AppShellStartupTests.Auto_update_checks_the_app_and_the_plugins_without_installing_anything`, fail with
+`state Idle` / empty collections / the message *"This build updates through the store it was installed
+from"*. Nothing is wrong with the code. Confirm and work around it in one step:
+`unset SNAP SNAP_NAME SNAP_REVISION SNAP_INSTANCE_NAME; dotnet test …` → all 15 green. CI is unaffected.
+
+## Right-click menus are styled globally (App.axaml), never per menu
+`ContextMenu` / `MenuFlyoutPresenter` / `MenuItem` / menu `Separator` carry one app-wide look in
+`App.axaml` (rounded 10px card on `SystemAltHighColor`, 5px inset, 32px rows with a 6px `RowSelectionBrush`
+highlight). **Do not add a local `Padding`/`Background` to an individual menu** — a local value beats the
+style and the menus drift apart again. Two things to know when testing one:
+- Styles only reach a `ContextMenu` **once it is opened** (`menu.Open(target)` on a shown window, then
+  `Dispatcher.UIThread.RunJobs()`). Before that its `Padding`/`CornerRadius` read as defaults, so a test
+  that inspects an unopened menu asserts nothing. Assert `IsSet(TemplatedControl.PaddingProperty)` instead
+  when the point is "this menu declares no local override".
+- Fluent part names used by the hover styles: `Border#PART_LayoutRoot` (the row's highlight) and
+  `Viewbox#PART_IconPresenter` (the icon column). Covered by `UI/ContextMenuStyleTests`.
+
+## Deleting a category needs no clean-up pass over the downloads (2026-09-21)
+`CategoryService.Resolve` looks the item's `CategoryId` up in the LIVE list and, when it does not
+match one, falls straight through to `Detect` (extension → Content-Type → Other). So removing a
+category automatically re-homes everything that was in it — a `.zip` filed there lands back in
+Archives, not in Other. **Do not add a pass that nulls `CategoryId` on the affected downloads**: it
+buys nothing and it would destroy the user's explicit choice if the category ever came back (an
+import, an undo). The sidebar's Delete (`MainViewModel.DeleteCategoryAsync`, `internal` so tests
+drive it without a window) is gated by `CategoryRowViewModel.CanDelete` = not "All" and not built
+in, because `CategoryService.Remove` refuses a built-in and an item that silently does nothing is
+worse than no item. `DialogHelper.Confirm` returns **true** when `MainWindow` is null, so a headless
+test takes the confirmed path without stubbing anything.
+
+## A substring is not a diagnosis: yt-dlp stderr classification (2026-09-22)
+`YtDlpBinary.NeedsSession` decided "this site wants a signed-in session" with `stderr.Contains("age")`,
+meant for an age gate. It also matches **"Unable to download API page"** — so a YouTube link that simply
+could not be reached (`ConnectionResetError(104)`, the author's ISP) told the user their session had
+expired and to reload the page in Chrome. No amount of hard-refreshing can fix a blocked connection, so
+the message sent him in a loop. Rules that came out of it:
+- **Classify the transport failure FIRST** (`Unreachable`). A request that never arrived explains every
+  other symptom; any session/format/availability reading of it is noise. Its message names the proxy box
+  (Settings → Advanced → Network, `ProxyAddress`, which yt-dlp gets as `--proxy` — the host `HttpClient`
+  proxy cannot reach a separate process).
+- **Spell a matched phrase long enough to mean only itself.** Every phrase in a user-facing classifier is
+  an instruction the user will act on; "age" is a substring of page, message, manage, image, package.
+- **A claim about an attempt may only be made from that attempt's output.** "The session sent with this
+  link was not accepted" was decided from the ANONYMOUS run's stderr, which says "sign in" for every gated
+  video regardless of the user's cookies. Only `cookieStderr` can support it.
+- The app logs the real stderr (`[site-media] yt-dlp exited N:`) in `~/.config/Downloader/logs/` — read it
+  before theorising about a site. It needs logging enabled in Settings.
+
+## The retry-after-stop NRE was an ENGINE bug — fixed in 5.9.8 (2026-09-22)
+`MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion` failed on macOS CI for weeks with
+`error=Object reference not set to an instance of an object., progress=100%, downloaded=65536/65536,
+attempt=2, saved=1 file(s)` — note the file was COMPLETE on disk and the row still read Failed. It was
+never an app or harness fault: a chunk the engine's dispatch loop abandoned on `CancelAsync` kept raising
+progress after the download reached its terminal state and closed its package storage, and the
+resume-metadata write dereferenced that storage unguarded. The NRE then arrived through
+`DownloadFileCompleted`. 5.9.8 also stops a `Dispose()` racing a completion from swallowing the completion
+event — which is exactly what this app does when it releases a finished row's engine off-stack from inside
+that event (`DisposeOffStack`). Taken here in `5f91c77`.
+**The general lesson:** a failure whose evidence says the work SUCCEEDED (full byte count, file on disk)
+and only the reporting failed is a completion-path bug, and in this stack that path is mostly the engine's.
+Check `../Downloader` before instrumenting the app.

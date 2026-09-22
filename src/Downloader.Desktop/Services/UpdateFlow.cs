@@ -23,6 +23,15 @@ public static class UpdateFlow
     public static double Progress { get; private set; }
     public static string AvailableVersion { get; private set; }
 
+    /// <summary>
+    /// What the last check concluded, in the user's words — shown in Settings next to the button.
+    /// <para>Without it, "Check for updates" could look completely dead: every outcome was reported ONLY
+    /// as an OS notification, which the notifications switch silences and a machine with no notification
+    /// daemon drops, and a check that FAILED said nothing anywhere at all (it only wrote to the log, which
+    /// is off by default). Reported on the button's own row, so the answer cannot be suppressed.</para>
+    /// </summary>
+    public static string LastCheckMessage { get; private set; }
+
     private static string _archivePath;
     private static bool _busy;
     private static UpdateInfo _pending;
@@ -67,6 +76,7 @@ public static class UpdateFlow
         State = UpdateState.Idle;
         Progress = 0;
         AvailableVersion = null;
+        LastCheckMessage = null;
         _archivePath = null;
         _busy = false;
         _pending = null;
@@ -91,22 +101,22 @@ public static class UpdateFlow
             State is UpdateState.Available or UpdateState.Downloading or UpdateState.Ready)
         {
             if (manual && IsManagedExternally)
-                NotificationService.Notify("Updates managed by your package manager",
-                    "This build updates through the store it was installed from.", isError: false);
+                Report("Updates managed by your package manager",
+                    "This build updates through the store it was installed from.", manual, isError: false);
             return;
         }
 
         _busy = true;
         try
         {
+            LastCheckMessage = "Checking for updates…";
             Raise(UpdateState.Checking, 0);
             var info = await (CheckOverride?.Invoke() ?? UpdateService.CheckAsync()).ConfigureAwait(false);
             if (info == null)
             {
+                Report("You're up to date",
+                    $"Downloader v{UpdateService.CurrentVersion} is the latest version.", manual, isError: false);
                 Raise(UpdateState.Idle, 0);
-                if (manual)
-                    NotificationService.Notify("You're up to date",
-                        $"Downloader v{UpdateService.CurrentVersion} is the latest version.", isError: false);
                 return;
             }
 
@@ -115,6 +125,9 @@ public static class UpdateFlow
             // No matching asset for this OS/arch — just open the release page.
             if (string.IsNullOrWhiteSpace(info.AssetUrl))
             {
+                Report("No download for this system",
+                    $"Opened the {info.Tag} release page — there is no build for this system to install.",
+                    manual, isError: false);
                 OpenUrl(info.ReleaseUrl);
                 Raise(UpdateState.Idle, 0);
                 return;
@@ -124,6 +137,7 @@ public static class UpdateFlow
             // download only starts when they click Download (so the Settings progress bar is actually
             // seen, and nothing downloads behind their back).
             _pending = info;
+            LastCheckMessage = $"Downloader {info.Tag} is available.";
             Raise(UpdateState.Available, 0);
             if (PromptUpdate is { } prompt)
                 Dispatcher.UIThread.Post(() => prompt(info));
@@ -133,13 +147,26 @@ public static class UpdateFlow
         }
         catch (Exception ex)
         {
+            // A failed check used to be entirely invisible: this log line, with logging off by default,
+            // was the ONLY trace — so the button looked broken rather than unable to reach GitHub.
             AppLog.Error("Update check/download failed", ex);
+            Report("Couldn't check for updates", ex.Message, manual, isError: true);
             Raise(UpdateState.Idle, 0);
         }
         finally
         {
             _busy = false;
         }
+    }
+
+    /// <summary>Records the outcome for the Settings row and, for a check the user asked for, also shows it.
+    /// <see cref="NotificationService.Inform"/> rather than Notify: this is feedback for something the user
+    /// just clicked, so the notifications on/off switch must not swallow it.</summary>
+    private static void Report(string title, string detail, bool manual, bool isError)
+    {
+        LastCheckMessage = string.IsNullOrWhiteSpace(detail) ? title : detail;
+        if (manual)
+            NotificationService.Inform(title, detail, isError);
     }
 
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage(

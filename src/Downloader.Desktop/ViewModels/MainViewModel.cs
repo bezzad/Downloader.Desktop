@@ -2,6 +2,7 @@ using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using Downloader.Desktop.Views;
 using System;
+using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -29,7 +30,7 @@ public class MainViewModel : ViewModelBase
     private StatusFilter _filter = StatusFilter.All;
     private DispatcherTimer _autoSaveTimer;
     private DateTime _lastSaveUtc;
-    private bool _isSidebarExpanded = true;
+    private bool _isCategorySidebarOpen;
 
     public MainViewModel(IFileService fileService, IDownloadManager downloadManager, PluginManager pluginManager = null)
     {
@@ -48,13 +49,16 @@ public class MainViewModel : ViewModelBase
         ShowStoppedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Stopped));
         ShowCompletedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Completed));
         ShowFailedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Failed));
+        ShowArchivedCommand = ReactiveCommand.Create(() => SelectFilter(StatusFilter.Archived));
         // Management pages open in-window: the central ContentControl swaps between the downloads
         // list and Queues/Scheduler/Settings; the toolbar's Downloads button returns to the list.
         ShowDownloadsCommand = ReactiveCommand.Create(() => Navigate(NavSection.Downloads));
         ShowQueuesCommand = ReactiveCommand.Create(() => Navigate(NavSection.Queues));
         ShowSchedulerCommand = ReactiveCommand.Create(() => Navigate(NavSection.Scheduler));
         ShowSettingViewCommand = ReactiveCommand.Create(() => Navigate(NavSection.Settings));
-        ToggleSidebarCommand = ReactiveCommand.Create(() => IsSidebarExpanded = !IsSidebarExpanded);
+        ToggleCategorySidebarCommand = ReactiveCommand.Create(() => IsCategorySidebarOpen = !IsCategorySidebarOpen);
+        AddCategoryCommand = ReactiveCommand.CreateFromTask(AddCategoryAsync);
+        ClearFiltersCommand = ReactiveCommand.Create(ClearFilters);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         // In-app Donate modal — opening a browser page gave no visible feedback ("it sound like
         // do nothing"); the modal shows the channels right in the app (USDT copies in-app).
@@ -91,11 +95,20 @@ public class MainViewModel : ViewModelBase
     public ICommand ShowStoppedCommand { get; }
     public ICommand ShowCompletedCommand { get; }
     public ICommand ShowFailedCommand { get; }
+    public ICommand ShowArchivedCommand { get; }
     public ICommand ShowDownloadsCommand { get; }
     public ICommand ShowQueuesCommand { get; }
     public ICommand ShowSchedulerCommand { get; }
     public ICommand ShowSettingViewCommand { get; }
-    public ICommand ToggleSidebarCommand { get; }
+    /// <summary>Shows or hides the category sidebar. Two states only — the deleted nav rail's third,
+    /// icons-only state was part of what made it confusing.</summary>
+    public ICommand ToggleCategorySidebarCommand { get; }
+
+    /// <summary>Opens the editor for a brand-new category.</summary>
+    public ICommand AddCategoryCommand { get; }
+
+    /// <summary>Drops every filter at once — the empty state's way out.</summary>
+    public ICommand ClearFiltersCommand { get; }
     public ICommand ShowAboutCommand { get; }
     public ICommand DonateCommand { get; }
     public ICommand ApplyUpdateCommand { get; }
@@ -105,18 +118,49 @@ public class MainViewModel : ViewModelBase
 
     private void OnUpdateStateChanged() => this.RaisePropertyChanged(nameof(IsUpdateReady));
 
-    /// <summary>When false the left rail collapses to an icons-only strip.</summary>
-    public bool IsSidebarExpanded
+    /// <summary>
+    /// Whether the category sidebar is showing. Off on first run — it is an extra, not the way the
+    /// app works — and remembered across restarts once the user opens it.
+    /// </summary>
+    public bool IsCategorySidebarOpen
     {
-        get => _isSidebarExpanded;
+        get => _isCategorySidebarOpen;
         set
         {
-            this.RaiseAndSetIfChanged(ref _isSidebarExpanded, value);
-            this.RaisePropertyChanged(nameof(SidebarWidth));
+            if (_isCategorySidebarOpen == value)
+                return;
+
+            this.RaiseAndSetIfChanged(ref _isCategorySidebarOpen, value);
+            if (_config != null)
+            {
+                _config.IsCategorySidebarOpen = value;
+                SaveSoon();
+            }
+
+            if (value)
+                RefreshCategoryCounts();
         }
     }
 
-    public double SidebarWidth => _isSidebarExpanded ? 208 : 56;
+    /// <summary>The sidebar's rows: "All", then every category in the user's order.</summary>
+    public ObservableCollection<CategoryRowViewModel> CategoryRows { get; } = new();
+
+    /// <summary>Id of the category the list is narrowed to, or null for all of them.</summary>
+    public string SelectedCategoryId
+    {
+        get => Downloads?.CategoryFilter;
+        set
+        {
+            if (Downloads is null || Downloads.CategoryFilter == value)
+                return;
+
+            Downloads.CategoryFilter = value;
+            foreach (var row in CategoryRows)
+                row.IsSelected = row.Id == value;
+            this.RaisePropertyChanged();
+            RefreshCategoryCounts();
+        }
+    }
 
     public string DownloadUrl
     {
@@ -142,7 +186,13 @@ public class MainViewModel : ViewModelBase
     public bool IsStoppedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Stopped;
     public bool IsCompletedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Completed;
     public bool IsFailedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Failed;
+    public bool IsArchivedSelected => _section == NavSection.Downloads && _filter == StatusFilter.Archived;
     public bool IsDownloadsSelected => _section == NavSection.Downloads;
+
+    /// <summary>The downloads page showing the working list — i.e. not the archived view. The toolbar's
+    /// Start/Pause/Stop/Archive cluster is bound to this and the Restore/Remove cluster to
+    /// <see cref="IsArchivedSelected"/>, so opening a management page hides both.</summary>
+    public bool IsWorkingListSelected => IsDownloadsSelected && !IsArchivedSelected;
     public bool IsQueuesSelected => _section == NavSection.Queues;
     public bool IsSchedulerSelected => _section == NavSection.Scheduler;
     public bool IsSettingsSelected => _section == NavSection.Settings;
@@ -150,8 +200,15 @@ public class MainViewModel : ViewModelBase
     // ---- Status bar ----
     public string TotalSpeedText => FormatSpeed(_downloadManager.TotalSpeed);
 
-    /// <summary>Cumulative bytes downloaded across all rows, human-readable (#18). Recomputed on the
-    /// stats pump — a single O(n) sum per 250 ms tick, negligible next to the per-row flush.</summary>
+    /// <summary>Cumulative bytes downloaded across every record, ARCHIVED INCLUDED (#18). Recomputed on
+    /// the stats pump — a single O(n) sum per 250 ms tick, negligible next to the per-row flush.
+    /// <para>
+    /// This is the one place archived rows are deliberately counted, and it is not an inconsistency with
+    /// the footer pills: a pill's number must equal the rows clicking it shows, so it can only count what
+    /// that filter reveals. This total answers a different question — how much has this app fetched —
+    /// and archiving keeps the record and the file, so those bytes were still downloaded. Excluding them
+    /// made the number DROP when a user tidied their list, which reads as lost data.
+    /// </para></summary>
     public string TotalDownloadedText =>
         DownloadItemViewModel.FormatBytes(_downloadManager.Items.Sum(i => i.Downloaded));
     public int ActiveCount => _downloadManager.ActiveCount;
@@ -159,16 +216,19 @@ public class MainViewModel : ViewModelBase
     public int CompletedCount => _downloadManager.CompletedCount;
 
     // ---- Footer filter counts (each matches its StatusFilter bucket exactly, so the buttons are disjoint) ----
-    public int AllCount => _downloadManager.Items.Count;
+    // Archived items are excluded from EVERY status count, All included — a pill's number has to be the
+    // number of rows clicking it shows, and the archived ones are only ever shown by the Archived pill.
+    public int AllCount => _downloadManager.Items.Count(i => !i.IsArchived);
     public int ActiveFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Running);
+        !i.IsArchived && i.Status is DownloadStatus.Running);
     public int QueuedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Created or DownloadStatus.None);
+        !i.IsArchived && i.Status is DownloadStatus.Created or DownloadStatus.None);
     public int StoppedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Paused or DownloadStatus.Stopped);
-    public int CompletedFilterCount => _downloadManager.Items.Count(i => i.Status == DownloadStatus.Completed);
+        !i.IsArchived && i.Status is DownloadStatus.Paused or DownloadStatus.Stopped);
+    public int CompletedFilterCount => _downloadManager.Items.Count(i => !i.IsArchived && i.Status == DownloadStatus.Completed);
     public int FailedFilterCount => _downloadManager.Items.Count(i =>
-        i.Status is DownloadStatus.Failed);
+        !i.IsArchived && i.Status is DownloadStatus.Failed);
+    public int ArchivedFilterCount => _downloadManager.Items.Count(i => i.IsArchived);
 
     private async Task InitMainViewModelAsync(IScheduler scheduler, CancellationToken ct)
     {
@@ -196,7 +256,11 @@ public class MainViewModel : ViewModelBase
         foreach (var vm in _downloadManager.Items)
             vm.RaisePostActionChanged();
 
-        Downloads = new DownloadsViewModel(_downloadManager);
+        // The empty state's "Clear filters" must reset the SHELL's filters too — the category
+        // sidebar's selection, the footer status pills and the search box all live up here. Without
+        // this the page clears its own state and the list refills while every control still shows
+        // the filter as applied.
+        Downloads = new DownloadsViewModel(_downloadManager) { ClearFiltersRequested = ClearFilters };
         Queues = new QueuesViewModel(_config, _downloadManager);
         Scheduler = new SchedulerViewModel(_config, _downloadManager);
         Settings = new SettingViewModel(_config, _downloadManager, _pluginManager); // Plugins live in Settings now
@@ -206,6 +270,14 @@ public class MainViewModel : ViewModelBase
         ((System.ComponentModel.INotifyPropertyChanged)Settings).PropertyChanged += (_, _) => SaveSoon();
 
         this.RaisePropertyChanged(nameof(Downloads));
+
+        // The sidebar's own state is persisted; the rows are rebuilt whenever the category list
+        // changes, from anywhere (the editor, a reorder, an import).
+        _isCategorySidebarOpen = _config.IsCategorySidebarOpen;
+        this.RaisePropertyChanged(nameof(IsCategorySidebarOpen));
+        RebuildCategoryRows();
+        _downloadManager.Categories.Changed += () => Dispatcher.UIThread.Post(RebuildCategoryRows);
+
         Navigate(NavSection.Downloads);
         OnStatsChanged();
 
@@ -219,6 +291,157 @@ public class MainViewModel : ViewModelBase
 
     private bool _quitting;
 
+    /// <summary>True while the remembered layout is being applied, so the window's own resize/move
+    /// events cannot be mistaken for the user re-arranging it.</summary>
+    private bool _applyingLayout;
+
+    /// <summary>The size the window reported just BEFORE the remembered layout was applied, and when
+    /// that happened. The platform confirms a resize/move ASYNCHRONOUSLY, so the restore's own echo
+    /// arrives once <see cref="_applyingLayout"/> is already back to false — and the first echo
+    /// carries the NEW position with this OLD size (measured on a real Ubuntu/Wayland session).
+    /// Recording that pair persists a size the user never chose.</summary>
+    private Size? _preRestoreSize;
+    private DateTime _layoutAppliedAt = DateTime.MinValue;
+
+    /// <summary>How long a stale echo is still expected after a restore. A backstop only — the echo
+    /// is identified by its SIZE, so a genuine resize in the first moments is still recorded, and a
+    /// window manager that refuses our size cannot leave the app deaf to the user for ever.</summary>
+    internal static TimeSpan LayoutEchoGrace { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>Applies the remembered layout (see <see cref="WindowLayoutPolicy"/>) to the main window.
+    /// Everything that could be wrong with it — a screen that is gone, a size bigger than this desktop,
+    /// a corrupt record — is already handled by the policy; this just assigns the result.</summary>
+    internal void RestoreWindowLayout(Window window)
+    {
+        if (window == null)
+            return;
+
+        try
+        {
+            _applyingLayout = true;
+            _preRestoreSize = window.ClientSize;
+
+            // The window's own declared size is the fallback: it is what a first run gets.
+            var fallbackWidth = double.IsFinite(window.Width) ? window.Width : window.ClientSize.Width;
+            var fallbackHeight = double.IsFinite(window.Height) ? window.Height : window.ClientSize.Height;
+
+            var layout = WindowLayoutPolicy.Resolve(
+                _config?.MainWindow, ScreenAreas(window),
+                window.MinWidth, window.MinHeight,
+                fallbackWidth, fallbackHeight,
+                window.RenderScaling);
+
+            window.Width = layout.Width;
+            window.Height = layout.Height;
+
+            if (layout.Position is { } position)
+            {
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.Position = position;
+            }
+
+            // Maximize LAST, so the size/position set above is what the window restores down to.
+            if (layout.IsMaximized)
+                window.WindowState = WindowState.Maximized;
+        }
+        catch (Exception ex)
+        {
+            // A window that opens at its default size is a far better outcome than one that fails to open.
+            AppLog.Error("Could not restore the window layout", ex);
+        }
+        finally
+        {
+            _applyingLayout = false;
+            _layoutAppliedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>Every connected screen's working area, primary first (the policy re-centres on it).
+    /// Empty when the platform reports no screens (headless, and some Linux sessions).</summary>
+    private static IReadOnlyList<PixelRect> ScreenAreas(Window window)
+    {
+        var areas = new List<PixelRect>();
+        try
+        {
+            var screens = window.Screens;
+            if (screens == null)
+                return areas;
+
+            var primary = screens.Primary;
+            if (primary != null)
+                areas.Add(primary.WorkingArea);
+            foreach (var screen in screens.All)
+            {
+                if (!ReferenceEquals(screen, primary))
+                    areas.Add(screen.WorkingArea);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Could not read the connected screens: " + ex.Message);
+        }
+        return areas;
+    }
+
+    /// <summary>Records the layout on every resize, move and maximize/restore, through the existing
+    /// debounced save — so an exit the app never sees still leaves the last layout on disk.</summary>
+    private void TrackWindowLayout(Window window)
+    {
+        window.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Window.WindowStateProperty || e.Property == TopLevel.ClientSizeProperty)
+                CaptureWindowLayout(window);
+        };
+        window.PositionChanged += (_, _) => CaptureWindowLayout(window);
+
+        // Record a baseline straight away when nothing is remembered yet: the window is shown before
+        // this runs, so the first maximize would otherwise have no normal bounds to keep and would
+        // store the maximized frame as the size to restore down to.
+        if (_config?.MainWindow == null)
+            CaptureWindowLayout(window);
+    }
+
+    internal void CaptureWindowLayout(Window window)
+    {
+        if (_applyingLayout || _config == null || window == null)
+            return;
+
+        // Drop the restore's own echo: shortly after applying the layout the window reports the new
+        // position while still carrying its PRE-restore size, and storing that pair would quietly
+        // replace the remembered size with the old one. Matched on the size itself, so a real resize
+        // — even one made immediately — is still recorded.
+        if (WindowLayoutPolicy.IsRestoreEcho(
+                window.ClientSize, _preRestoreSize, DateTime.UtcNow - _layoutAppliedAt, LayoutEchoGrace))
+            return;
+
+        try
+        {
+            // A window that has not laid out yet reports no size; recording that would persist a
+            // zero-sized layout over a perfectly good one.
+            if (window.WindowState == WindowState.Normal &&
+                (window.ClientSize.Width <= 0 || window.ClientSize.Height <= 0))
+                return;
+
+            var captured = WindowLayoutPolicy.Capture(
+                window.WindowState, window.Position,
+                window.ClientSize.Width, window.ClientSize.Height,
+                _config.MainWindow);
+
+            // Minimized/full-screen hand back the same record — nothing to save.
+            if (captured == null || ReferenceEquals(captured, _config.MainWindow))
+                return;
+
+            _config.MainWindow = captured;
+            SaveSoon();   // already debounced; a resize drag costs two doubles per frame, no I/O
+        }
+        catch (Exception ex)
+        {
+            // These handlers run on the UI thread: an escaping exception would take the dispatcher —
+            // and with it the whole window — down.
+            AppLog.Error("Could not record the window layout", ex);
+        }
+    }
+
     /// <summary>
     /// Wires the system tray (#3), close-to-tray, run-at-startup (#4) and the update check (#6) once the
     /// config is loaded and the window exists.
@@ -227,6 +450,11 @@ public class MainViewModel : ViewModelBase
     {
         if (View is not Window window)
             return;
+
+        // Reopen the window the way the user left it (#15), then keep the record up to date as they
+        // resize/move/maximize it — waiting for a clean exit would miss a tray quit or an OS restart.
+        RestoreWindowLayout(window);
+        TrackWindowLayout(window);
 
         TrayService.Init(window, Quit);
         TrayService.NotificationsToggled = enabled =>
@@ -584,6 +812,8 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(StoppedFilterCount));
         this.RaisePropertyChanged(nameof(CompletedFilterCount));
         this.RaisePropertyChanged(nameof(FailedFilterCount));
+        this.RaisePropertyChanged(nameof(ArchivedFilterCount));
+        RefreshCategoryCounts();
     }
 
     // Only refresh the (expensive) filtered grid when items actually move buckets,
@@ -614,6 +844,113 @@ public class MainViewModel : ViewModelBase
         if (Downloads != null)
             Downloads.Filter = filter;
         Navigate(NavSection.Downloads);
+        // The per-category counts state how many rows clicking that category would show, so they
+        // move with the status filter.
+        RefreshCategoryCounts();
+    }
+
+    // ---- Category sidebar --------------------------------------------------------------------
+
+    /// <summary>Rebuilds the sidebar rows from the category list (after an add, edit, delete,
+    /// reorder or import). Selection is kept when the chosen category is still there.</summary>
+    private void RebuildCategoryRows()
+    {
+        var chosen = Downloads?.CategoryFilter;
+        CategoryRows.Clear();
+        CategoryRows.Add(new CategoryRowViewModel(null, SelectCategory, EditCategory, MoveCategory, DeleteCategory));
+        foreach (var category in _downloadManager.Categories.Categories)
+            CategoryRows.Add(new CategoryRowViewModel(category, SelectCategory, EditCategory, MoveCategory,
+                DeleteCategory));
+
+        // A category the user was filtering by can vanish (deleted, or absent from an import); fall
+        // back to showing everything rather than to a filter that matches nothing.
+        if (!string.IsNullOrWhiteSpace(chosen) && _downloadManager.Categories.ById(chosen) is null)
+            chosen = null;
+
+        foreach (var row in CategoryRows)
+            row.IsSelected = row.Id == chosen;
+        if (Downloads != null)
+            Downloads.CategoryFilter = chosen;
+
+        this.RaisePropertyChanged(nameof(SelectedCategoryId));
+        RefreshCategoryCounts();
+    }
+
+    /// <summary>Recomputes each row's count under everything EXCEPT the category filter, so each
+    /// number is exactly what clicking that row would show.</summary>
+    private void RefreshCategoryCounts()
+    {
+        if (Downloads is null || CategoryRows.Count == 0)
+            return;
+
+        var visible = _downloadManager.Items.Where(Downloads.MatchesExceptCategory).ToList();
+        foreach (var row in CategoryRows)
+            row.Count = row.IsAll ? visible.Count : visible.Count(i => i.Category?.Id == row.Id);
+    }
+
+    private void SelectCategory(string categoryId) => SelectedCategoryId = categoryId;
+
+    private void MoveCategory(CategoryRowViewModel row, int delta)
+    {
+        if (row?.Id is null)
+            return;
+
+        // The service renumbers and announces the change; the rebuild rides on that.
+        _downloadManager.Categories.Move(row.Id, delta);
+        RequestSave();
+    }
+
+    private async Task AddCategoryAsync() => await EditCategoryAsync(null);
+
+    private void EditCategory(CategoryRowViewModel row) => _ = EditCategoryAsync(row?.Category);
+
+    private void DeleteCategory(CategoryRowViewModel row) => _ = DeleteCategoryAsync(row);
+
+    /// <summary>Deletes a user-created category after asking. The downloads that were in it are
+    /// untouched: a <see cref="DownloadItem.CategoryId"/> that no longer names a live category falls
+    /// through to automatic detection, which is what the confirmation promises.</summary>
+    internal async Task DeleteCategoryAsync(CategoryRowViewModel row)
+    {
+        if (row?.CanDelete != true)
+            return;
+
+        var confirmed = await DialogHelper.Confirm(Localizer.Instance["Cat_Delete"],
+            string.Format(Localizer.Instance["Cat_DeleteConfirm"], row.Name));
+        if (!confirmed)
+            return;
+
+        // The service renumbers and announces the change; the sidebar rebuild rides on that.
+        if (_downloadManager.Categories.Remove(row.Id))
+            RequestSave();
+    }
+
+    private async Task EditCategoryAsync(DownloadCategory category)
+    {
+        var edited = await DialogHelper.ShowCategoryEditor(_downloadManager.Categories, category);
+        if (edited is null)
+            return;
+
+        if (category is null)
+            _downloadManager.Categories.Add(edited);
+        else
+            _downloadManager.Categories.Update(edited);
+
+        RequestSave();
+    }
+
+    private void ClearFilters()
+    {
+        Downloads?.ClearFilters();
+        _filter = StatusFilter.All;
+        // Assigned to the field, not through the property: the setter would push it back into
+        // Downloads.Search, which has just been cleared.
+        _searchText = null;
+        foreach (var row in CategoryRows)
+            row.IsSelected = row.IsAll;
+        this.RaisePropertyChanged(nameof(SelectedCategoryId));
+        this.RaisePropertyChanged(nameof(SearchText));
+        RaiseNavFlags();
+        RefreshCategoryCounts();
     }
 
     private void RaiseNavFlags()
@@ -625,6 +962,8 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsStoppedSelected));
         this.RaisePropertyChanged(nameof(IsCompletedSelected));
         this.RaisePropertyChanged(nameof(IsFailedSelected));
+        this.RaisePropertyChanged(nameof(IsArchivedSelected));
+        this.RaisePropertyChanged(nameof(IsWorkingListSelected));
         this.RaisePropertyChanged(nameof(IsQueuesSelected));
         this.RaisePropertyChanged(nameof(IsSchedulerSelected));
         this.RaisePropertyChanged(nameof(IsSettingsSelected));

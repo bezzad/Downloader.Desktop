@@ -22,6 +22,7 @@ public class DownloadsViewModel : ViewModelBase
 {
     private readonly IDownloadManager _manager;
     private StatusFilter _filter = StatusFilter.All;
+    private string _categoryFilter;
     private string _search;
 
     /// <summary>The shared config instance, for callers that need it (e.g. the Details dialog's persisted size).</summary>
@@ -55,7 +56,19 @@ public class DownloadsViewModel : ViewModelBase
         PauseSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)), hasSelection);
         StopSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Cancel(i)), hasSelection);
         RemoveSelectedCommand = ReactiveCommand.Create(RemoveSelected, hasSelection);
+        // Archive/Restore are selection-driven exactly like Start/Pause/Stop: always on the toolbar,
+        // greyed out with nothing selected. A button that came and went with the selection count would be
+        // the only one in the row behaving that way, and would shift the toolbar under the user's pointer.
+        ArchiveSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Archive(i)), hasSelection);
+        UnarchiveSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Unarchive(i)), hasSelection);
         StopAllCommand = ReactiveCommand.Create(() => _manager.StopAll());
+        ClearFiltersCommand = ReactiveCommand.Create(() =>
+        {
+            if (ClearFiltersRequested is null)
+                ClearFilters();
+            else
+                ClearFiltersRequested();
+        });
 
         // Track row check-state so HasSelection / SelectAllState stay in sync with the row checkboxes.
         foreach (var item in manager.Items)
@@ -124,6 +137,8 @@ public class DownloadsViewModel : ViewModelBase
     {
         this.RaisePropertyChanged(nameof(HasSelection));
         this.RaisePropertyChanged(nameof(SelectAllState));
+        this.RaisePropertyChanged(nameof(SelectedCount));
+        this.RaisePropertyChanged(nameof(SelectedCountText));
     }
 
     /// <summary>Filterable view bound to the DataGrid.</summary>
@@ -134,7 +149,16 @@ public class DownloadsViewModel : ViewModelBase
     public ICommand PauseSelectedCommand { get; }
     public ICommand StopSelectedCommand { get; }
     public ICommand RemoveSelectedCommand { get; }
+
+    /// <summary>Files every selected download away.</summary>
+    public ICommand ArchiveSelectedCommand { get; }
+
+    /// <summary>Puts every selected archived download back in the working list.</summary>
+    public ICommand UnarchiveSelectedCommand { get; }
     public ICommand StopAllCommand { get; }
+
+    /// <summary>The empty state's way out when the filters, not the download list, are why it is empty.</summary>
+    public ICommand ClearFiltersCommand { get; }
 
     /// <summary>Menu entries for "Start queue ▾" — one per queue, each starting that queue's items. Mutated in
     /// place by <see cref="RebuildQueueTargets"/> so the bound MenuFlyout refreshes live on queue add/remove.</summary>
@@ -158,11 +182,16 @@ public class DownloadsViewModel : ViewModelBase
         RaiseSelectionChanged();
     }
 
-    /// <summary>The rows the toolbar acts on: checked rows plus any DataGrid-highlighted rows.</summary>
+    /// <summary>
+    /// The rows the toolbar acts on: checked or DataGrid-highlighted rows that are ALSO visible under
+    /// the active filters. The visibility clause matters — a filter can hide a row the user checked
+    /// earlier, and removing or stopping a download nobody can see is the kind of surprise a Remove
+    /// button must never spring.
+    /// </summary>
     private System.Collections.Generic.List<DownloadItemViewModel> SelectedTargets() =>
         _manager == null
             ? new System.Collections.Generic.List<DownloadItemViewModel>()
-            : _manager.Items.Where(i => i.IsChecked || _gridSelection.Contains(i)).ToList();
+            : _manager.Items.Where(i => (i.IsChecked || _gridSelection.Contains(i)) && PassesView(i)).ToList();
 
     /// <summary>True while at least one row is checked OR highlighted — drives the bulk buttons' enabled state.</summary>
     public bool HasSelection => SelectedTargets().Count > 0;
@@ -212,6 +241,58 @@ public class DownloadsViewModel : ViewModelBase
             _filter = value;
             Refresh();
         }
+    }
+
+    /// <summary>
+    /// Id of the category the list is narrowed to, or null for every category. Independent of the
+    /// status filter and the search box: all three are ANDed, and clearing this one leaves the other
+    /// two in force.
+    /// </summary>
+    public string CategoryFilter
+    {
+        get => _categoryFilter;
+        set
+        {
+            if (_categoryFilter == value)
+                return;
+
+            _categoryFilter = value;
+            this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(HasFilter));
+            Refresh();
+        }
+    }
+
+    /// <summary>True while anything is hiding rows. The toolbar states how many downloads are
+    /// selected only while this is true — with nothing hidden, the checkboxes say it already.</summary>
+    public bool HasFilter =>
+        !string.IsNullOrWhiteSpace(_categoryFilter) ||
+        _filter != StatusFilter.All ||
+        !string.IsNullOrWhiteSpace(_search);
+
+    /// <summary>How many downloads the bulk buttons would act on.</summary>
+    public int SelectedCount => SelectedTargets().Count;
+
+    /// <summary>"N selected", for the toolbar.</summary>
+    public string SelectedCountText => string.Format(Localizer.Instance["Toolbar_Selected"], SelectedCount);
+
+    /// <summary>
+    /// Set by the shell so the empty state's "Clear filters" also resets the footer status pills and
+    /// the search box, which live up there. Unset (design time, tests) it clears this page's own.
+    /// </summary>
+    public Action ClearFiltersRequested { get; set; }
+
+    /// <summary>Drops every filter at once — what the empty state's action does.</summary>
+    public void ClearFilters()
+    {
+        _categoryFilter = null;
+        _filter = StatusFilter.All;
+        _search = null;
+        this.RaisePropertyChanged(nameof(CategoryFilter));
+        this.RaisePropertyChanged(nameof(Filter));
+        this.RaisePropertyChanged(nameof(Search));
+        this.RaisePropertyChanged(nameof(HasFilter));
+        Refresh();
     }
 
     // ---- Tri-state column sorting (#12) ----
@@ -280,13 +361,45 @@ public class DownloadsViewModel : ViewModelBase
         ItemsView?.Refresh();
         this.RaisePropertyChanged(nameof(IsEmpty));
         this.RaisePropertyChanged(nameof(ShowQueue));
+        this.RaisePropertyChanged(nameof(HasFilter));
         RaiseSelectionChanged();
     }
+
+    /// <summary>
+    /// Everything the list is filtered by EXCEPT the category. The sidebar's per-category counts are
+    /// taken over this, so each number states exactly how many rows clicking that category will show.
+    /// </summary>
+    public bool MatchesExceptCategory(DownloadItemViewModel vm) => vm != null && PassesSearchAndStatus(vm);
 
     private bool Matches(object o)
     {
         if (o is not DownloadItemViewModel vm)
             return false;
+
+        // The category dimension. Judged on the download's RESOLVED category, so it applies to every
+        // row whatever its state — running, queued, paused, failed or completed — not only finished
+        // ones. Null means "every category" and leaves the other two filters alone.
+        if (!string.IsNullOrWhiteSpace(_categoryFilter) && vm.Category?.Id != _categoryFilter)
+            return false;
+
+        return PassesSearchAndStatus(vm);
+    }
+
+    private bool PassesSearchAndStatus(DownloadItemViewModel vm)
+    {
+        // Archiving is a separate axis from a download's state: an archived download is still Failed or
+        // Completed, and reads that way again once it is restored. So the archived view shows archived
+        // rows WHATEVER their state, and every status filter — All included — rejects them. Search still
+        // applies on both sides, which is what makes a large archive usable.
+        if (_filter == StatusFilter.Archived)
+        {
+            if (!vm.IsArchived)
+                return false;
+        }
+        else if (vm.IsArchived)
+        {
+            return false;
+        }
 
         if (!string.IsNullOrWhiteSpace(_search))
         {

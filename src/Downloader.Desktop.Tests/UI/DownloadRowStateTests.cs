@@ -199,11 +199,12 @@ public class DownloadRowStateTests
     [InlineData("")]
     public void Every_file_name_maps_to_some_row_icon(string name)
     {
-        // The converter looks the kind up to pick an icon; an unmapped/blank name must still resolve
-        // to a usable kind rather than null, or the row renders with no icon at all.
-        var kind = DownloadItemViewModel.GetFileKind(name);
+        // The converter looks the icon key up to pick an icon; an unmapped/blank name must still
+        // resolve to a category rather than null, or the row renders with no icon at all.
+        var category = CategoryService.Detect(CategoryService.CreateDefaults(key => key), name, null);
 
-        Assert.False(string.IsNullOrWhiteSpace(kind));
+        Assert.NotNull(category);
+        Assert.False(string.IsNullOrWhiteSpace(category.Icon));
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
@@ -211,7 +212,8 @@ public class DownloadRowStateTests
     {
         var row = Row(DownloadStatus.Completed, "movie.mkv");
 
-        Assert.Equal(DownloadItemViewModel.GetFileKind("movie.mkv"), row.FileKind);
+        Assert.Equal("video", row.Category.Id);
+        Assert.Equal("video", row.FileKind);
     }
 
     // ---- flags carried on the model ---------------------------------------

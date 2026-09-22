@@ -21,5 +21,9 @@ public enum StatusFilter
     Queued,
     Stopped,
     Completed,
-    Failed
+    Failed,
+    /// <summary>The downloads the user has filed away. NOT a status bucket: archiving is orthogonal to a
+    /// download's state (an archived download is still Failed, Completed, …), so this filter matches on the
+    /// archived flag alone and every other filter — All included — rejects archived items.</summary>
+    Archived
 }

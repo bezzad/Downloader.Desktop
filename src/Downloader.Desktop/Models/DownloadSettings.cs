@@ -70,6 +70,12 @@ public class DownloadSettings
     /// affect the app's own Add dialog or the CLI add payload (a script cannot answer a modal).</summary>
     public bool ConfirmProgrammaticAdds { get; set; } = false;
 
+    /// <summary>Also delete a download's half-finished file (the engine's `&lt;name&gt;.download` sidecar) when
+    /// the user removes it. Off by default — today's behaviour, where Remove only drops the record. A
+    /// COMPLETED file is never deleted whatever this is set to: Remove is a one-click action on a grid row
+    /// and an accidental click must not be able to destroy a finished download.</summary>
+    public bool DeletePartialFileOnRemove { get; set; } = false;
+
     /// <summary>Last local-API port the listener actually bound to (from the declared 15151–15155 range).
     /// 0 = not yet determined; the app prefers this on the next start before falling back further, and the
     /// CLI reads it to reach the running instance. Not user-editable (the extension can only reach the

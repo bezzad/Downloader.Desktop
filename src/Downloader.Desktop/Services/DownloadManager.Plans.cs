@@ -18,13 +18,14 @@ namespace Downloader.Desktop.Services;
 /// next to the target, then the matching <see cref="IPostProcessor"/> assembles the final file.
 ///
 /// <para>Pause/resume/cancel act through the row's <see cref="PlanController"/>, which holds EVERY part
-/// engine currently in flight — a segment plan runs <see cref="DownloadManager.SegmentParallelism"/> at a
+/// engine currently in flight — a segment plan runs <see cref="DownloadManager.SegmentSlots"/> at a
 /// time, so pausing only <c>vm.Download</c> (the most recently started part) left the others transferring
 /// while the row read "Paused" and its progress bar sat frozen (issue #7 follow-up). Engine pause suspends
 /// the awaited part (the loop just waits); the controller's paused gate additionally stops the runner from
 /// starting the NEXT part, which is what actually silences the network. Cancel makes the parts' tasks
-/// return, and the runner sees <c>Status == Stopped</c> and cleans up. Completed parts are detected by
-/// files on disk, so an app restart resumes from the first incomplete part with no extra bookkeeping.</para>
+/// return, and the runner sees <c>Status == Stopped</c> and stops. Completed parts are detected by files
+/// on disk and KEPT on a stop, so both a restart and a stop/start resume from the first incomplete part
+/// with no extra bookkeeping.</para>
 /// </summary>
 public partial class DownloadManager
 {
@@ -85,7 +86,7 @@ public partial class DownloadManager
             if (finalPath == null)
             {
                 OnUi(() => { vm.PlanRun = null; vm.PlanControl = null; });
-                return; // user cancelled (parts folder already removed) — status stays Stopped
+                return; // user cancelled — status stays Stopped, finished parts kept for the next start
             }
 
             var size = SafeLength(finalPath);
@@ -125,16 +126,29 @@ public partial class DownloadManager
     /// <summary>
     /// UI-free core: downloads a plan's parts sequentially into <c>&lt;folder&gt;/.&lt;name&gt;.parts</c>
     /// (skipping already-complete ones), then assembles the final file. Returns the final path, or
-    /// <c>null</c> if <paramref name="isCancelled"/> reported a user cancel (parts folder is removed).
-    /// Throws on a real failure (a part that didn't finish, or a missing post-processor) — the parts
-    /// folder is kept so Retry can reuse completed parts.
+    /// <c>null</c> if <paramref name="isCancelled"/> reported a user cancel. Throws on a real failure
+    /// (a part that didn't finish, or a missing post-processor). The parts folder is KEPT in both cases,
+    /// so the next start reuses whatever finished; only success (assembled) and remove delete it.
     /// </summary>
     /// <summary>Parts at/below this size (or of Segment kind) download single-chunk — multipart chunking
     /// per tiny HLS segment is pure overhead (N range requests for a file that fits in one read).</summary>
     internal const long SmallPartBytes = 8 * 1024 * 1024;
 
-    /// <summary>How many segment parts may download concurrently (each single-chunk).</summary>
+    /// <summary>Segment concurrency when there are no settings to read (tests build the runner bare).</summary>
     internal const int SegmentParallelism = 4;
+
+    /// <summary>Upper bound on segments in flight. A playlist can hold thousands of them, and "as many as
+    /// you like" is how you get a connection storm that the server throttles or refuses outright.</summary>
+    internal const int MaxSegmentParallelism = 16;
+
+    /// <summary>
+    /// How many single-connection parts to fetch at once: the user's connections-per-download setting,
+    /// because for a segmented stream one segment IS one connection — the same number they already chose
+    /// for an ordinary file. It used to be hard-coded at 4 regardless, which both ignored the setting and
+    /// left a fast link idle (the default is 8).
+    /// </summary>
+    internal int SegmentSlots() =>
+        Math.Clamp(_config?.Settings?.ChunkCount ?? SegmentParallelism, 1, MaxSegmentParallelism);
 
     /// <summary>How often a paused plan re-checks whether it may continue. A poll rather than a signal: the
     /// wait is idle either way and this stays trivially correct against pause/resume/cancel racing it.</summary>
@@ -272,13 +286,23 @@ public partial class DownloadManager
             }
 
             partSpeed[index] = 0;
-            if (isCancelled != null && isCancelled())
-                return true; // outer loop handles cleanup
-            if (partError != null)
-                throw partError; // the engine reports a part failure via the event, not by throwing
-            if (!PartDownloadedOk(partPath, part.ExpectedSize))
-                return false;
+            var stopping = isCancelled != null && isCancelled();
 
+            if (partError != null)
+            {
+                // A stop cancels this part's engine, so its error IS the stop — not a fault to fail the
+                // whole plan over.
+                if (stopping)
+                    return true;
+                throw partError; // the engine reports a part failure via the event, not by throwing
+            }
+            if (!PartDownloadedOk(partPath, part.ExpectedSize))
+                return stopping; // stopped mid-part: nothing to mark, and nothing to retry either
+
+            // Marked even when a stop is pending. This used to return early instead, which was harmless
+            // only because the stop then deleted the whole folder: a segment that had genuinely finished
+            // went unmarked, so the next start downloaded it again. It is exactly the work resuming must
+            // not repeat.
             MarkPartDone(partPath, part.ExpectedSize);
             partFraction[index] = 1;
             runState?.SetDone(index, part.ExpectedSize ?? SafeLength(partPath));
@@ -302,9 +326,23 @@ public partial class DownloadManager
             }
         }
 
-        // Segment-only plans download several parts concurrently (each single-chunk); everything else
-        // stays strictly sequential (big video+audio parts already use engine multipart internally).
-        var parallel = pending.Count > 2 && pending.All(i => parts[i].Kind == PartKind.Segment);
+        // Which pending parts are worth running side by side: the ones fetched in ONE connection (tiny
+        // HLS/DASH segments). For those, several at once is the ONLY way to fill the link — a single
+        // segment cannot be chunked. Parts big enough for the engine to chunk already parallelise
+        // internally, so they stay sequential; running those concurrently would multiply connections
+        // without going faster.
+        //
+        // This used to demand that EVERY pending part be PartKind.Segment, which meant one part of any
+        // other kind made the whole plan serial — so a DASH manifest (separate Video and Audio
+        // representations) downloaded its segments strictly one at a time, however many there were.
+        var fast = pending.Where(i => IsSingleChunkPart(parts[i])).ToList();
+        var slow = pending.Where(i => !IsSingleChunkPart(parts[i])).ToList();
+        // Below a handful there is nothing to win, and the machinery only adds ways to be wrong.
+        if (fast.Count <= 2)
+        {
+            slow = pending;
+            fast = new List<int>();
+        }
 
         var doneCount = parts.Count - pending.Count;
         void StagePart() =>
@@ -313,12 +351,12 @@ public partial class DownloadManager
             onStage?.Invoke(string.Format(Localizer.Instance["Plan_Part"],
                 Math.Min(doneCount + 1, parts.Count), parts.Count));
 
-        if (parallel)
+        if (fast.Count > 0)
         {
-            using var slots = new SemaphoreSlim(SegmentParallelism);
+            using var slots = new SemaphoreSlim(SegmentSlots());
             var running = new List<Task>();
             StagePart();
-            foreach (var index in pending)
+            foreach (var index in fast)
             {
                 await WaitWhilePausedAsync().ConfigureAwait(false);
                 if (Cancelled())
@@ -346,27 +384,26 @@ public partial class DownloadManager
             if (Cancelled())
             {
                 controller.CancelAll();
-                TryDeleteDir(partsDir);
+                // The finished segments STAY. A stop is not a discard: the user means to carry on, and
+                // the skip-completed-parts logic above is what lets them — deleting the folder here is
+                // what made a stopped HLS download restart from 0%, however many segments were already
+                // on disk. Removing the download cleans the folder up (TryDeletePartsFolder), which is
+                // where that belongs.
                 return null;
             }
         }
-        else
+
+        // Then whatever could not usefully share the link, one at a time.
         {
-            foreach (var index in pending)
+            foreach (var index in slow)
             {
                 await WaitWhilePausedAsync().ConfigureAwait(false);
                 if (Cancelled())
-                {
-                    TryDeleteDir(partsDir);
-                    return null;
-                }
+                    return null; // parts kept — see the note in the parallel branch above
                 StagePart();
                 await DownloadPartAsync(index).ConfigureAwait(false);
                 if (Cancelled())
-                {
-                    TryDeleteDir(partsDir);
                     return null;
-                }
                 doneCount++;
             }
         }

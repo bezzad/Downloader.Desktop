@@ -176,3 +176,60 @@ Full suite after both fixes: **1728/1728 green**, full rebuild **0 warnings**, n
 - Is the stall before the first test or after the last? Moot if the power-off explanation holds (the run
   is not stalled at all, the machine is going down under it). The captured dump answers it if a hang
   recurs after these fixes.
+
+## 2026-09-21: proving the harness, and the evidence that the power-off was not the whole answer
+
+### `ThreadAffinityWatch` finally caught the violation, with a stack (run 35619162399, ubuntu/Release)
+The watcher was installed because the 2026-09-11 dump held the exception but no stack
+(`StackTraceString: <none>`), and that missing call site is what the hunt had never had. It has it now:
+
+```
+=== THREAD-AFFINITY VIOLATION (the CI hang's cause) ===
+    thread 8: The calling thread cannot access this object because a different thread owns it.
+   at Avalonia.Threading.Dispatcher.VerifyAccess()
+   at Avalonia.Rendering.DefaultRenderLoop.Add(IRenderLoopTask i)
+   at Avalonia.Rendering.Composition.Server.ServerCompositor..ctor(...)
+   at Avalonia.Rendering.Composition.Compositor..ctor(...)
+   at Avalonia.Headless.AvaloniaHeadlessPlatform.Initialize(AvaloniaHeadlessPlatformOptions opts)
+   at Avalonia.AppBuilder.SetupUnsafe()
+   at Avalonia.Headless.HeadlessUnitTestSession.EnsureSharedApplication()
+   at Avalonia.Headless.HeadlessUnitTestSession.DispatchCore b__0()
+   at Avalonia.Headless.HeadlessUnitTestSession.StartNew b__18_1(Object a)
+```
+
+Outcome that run: `Passed: 4`, then nothing for three minutes, `--blame-hang` collected, `Test Run
+Aborted`, `Total tests: Unknown`.
+
+**This changes the conclusion of task 4.4.** The power-off chain was real, is fixed, and was certainly
+responsible for the runs that died with the log destroyed. But it is *not* the only cause, and this one
+is still live. Note what the stack says: the violation is in **`EnsureSharedApplication`** — the
+PerAssembly path. `TestAppBuilder`'s comment argues PerAssembly is safe *because* the failing call moves
+off the per-test path; the evidence is that the same call fails there too. PerAssembly cut the exposure
+from ~1700 attempts per run to one — it did not remove the failure mode, and when that one attempt loses,
+it faults the single shared session and every later test waits on a completion source nothing will set.
+
+Leading hypothesis (NOT yet measured, and this change's own history is the argument for measuring before
+touching it): `Dispatcher.UIThread` is a process-wide singleton that binds to whichever thread reaches it
+first. Tests run sequentially but their ORDER is not fixed, so when a plain `[Fact]` that reaches
+dispatcher-touching production code (`DownloadManager.OnUi`, `EnsureUiPump`, tray/notch services) happens
+to run before the first `[AvaloniaFact]`, the singleton binds to the xunit thread; the session thread's
+`SetupUnsafe()` then fails `VerifyAccess`. That predicts exactly what is seen: intermittent, ordering
+dependent, any platform, blamed test always innocent. The cheap check before any fix is to log the
+binding thread at first touch and at session start.
+
+### The harness works — and proving it showed two ways it did not (run 35619203001)
+Dispatched with `test_deadline_seconds=150`, `test_dump_lead_seconds=60`. Five of six legs were killed at
+the deadline, the step failed (log kept, job not cancelled), and the Windows artifact carried a real
+235 MB `hang-testhost.dmp` beside `hang-report.txt`. It also confirmed the `KILLED` sentinel is load
+bearing, live: a SIGTERM'd `dotnet test` reported wait status **0** on ubuntu and macOS, **143** on
+Windows — without the sentinel those legs would have reported SUCCESS.
+
+Two defects found and fixed in `ac110f7`:
+1. **The deadline drifted by the dump's duration.** The watchdog slept a flat `DUMP_LEAD` *after* dumping
+   rather than waiting for an absolute deadline, so macOS/Release was still alive past 150s, finished
+   naturally at ~202s and passed. A bound a slow dump can silently extend is the same class of defect as
+   the step `timeout-minutes` that did not fire.
+2. **macOS still wrote the 6 GB core the header says it avoids.** With no `sample` on the runner the
+   branch fell through to `createdump`: 6,182,015,304 bytes on both macOS legs, 1.84 GB per artifact —
+   and the reason was legible only inside that 1.8 GB artifact. The fallthrough now requires an explicit
+   `CI_TEST_MACOS_FULL_DUMP=1` and the skip is reported in the log.

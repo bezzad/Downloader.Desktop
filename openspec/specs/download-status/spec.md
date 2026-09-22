@@ -18,11 +18,15 @@ The Failed status filter in the main window SHALL show only downloads that genui
 - **THEN** the failed download is shown in the list
 
 ### Requirement: Stopped items appear under All
-User-stopped downloads SHALL be visible under the All filter, which has no dedicated Stopped pill.
+User-stopped downloads SHALL be visible under the All filter, unless they have been archived — an archived download appears under no status filter and is reached only through the Archived filter.
 
 #### Scenario: Stopped item under All
 - **WHEN** a download is stopped by the user and the All filter is selected
 - **THEN** the stopped download is shown in the list
+
+#### Scenario: Archived stopped item is not under All
+- **WHEN** a stopped download is archived and the All filter is selected
+- **THEN** the download is not shown in the list
 
 ### Requirement: Expired or invalid link is marked Failed
 A download whose response is non-file content (e.g. an HTML page) or an implausibly small text body SHALL be marked Failed with a clear "Link expired or invalid" message instead of a confusing partial or completed state.

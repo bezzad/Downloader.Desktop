@@ -76,6 +76,47 @@
             <Setter Property="Width" Value="16" />
         </Style>
 
+        <!-- ===== Category sidebar =====
+             Deliberately quieter than the old nav rail: a selected category is tinted, not filled
+             with the accent, so the list beside it stays the loudest thing on the page. -->
+        <Style Selector="Button.cat">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10 7" />
+            <Setter Property="Margin" Value="0 1" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.cat:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="Button.cat.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <Style Selector="Button.cat.selected TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <!-- An empty category stays listed, just dimmed. Hiding and re-showing rows as downloads
+             arrive would make the sidebar twitch under the pointer. -->
+        <Style Selector="Button.cat.empty">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+        <!-- "Add category": present, but never competing with the categories themselves. -->
+        <Style Selector="Button.catadd">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10 7" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+        </Style>
+        <Style Selector="Button.catadd:pointerover">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.catadd:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+
         <!-- Small transparent icon button (table row actions, toolbar) -->
         <Style Selector="Button.icon">
             <Setter Property="Background" Value="Transparent" />
@@ -212,6 +253,57 @@
             <Setter Property="Padding" Value="10 6" />
         </Style>
         <Style Selector="DataGridColumnHeader"><Setter Property="Cursor" Value="Hand" /></Style>
+
+        <!-- ===== Right-click menus (ContextMenu + MenuFlyout) =====
+             Fluent's default menu is a square, tight box that reads as a different product than
+             the rest of the app. One global look instead: the same rounded card surface as the
+             cards and dialogs, roomy rows that light up in the accent tint a selected grid row
+             uses, and hairline separators. ContextMenu and MenuFlyoutPresenter are two containers
+             for the same thing (right-click vs. a button's drop-down), so both are styled — that
+             way a menu looks identical wherever it is opened from. -->
+        <Style Selector="ContextMenu">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="MinWidth" Value="180" />
+        </Style>
+        <Style Selector="MenuFlyoutPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="MinWidth" Value="180" />
+        </Style>
+
+        <!-- Menu rows: a comfortable hit target with its own rounded highlight, inset from the
+             menu's border (the 5px padding above) so the highlight never touches the card edge. -->
+        <Style Selector="MenuItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="11 7" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <!-- The icon column is decoration next to the label, so it sits one step back in contrast. -->
+        <Style Selector="MenuItem /template/ Viewbox#PART_IconPresenter">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemBaseMediumHighColor}" />
+        </Style>
+
+        <!-- Hairline separator, inset so it reads as a grouping rule rather than a divider bar. -->
+        <Style Selector="ContextMenu Separator, MenuFlyoutPresenter Separator">
+            <Setter Property="Background" Value="{DynamicResource SystemBaseLowColor}" />
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="9 4" />
+        </Style>
 
         <!-- ===== Numeric stepper (#1): clean, compact, touch-friendly, hand cursor on the arrows =====
              Fixed height + centered alignment keeps the stepper identical everywhere (Settings, Queues,

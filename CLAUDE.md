@@ -44,7 +44,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
-- **Downloader 5.9.5** NuGet package (the core download engine — not in this repo).
+- **Downloader 5.9.8** NuGet package (the core download engine — not in this repo; the sibling `../Downloader` checkout is where it is developed). Bump it here in `Downloader.Desktop.csproj` when a release fixes something this app hits.
 - DI via `Microsoft.Extensions.DependencyInjection`; logging via `Microsoft.Extensions.Logging`.
 - macOS `.app` bundling via `Dotnet.Bundle`.
 - `Nullable` is **disabled** in the app csproj (enabled in `Directory.Build.props` but overridden).
@@ -249,6 +249,59 @@ Rough order to turn the current skeleton into the MVP above:
      "the app didn't take it" branch and the browser keeps the file. A picked quality stays silent.
    - The **CLI add path is unconditionally silent** (a script cannot answer a modal) and the legacy
      `/add?url=` endpoint is untouched.
+
+19. ✅ **Categorize downloads by file type (issue #16, `categorize-downloads-by-type`)** (DONE, 2026-09-20):
+   - **File type stopped being decoration.** The eight built-in kinds became editable, reorderable
+     `DownloadCategory` records on `Config` (schema v1 → v2, seeded on upgrade with exactly the
+     extension table `DownloadItemViewModel.GetFileKind` used to hold, so the upgrade is a visual
+     no-op apart from the new column). `Services/CategoryService` is the single authority;
+     `GetFileKind` is gone.
+   - **A download's category is a nullable `DownloadItem.CategoryId` where `null` means "work it
+     out"** — that is what lets a row whose name arrives late correct itself, lets a category created
+     later adopt the files it claims, and makes "back to automatic" expressible at all.
+   - **One number does three jobs**: a category's position is its order in the sidebar, the sort key
+     of the grid's new Type column (sorting on a NAME would order by the alphabet of whichever
+     language is loaded), and which category wins when two claim the same extension.
+   - **Resolution**: the user's choice → the file extension → the `Content-Type` → Other. The MIME
+     leg needed `RemoteFileInfo.ContentType`, added in the sibling engine repo (the header was
+     already being fetched and discarded) — **pending a NuGet release**, so `UrlResolver` does not
+     read it yet; the browser extension's `mime` (sent for years, ignored by the app) is read now.
+   - **Optional left sidebar**, off by default, toggled beside the paste box, state persisted. Two
+     states only — the nav rail deleted in `71793e5` had a third and that was part of what made it
+     confusing. Counts respect the status filter, so each number is what clicking it will show.
+   - **BREAKING (behavioural): "select all" now covers only the rows the filters are showing.** It
+     previously acted on the whole list, which with a filter able to hide rows meant Remove deleting
+     downloads the user could not see.
+   - **Settings export/import** (`Services/SettingsPortability`): settings + categories only, with
+     no file-system paths and nothing platform-specific, so a file written on Linux imports on
+     Windows. Validated whole before anything is applied; a file listing no categories is refused.
+   - Extension 1.21.0. 1922 app tests + 181 extension tests + 40 Playwright e2e green, 0 warnings.
+
+20. ✅ **Archive downloads out of the working list (issue #17, `archive-downloads`)** (DONE, 2026-09-21):
+   - The list only ever grew: the sole way to shorten it was **Remove**, which destroys the record. A
+     download can now be **archived** — it keeps its record, its file and its state, and leaves the
+     working list.
+   - **The invariant everything else rests on: an archived download is never running or queued.**
+     `DownloadManager.Archive` stops an in-flight or waiting row BEFORE setting the flag, and
+     `Start`/`Resume`/`Retry` clear the flag before doing anything else. Without that pair, excluding
+     archived rows from the pump would strand a download that keeps running where nobody can see it.
+     Both halves live in the manager, not the buttons — bulk actions bypass a view-level guard.
+   - **Archiving is a SEPARATE AXIS from a download's state**, not a seventh status bucket: an archived
+     download is still Failed/Completed and reads that way again when restored. So
+     `StatusFilter.Archived` matches on the flag alone and every other filter — **All included** —
+     rejects archived rows, as do `AllCount` and the five `*FilterCount`s.
+   - Exclusion is applied at each iteration site (`PumpQueue`, `StartAll`/`StartQueue`,
+     `StopAll`/`StopQueue`, `TotalSpeed`, the counts, `QueuesViewModel.Mine`) rather than by filtering
+     `Items` globally — that collection is also the master ordering drag-reorder and the pump priority
+     read.
+   - **UI:** a seventh footer pill; an Archive icon in the row strip (Restore in the archived view);
+     an Archive button on the toolbar beside Remove, enabled by selection like Start/Pause/Stop; and the
+     cluster swaps to **Restore + Remove** while the Archived filter is on, through the same `IsVisible`
+     mechanism that already hides it on a management page.
+   - **New setting `DeletePartialFileOnRemove`** (default off): Remove also deletes the engine's
+     `<name>.download` sidecar. A COMPLETED file is never deleted — Remove is one click on a grid row.
+   - Wording in all 16 packs. **BREAKING (behavioural):** an archived unfinished download is no longer
+     resumed by "start all".
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

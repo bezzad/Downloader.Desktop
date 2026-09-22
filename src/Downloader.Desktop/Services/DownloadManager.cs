@@ -24,9 +24,41 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     // real downloadable asset URL before the engine runs. Null in tests that don't need plugins.
     private readonly PluginManager _plugins;
 
-    public DownloadManager() { }
+    public DownloadManager() => HookCategories();
 
-    public DownloadManager(PluginManager plugins) => _plugins = plugins;
+    public DownloadManager(PluginManager plugins) : this() => _plugins = plugins;
+
+    public DownloadManager(PluginManager plugins, CategoryService categories) : this(plugins) =>
+        Categories = categories ?? Categories;
+
+    /// <summary>The file-type categories every row, the sidebar and the list filter resolve through.
+    /// Always present: a row must be able to answer what it is even before a config is loaded.</summary>
+    public CategoryService Categories { get; private set; } = new();
+
+    /// <summary>A download's category is derived, never stored, so an edited or reordered category
+    /// list has to make every row re-read it.</summary>
+    private void HookCategories() => Categories.Changed += () => OnUi(() =>
+    {
+        ReleaseMissingCategories();
+        foreach (var vm in Items)
+            vm.RaiseCategoryChanged();
+        NotifyList();
+    });
+
+    /// <summary>
+    /// Clears the explicit category of any download whose choice no longer exists — after the user
+    /// deleted that category, or after an import brought a different set. Leaving the id in place
+    /// would have the row silently fall back to detection while still claiming a choice, and would
+    /// resurrect it if a new category happened to reuse the id.
+    /// </summary>
+    private void ReleaseMissingCategories()
+    {
+        foreach (var vm in Items)
+        {
+            if (!string.IsNullOrWhiteSpace(vm.CategoryId) && Categories.ById(vm.CategoryId) is null)
+                vm.CategoryId = null;
+        }
+    }
 
     public ObservableCollection<DownloadItemViewModel> Items { get; } = new();
 
@@ -49,15 +81,17 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         {
             double sum = 0;
             foreach (var i in Items)
-                if (i.Status == DownloadStatus.Running)
+                if (i.Status == DownloadStatus.Running && !i.IsArchived)
                     sum += i.Speed;
             return sum;
         }
     }
 
-    public int ActiveCount => Items.Count(i => i.Status == DownloadStatus.Running);
-    public int QueuedCount => Items.Count(i => i.Status is DownloadStatus.Created or DownloadStatus.None);
-    public int CompletedCount => Items.Count(i => i.Status == DownloadStatus.Completed);
+    // Archived downloads take no part in any of this: they are inert by the Archive/Start invariant, and
+    // counting them would make the status bar describe rows the user cannot see.
+    public int ActiveCount => Items.Count(i => !i.IsArchived && i.Status == DownloadStatus.Running);
+    public int QueuedCount => Items.Count(i => !i.IsArchived && i.Status is DownloadStatus.Created or DownloadStatus.None);
+    public int CompletedCount => Items.Count(i => !i.IsArchived && i.Status == DownloadStatus.Completed);
 
     private bool NotifyCompleteEnabled => _config?.Settings is { EnableNotifications: true, NotifyOnComplete: true };
     private bool NotifyFailedEnabled => _config?.Settings is { EnableNotifications: true, NotifyOnFailed: true };
@@ -200,6 +234,12 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                 item.QueueId = _config.DefaultQueue?.Id;
             Items.Add(new DownloadItemViewModel(item, this));
         }
+
+        // Point the category service at this config's list — AFTER the rows exist. A row resolves its
+        // category lazily, so nothing needs it sooner, and doing it earlier announced a change while
+        // Items was still empty: the shell answers that by saving, and a save writes the item list
+        // back over Config.Downloads. That wiped the user's downloads on every launch.
+        Categories.Initialize(_config);
 
         SyncScheduler();
     }
@@ -454,6 +494,10 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                 vm.PreviewName = info.FileName;
             if (info.FileSize > 0 && vm.Size is null or 0)
                 vm.Size = info.FileSize;
+            // Never overwrite a content type a client already gave us (e.g. the browser extension's
+            // `mime`) — that one comes from the same response the download will actually fetch.
+            if (!string.IsNullOrWhiteSpace(info.ContentType) && string.IsNullOrWhiteSpace(vm.ContentType))
+                vm.ContentType = info.ContentType;
         });
     }
 
@@ -464,6 +508,11 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // (the second reports progress from 0 — the "100% then begins again from 0" bug).
         if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
             return;
+
+        // The last line of defence for "an archived download is never running": Start is the uncapped
+        // primitive every start path ends at, so a download that reaches it leaves the archive whether it
+        // came from a button, a bulk action, the pump or the scheduler.
+        vm.IsArchived = false;
 
         var item = vm.GetItem();
         var urls = item.Urls?.Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).ToArray()
@@ -1155,6 +1204,30 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         return true;
     }
 
+    /// <summary>Deletes ONLY the half-finished file the engine writes (<c>&lt;name&gt;.download</c>) when the
+    /// user has asked Remove to tidy up after itself. The finished file is deliberately never touched:
+    /// Remove is one click on a grid row, and a misclick must not be able to destroy a completed download.
+    /// Best-effort — a file that cannot be deleted is logged, never fatal to the removal.</summary>
+    internal static void TryDeletePartialFile(DownloadItemViewModel vm)
+    {
+        var item = vm?.GetItem();
+        if (item == null || item.Status == DownloadStatus.Completed)
+            return;
+        var path = item.FilePath;
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+        try
+        {
+            var partial = path + ".download";
+            if (File.Exists(partial))
+                File.Delete(partial);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn($"Couldn't delete the partial file while removing the download: {ex.Message}");
+        }
+    }
+
     /// <summary>Delete the in-progress file the engine writes (<c>&lt;name&gt;.download</c>), so the next
     /// attempt builds a fresh package instead of resuming the old one's layout. Best-effort: a file that
     /// cannot be deleted just means the retry resumes, which is what would have happened anyway.</summary>
@@ -1344,6 +1417,10 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         if (vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
             return;
 
+        // Starting an archived download brings it back: the pair of rules (archiving stops, starting
+        // restores) is what guarantees an archived download is never running or queued.
+        vm.IsArchived = false;
+
         // The user asked for this attempt, so the automatic budgets start over (issue #6): a link that
         // was dead yesterday may well be fine today, and so may the address that was refused.
         vm.LinkRefreshAttempts = 0;
@@ -1403,6 +1480,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
+        vm.IsArchived = false;      // see Resume: an explicit start takes the download out of the archive
         vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic budgets (#6)
         vm.UrlAttempt = 0;          // …including which address leads, so Retry starts from the first again
         ResetConnectionBackoff(vm);
@@ -1413,6 +1491,31 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         vm.Status = DownloadStatus.Created;
         EnsureQueueRunning(vm.GetItem().QueueId); // see Resume: an explicit start un-pauses the queue
         PumpQueue(vm.GetItem().QueueId);
+        NotifyList();
+    }
+
+    /// <summary>Files a download away: it keeps its record and its file but leaves the working list.
+    /// A download in flight or waiting is STOPPED first — that is the invariant every other archive rule
+    /// rests on (an archived download is never running or queued), and it is what keeps an archived
+    /// unfinished download from being silently resumed by the pump where nobody can see it.</summary>
+    public void Archive(DownloadItemViewModel vm)
+    {
+        if (vm == null || vm.IsArchived)
+            return;
+        Cancel(vm); // no-ops on Completed/Failed/Stopped, stops anything else
+        vm.IsArchived = true;
+        vm.IsChecked = false; // it is leaving the view; a stale tick would aim the next bulk action at it
+        NotifyList();
+    }
+
+    /// <summary>Puts an archived download back in the working list, in whatever state it was filed away in.
+    /// Only clears the flag — restoring is not a start.</summary>
+    public void Unarchive(DownloadItemViewModel vm)
+    {
+        if (vm == null || !vm.IsArchived)
+            return;
+        vm.IsArchived = false;
+        vm.IsChecked = false;
         NotifyList();
     }
 
@@ -1429,6 +1532,8 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         }
 
         TryDeletePartsFolder(vm.GetItem()); // clean up any half-downloaded multi-part scratch
+        if (_config?.Settings?.DeletePartialFileOnRemove == true)
+            TryDeletePartialFile(vm);
         vm.Detach();
         Items.Remove(vm);
         NotifyList();
@@ -1454,7 +1559,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             // Re-queue everything resumable (stopped → queued; paused/created stay as-is), then start
             // each queue up to its cap. This is the fix for "Start all ignored the queue limit": work
             // funnels through PumpQueue instead of starting every item directly.
-            foreach (var vm in Items.Where(v => v.Status == DownloadStatus.Stopped).ToList())
+            foreach (var vm in Items.Where(v => !v.IsArchived && v.Status == DownloadStatus.Stopped).ToList())
                 vm.Status = DownloadStatus.Created;
 
             foreach (var queue in _config?.Queues?.ToList() ?? new List<DownloadQueue>())
@@ -1466,7 +1571,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         {
             // Stop everything in flight or waiting. Cancel() guards terminal states, so completed/failed
             // rows are left alone. Stopping the queued rows too keeps the pump from refilling freed slots.
-            foreach (var vm in Items.Where(v =>
+            foreach (var vm in Items.Where(v => !v.IsArchived &&
                          v.Status is DownloadStatus.Running or DownloadStatus.Paused
                                   or DownloadStatus.Created or DownloadStatus.None).ToList())
                 Cancel(vm);
@@ -1529,7 +1634,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // Eligible = paused (resume in place, prioritized as they're partway done) or queued
         // (Created/None → start fresh). Start them only while a concurrency slot is free.
         var pending = Items
-            .Where(i => i.GetItem().QueueId == queueId &&
+            .Where(i => i.GetItem().QueueId == queueId && !i.IsArchived &&
                         i.Status is DownloadStatus.Paused or DownloadStatus.Created or DownloadStatus.None)
             .OrderByDescending(i => i.Status == DownloadStatus.Paused)
             .ToList();
@@ -1571,7 +1676,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         RunBatch(() =>
         {
             foreach (var vm in Items.Where(i =>
-                         i.GetItem().QueueId == queue.Id &&
+                         i.GetItem().QueueId == queue.Id && !i.IsArchived &&
                          i.Status is DownloadStatus.Stopped or DownloadStatus.Failed).ToList())
                 vm.Status = DownloadStatus.Created;
 
@@ -1601,7 +1706,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         RunBatch(() =>
         {
             foreach (var vm in Items.Where(i =>
-                         i.GetItem().QueueId == queue.Id &&
+                         i.GetItem().QueueId == queue.Id && !i.IsArchived &&
                          i.Status is DownloadStatus.Running or DownloadStatus.Paused
                                   or DownloadStatus.Created or DownloadStatus.None).ToList())
                 Cancel(vm);

@@ -4,6 +4,7 @@
         xmlns:v="using:Downloader.Desktop.Views"
         xmlns:i18n="using:Downloader.Desktop.Markup"
         xmlns:services="using:Downloader.Desktop.Services"
+        xmlns:conv="using:Downloader.Desktop.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="620"
@@ -65,12 +66,19 @@
                 BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 0 1"
                 Padding="14 10">
             <Grid ColumnDefinitions="*,Auto">
-                <Grid Grid.Column="0" ColumnDefinitions="*,Auto" Margin="0 0 22 0" MaxWidth="640"
+                <Grid Grid.Column="0" ColumnDefinitions="Auto,*,Auto" Margin="0 0 22 0" MaxWidth="680"
                       HorizontalAlignment="Left" MinWidth="420">
+                    <!-- Category sidebar toggle. Two states, off until the user asks for it. -->
+                    <ToggleButton Grid.Column="0" Classes="icon" Cursor="Hand" Margin="0 0 8 0"
+                                  Height="34" Width="34"
+                                  IsChecked="{Binding IsCategorySidebarOpen, Mode=TwoWay}"
+                                  ToolTip.Tip="{i18n:Tr Cat_Sidebar}">
+                        <PathIcon Data="{DynamicResource ListRegular}" Height="15" Width="15" />
+                    </ToggleButton>
                     <!-- AcceptsReturn so pasting multiple URLs (one per line) keeps the line breaks;
                          a single-line box would strip them and merge the URLs (#2). Enter still triggers
                          Add (handled in code-behind); Shift+Enter inserts a new line. -->
-                    <TextBox x:Name="TopUrlBox" Grid.Column="0" Text="{Binding DownloadUrl}"
+                    <TextBox x:Name="TopUrlBox" Grid.Column="1" Text="{Binding DownloadUrl}"
                              CornerRadius="8" Height="34" VerticalContentAlignment="Center"
                              AcceptsReturn="True" TextWrapping="NoWrap"
                              KeyDown="OnUrlBoxKeyDown"
@@ -80,7 +88,7 @@
                                       Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
                         </TextBox.InnerLeftContent>
                     </TextBox>
-                    <Button Grid.Column="1" Classes="accent" CornerRadius="8" Height="34"
+                    <Button Grid.Column="2" Classes="accent" CornerRadius="8" Height="34"
                             Padding="14 0" Margin="8 0 0 0" Cursor="Hand"
                             Command="{Binding AddDownloadItemCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -158,7 +166,13 @@
 
             <!-- Downloads-list actions, pinned right; hidden on the Settings/Scheduler/Queues pages -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
-                        IsVisible="{Binding IsDownloadsSelected}">
+                        IsVisible="{Binding IsWorkingListSelected}">
+                <!-- With a filter hiding rows, the checkboxes alone no longer say how much a bulk
+                     action reaches, so the count says it out loud. -->
+                <TextBlock Text="{Binding Downloads.SelectedCountText}" VerticalAlignment="Center"
+                           Margin="0 0 10 0" FontSize="11"
+                           Foreground="{DynamicResource SystemBaseMediumColor}"
+                           IsVisible="{Binding Downloads.HasFilter}" />
                 <Button Classes="tool" Command="{Binding Downloads.StartSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Start}">
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource PlayRegular}" HorizontalAlignment="Center" />
@@ -175,6 +189,12 @@
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource StopRegular}" HorizontalAlignment="Center" />
                         <TextBlock Text="{i18n:Tr Action_Stop}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.ArchiveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Archive}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ArchiveRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Archive}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
                 <Button Classes="tool" Command="{Binding Downloads.RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
@@ -229,6 +249,24 @@
                     <StackPanel Orientation="Vertical" Spacing="3">
                         <PathIcon Data="{DynamicResource StopAllRegular}" HorizontalAlignment="Center" />
                         <TextBlock Text="{i18n:Tr Action_StopAll}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- The archived view's actions. Same slot, same mechanism as the page-level swap above:
+                 both clusters are hidden while a management page is open. -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                        IsVisible="{Binding IsArchivedSelected}">
+                <Button Classes="tool" Command="{Binding Downloads.UnarchiveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Restore}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource ArchiveRestoreRegular}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{i18n:Tr Action_Restore}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding Downloads.RemoveSelectedCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
+                    <StackPanel Orientation="Vertical" Spacing="3">
+                        <PathIcon Data="{DynamicResource DeleteRegular}" HorizontalAlignment="Center" Foreground="#E5594F" />
+                        <TextBlock Text="{i18n:Tr Action_Remove}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -295,6 +333,16 @@
                             <TextBlock Text="{i18n:Tr Status_Failed}" />
                         </StackPanel>
                     </Button>
+                    <!-- Archived is a separate axis, not a status: it lists the downloads the user filed
+                         away, whatever state they are in, and every pill to its left excludes them. -->
+                    <Button Classes="filterpill" Classes.active="{Binding IsArchivedSelected}"
+                            Command="{Binding ShowArchivedCommand}" ToolTip.Tip="{i18n:Tr Status_Archived}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <PathIcon Data="{DynamicResource ArchiveRegular}" Height="11" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ArchivedFilterCount}" />
+                            <TextBlock Text="{i18n:Tr Status_Archived}" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -302,6 +350,103 @@
         <!-- ===== Central content: the downloads list or a management page. Views are cached and
              reused across navigation (PageViewCache, wired in code-behind) — a DataTemplate here
              would rebuild the whole page on every swap. ===== -->
+        <!-- ===== Category sidebar (optional, off by default) =====
+             Only on the downloads page: it filters that list, and showing it over Settings would
+             offer a filter with nothing to filter. -->
+        <Border DockPanel.Dock="Left" Width="204"
+                Background="{DynamicResource SystemRegionColor}"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
+                Padding="8 10">
+            <Border.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsCategorySidebarOpen" />
+                    <Binding Path="IsDownloadsSelected" />
+                </MultiBinding>
+            </Border.IsVisible>
+            <DockPanel>
+                <!-- "Add" sits under the list, low-emphasis: it is how the list grows, not an item in it. -->
+                <Button DockPanel.Dock="Bottom" Classes="catadd" Cursor="Hand" Margin="0 8 0 0"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Command="{Binding AddCategoryCommand}" ToolTip.Tip="{i18n:Tr Cat_Add}">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <PathIcon Data="{DynamicResource AddRegular}" Height="12" Width="12" />
+                        <TextBlock Text="{i18n:Tr Cat_Add}" VerticalAlignment="Center" FontSize="12" />
+                    </StackPanel>
+                </Button>
+
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding CategoryRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CategoryRowViewModel">
+                                <Button Classes="cat" Classes.selected="{Binding IsSelected}"
+                                        Classes.empty="{Binding IsEmpty}"
+                                        Cursor="Hand" HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Command="{Binding SelectCommand}"
+                                        ToolTip.Tip="{Binding Name}">
+                                    <!-- Right-click is where a category is managed, so the row stays a
+                                         single obvious thing to click: select it. -->
+                                    <Button.ContextMenu>
+                                        <!-- Look and spacing come from the global ContextMenu/MenuItem
+                                             styles in App.axaml; only the icons are local. -->
+                                        <ContextMenu IsVisible="{Binding CanEdit}">
+                                            <MenuItem Header="{i18n:Tr Cat_Edit}" Command="{Binding EditCommand}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{DynamicResource OptionsRegular}" Width="14" Height="14" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator />
+                                            <MenuItem Header="{i18n:Tr Cat_MoveUp}" Command="{Binding MoveUpCommand}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{DynamicResource ChevronUpRegular}" Width="14" Height="14" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="{i18n:Tr Cat_MoveDown}" Command="{Binding MoveDownCommand}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{DynamicResource ChevronDownRegular}" Width="14" Height="14" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <!-- Only for a category the user made: a built-in one cannot
+                                                 be removed, so the item is absent rather than dead. -->
+                                            <Separator IsVisible="{Binding CanDelete}" />
+                                            <MenuItem Header="{i18n:Tr Cat_Delete}" Command="{Binding DeleteCommand}"
+                                                      IsVisible="{Binding CanDelete}"
+                                                      Foreground="{DynamicResource DangerColor}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{DynamicResource DeleteRegular}" Width="14" Height="14"
+                                                              Foreground="{DynamicResource DangerColor}" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <PathIcon Grid.Column="0" Width="15" Height="15"
+                                                  Data="{Binding Icon, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
+                                                  Foreground="{Binding Color, Converter={x:Static conv:HexToBrushConverter.Instance}}" />
+                                        <!-- A category's name is the user's own data and is shown
+                                             verbatim; "All" is the one label that is interface text,
+                                             so it goes through {i18n:Tr}, which refreshes on a
+                                             language switch (Localizer.Tick). Subscribing the shell
+                                             to the Localizer singleton instead would leak a handler
+                                             for the life of the process. -->
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="10 0 6 0"
+                                                   IsVisible="{Binding !IsAll}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="{i18n:Tr Cat_All}" Margin="10 0 6 0"
+                                                   IsVisible="{Binding IsAll}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <Border Grid.Column="2" Classes="pill">
+                                            <TextBlock Text="{Binding Count}" FontSize="11" />
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
         <ContentControl x:Name="PageHost" />
     </DockPanel>
     </Border>

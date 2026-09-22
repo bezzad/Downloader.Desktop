@@ -39,3 +39,46 @@ The setting SHALL be described in terms the user can act on: it governs download
 #### Scenario: The setting survives a restart
 - **WHEN** the user turns the toggle on and restarts the app
 - **THEN** the toggle is still on
+
+### Requirement: Categories and the sidebar state are part of the configuration
+The persisted configuration SHALL hold the category list — each category's identifier, name, icon
+key, color, extension list and position — and whether the category sidebar is shown. Both SHALL be
+saved when they change and restored on the next launch.
+
+#### Scenario: A new category survives a restart
+- **WHEN** the user creates a category, quits the app and starts it again
+- **THEN** the category is listed with the name, icon, color, extensions and position it was given
+
+#### Scenario: A configuration written before this change is upgraded
+- **WHEN** the app starts with a configuration file that has no category list
+- **THEN** the built-in categories are created, the sidebar is hidden, and the configuration is saved
+  in the new form without losing any existing setting or download
+
+### Requirement: Settings offers export and import
+The Settings page SHALL offer an action to export the user's settings and categories to a file and
+an action to import them from a file.
+
+#### Scenario: Export is reachable from Settings
+- **WHEN** the user opens the Settings page
+- **THEN** an export action and an import action are available
+
+#### Scenario: Import takes effect without a restart
+- **WHEN** the user imports a settings file
+- **THEN** the imported settings and categories are in effect immediately
+
+### Requirement: Removing a download can delete its partial file
+Settings SHALL offer an option that makes Remove delete the download's half-finished file from disk
+as well as its record. The option SHALL default to off, preserving today's behaviour. A completed
+file SHALL never be deleted by Remove, whatever the option's value.
+
+#### Scenario: Option off leaves the partial file alone
+- **WHEN** the option is off and the user removes an unfinished download
+- **THEN** the record is removed and the partial file is left on disk
+
+#### Scenario: Option on deletes the partial file
+- **WHEN** the option is on and the user removes an unfinished download
+- **THEN** the record is removed and the partial file is deleted from disk
+
+#### Scenario: A completed file is never deleted
+- **WHEN** the option is on and the user removes a completed download
+- **THEN** the record is removed and the downloaded file remains on disk

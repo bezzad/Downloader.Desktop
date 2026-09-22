@@ -401,9 +401,13 @@ test.describe("download interception", () => {
     await expect.poll(() => app.adds.length, { timeout: 15000 }).toBeGreaterThan(0);
     expect(app.adds[0].body.url).toContain("/signed-blob/");
 
+    // The add and the cancel are two separate steps: the poll above only proves the app was told.
+    // Asserting the browser download's state without waiting for the cancel to land read as
+    // "in_progress" under load — a race in the test, not in the extension.
+    await expect
+      .poll(async () => (await downloadState(context, "signed-blob"))?.state, { timeout: 15000 })
+      .toBe("interrupted");
     const state = await downloadState(context, "signed-blob");
-    expect(state).not.toBeNull();
-    expect(state.state).toBe("interrupted");
     expect(state.error).toBe("USER_CANCELED");
   });
 

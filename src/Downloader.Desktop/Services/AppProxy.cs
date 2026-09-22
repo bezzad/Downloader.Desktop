@@ -64,13 +64,22 @@ public static class AppProxy
         return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
     }
 
+    /// <summary>
+    /// This machine is never reached through a proxy. A proxy is for the outside world, and the app talks
+    /// to ITSELF over loopback (its local API, and every loopback server the test suite stands up) — routing
+    /// that through a proxy can only break it, which is what curl, browsers and <see cref="WebProxy"/>'s own
+    /// <c>BypassOnLocal</c> all assume too. <see cref="Uri.IsLoopback"/> covers 127.0.0.0/8, ::1 and
+    /// <c>localhost</c>.
+    /// </summary>
+    private static bool IsThisMachine(Uri destination) => destination?.IsLoopback == true;
+
     private sealed class LiveProxy : IWebProxy
     {
         public ICredentials Credentials { get; set; }
 
         // Null means "no proxy for this destination", which is how a request goes out direct.
-        public Uri GetProxy(Uri destination) => Parse(Address);
+        public Uri GetProxy(Uri destination) => IsThisMachine(destination) ? null : Parse(Address);
 
-        public bool IsBypassed(Uri host) => Parse(Address) is null;
+        public bool IsBypassed(Uri host) => IsThisMachine(host) || Parse(Address) is null;
     }
 }

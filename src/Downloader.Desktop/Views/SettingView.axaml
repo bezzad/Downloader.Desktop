@@ -108,6 +108,16 @@
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding RememberLastSavePath}" />
                     </Grid>
 
+                    <!-- Off by default: Remove drops the record only, which is what it has always done. -->
+                    <Grid Classes="field" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{i18n:Tr Set_DeletePartialOnRemove}" />
+                            <TextBlock Classes="hint" Text="{i18n:Tr Set_DeletePartialOnRemove_Hint}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding DeletePartialFileOnRemove}" />
+                    </Grid>
+
                     <Grid Classes="field" ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{i18n:Tr Set_Language}" />
@@ -356,6 +366,11 @@
                                 </Button>
                             </StackPanel>
                         </StackPanel>
+                        <!-- The answer to "did anything happen?". An OS notification cannot be that answer:
+                             the notifications switch silences it, and a check that FAILED reported nothing
+                             at all — so the button looked dead (reported on 2.12.0). -->
+                        <TextBlock Classes="hint" Text="{Binding UpdateStatusText}" TextWrapping="Wrap"
+                                   IsVisible="{Binding HasUpdateStatus}" />
                     </StackPanel>
                 </StackPanel>
             </Expander>
@@ -379,6 +394,19 @@
                         <Button Classes="secondary" Content="{i18n:Tr Btn_OpenLogs}" Command="{Binding OpenLogsFolderCommand}" />
                         <Button Classes="secondary" Content="{i18n:Tr Btn_ExportLog}" Command="{Binding ExportLogsCommand}" />
                         <Button Classes="secondary" Content="{i18n:Tr Btn_EmailLogs}" Command="{Binding EmailLogsCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Expander>
+
+            <!-- ===== Settings file: carry settings + categories to another machine ===== -->
+            <Expander Header="{i18n:Tr Set_SettingsFile}" HorizontalAlignment="Stretch" IsExpanded="True">
+                <StackPanel Spacing="10" Margin="2 6">
+                    <TextBlock Classes="hint" Text="{i18n:Tr Set_SettingsFileHint}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="secondary" Content="{i18n:Tr Set_Export}"
+                                Command="{Binding ExportSettingsCommand}" />
+                        <Button Classes="secondary" Content="{i18n:Tr Set_Import}"
+                                Command="{Binding ImportSettingsCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Expander>

@@ -31,6 +31,9 @@ TEST_PROJECT="src/Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj"
 RUNSETTINGS="src/coverlet.runsettings"
 
 DUMP_AT=$(( DEADLINE > DUMP_LEAD ? DEADLINE - DUMP_LEAD : DEADLINE ))
+# The deadline is absolute, measured from here — see the wait in the watchdog for why a relative one
+# was not enough.
+STARTED_AT=$(date +%s)
 mkdir -p "$RESULTS"
 MARKER="$RESULTS/.test-finished"
 # The watchdog leaves this behind when it kills the run, and the script then fails REGARDLESS of the exit
@@ -100,21 +103,29 @@ watchdog() {
   # (runs 34312862020 and 34313419033). That is not a sensible standing cost for a rare event, so the
   # cheap evidence is collected by default and the giant dump is one env var away when a specific
   # macOS hang actually needs heap state.
+  macos_cheap_only=""
   if [ -z "$dumped" ] && [ -n "$host_pid" ] && [ "$(uname -s)" = "Darwin" ] \
      && [ "${CI_TEST_MACOS_FULL_DUMP:-0}" != "1" ]; then
+    macos_cheap_only=1
     echo "--- native stacks (macOS: sample, in place of a 6 GB full core) ---" >> "$report"
     if command -v sample >/dev/null 2>&1; then
       sample "$host_pid" 3 -file "$RESULTS/hang-sample.txt" >>"$report" 2>&1 \
         && dumped=1 || echo "::warning::sample could not profile process $host_pid"
     else
+      # Said in the LOG, not only in the report: proving run 35619203001 went straight past this branch
+      # to createdump and wrote a 6,182,015,304-byte core on BOTH macOS legs (1.84 GB each once
+      # uploaded) — precisely the standing cost the comment above says is avoided. The reason was
+      # readable only inside the 1.8 GB artifact, which is no way to learn it.
+      echo "::warning::no 'sample' on this runner — macOS has no cheap stack evidence. Set CI_TEST_MACOS_FULL_DUMP=1 to take a full (multi-GB) core instead."
       echo "no 'sample' on this runner" >> "$report"
     fi
     echo "Set CI_TEST_MACOS_FULL_DUMP=1 to collect a full core here instead." >> "$report"
   fi
 
   # Everywhere else (and on macOS when asked): the runtime's own createdump, which does not need the
-  # diagnostics IPC dotnet-dump relies on.
-  if [ -z "$dumped" ] && [ -n "$host_pid" ]; then
+  # diagnostics IPC dotnet-dump relies on. NOT on macOS's default path: falling through to it there
+  # silently reintroduces the 6 GB core this script exists to avoid, so that needs an explicit ask.
+  if [ -z "$dumped" ] && [ -n "$host_pid" ] && [ -z "$macos_cheap_only" ]; then
     createdump="$(find "$(dirname "$(command -v dotnet)")/shared/Microsoft.NETCore.App" -name createdump -type f 2>/dev/null | sort | tail -1)"
     if [ -n "$createdump" ]; then
       echo "falling back to $createdump" >> "$report"
@@ -125,7 +136,14 @@ watchdog() {
 
   [ -n "$dumped" ] || echo "::warning::no hang dump was captured — see hang-report.txt in the artifact"
 
-  sleep "$DUMP_LEAD"
+  # Wait for the ABSOLUTE deadline, not another DUMP_LEAD seconds from here. Collecting the dump takes
+  # real time — installing dotnet-dump, `sample` on macOS, writing a core — and sleeping a flat lead
+  # afterwards pushed the kill past the deadline by exactly that much. Proving run 35619203001 caught
+  # it: every leg dumped at 90s as intended, but macOS/Release then outlived its own 150s deadline and
+  # finished naturally at ~202s, reporting SUCCESS. A bound that a slow dump can silently extend is the
+  # same class of defect as the step `timeout-minutes` that did not fire.
+  remaining=$(( STARTED_AT + DEADLINE - $(date +%s) ))
+  [ "$remaining" -gt 0 ] && sleep "$remaining"
   [ -f "$MARKER" ] && return 0
   echo "::error::Killing the test run at its ${DEADLINE}s deadline."
   # Recorded BEFORE the kill: this, not the exit status, is what fails the step.

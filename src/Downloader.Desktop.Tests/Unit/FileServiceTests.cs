@@ -200,4 +200,44 @@ public class FileServiceTests : IDisposable
         Assert.Equal("https://10.255.255.1/", reloaded.Referer);
         Assert.Empty(reloaded.Request.Cookies);
     }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_main_windows_layout_survives_a_save_and_load()
+    {
+        var service = new FileService();
+        var config = Config.New();
+        config.MainWindow = new WindowLayout
+        {
+            IsMaximized = true,
+            Width = 1240,
+            Height = 700,
+            // A monitor to the LEFT of the primary gives negative coordinates; they must survive intact.
+            X = -320,
+            Y = 84,
+        };
+
+        await service.SaveToFileAsync(config);
+        var loaded = await service.LoadFromFileAsync();
+
+        Assert.NotNull(loaded.MainWindow);
+        Assert.True(loaded.MainWindow.IsMaximized);
+        Assert.Equal(1240, loaded.MainWindow.Width);
+        Assert.Equal(700, loaded.MainWindow.Height);
+        Assert.Equal(-320, loaded.MainWindow.X);
+        Assert.Equal(84, loaded.MainWindow.Y);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_config_written_before_the_window_was_remembered_loads_with_no_layout()
+    {
+        // Everything the app persisted before this feature shipped. "Nothing remembered" must stay
+        // nothing — defaulting it here would silently invent a layout and override MainWindow.axaml.
+        await File.WriteAllTextAsync(FileService.ConfigFileOverride,
+            "{\"SchemaVersion\":1,\"IsThemeDarkMode\":true}", TestContext.Current.CancellationToken);
+
+        var loaded = await new FileService().LoadFromFileAsync();
+
+        Assert.True(loaded.IsThemeDarkMode);
+        Assert.Null(loaded.MainWindow);
+    }
 }

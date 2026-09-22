@@ -90,6 +90,7 @@ public partial class App : Application
         services.AddSingleton<IFileService, FileService>();
         services.AddSingleton<IDownloadManager, DownloadManager>();
         services.AddSingleton<PluginManager>();
+        services.AddSingleton<CategoryService>();
         services.AddTransient<MainViewModel>();
         _services = services.BuildServiceProvider();
     }
