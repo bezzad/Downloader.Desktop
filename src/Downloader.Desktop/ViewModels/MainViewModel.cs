@@ -200,10 +200,17 @@ public class MainViewModel : ViewModelBase
     // ---- Status bar ----
     public string TotalSpeedText => FormatSpeed(_downloadManager.TotalSpeed);
 
-    /// <summary>Cumulative bytes downloaded across all rows, human-readable (#18). Recomputed on the
-    /// stats pump — a single O(n) sum per 250 ms tick, negligible next to the per-row flush.</summary>
+    /// <summary>Cumulative bytes downloaded across every record, ARCHIVED INCLUDED (#18). Recomputed on
+    /// the stats pump — a single O(n) sum per 250 ms tick, negligible next to the per-row flush.
+    /// <para>
+    /// This is the one place archived rows are deliberately counted, and it is not an inconsistency with
+    /// the footer pills: a pill's number must equal the rows clicking it shows, so it can only count what
+    /// that filter reveals. This total answers a different question — how much has this app fetched —
+    /// and archiving keeps the record and the file, so those bytes were still downloaded. Excluding them
+    /// made the number DROP when a user tidied their list, which reads as lost data.
+    /// </para></summary>
     public string TotalDownloadedText =>
-        DownloadItemViewModel.FormatBytes(_downloadManager.Items.Where(i => !i.IsArchived).Sum(i => i.Downloaded));
+        DownloadItemViewModel.FormatBytes(_downloadManager.Items.Sum(i => i.Downloaded));
     public int ActiveCount => _downloadManager.ActiveCount;
     public int QueuedCount => _downloadManager.QueuedCount;
     public int CompletedCount => _downloadManager.CompletedCount;

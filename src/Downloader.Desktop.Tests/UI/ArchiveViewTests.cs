@@ -116,8 +116,10 @@ public class ArchiveViewTests
         Assert.Equal(2, main.ArchivedFilterCount);
     }
 
+    /// <summary>Archiving must not shrink the status bar's total. The pills count what their filter
+    /// shows; this total says how much the app has fetched, and an archived download kept its file.</summary>
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void An_archived_download_is_left_out_of_the_status_bar_total()
+    public void An_archived_download_still_counts_towards_the_status_bar_total()
     {
         var (manager, _, main) = NewShell();
         var vm = Add(manager, "big.iso", DownloadStatus.Completed);
@@ -126,8 +128,25 @@ public class ArchiveViewTests
 
         manager.Archive(vm);
 
-        Assert.NotEqual(withIt, main.TotalDownloadedText);
-        Assert.Equal(DownloadItemViewModel.FormatBytes(0), main.TotalDownloadedText);
+        Assert.Equal(withIt, main.TotalDownloadedText);
+        Assert.Equal(DownloadItemViewModel.FormatBytes(5 * 1024 * 1024), main.TotalDownloadedText);
+    }
+
+    /// <summary>The live rows and the archived ones are summed together — not one or the other.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_status_bar_total_adds_the_archived_bytes_to_the_live_ones()
+    {
+        var (manager, _, main) = NewShell();
+        var kept = Add(manager, "live.iso", DownloadStatus.Completed);
+        kept.Downloaded = 3 * 1024 * 1024;
+        var filed = Add(manager, "old.iso", DownloadStatus.Completed);
+        filed.Downloaded = 2 * 1024 * 1024;
+
+        manager.Archive(filed);
+
+        Assert.Equal(DownloadItemViewModel.FormatBytes(5 * 1024 * 1024), main.TotalDownloadedText);
+        Assert.Equal(1, main.AllCount);          // the pill still shows only the live row
+        Assert.Equal(1, main.ArchivedFilterCount);
     }
 
     // ── the toolbar ──────────────────────────────────────────────────────────────────────────────────
