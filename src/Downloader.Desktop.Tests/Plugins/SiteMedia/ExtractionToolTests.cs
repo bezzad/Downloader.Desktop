@@ -155,6 +155,61 @@ public class ExtractionToolTests
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(dir, "yt-dlp-bin")));
     }
 
+    // ── Reading yt-dlp's own failure (what the user is told to do about it) ─────────────────────────
+
+    /// <summary>The exact stderr the author's app logged against YouTube, kept verbatim. It is a transport
+    /// failure and nothing else; every reading of it must say so.</summary>
+    private const string ConnectionResetStderr = """
+        WARNING: [youtube] ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer')). Retrying (1/3)...
+        ERROR: [youtube] PAERYMKOJic: Unable to download API page: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer')) (caused by TransportError("('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"))
+        """;
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_connection_reset_is_never_read_as_an_expired_session()
+    {
+        // The bare word "age" used to be a session phrase, and "Unable to download API page" contains it,
+        // so a blocked network was reported to the user as an expired session — advice that cannot work.
+        Assert.False(YtDlpBinary.NeedsSession(ConnectionResetStderr));
+        Assert.True(YtDlpBinary.Unreachable(ConnectionResetStderr));
+    }
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData("ERROR: Unable to download API page")]                // "page" is not "age"
+    [InlineData("ERROR: Unable to download webpage: HTTP Error 500")]
+    [InlineData("WARNING: unable to extract yt initial data; please report this issue")]
+    [InlineData("ERROR: Some formats are missing. Manage your settings.")]
+    public void An_unrelated_failure_is_not_a_session_problem(string stderr) =>
+        Assert.False(YtDlpBinary.NeedsSession(stderr));
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData("ERROR: Sign in to confirm you are not a bot. Use --cookies for the authentication.")]
+    [InlineData("ERROR: [youtube] abc: Sign in to confirm your age. This video may be inappropriate.")]
+    [InlineData("ERROR: [youtube] abc: This video is age-restricted.")]
+    [InlineData("ERROR: [twitter] 1: No video could be found in this tweet.")]
+    public void A_real_session_demand_is_still_recognised(string stderr) =>
+        Assert.True(YtDlpBinary.NeedsSession(stderr));
+
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData("ERROR: [youtube] abc: Unable to download API page: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))")]
+    [InlineData("ERROR: unable to download video data: <urlopen error [Errno 111] Connection refused>")]
+    [InlineData("ERROR: Unable to download webpage: The read operation timed out")]
+    [InlineData("ERROR: Unable to download webpage: <urlopen error [Errno -3] Temporary failure in name resolution>")]
+    [InlineData("ERROR: Unable to connect to proxy: tunnel connection failed: 403 Forbidden")]
+    public void A_network_failure_is_reported_as_one(string stderr)
+    {
+        Assert.True(YtDlpBinary.Unreachable(stderr));
+        // …and the message points at the thing that can actually be changed.
+        Assert.Contains("proxy", YtDlpBinary.UnreachableMessage);
+        Assert.DoesNotContain("expired", YtDlpBinary.UnreachableMessage);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Only_a_refused_session_is_told_it_expired()
+    {
+        Assert.Contains("expired", YtDlpBinary.NeedsSessionMessage(hadCookies: true));
+        Assert.Contains("without one", YtDlpBinary.NeedsSessionMessage(hadCookies: false));
+    }
+
     // ── Never read the user's browser (issue #4) ─────────────────────────────────────────────────────
 
     [Theory(Timeout = TestTimeouts.DefaultMs)]

@@ -55,6 +55,10 @@ public sealed class YtDlpBinary : IYtDlp
 
         // A live session captured by our extension is tried FIRST — it is the only session this plugin
         // will ever have, and for a signed-in-only page it is the difference between working and not.
+        // Kept so the failure can be reported on the attempt that actually carried the session: only the
+        // cookie run can tell us a session was REFUSED. The anonymous run that follows says "sign in" for
+        // every gated video, which is not evidence about the user's session at all.
+        string? cookieStderr = null;
         if (!string.IsNullOrEmpty(cookieFilePath))
         {
             _log.LogInformation("Trying extension-supplied cookies for {Url}", url);
@@ -65,6 +69,7 @@ public sealed class YtDlpBinary : IYtDlp
                 WarnAboutTokenGatedFormats(cstderr);
                 return co;
             }
+            cookieStderr = cstderr;
             _log.LogWarning("Supplied cookies didn't work (exit {Code}); trying anonymously", ccode); // never logs cookie values
         }
 
@@ -101,10 +106,15 @@ public sealed class YtDlpBinary : IYtDlp
         }
 
         _log.LogWarning("yt-dlp exited {Code}: {Err}", exitCode, Tail(stderr));
+        // Decided first: a request that never arrived explains every other symptom, and telling the user
+        // to fix their session when their connection is the problem sends them somewhere unfixable.
+        if (Unreachable(stderr))
+            throw new InvalidOperationException(UnreachableMessage);
         if (deno is null && MissingFormats(stderr))
             throw new InvalidOperationException(NoJsRuntimeMessage);
-        if (NeedsSession(stderr))
-            throw new InvalidOperationException(NeedsSessionMessage(!string.IsNullOrEmpty(cookieFilePath)));
+        // "Your session was not accepted" is a claim about the cookie run, so only that run may make it.
+        if (NeedsSession(stderr) || NeedsSession(cookieStderr ?? string.Empty))
+            throw new InvalidOperationException(NeedsSessionMessage(NeedsSession(cookieStderr ?? string.Empty)));
         throw new InvalidOperationException(
             $"Couldn't extract a video from this link. {FriendlyError(stderr)}".Trim());
     }
@@ -183,16 +193,50 @@ public sealed class YtDlpBinary : IYtDlp
             || host.EndsWith(".twitter.com", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Does this stderr say the site wants a signed-in session?</summary>
+    /// <summary>Does this stderr say the site wants a signed-in session?
+    /// <para>
+    /// Every phrase here is one a site actually prints, spelled long enough to mean only that. The bare
+    /// word "age" used to be on this list and matched "Unable to download API <b>page</b>" — so a network
+    /// reset reaching YouTube was reported as an expired session, and the user was told to reload a page
+    /// that could never fix it. A classifier for a message the user is meant to ACT on has to be exact.
+    /// </para></summary>
     internal static bool NeedsSession(string stderr)
     {
         if (string.IsNullOrWhiteSpace(stderr)) return false;
         var lower = stderr.ToLowerInvariant();
+        // Only ever a session problem if we could talk to the site at all.
+        if (Unreachable(lower)) return false;
         return lower.Contains("--cookies") || lower.Contains("sign in") || lower.Contains("log in")
-               || lower.Contains("login required") || lower.Contains("age")
+               || lower.Contains("login required")
+               || lower.Contains("age-restricted") || lower.Contains("age restricted")
+               || lower.Contains("confirm your age") || lower.Contains("age verification")
                // x.com surfaces "anonymous request saw no media" as this rather than a sign-in error.
                || lower.Contains("no video could be found in this tweet");
     }
+
+    /// <summary>Does this stderr say we never reached the site? A transport failure explains EVERY later
+    /// symptom, so it is decided before anything else — no session, format or availability reading of a
+    /// request that was cut off is worth anything.</summary>
+    internal static bool Unreachable(string stderr)
+    {
+        if (string.IsNullOrWhiteSpace(stderr)) return false;
+        var lower = stderr.ToLowerInvariant();
+        return lower.Contains("connection reset by peer") || lower.Contains("connection aborted")
+               || lower.Contains("connection refused") || lower.Contains("remote end closed connection")
+               || lower.Contains("read timed out") || lower.Contains("timed out")
+               || lower.Contains("name resolution") || lower.Contains("getaddrinfo")
+               || lower.Contains("network is unreachable") || lower.Contains("tunnel connection failed")
+               || lower.Contains("unable to connect to proxy") || lower.Contains("sslerror");
+    }
+
+    /// <summary>What to tell the user when the site could not be reached. Deliberately names the proxy
+    /// setting: the usual cause is the site being blocked between this machine and the internet, which
+    /// nothing inside the app can work around.</summary>
+    internal const string UnreachableMessage =
+        "Couldn't reach this site — the connection was cut off before it answered. That is a network "
+        + "problem, not a problem with the link: the site may be blocked or unreachable from this "
+        + "machine. Check your internet connection, or set a proxy in Settings → Advanced → Network and "
+        + "try again.";
 
     /// <summary>What to tell the user when the site wants a session. Deliberately never "sign in to the
     /// site": the people who hit this are already signed in — what is missing is the session reaching the
