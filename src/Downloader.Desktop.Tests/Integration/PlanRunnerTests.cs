@@ -488,6 +488,60 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
+    /// <summary>
+    /// Author-reported: HLS/DASH downloads ran serially. The gate used to require that EVERY pending part
+    /// be <see cref="PartKind.Segment"/>, so a single part of another kind — exactly what a DASH manifest
+    /// produces, with its separate Video and Audio representations — made the whole plan sequential no
+    /// matter how many segments it had. The segments must now overlap regardless of their company.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Segments_still_download_concurrently_when_the_plan_is_mixed()
+    {
+        var files = Enumerable.Range(0, 8).ToDictionary(i => $"p{i}.ts", i => Bytes($"P{i}", 2000));
+        files["audio.m4a"] = Bytes("AUDIO", 2000);
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(500) };
+        var dir = TempDir();
+        try
+        {
+            var plan = new PersistedPlan
+            {
+                PostProcessKind = PostProcessKind.None,
+                Parts = Enumerable.Range(0, 8)
+                    .Select(i => new PersistedPart { Url = server.Url + $"p{i}.ts", Kind = PartKind.Segment })
+                    // The one part that used to turn the whole plan serial. No ExpectedSize, so it is not
+                    // "small" either — it takes the sequential path while the segments overlap.
+                    .Append(new PersistedPart { Url = server.Url + "audio.m4a", Kind = PartKind.Audio })
+                    .ToList()
+            };
+            await new DownloadManager().ExecutePlanAsync(plan, dir, "c.bin", null,
+                _ => { }, _ => { }, _ => { }, () => false, CancellationToken.None);
+
+            Assert.True(server.MaxConcurrent >= 2,
+                $"one non-segment part forced the whole plan serial again — max {server.MaxConcurrent} in flight");
+        }
+        finally { TryDelete(dir); }
+    }
+
+    /// <summary>Segment concurrency is the user's connections-per-download setting, not a hard-coded 4:
+    /// for a segmented stream one segment IS one connection.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Segment_concurrency_follows_the_connections_setting()
+    {
+        var mgr = new DownloadManager();
+        Assert.Equal(DownloadManager.SegmentParallelism, mgr.SegmentSlots()); // no config → fallback
+
+        var cfg = Config.New();
+        cfg.Settings.ChunkCount = 12;
+        mgr.Initialize(cfg);
+        Assert.Equal(12, mgr.SegmentSlots());
+
+        // Clamped: a playlist of thousands of segments must not become thousands of sockets.
+        cfg.Settings.ChunkCount = 500;
+        Assert.Equal(DownloadManager.MaxSegmentParallelism, mgr.SegmentSlots());
+        cfg.Settings.ChunkCount = 0;
+        Assert.Equal(1, mgr.SegmentSlots());
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Run_state_tracks_every_segment_to_done()
     {
