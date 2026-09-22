@@ -69,3 +69,39 @@ _None._
   names.
 - `.claude/skills/downloader-desktop/SKILL.md` — replace the open "hang got WORSE after PerAssembly"
   note with what was measured.
+
+## Outcome — archived 2026-09-22 with one cause still open
+
+Archived at the author's instruction with **16 of 18 tasks done**. The two unchecked boxes are left
+unchecked deliberately, per the repo's rule that an abandoned task keeps its box and states its
+reason, so nothing here is filed as solved that is not.
+
+**What this change actually fixed** (all shipped, all pinned by tests):
+
+| fault | status |
+|---|---|
+| a cancelled shutdown countdown reaching `systemctl poweroff` — it was switching CI runners OFF, and shutting real users' machines down 30 s after they cancelled from the tray | **fixed** (group 4) |
+| the scheduler timer leaking from every `Initialize` — 405 live timers per run → 39 | **fixed** (group 3) |
+| a hang leaving no evidence: the run is now bounded from inside the step, so a stall fails the STEP with the log intact and a dump of the stuck host | **fixed** (group 1) |
+| `MemoryReleaseTests` NRE on retry-after-stop | **fixed** — it was an ENGINE bug, not ours; `Downloader` 5.9.8, taken in `5f91c77` |
+
+**What is still live, and where to pick it up:** the dispatcher binding race (4.4 / group 6).
+`Dispatcher.UIThread` is a process-global one-shot that binds to whichever thread touches it first, so
+when a plain `[Fact]` reaching dispatcher-touching production code runs before the first
+`[AvaloniaFact]`, the session's own `EnsureSharedApplication()` fails its thread-affinity check, the
+dispatch loop faults, and every later test waits on a completion source nothing will set. Signature:
+`Test Run Aborted` / `Total tests: Unknown` / a hangdump / **no `[FAIL]` anywhere**. Last seen on
+`3cff6d0` (run 35689716975, windows/Release) — a docs-only commit, which is the proof it is not
+anyone's code.
+
+It is measured and deterministically reproducible (240 s hang vs a 173 ms control, two arms in
+separate processes). The obvious fix is known-harmful: `HeadlessSessionFirst` cleared every local
+signal and took CI from ~1 leg in 6 to 4 in 6, and was reverted in `389f71b`. **A green local suite
+does not clear a change to the headless session's lifetime** — that is the most valuable thing this
+change learned. A next attempt should measure on CI (the `workflow_dispatch` deadline inputs are a
+cheap harness) and aim at making the first dispatcher touch land on the session thread WITHOUT
+taking the session up early.
+
+Because the fault is a test-harness one, it costs a re-run rather than shipping a defect; task 5.1's
+five-green-runs bar is therefore a quality gate that was never met, not a regression. Reopen this as
+a new, narrower change when it is worth another attempt.
