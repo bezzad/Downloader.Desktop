@@ -69,6 +69,24 @@ and asked whether a command contained a shutdown. None did — the suite did it.
   of this class fails a test instead of taking a machine down. `AllowRealProcessStart()` is the explicit
   opt-out for the three `Unit/RevealInFolderTests` cases that mean to run `/bin/false`, `sleep` and a
   missing command — without it they passed for the wrong reason, which is worse than failing.
+## 6. The other cause: the dispatcher binding race (2026-09-21 — measured, reproduced, fixed)
+
+- [x] 6.1 Measure the hypothesis before touching anything. Two arms, one variable, each in its own
+  process (the binding is a process-global one-shot): **A** touched `Dispatcher.UIThread` on the xunit
+  thread and then started the session — a single trivial test **hung until killed at 240 s**; **B**, the
+  identical control without that touch, **passed in 173 ms**. That is the deterministic local repro this
+  hunt never had.
+- [x] 6.2 Fix: `TestSupport/HeadlessSessionFirst.cs` starts the session and **dispatches once** before
+  any test runs, so `Dispatcher.UIThread` binds to the session's own thread and the order tests happen to
+  run in stops mattering. Two earlier attempts are recorded in the file because both look right and are
+  not: a `[ModuleInitializer]` also runs in the DISCOVERY process, where building the app blocks xunit
+  v3's handshake ("Test process did not respond within 60 seconds"); and starting the session *without*
+  dispatching changes nothing, because `EnsureSharedApplication()` is called lazily from `DispatchCore`.
+- [x] 6.3 Regression test `Unit/HeadlessSessionBindingTests` — a plain `[Fact]`, deliberately standing
+  where the damage was done. Verified in BOTH directions, as the repo's rule requires: with the fix
+  disabled it **fails in 15 s** with a readable reason; with it enabled it **passes in 21 ms**. The
+  bounded wait is the point — a regression must be a red test, not another silent stall.
+
 - [!] 4.4 **Answered, but not the way it was framed — the power-off was A cause, not THE cause.** It
   explains the runs that died with the log destroyed (only Windows/macOS, which accept a power-off;
   ubuntu's runner refuses it) and it is fixed. But on 2026-09-21 `ThreadAffinityWatch` finally caught the
@@ -80,20 +98,25 @@ and asked whether a command contained a shutdown. None did — the suite did it.
   path, cutting ~1700 attempts per run to one — it did not remove the failure mode. Leading hypothesis and
   the cheap way to measure it before touching anything are in `design.md`; this change's own history is
   the argument for not fixing it blind.
+  **Since measured, reproduced and fixed — see group 6.** The hypothesis held exactly: touching
+  `Dispatcher.UIThread` before the session starts hangs the run (240 s kill) where the control passes in
+  173 ms. So the honest answer to 4.4 is that there were TWO causes with one shared signature, and both
+  are now fixed. Re-verifying on CI is 5.1's job, not an argument's.
 
 ## 5. Prove it, then write it down
 
 - [ ] 5.1 Five consecutive `.NET Desktop` runs on `develop` with all 6 legs green and **no re-runs**
   (the failure rate was ~1 leg in 6, so one green run proves nothing).
-  **BLOCKED, and honestly so — the counter has never got past one.** Three distinct faults were seen on
-  `develop` on 2026-09-21 alone, and only one of them is fixed:
+  **Not yet met — the counter has never got past one, and the clock restarts from the group 6 fix.**
+  Three distinct faults were seen on `develop` on 2026-09-21 alone:
   | fault | seen | status |
   |---|---|---|
-  | thread-affinity violation faulting the shared headless session (4.4) | 35619162399, ubuntu/Release | **live, unfixed** |
+  | thread-affinity violation faulting the shared headless session (4.4) | 35619162399 ubuntu/Release, 35619...78245c8 macOS/Debug | **fixed** — group 6 |
   | `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion` — NRE on retry (`progress=100%, downloaded=0/65536, attempt=2`) | 35618287475, macOS/Release | **live, undiagnosed** |
   | the two new content-type probe tests losing `UrlResolver`'s 3-slot gate | 35615966666, 35618287475 | fixed, `187c906` |
-  Only `187c906` has gone green on all six legs so far. Do not check this box by re-running until it is
-  green; a re-run is exactly what the "no re-runs" clause exists to forbid.
+  Of those, the first two are the ones that mattered; only `MemoryReleaseTests` is still undiagnosed, and
+  it has been seen once. Count the five from the first push that carries the group 6 fix. Do not check
+  this box by re-running a red one until it goes green: a re-run is exactly what "no re-runs" forbids.
 - [x] 5.2 Done (`78245c8`). The superseded section is replaced with what was measured: the two defects
   kept apart (the power-off chain that caused the "hang", the scheduler leak that did not), the detail
   that answered it (ubuntu never hung because its runner refuses a power-off), the guard rails
