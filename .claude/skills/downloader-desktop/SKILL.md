@@ -2355,3 +2355,21 @@ drive it without a window) is gated by `CategoryRowViewModel.CanDelete` = not "A
 in, because `CategoryService.Remove` refuses a built-in and an item that silently does nothing is
 worse than no item. `DialogHelper.Confirm` returns **true** when `MainWindow` is null, so a headless
 test takes the confirmed path without stubbing anything.
+
+## A substring is not a diagnosis: yt-dlp stderr classification (2026-09-22)
+`YtDlpBinary.NeedsSession` decided "this site wants a signed-in session" with `stderr.Contains("age")`,
+meant for an age gate. It also matches **"Unable to download API page"** — so a YouTube link that simply
+could not be reached (`ConnectionResetError(104)`, the author's ISP) told the user their session had
+expired and to reload the page in Chrome. No amount of hard-refreshing can fix a blocked connection, so
+the message sent him in a loop. Rules that came out of it:
+- **Classify the transport failure FIRST** (`Unreachable`). A request that never arrived explains every
+  other symptom; any session/format/availability reading of it is noise. Its message names the proxy box
+  (Settings → Advanced → Network, `ProxyAddress`, which yt-dlp gets as `--proxy` — the host `HttpClient`
+  proxy cannot reach a separate process).
+- **Spell a matched phrase long enough to mean only itself.** Every phrase in a user-facing classifier is
+  an instruction the user will act on; "age" is a substring of page, message, manage, image, package.
+- **A claim about an attempt may only be made from that attempt's output.** "The session sent with this
+  link was not accepted" was decided from the ANONYMOUS run's stderr, which says "sign in" for every gated
+  video regardless of the user's cookies. Only `cookieStderr` can support it.
+- The app logs the real stderr (`[site-media] yt-dlp exited N:`) in `~/.config/Downloader/logs/` — read it
+  before theorising about a site. It needs logging enabled in Settings.
