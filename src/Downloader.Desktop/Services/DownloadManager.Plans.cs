@@ -125,9 +125,9 @@ public partial class DownloadManager
     /// <summary>
     /// UI-free core: downloads a plan's parts sequentially into <c>&lt;folder&gt;/.&lt;name&gt;.parts</c>
     /// (skipping already-complete ones), then assembles the final file. Returns the final path, or
-    /// <c>null</c> if <paramref name="isCancelled"/> reported a user cancel (parts folder is removed).
-    /// Throws on a real failure (a part that didn't finish, or a missing post-processor) — the parts
-    /// folder is kept so Retry can reuse completed parts.
+    /// <c>null</c> if <paramref name="isCancelled"/> reported a user cancel. Throws on a real failure
+    /// (a part that didn't finish, or a missing post-processor). The parts folder is KEPT in both cases,
+    /// so the next start reuses whatever finished; only success (assembled) and remove delete it.
     /// </summary>
     /// <summary>Parts at/below this size (or of Segment kind) download single-chunk — multipart chunking
     /// per tiny HLS segment is pure overhead (N range requests for a file that fits in one read).</summary>
@@ -272,13 +272,23 @@ public partial class DownloadManager
             }
 
             partSpeed[index] = 0;
-            if (isCancelled != null && isCancelled())
-                return true; // outer loop handles cleanup
-            if (partError != null)
-                throw partError; // the engine reports a part failure via the event, not by throwing
-            if (!PartDownloadedOk(partPath, part.ExpectedSize))
-                return false;
+            var stopping = isCancelled != null && isCancelled();
 
+            if (partError != null)
+            {
+                // A stop cancels this part's engine, so its error IS the stop — not a fault to fail the
+                // whole plan over.
+                if (stopping)
+                    return true;
+                throw partError; // the engine reports a part failure via the event, not by throwing
+            }
+            if (!PartDownloadedOk(partPath, part.ExpectedSize))
+                return stopping; // stopped mid-part: nothing to mark, and nothing to retry either
+
+            // Marked even when a stop is pending. This used to return early instead, which was harmless
+            // only because the stop then deleted the whole folder: a segment that had genuinely finished
+            // went unmarked, so the next start downloaded it again. It is exactly the work resuming must
+            // not repeat.
             MarkPartDone(partPath, part.ExpectedSize);
             partFraction[index] = 1;
             runState?.SetDone(index, part.ExpectedSize ?? SafeLength(partPath));
@@ -346,7 +356,11 @@ public partial class DownloadManager
             if (Cancelled())
             {
                 controller.CancelAll();
-                TryDeleteDir(partsDir);
+                // The finished segments STAY. A stop is not a discard: the user means to carry on, and
+                // the skip-completed-parts logic above is what lets them — deleting the folder here is
+                // what made a stopped HLS download restart from 0%, however many segments were already
+                // on disk. Removing the download cleans the folder up (TryDeletePartsFolder), which is
+                // where that belongs.
                 return null;
             }
         }
@@ -356,17 +370,11 @@ public partial class DownloadManager
             {
                 await WaitWhilePausedAsync().ConfigureAwait(false);
                 if (Cancelled())
-                {
-                    TryDeleteDir(partsDir);
-                    return null;
-                }
+                    return null; // parts kept — see the note in the parallel branch above
                 StagePart();
                 await DownloadPartAsync(index).ConfigureAwait(false);
                 if (Cancelled())
-                {
-                    TryDeleteDir(partsDir);
                     return null;
-                }
                 doneCount++;
             }
         }

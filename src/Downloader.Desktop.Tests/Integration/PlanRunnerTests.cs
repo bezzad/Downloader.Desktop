@@ -120,8 +120,11 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
+    /// <summary>A stop is not a discard. This used to delete the parts folder, which is what made a
+    /// stopped HLS download restart from 0% no matter how many segments were already on disk; the
+    /// folder is cleaned up on REMOVE instead.</summary>
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task Cancel_removes_the_parts_folder_and_returns_null()
+    public async Task Cancel_keeps_the_finished_parts_and_returns_null()
     {
         var parts = new Dictionary<string, byte[]> { ["a.ts"] = Bytes("A", 3000), ["b.ts"] = Bytes("B", 3000) };
         using var server = new LoopbackServer(parts);
@@ -129,13 +132,49 @@ public class PlanRunnerTests
         try
         {
             var mgr = new DownloadManager();
-            // Report cancelled right after the first part completes.
+            // Cancel once the first part has been fetched, so there is something worth keeping.
             var result = await mgr.ExecutePlanAsync(Plan(server.Url, PostProcessKind.None, "a.ts", "b.ts"),
-                dir, "c.mp4", null, _ => { }, _ => { }, _ => { }, isCancelled: () => true, CancellationToken.None);
+                dir, "c.mp4", null, _ => { }, _ => { }, _ => { },
+                isCancelled: () => server.Requested.Contains("a.ts"), CancellationToken.None);
 
             Assert.Null(result);
-            Assert.False(Directory.Exists(Path.Combine(dir, ".c.mp4.parts")));
-            Assert.False(File.Exists(Path.Combine(dir, "c.mp4")));
+            Assert.False(File.Exists(Path.Combine(dir, "c.mp4"))); // nothing assembled
+            Assert.True(Directory.Exists(Path.Combine(dir, ".c.mp4.parts")),
+                "A stopped multi-part download must keep its finished segments — deleting them is what " +
+                "made a stop restart from 0%.");
+        }
+        finally { TryDelete(dir); }
+    }
+
+    /// <summary>The reported bug end to end: stop an HLS download part-way, start it again, and it must
+    /// carry on rather than re-fetch what it already has.</summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_stopped_plan_resumes_instead_of_downloading_everything_again()
+    {
+        var parts = new Dictionary<string, byte[]> { ["a.ts"] = Bytes("A", 3000), ["b.ts"] = Bytes("B", 3000) };
+        using var server = new LoopbackServer(parts);
+        var dir = TempDir();
+        try
+        {
+            var mgr = new DownloadManager();
+            var plan = Plan(server.Url, PostProcessKind.None, "a.ts", "b.ts");
+
+            // Stop right after the first segment lands.
+            var stopped = await mgr.ExecutePlanAsync(plan, dir, "r.mp4", null, _ => { }, _ => { }, _ => { },
+                isCancelled: () => server.Requested.Contains("a.ts"), CancellationToken.None);
+            Assert.Null(stopped);
+            Assert.Contains("a.ts", server.Requested);
+
+            // Start again: only the segment that never finished should be asked for.
+            server.Requested.Clear();
+            var final = await mgr.ExecutePlanAsync(plan, dir, "r.mp4", null, _ => { }, _ => { }, _ => { },
+                isCancelled: () => false, CancellationToken.None);
+
+            Assert.DoesNotContain("a.ts", server.Requested); // reused from disk — this is the whole point
+            Assert.Contains("b.ts", server.Requested);
+            Assert.NotNull(final);
+            var got = await File.ReadAllBytesAsync(final, TestContext.Current.CancellationToken);
+            Assert.True(parts["a.ts"].Concat(parts["b.ts"]).SequenceEqual(got), "The resumed file must be intact.");
         }
         finally { TryDelete(dir); }
     }
@@ -248,7 +287,7 @@ public class PlanRunnerTests
     }
 
     [Fact(Timeout = TestTimeouts.SlowMs)]
-    public async Task Cancelling_a_paused_plan_tears_down_the_parts_folder()
+    public async Task Cancelling_a_paused_plan_keeps_its_parts_for_the_next_start()
     {
         // A suspended engine never completes its task, so cancelling a PAUSED plan used to leave the runner
         // waiting on it. The controller un-pauses before cancelling, which is what unblocks the teardown.
@@ -278,8 +317,10 @@ public class PlanRunnerTests
             controller.CancelAll();
 
             Assert.Null(await run);
-            Assert.False(Directory.Exists(Path.Combine(dir, ".video.mp4.parts")));
-            Assert.False(File.Exists(Path.Combine(dir, "video.mp4")));
+            Assert.False(File.Exists(Path.Combine(dir, "video.mp4"))); // nothing assembled
+            // The scratch folder STAYS: cancelling a paused plan is still a stop, and a stop must leave
+            // the finished segments for the next start. Removing the download is what cleans it up.
+            Assert.True(Directory.Exists(Path.Combine(dir, ".video.mp4.parts")));
         }
         finally { TryDelete(dir); }
     }
