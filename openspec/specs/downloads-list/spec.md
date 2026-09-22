@@ -18,22 +18,34 @@ The downloads grid SHALL let the user read a download's complete file name by ho
 - **THEN** the tooltip shows the full name and the failure reason
 
 ### Requirement: A Stopped/Paused filter lists interrupted downloads
-The footer filters SHALL include a Stopped bucket that matches items in the Paused or Stopped state, with a count of exactly those items. The filter buckets (All, Active, Queued, Completed, Stopped, Failed) SHALL be mutually disjoint and jointly cover every item, so a user can always find paused/stopped downloads after a restart.
+The footer filters SHALL include a Stopped bucket that matches items in the Paused or Stopped state, with a count of exactly those items. The status filter buckets (All, Active, Queued, Completed, Stopped, Failed) SHALL be mutually disjoint and jointly cover every item that is not archived, so a user can always find paused/stopped downloads after a restart. Archived items SHALL be excluded from every status bucket, including All, and SHALL be listed only by the separate Archived filter.
 
 #### Scenario: Paused downloads are visible after restart
 - **WHEN** the user paused downloads before closing, and reopens the app (interrupted items load as Stopped)
 - **THEN** selecting the Stopped filter lists those paused/stopped items and its count equals their number
 
 #### Scenario: Buckets are disjoint and exhaustive
-- **WHEN** the list contains a mix of Running, Paused, Stopped, Queued, Completed and Failed items
+- **WHEN** the list contains a mix of Running, Paused, Stopped, Queued, Completed and Failed items, none of them archived
 - **THEN** each item matches exactly one of the non-All buckets and the bucket counts sum to the total item count
 
+#### Scenario: Archived items are outside the status buckets
+- **WHEN** the list contains archived items alongside unarchived ones
+- **THEN** no status bucket (including All) lists an archived item, and the All count equals the number of unarchived items
+
 ### Requirement: Total downloaded size shown in the status bar
-The main-window status bar SHALL display the cumulative downloaded size across all items (human-readable) next to the total speed, updated live.
+The main-window status bar SHALL display the cumulative downloaded size across EVERY record, archived
+included (human-readable), next to the total speed, updated live. This total is deliberately the one
+place archived downloads still count: a status bucket's number must equal the rows selecting it shows,
+whereas this total answers how much the app has fetched, and archiving keeps both the record and the
+file. The total speed beside it SHALL exclude archived downloads, which are never running.
 
 #### Scenario: Total downloaded reflects the sum
 - **WHEN** several downloads have downloaded bytes
 - **THEN** the status bar shows the sum of their downloaded bytes as a human-readable size beside the speed, and it updates as bytes arrive
+
+#### Scenario: Archiving does not shrink the total
+- **WHEN** a download with downloaded bytes is archived
+- **THEN** the status bar total is unchanged, and it still includes that download's bytes
 
 ### Requirement: Column sorting is tri-state and drag-friendly
 Clicking a sortable column header SHALL cycle its sort through Ascending, Descending, then None (no sort). In the None state the grid SHALL show items in their master (manual/priority) order and drag-to-reorder SHALL be enabled. When the user starts dragging a row while a sort is active, the sort SHALL be cleared to None (preserving the current visual order) so the drop reorders from there.
