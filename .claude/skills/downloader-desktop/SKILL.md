@@ -32,7 +32,7 @@ Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
 4. **Build once per logical chunk**, not after every edit; `Edit` already fails loudly on a bad match, so don't re-`Read` a file just to confirm an edit landed.
 5. For a small, well-scoped fix, target the one file the Code map names, edit, then one build+filtered-test — that's the whole loop.
 
-## Engine (`Downloader` 5.9.5) quick reference
+## Engine (`Downloader` 5.9.8) quick reference
 - `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
 - `DownloadService(DownloadConfiguration cfg, ILoggerFactory factory = null)` — implements `IDownloadService`: same events (`DownloadStarted/DownloadProgressChanged/ChunkDownloadProgressChanged/DownloadFileCompleted`), plus `Package`, `Pause()`, `Resume()`, `CancelAsync()`/`CancelTaskAsync()`, `Clear()`, and `AddLogger(ILogger)`.
 - **Multi-URL / mirrors** are first-class: `DownloadFileTaskAsync(string[] urls, DirectoryInfo folder, ct)` (auto-resolves name), `(string[] urls, string fileName, ct)`, and package overloads. `DownloadPackage.Urls` is `string[]`. So the data model should carry `List<string> Urls` (first = primary, rest = mirrors), not a separate `Url` + `Mirrors`.
@@ -2373,3 +2373,17 @@ the message sent him in a loop. Rules that came out of it:
   video regardless of the user's cookies. Only `cookieStderr` can support it.
 - The app logs the real stderr (`[site-media] yt-dlp exited N:`) in `~/.config/Downloader/logs/` — read it
   before theorising about a site. It needs logging enabled in Settings.
+
+## The retry-after-stop NRE was an ENGINE bug — fixed in 5.9.8 (2026-09-22)
+`MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion` failed on macOS CI for weeks with
+`error=Object reference not set to an instance of an object., progress=100%, downloaded=65536/65536,
+attempt=2, saved=1 file(s)` — note the file was COMPLETE on disk and the row still read Failed. It was
+never an app or harness fault: a chunk the engine's dispatch loop abandoned on `CancelAsync` kept raising
+progress after the download reached its terminal state and closed its package storage, and the
+resume-metadata write dereferenced that storage unguarded. The NRE then arrived through
+`DownloadFileCompleted`. 5.9.8 also stops a `Dispose()` racing a completion from swallowing the completion
+event — which is exactly what this app does when it releases a finished row's engine off-stack from inside
+that event (`DisposeOffStack`). Taken here in `5f91c77`.
+**The general lesson:** a failure whose evidence says the work SUCCEEDED (full byte count, file on disk)
+and only the reporting failed is a completion-path bug, and in this stack that path is mostly the engine's.
+Check `../Downloader` before instrumenting the app.
