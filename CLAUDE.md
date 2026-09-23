@@ -303,6 +303,12 @@ Rough order to turn the current skeleton into the MVP above:
    - Wording in all 16 packs. **BREAKING (behavioural):** an archived unfinished download is no longer
      resumed by "start all".
 
+21. ✅ **YouTube downloads always failed "adaptive stream only" (issue #18)** (DONE, 2026-09-23):
+   - Site-media plugin picked an HLS copy before the direct video+audio pair; current YouTube extractions
+     always carry HLS copies, so every download was refused. Now direct streams win, HLS-only qualities are
+     not offered, an HLS-only YouTube answer is re-extracted (no session, then other clients), and the
+     message no longer tells users to install a plugin they have. SiteMedia **1.4.3**.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

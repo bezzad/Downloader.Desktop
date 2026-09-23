@@ -6,7 +6,7 @@ internal enum ExtractionKind
 {
     /// <summary>One progressive HTTP(S) file — a single part, no post-process.</summary>
     Progressive,
-    /// <summary>An HLS (.m3u8) stream — reuse the segment pipeline (Concat).</summary>
+    /// <summary>Only an HLS (.m3u8) stream is on offer — this plugin cannot download it (the resolver says so).</summary>
     Hls,
     /// <summary>Separate best-video + best-audio streams — two parts, ffmpeg Mux.</summary>
     VideoAudio,
@@ -35,8 +35,9 @@ internal sealed class ExtractionResult
 
 /// <summary>
 /// Turns raw <c>yt-dlp -J</c> JSON into an <see cref="ExtractionResult"/> using the D4 format-selection
-/// policy: prefer a single progressive MP4 (simplest), else an HLS stream (reuse the segment pipeline),
-/// else best-video + best-audio (ffmpeg mux). Pure/network-free so it is unit-tested against canned JSON.
+/// policy: prefer a single progressive MP4 (simplest), else best-video + best-audio (ffmpeg mux), and an
+/// HLS stream only when nothing directly fetchable exists (this plugin cannot assemble one).
+/// Pure/network-free so it is unit-tested against canned JSON.
 /// </summary>
 internal static class SiteExtractor
 {
@@ -54,7 +55,9 @@ internal static class SiteExtractor
     {
         var info = ParseInfo(json);
         var formats = info.Formats ?? new List<YtDlpFormat>();
-        var usable = formats.Where(f => !string.IsNullOrEmpty(f.Url)).ToList();
+        // Only formats this plugin can actually download: a height YouTube offers ONLY as HLS would be a
+        // choice that fails the moment it is picked (and an HLS copy carries no size to show).
+        var usable = formats.Where(f => !string.IsNullOrEmpty(f.Url) && !f.IsHls).ToList();
 
         var heights = usable
             .Where(f => (f.HasVideo || f.LikelyCombined) && f.Quality.height > 0)
@@ -113,7 +116,7 @@ internal static class SiteExtractor
         }
 
         // An explicit height pins selection to formats of exactly that height (the user's choice beats
-        // the automatic preference between qualities; the progressive→HLS→mux order still applies WITHIN it).
+        // the automatic preference between qualities; the progressive→mux→HLS order still applies WITHIN it).
         if (int.TryParse(variantId, out var pinned) && pinned > 0)
             formats = formats.Where(f => !(f.HasVideo || f.LikelyCombined) || f.Quality.height == pinned).ToList();
 
@@ -144,38 +147,11 @@ internal static class SiteExtractor
             };
         }
 
-        // 2) An HLS stream — reuse the existing segment pipeline.
-        var hls = formats
-            .Where(f => !string.IsNullOrEmpty(f.Url) && f.IsHls && f.HasVideo)
-            .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
-            .FirstOrDefault()
-            ?? formats.Where(f => !string.IsNullOrEmpty(f.Url) && f.IsHls)
-                      .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
-                      .FirstOrDefault();
-        // Top-level single-format HLS result (no formats array).
-        if (hls is null && !string.IsNullOrEmpty(info.Url)
-            && info.Protocol is not null && info.Protocol.Contains("m3u8", StringComparison.OrdinalIgnoreCase))
-        {
-            return new ExtractionResult
-            {
-                Kind = ExtractionKind.Hls,
-                FileName = EnsureExtension(name, "mp4"),
-                PrimaryUrl = info.Url,
-                Headers = info.HttpHeaders,
-            };
-        }
-        if (hls is not null)
-        {
-            return new ExtractionResult
-            {
-                Kind = ExtractionKind.Hls,
-                FileName = EnsureExtension(name, "mp4"),
-                PrimaryUrl = hls.Url,
-                Headers = Merge(info.HttpHeaders, hls.HttpHeaders),
-            };
-        }
-
-        // 3) Best video-only + best audio-only → ffmpeg mux. Honor yt-dlp's own pick when it gave one.
+        // 2) Best video-only + best audio-only → ffmpeg mux. Honor yt-dlp's own pick when it gave one.
+        // This comes BEFORE any HLS stream: this plugin cannot assemble HLS, and a YouTube extraction
+        // today lists HLS copies of nearly every quality beside the direct links. Checking HLS first made
+        // every YouTube download fail with "adaptive stream only" although a direct pair was right there
+        // (issue #18).
         var bestVideo = (pinned > 0 ? null : PickFrom(info.RequestedFormats, f => f.HasVideo && !f.HasAudio))
                         ?? formats.Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && !f.HasAudio && !f.IsHls)
                                   .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
@@ -205,7 +181,7 @@ internal static class SiteExtractor
             };
         }
 
-        // A lone video-only progressive stream (rare) is still downloadable as a single file.
+        // 3) A lone video-only progressive stream (rare) is still downloadable as a single file.
         var videoOnly = formats
             .Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && f.IsProgressiveHttp)
             .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
@@ -219,6 +195,38 @@ internal static class SiteExtractor
                 PrimaryUrl = videoOnly.Url,
                 PrimarySize = videoOnly.KnownSize,
                 Headers = Merge(info.HttpHeaders, videoOnly.HttpHeaders),
+            };
+        }
+
+        // 4) An HLS stream — the LAST resort, only when nothing directly fetchable exists. The resolver
+        // refuses it with a clear message (or, on YouTube, re-extracts through another player client).
+        var hls = formats
+            .Where(f => !string.IsNullOrEmpty(f.Url) && f.IsHls && f.HasVideo)
+            .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
+            .FirstOrDefault()
+            ?? formats.Where(f => !string.IsNullOrEmpty(f.Url) && f.IsHls)
+                      .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
+                      .FirstOrDefault();
+        // Top-level single-format HLS result (no formats array).
+        if (hls is null && !string.IsNullOrEmpty(info.Url)
+            && info.Protocol is not null && info.Protocol.Contains("m3u8", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ExtractionResult
+            {
+                Kind = ExtractionKind.Hls,
+                FileName = EnsureExtension(name, "mp4"),
+                PrimaryUrl = info.Url,
+                Headers = info.HttpHeaders,
+            };
+        }
+        if (hls is not null)
+        {
+            return new ExtractionResult
+            {
+                Kind = ExtractionKind.Hls,
+                FileName = EnsureExtension(name, "mp4"),
+                PrimaryUrl = hls.Url,
+                Headers = Merge(info.HttpHeaders, hls.HttpHeaders),
             };
         }
 
