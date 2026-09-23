@@ -140,9 +140,12 @@ Plugins teach the app to turn links that aren't direct file URLs into real downl
 | Plugin | What it does | How it works |
 | --- | --- | --- |
 | **HLS video streams** | Downloads raw **HLS `.m3u8`** streams — you get one normal, playable video file. | Paste an **`.m3u8`** link. For a master playlist the plugin lets you **pick the quality**; it then downloads all the segments in parallel and assembles them into a single file. FFmpeg is fetched automatically on first use. *Optional — add it once under **Settings → Plugins → More plugins**.* |
+| **Video sites** | Gets the video behind a page on **YouTube, X, Instagram, TikTok, Vimeo** and other video sites, in the quality you pick. | Send the page from the **browser extension** (recommended — it passes your signed-in browser session, which some videos need), or paste the page link. The plugin uses the third-party tool [yt-dlp](https://github.com/yt-dlp/yt-dlp) to find the video, and FFmpeg to join video and audio. Both are fetched and checksum-verified on first use. *Optional — add it once under **Settings → Plugins → More plugins**.* |
 | **Website offline copy** | Saves a **web page — or a whole site — as one `.zip`** you can read offline: pages, styles, images, scripts and fonts, with links rewired to work from disk. | Paste a page link and pick **“Offline copy (.zip)”** in the Add window. The plugin crawls the page (and same-site pages it links to), grabs everything the pages need, and packs it all into a single zip — no extra tools. *Optional — add it once under **Settings → Plugins → More plugins**.* |
 | **Ollama models** | Downloads **AI models for [Ollama](https://ollama.com)** at full speed, then installs them locally in one click. | Paste an `ollama.com` model link — or just type a name like `gemma3:12b` — and download. When it finishes, click **Add to Ollama**: the model is checksum-verified and registered in your local Ollama, ready to run. *Built-in.* |
 | **GitHub Releases** | Turns a **GitHub repository link** into a download of its **latest release**, picking the right asset for your operating system. | Paste `github.com/owner/repo` (no digging through the Releases page) — the plugin looks up the newest release and downloads the asset that matches your OS. *Built-in.* |
+
+> **Note:** the Downloader app itself does **not** download from video sites such as YouTube. That is done only by the optional **Video sites** plugin, which you choose to install, and it relies on the third-party tool yt-dlp. DRM-protected (encrypted) videos are not supported. You are responsible for following each site’s terms and copyright rules.
 
 Manage plugins under **Settings → Plugins**: toggle them on/off, install optional ones with one click (downloads are checksum-verified before loading), and get an **Update** button right on the plugin when a newer version ships.
 
@@ -170,7 +173,7 @@ A companion **browser extension** (Chrome, Edge, Firefox) sends links straight t
 - Right-click a link/image/video/audio → **“Download with Downloader.”**
 - A popup to paste a link, scan the page for links, or grab detected **video / audio / HLS (`.m3u8`)** media.
 - Captured links go straight into the app and **start downloading — no dialog**. Prefer to review each link first? Untick **Add silently** in the extension popup.
-- Links are sent only to the desktop app on your own machine (**Settings → Browser extension & local API**, on by default). DRM/encrypted sites like YouTube aren’t supported.
+- Links are sent only to the desktop app on your own machine (**Settings → Browser extension & local API**, on by default). Video-site pages (YouTube, X, …) need the optional **Video sites** plugin — the extension sends your signed-in session with the page so the plugin can reach videos that need it. DRM-protected videos aren’t supported.
 
 **Install it from the app** — **Settings → Browser extension & local API → Get the files**. The app finds
 the browsers installed on your computer, downloads and checks the right build for each, and shows you the
