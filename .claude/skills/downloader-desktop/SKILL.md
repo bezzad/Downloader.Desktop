@@ -2387,3 +2387,28 @@ that event (`DisposeOffStack`). Taken here in `5f91c77`.
 **The general lesson:** a failure whose evidence says the work SUCCEEDED (full byte count, file on disk)
 and only the reporting failed is a completion-path bug, and in this stack that path is mostly the engine's.
 Check `../Downloader` before instrumenting the app.
+
+## YouTube "offers only an adaptive stream" on EVERY video (issue #18, SiteMedia 1.4.3, 2026-09-23)
+- **Symptom**: the popup/Add window lists qualities fine, then every YouTube download fails with
+  *"This page offers its video only as an adaptive stream … Install the Streaming media (HLS & DASH)
+  plugin"* — even for users who HAVE that plugin. Log line: `[site-media] … offers only an adaptive stream`.
+- **Cause**: `SiteExtractor.Select` checked HLS formats BEFORE the direct video+audio pair. A current
+  yt-dlp extraction of YouTube lists m3u8 copies of nearly every height (formats 229–232/269/270/60x/62x,
+  audio 233/234 with NO acodec) beside the direct https streams (136/137/140/…). Since format 18 (360p) is
+  "capped" by taller split streams, selection fell through to HLS and the resolver refused it — 100% of
+  YouTube downloads. Proven with a real `yt-dlp 2026.08.19 -J` of dQw4w9WgXcQ: old code → Hls, new → the
+  pair, and the chosen links answer 206.
+- **Fix**: order is now progressive (if not capping) → mux → lone video-only file → HLS LAST;
+  `ListVariants` ignores HLS formats (a height offered only as HLS would fail when picked); on YouTube an
+  HLS-only answer goes through the same re-extraction as a 403 (drop the session, then pinned clients).
+  The message no longer says "install" a plugin: the Streaming media plugin takes a playlist LINK and is
+  never handed a page, so that advice was a dead end.
+- **Every direct pick goes through `SiteExtractor.IsDirect`** (URL + `IsProgressiveHttp`: not HLS, not DASH
+  segments) — including yt-dlp's own `requested_formats`. With direct steps now running before the HLS
+  check, a looser "not HLS" test let an m3u8 or `http_dash_segments` format (Vimeo) through as a "file".
+- **Get a real extraction in the web container**: `curl -sSL -o yt-dlp
+  https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux && chmod +x yt-dlp && ./yt-dlp
+  --js-runtimes node -J --no-playlist <url>` (node is at /opt/node22). Some videos say "Video unavailable"
+  from this IP; dQw4w9WgXcQ works. Reporter logs attached to issues: `curl` the
+  `github.com/user-attachments/files/...` link → 302 → curl the signed `objects.githubusercontent.com`
+  URL WebFetch reports (the direct curl is blocked by the session proxy, the redirect target is not).

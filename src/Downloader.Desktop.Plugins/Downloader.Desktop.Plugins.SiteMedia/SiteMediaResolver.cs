@@ -165,19 +165,19 @@ public sealed class SiteMediaResolver : ILinkResolver
     private async Task<ExtractionResult> EnsureFetchableAsync(
         string url, ResolveOptions? options, ExtractionResult result, CancellationToken ct)
     {
-        // An HLS/adaptive result is refused by the resolver itself a moment later, and a result with no
-        // direct stream has nothing to probe.
-        if (result.Kind is not (ExtractionKind.Progressive or ExtractionKind.VideoAudio))
-            return result;
-
-        // Only YouTube offers another way to ask. Probing anywhere else would spend a request on a
-        // question nothing could act on — the download would go ahead and report the site's refusal
-        // itself, exactly as it does today.
+        // Only YouTube offers another way to ask. Anywhere else an HLS-only result is refused by the
+        // resolver a moment later, and probing would spend a request on a question nothing could act on
+        // — the download would go ahead and report the site's refusal itself.
         if (!IsYouTube(url))
             return result;
 
+        // HLS-only is not the end on YouTube: which formats come back depends on the player client
+        // yt-dlp was answered through (a signed-in session in particular gets clients whose direct links
+        // are skipped for want of a token), so another client usually offers the direct streams.
+        var adaptiveOnly = result.Kind == ExtractionKind.Hls;
+
         // Ok, or a probe that could not reach the server at all: nothing to second-guess.
-        if (await ProbeAsync(result, ct).ConfigureAwait(false) != ProbeVerdict.Refused)
+        if (!adaptiveOnly && await ProbeAsync(result, ct).ConfigureAwait(false) != ProbeVerdict.Refused)
             return result;
 
         foreach (var client in YouTubeRetryClients)
@@ -197,6 +197,11 @@ public sealed class SiteMediaResolver : ILinkResolver
                     .ExtractJsonAsync(url, cookieFile, client, ct)
                     .ConfigureAwait(false);
                 var retried = SiteExtractor.Select(json, options?.VariantId);
+                if (retried.Kind == ExtractionKind.Hls)
+                {
+                    _log.LogWarning("Extracting {Attempt} offers only an adaptive stream too", attempt);
+                    continue;
+                }
                 if (await ProbeAsync(retried, ct).ConfigureAwait(false) == ProbeVerdict.Refused)
                 {
                     _log.LogWarning("Extracting {Attempt} gives refused links too", attempt);
@@ -217,7 +222,7 @@ public sealed class SiteMediaResolver : ILinkResolver
             }
         }
 
-        throw new InvalidOperationException(AllRefusedMessage);
+        throw new InvalidOperationException(adaptiveOnly ? AdaptiveOnlyMessage : AllRefusedMessage);
     }
 
     private Task<ProbeVerdict> ProbeAsync(ExtractionResult result, CancellationToken ct)
@@ -264,8 +269,11 @@ public sealed class SiteMediaResolver : ILinkResolver
             _lastExtraction = (url, !string.IsNullOrEmpty(cookieFilePath), json, DateTimeOffset.UtcNow);
     }
 
-    /// <summary>What the user is told when a page's video exists only as an adaptive stream.</summary>
+    /// <summary>What the user is told when a page's video exists only as an adaptive stream. It used to
+    /// say "install the Streaming media plugin" — which could never help: that plugin downloads a
+    /// playlist LINK, it is not handed a page, so users who had it installed were told to install it
+    /// (issue #18).</summary>
     internal const string AdaptiveOnlyMessage =
-        "This page offers its video only as an adaptive stream, which this plugin can't assemble. "
-        + "Install the \u201CStreaming media (HLS & DASH)\u201D plugin, which downloads those.";
+        "This page offers its video only as an adaptive stream (HLS), which can't be downloaded from the "
+        + "page link. Try another quality, or try again later.";
 }

@@ -88,7 +88,7 @@ public class SiteMediaResolverTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
-    public async Task An_adaptive_only_page_names_the_reason_and_the_plugin_that_handles_it()
+    public async Task An_adaptive_only_page_names_the_reason_without_sending_the_user_to_install_a_plugin()
     {
         var json = """
         { "title": "Live-ish", "formats": [
@@ -101,6 +101,194 @@ public class SiteMediaResolverTests
 
         Assert.Equal(SiteMediaResolver.AdaptiveOnlyMessage, ex.Message);
         Assert.Contains("adaptive stream", ex.Message);
+        // The Streaming media plugin downloads a playlist LINK; it is never handed a page, so telling a
+        // user who already has it installed to "install" it was a dead end (issue #18).
+        Assert.DoesNotContain("Install", ex.Message);
+    }
+
+    // ── Issue #18: YouTube lists HLS copies beside the direct streams ───────────────────────────────
+    //
+    // Every current YouTube extraction carries m3u8 copies of nearly every quality next to the direct
+    // https streams (shape taken from a real yt-dlp 2026.08.19 run). The plugin cannot assemble HLS, and
+    // it used to check HLS BEFORE the direct video+audio pair — so every YouTube download failed with
+    // "offers only an adaptive stream" although a downloadable pair was right there.
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_youtube_page_with_hls_copies_downloads_the_direct_video_and_audio_pair()
+    {
+        var resolver = NewResolver(new StubYtDlp(YouTubeWithHlsCopiesJson));
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(PostProcessKind.Mux, plan.PostProcess.Kind);
+        Assert.Equal("https://rr/137-1080.mp4", plan.Parts[0].Url);
+        Assert.Equal("https://rr/140.m4a", plan.Parts[1].Url);
+        Assert.DoesNotContain(plan.Parts, p => p.Url.Contains("m3u8"));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_picked_youtube_quality_downloads_its_direct_stream_not_its_hls_copy()
+    {
+        var resolver = NewResolver(new StubYtDlp(YouTubeWithHlsCopiesJson));
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            new ResolveOptions { VariantId = "720" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("https://rr/136-720.mp4", plan.Parts[0].Url);
+        Assert.Equal("https://rr/140.m4a", plan.Parts[1].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_quality_offered_only_as_hls_is_not_offered_at_all()
+    {
+        var resolver = NewResolver(new StubYtDlp(YouTubeWithHlsCopiesJson));
+
+        var variants = await resolver.GetVariantsAsync("https://www.youtube.com/watch?v=abc", null,
+            TestContext.Current.CancellationToken);
+
+        // 2160p exists here only as an m3u8 copy: offering it would be a choice that fails when picked.
+        Assert.Equal(new[] { "1080", "720", "360", "audio" }, variants!.Select(v => v.Id).ToArray());
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task When_the_taller_streams_are_hls_only_the_progressive_file_is_downloaded()
+    {
+        var json = """
+        { "title": "Clip", "formats": [
+          { "format_id": "18", "url": "https://rr/18.mp4", "ext": "mp4", "protocol": "https", "vcodec": "avc1.42001E", "acodec": "mp4a.40.2", "height": 360 },
+          { "format_id": "233", "url": "https://manifest/233/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "none" },
+          { "format_id": "270", "url": "https://manifest/270/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 } ] }
+        """;
+        var resolver = NewResolver(new StubYtDlp(json));
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            TestContext.Current.CancellationToken);
+
+        Assert.Single(plan.Parts);
+        Assert.Equal("https://rr/18.mp4", plan.Parts[0].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_youtube_answer_with_only_hls_is_re_extracted_without_the_session()
+    {
+        // The log in issue #18: with the extension's cookies YouTube answered through clients whose direct
+        // links are skipped, leaving only HLS; the anonymous extraction (the one that listed the
+        // qualities) had the direct streams.
+        var yt = new SessionAwareYtDlp(withSession: HlsOnlyJson, withoutSession: YouTubeWithHlsCopiesJson);
+        var resolver = NewResolver(yt);
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            new ResolveOptions { CookieFilePath = "/tmp/cookies.txt" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PostProcessKind.Mux, plan.PostProcess.Kind);
+        Assert.Equal("https://rr/137-1080.mp4", plan.Parts[0].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_youtube_page_that_is_hls_only_everywhere_says_so()
+    {
+        var yt = new SessionAwareYtDlp(withSession: HlsOnlyJson, withoutSession: HlsOnlyJson);
+        var resolver = NewResolver(yt);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+                new ResolveOptions { CookieFilePath = "/tmp/cookies.txt" }, TestContext.Current.CancellationToken));
+
+        Assert.Equal(SiteMediaResolver.AdaptiveOnlyMessage, ex.Message);
+        Assert.True(yt.Calls > 1); // it asked again before giving up
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Yt_dlps_own_pick_is_ignored_when_it_is_an_hls_stream()
+    {
+        // Now that the direct pair is chosen BEFORE any HLS stream, yt-dlp's requested_formats can be
+        // reached while it names an m3u8 video: honouring it would download playlist text as "the video".
+        var json = """
+        { "title": "A song",
+          "requested_formats": [
+            { "format_id": "270", "url": "https://manifest/270/index.m3u8", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 },
+            { "format_id": "233", "url": "https://manifest/233/index.m3u8", "protocol": "m3u8_native", "vcodec": "none", "acodec": "mp4a.40.2" } ],
+          "formats": [
+            { "format_id": "270", "url": "https://manifest/270/index.m3u8", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 },
+            { "format_id": "233", "url": "https://manifest/233/index.m3u8", "protocol": "m3u8_native", "vcodec": "none", "acodec": "mp4a.40.2" },
+            { "format_id": "137", "url": "https://rr/137-1080.mp4", "protocol": "https", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 },
+            { "format_id": "140", "url": "https://rr/140.m4a", "protocol": "https", "vcodec": "none", "acodec": "mp4a.40.2", "tbr": 129 } ] }
+        """;
+        var resolver = NewResolver(new StubYtDlp(json));
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("https://rr/137-1080.mp4", plan.Parts[0].Url);
+        Assert.Equal("https://rr/140.m4a", plan.Parts[1].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Dash_segment_formats_are_never_downloaded_as_if_they_were_files()
+    {
+        // Vimeo-shaped: DASH-segment streams (not one file each) beside an HLS stream. Before issue #18 the
+        // HLS check came first and the page got a clear message; with direct streams first, a looser
+        // "not HLS" test would have muxed two DASH fragment URLs into a broken download.
+        var json = """
+        { "title": "Vimeo clip", "formats": [
+          { "format_id": "hls-720", "url": "https://cdn/hls/720.m3u8", "protocol": "m3u8_native", "vcodec": "avc1", "acodec": "mp4a", "height": 720 },
+          { "format_id": "dash-video", "url": "https://cdn/dash/video/", "protocol": "http_dash_segments", "vcodec": "avc1", "acodec": "none", "height": 1080 },
+          { "format_id": "dash-audio", "url": "https://cdn/dash/audio/", "protocol": "http_dash_segments", "vcodec": "none", "acodec": "mp4a" } ] }
+        """;
+        var resolver = NewResolver(new StubYtDlp(json));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => resolver.ResolveAsync("https://vimeo.com/123", TestContext.Current.CancellationToken));
+
+        Assert.Equal(SiteMediaResolver.AdaptiveOnlyMessage, ex.Message);
+    }
+
+    /// <summary>A YouTube-shaped extraction as yt-dlp returns it today: storyboards, HLS copies (the audio
+    /// ones carry no acodec at all), direct https video-only streams per height, the 360p progressive
+    /// format, and a 2160p offered ONLY as HLS.</summary>
+    private const string YouTubeWithHlsCopiesJson = """
+    {
+      "title": "A song",
+      "formats": [
+        { "format_id": "sb0", "url": "https://i.ytimg.com/sb/M.jpg", "ext": "mhtml", "protocol": "mhtml", "vcodec": "none", "acodec": "none", "height": 90 },
+        { "format_id": "233", "url": "https://manifest/233/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "none" },
+        { "format_id": "140", "url": "https://rr/140.m4a", "ext": "m4a", "protocol": "https", "vcodec": "none", "acodec": "mp4a.40.2", "tbr": 129.5, "filesize": 3400000 },
+        { "format_id": "251", "url": "https://rr/251.webm", "ext": "webm", "protocol": "https", "vcodec": "none", "acodec": "opus", "tbr": 128.9 },
+        { "format_id": "18", "url": "https://rr/18.mp4", "ext": "mp4", "protocol": "https", "vcodec": "avc1.42001E", "acodec": "mp4a.40.2", "height": 360, "tbr": 444.2 },
+        { "format_id": "232", "url": "https://manifest/232/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "avc1.4D401F", "acodec": "none", "height": 720, "tbr": 1248.4 },
+        { "format_id": "136", "url": "https://rr/136-720.mp4", "ext": "mp4", "protocol": "https", "vcodec": "avc1.4d401f", "acodec": "none", "height": 720, "tbr": 993.5 },
+        { "format_id": "270", "url": "https://manifest/270/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080, "tbr": 4688.1 },
+        { "format_id": "137", "url": "https://rr/137-1080.mp4", "ext": "mp4", "protocol": "https", "vcodec": "avc1.640028", "acodec": "none", "height": 1080, "tbr": 3038.4 },
+        { "format_id": "625", "url": "https://manifest/625/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "vp09.00.50.08", "acodec": "none", "height": 2160, "tbr": 19117.7 }
+      ]
+    }
+    """;
+
+    /// <summary>The same page when YouTube answered only with HLS copies.</summary>
+    private const string HlsOnlyJson = """
+    {
+      "title": "A song",
+      "formats": [
+        { "format_id": "233", "url": "https://manifest/233/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "none" },
+        { "format_id": "270", "url": "https://manifest/270/index.m3u8", "ext": "mp4", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080, "tbr": 4688.1 }
+      ]
+    }
+    """;
+
+    /// <summary>Answers one extraction when a session (cookie file) is sent and another without one.</summary>
+    internal sealed class SessionAwareYtDlp(string withSession, string withoutSession) : IYtDlp
+    {
+        public int Calls { get; private set; }
+
+        public Task<string> ExtractJsonAsync(string url, CancellationToken cancellationToken)
+            => ExtractJsonAsync(url, null, cancellationToken);
+
+        public Task<string> ExtractJsonAsync(string url, string? cookieFilePath, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(string.IsNullOrEmpty(cookieFilePath) ? withoutSession : withSession);
+        }
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

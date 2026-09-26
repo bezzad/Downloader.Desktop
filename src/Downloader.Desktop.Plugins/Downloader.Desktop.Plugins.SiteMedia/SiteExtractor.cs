@@ -6,7 +6,7 @@ internal enum ExtractionKind
 {
     /// <summary>One progressive HTTP(S) file — a single part, no post-process.</summary>
     Progressive,
-    /// <summary>An HLS (.m3u8) stream — reuse the segment pipeline (Concat).</summary>
+    /// <summary>Only an HLS (.m3u8) stream is on offer — this plugin cannot download it (the resolver says so).</summary>
     Hls,
     /// <summary>Separate best-video + best-audio streams — two parts, ffmpeg Mux.</summary>
     VideoAudio,
@@ -35,8 +35,9 @@ internal sealed class ExtractionResult
 
 /// <summary>
 /// Turns raw <c>yt-dlp -J</c> JSON into an <see cref="ExtractionResult"/> using the D4 format-selection
-/// policy: prefer a single progressive MP4 (simplest), else an HLS stream (reuse the segment pipeline),
-/// else best-video + best-audio (ffmpeg mux). Pure/network-free so it is unit-tested against canned JSON.
+/// policy: prefer a single progressive MP4 (simplest), else best-video + best-audio (ffmpeg mux), and an
+/// HLS stream only when nothing directly fetchable exists (this plugin cannot assemble one).
+/// Pure/network-free so it is unit-tested against canned JSON.
 /// </summary>
 internal static class SiteExtractor
 {
@@ -54,7 +55,9 @@ internal static class SiteExtractor
     {
         var info = ParseInfo(json);
         var formats = info.Formats ?? new List<YtDlpFormat>();
-        var usable = formats.Where(f => !string.IsNullOrEmpty(f.Url)).ToList();
+        // Only formats this plugin can actually download: a height YouTube offers ONLY as HLS would be a
+        // choice that fails the moment it is picked (and an HLS copy carries no size to show).
+        var usable = formats.Where(IsDirect).ToList();
 
         var heights = usable
             .Where(f => (f.HasVideo || f.LikelyCombined) && f.Quality.height > 0)
@@ -113,7 +116,7 @@ internal static class SiteExtractor
         }
 
         // An explicit height pins selection to formats of exactly that height (the user's choice beats
-        // the automatic preference between qualities; the progressive→HLS→mux order still applies WITHIN it).
+        // the automatic preference between qualities; the progressive→mux→HLS order still applies WITHIN it).
         if (int.TryParse(variantId, out var pinned) && pinned > 0)
             formats = formats.Where(f => !(f.HasVideo || f.LikelyCombined) || f.Quality.height == pinned).ToList();
 
@@ -122,13 +125,12 @@ internal static class SiteExtractor
         // separate video+audio streams go up to 1080p+ — preferring "simple" there downloads every video
         // in visibly poor quality. When a strictly taller video-only stream exists, fall through to mux.
         var progressive = formats
-            .Where(f => !string.IsNullOrEmpty(f.Url)
-                        && ((f.IsProgressiveHttp && f.HasVideo && f.HasAudio) || f.LikelyCombined))
+            .Where(f => IsDirect(f) && ((f.HasVideo && f.HasAudio) || f.LikelyCombined))
             .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
             .FirstOrDefault();
-        var hasSplitAudio = formats.Any(f => !string.IsNullOrEmpty(f.Url) && f.HasAudio && !f.HasVideo && !f.IsHls);
+        var hasSplitAudio = formats.Any(f => IsDirect(f) && f.HasAudio && !f.HasVideo);
         var tallestSplitVideo = !hasSplitAudio ? 0 : formats
-            .Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && !f.HasAudio && !f.IsHls)
+            .Where(f => IsDirect(f) && f.HasVideo && !f.HasAudio)
             .Select(f => f.Quality.height)
             .DefaultIfEmpty(0)
             .Max();
@@ -144,7 +146,59 @@ internal static class SiteExtractor
             };
         }
 
-        // 2) An HLS stream — reuse the existing segment pipeline.
+        // 2) Best video-only + best audio-only → ffmpeg mux. Honor yt-dlp's own pick when it gave one.
+        // This comes BEFORE any HLS stream: this plugin cannot assemble HLS, and a YouTube extraction
+        // today lists HLS copies of nearly every quality beside the direct links. Checking HLS first made
+        // every YouTube download fail with "adaptive stream only" although a direct pair was right there
+        // (issue #18).
+        var bestVideo = (pinned > 0 ? null : PickFrom(info.RequestedFormats, f => f.HasVideo && !f.HasAudio))
+                        ?? formats.Where(f => IsDirect(f) && f.HasVideo && !f.HasAudio)
+                                  .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
+                                  .FirstOrDefault();
+        // MP4-native audio (AAC/ALAC/AC-3) is preferred over the tool's own pick and over a higher-bitrate
+        // Opus/Vorbis stream: the muxed output is an MP4, and while Opus can be WRITTEN into MP4 most
+        // desktop players will not decode it there — the file then plays with no sound, which is
+        // indistinguishable from having downloaded no audio at all.
+        var audioCandidates = formats
+            .Where(f => IsDirect(f) && f.HasAudio && !f.HasVideo)
+            .OrderByDescending(f => f.Quality.tbr)
+            .ToList();
+        var bestAudio = audioCandidates.FirstOrDefault(IsMp4NativeAudio)
+                        ?? PickFrom(info.RequestedFormats, f => f.HasAudio && !f.HasVideo)
+                        ?? audioCandidates.FirstOrDefault();
+        if (bestVideo is not null && bestAudio is not null)
+        {
+            return new ExtractionResult
+            {
+                Kind = ExtractionKind.VideoAudio,
+                FileName = EnsureExtension(name, "mp4"),
+                VideoUrl = bestVideo.Url,
+                AudioUrl = bestAudio.Url,
+                VideoSize = bestVideo.KnownSize,
+                AudioSize = bestAudio.KnownSize,
+                Headers = Merge(info.HttpHeaders, Merge(bestVideo.HttpHeaders, bestAudio.HttpHeaders)),
+            };
+        }
+
+        // 3) A lone video-only progressive stream (rare) is still downloadable as a single file.
+        var videoOnly = formats
+            .Where(f => IsDirect(f) && f.HasVideo)
+            .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
+            .FirstOrDefault();
+        if (videoOnly is not null)
+        {
+            return new ExtractionResult
+            {
+                Kind = ExtractionKind.Progressive,
+                FileName = EnsureExtension(name, videoOnly.Ext ?? "mp4"),
+                PrimaryUrl = videoOnly.Url,
+                PrimarySize = videoOnly.KnownSize,
+                Headers = Merge(info.HttpHeaders, videoOnly.HttpHeaders),
+            };
+        }
+
+        // 4) An HLS stream — the LAST resort, only when nothing directly fetchable exists. The resolver
+        // refuses it with a clear message (or, on YouTube, re-extracts through another player client).
         var hls = formats
             .Where(f => !string.IsNullOrEmpty(f.Url) && f.IsHls && f.HasVideo)
             .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
@@ -172,53 +226,6 @@ internal static class SiteExtractor
                 FileName = EnsureExtension(name, "mp4"),
                 PrimaryUrl = hls.Url,
                 Headers = Merge(info.HttpHeaders, hls.HttpHeaders),
-            };
-        }
-
-        // 3) Best video-only + best audio-only → ffmpeg mux. Honor yt-dlp's own pick when it gave one.
-        var bestVideo = (pinned > 0 ? null : PickFrom(info.RequestedFormats, f => f.HasVideo && !f.HasAudio))
-                        ?? formats.Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && !f.HasAudio && !f.IsHls)
-                                  .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
-                                  .FirstOrDefault();
-        // MP4-native audio (AAC/ALAC/AC-3) is preferred over the tool's own pick and over a higher-bitrate
-        // Opus/Vorbis stream: the muxed output is an MP4, and while Opus can be WRITTEN into MP4 most
-        // desktop players will not decode it there — the file then plays with no sound, which is
-        // indistinguishable from having downloaded no audio at all.
-        var audioCandidates = formats
-            .Where(f => !string.IsNullOrEmpty(f.Url) && f.HasAudio && !f.HasVideo && !f.IsHls)
-            .OrderByDescending(f => f.Quality.tbr)
-            .ToList();
-        var bestAudio = audioCandidates.FirstOrDefault(IsMp4NativeAudio)
-                        ?? PickFrom(info.RequestedFormats, f => f.HasAudio && !f.HasVideo)
-                        ?? audioCandidates.FirstOrDefault();
-        if (bestVideo is not null && bestAudio is not null)
-        {
-            return new ExtractionResult
-            {
-                Kind = ExtractionKind.VideoAudio,
-                FileName = EnsureExtension(name, "mp4"),
-                VideoUrl = bestVideo.Url,
-                AudioUrl = bestAudio.Url,
-                VideoSize = bestVideo.KnownSize,
-                AudioSize = bestAudio.KnownSize,
-                Headers = Merge(info.HttpHeaders, Merge(bestVideo.HttpHeaders, bestAudio.HttpHeaders)),
-            };
-        }
-
-        // A lone video-only progressive stream (rare) is still downloadable as a single file.
-        var videoOnly = formats
-            .Where(f => !string.IsNullOrEmpty(f.Url) && f.HasVideo && f.IsProgressiveHttp)
-            .OrderByDescending(f => f.Quality.height).ThenByDescending(f => f.Quality.tbr)
-            .FirstOrDefault();
-        if (videoOnly is not null)
-        {
-            return new ExtractionResult
-            {
-                Kind = ExtractionKind.Progressive,
-                FileName = EnsureExtension(name, videoOnly.Ext ?? "mp4"),
-                PrimaryUrl = videoOnly.Url,
-                PrimarySize = videoOnly.KnownSize,
-                Headers = Merge(info.HttpHeaders, videoOnly.HttpHeaders),
             };
         }
 
@@ -256,14 +263,19 @@ internal static class SiteExtractor
         return format.Ext is { } ext && exts.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>Best audio-only stream (progressive HTTP preferred, then any non-HLS), or null.</summary>
+    /// <summary>Best directly fetchable audio-only stream, or null.</summary>
     private static YtDlpFormat? BestAudio(List<YtDlpFormat> usable) =>
-        usable.Where(f => f.HasAudio && !f.HasVideo && f.IsProgressiveHttp)
+        usable.Where(f => IsDirect(f) && f.HasAudio && !f.HasVideo)
               .OrderByDescending(f => f.Quality.tbr)
-              .FirstOrDefault()
-        ?? usable.Where(f => f.HasAudio && !f.HasVideo && !f.IsHls)
-                 .OrderByDescending(f => f.Quality.tbr)
-                 .FirstOrDefault();
+              .FirstOrDefault();
+
+    /// <summary>
+    /// A format the host can fetch as ONE file: it has a URL and is plain HTTP(S) — not an HLS playlist and
+    /// not DASH segments. Every direct pick goes through this one test: while HLS was checked first, the
+    /// direct steps only ever saw extractions with no HLS in them; now that they come first (issue #18) a
+    /// looser "not HLS" check would let a DASH-segment or m3u8 format through as if it were a file.
+    /// </summary>
+    private static bool IsDirect(YtDlpFormat f) => !string.IsNullOrEmpty(f.Url) && f.IsProgressiveHttp;
 
     /// <summary>Approximate total size of the height's best pick (combined size, or video+audio), or null.</summary>
     private static long? SizeOf(List<YtDlpFormat> usable, int height)
@@ -289,8 +301,9 @@ internal static class SiteExtractor
         : bytes >= 1L << 20 ? $"{bytes / (double)(1L << 20):0} MB"
         : $"{bytes / (double)(1L << 10):0} KB";
 
+    // yt-dlp's own pick can be an m3u8 or DASH-segment format; only a direct one is usable here.
     private static YtDlpFormat? PickFrom(List<YtDlpFormat>? formats, Func<YtDlpFormat, bool> predicate) =>
-        formats?.FirstOrDefault(f => !string.IsNullOrEmpty(f.Url) && predicate(f));
+        formats?.FirstOrDefault(f => IsDirect(f) && predicate(f));
 
     private static string SuggestName(YtDlpInfo info)
     {
