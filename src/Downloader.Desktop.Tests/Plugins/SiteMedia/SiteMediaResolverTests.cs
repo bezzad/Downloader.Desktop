@@ -199,6 +199,51 @@ public class SiteMediaResolverTests
         Assert.True(yt.Calls > 1); // it asked again before giving up
     }
 
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Yt_dlps_own_pick_is_ignored_when_it_is_an_hls_stream()
+    {
+        // Now that the direct pair is chosen BEFORE any HLS stream, yt-dlp's requested_formats can be
+        // reached while it names an m3u8 video: honouring it would download playlist text as "the video".
+        var json = """
+        { "title": "A song",
+          "requested_formats": [
+            { "format_id": "270", "url": "https://manifest/270/index.m3u8", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 },
+            { "format_id": "233", "url": "https://manifest/233/index.m3u8", "protocol": "m3u8_native", "vcodec": "none", "acodec": "mp4a.40.2" } ],
+          "formats": [
+            { "format_id": "270", "url": "https://manifest/270/index.m3u8", "protocol": "m3u8_native", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 },
+            { "format_id": "233", "url": "https://manifest/233/index.m3u8", "protocol": "m3u8_native", "vcodec": "none", "acodec": "mp4a.40.2" },
+            { "format_id": "137", "url": "https://rr/137-1080.mp4", "protocol": "https", "vcodec": "avc1.640028", "acodec": "none", "height": 1080 },
+            { "format_id": "140", "url": "https://rr/140.m4a", "protocol": "https", "vcodec": "none", "acodec": "mp4a.40.2", "tbr": 129 } ] }
+        """;
+        var resolver = NewResolver(new StubYtDlp(json));
+
+        var plan = await resolver.ResolveAsync("https://www.youtube.com/watch?v=abc",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("https://rr/137-1080.mp4", plan.Parts[0].Url);
+        Assert.Equal("https://rr/140.m4a", plan.Parts[1].Url);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Dash_segment_formats_are_never_downloaded_as_if_they_were_files()
+    {
+        // Vimeo-shaped: DASH-segment streams (not one file each) beside an HLS stream. Before issue #18 the
+        // HLS check came first and the page got a clear message; with direct streams first, a looser
+        // "not HLS" test would have muxed two DASH fragment URLs into a broken download.
+        var json = """
+        { "title": "Vimeo clip", "formats": [
+          { "format_id": "hls-720", "url": "https://cdn/hls/720.m3u8", "protocol": "m3u8_native", "vcodec": "avc1", "acodec": "mp4a", "height": 720 },
+          { "format_id": "dash-video", "url": "https://cdn/dash/video/", "protocol": "http_dash_segments", "vcodec": "avc1", "acodec": "none", "height": 1080 },
+          { "format_id": "dash-audio", "url": "https://cdn/dash/audio/", "protocol": "http_dash_segments", "vcodec": "none", "acodec": "mp4a" } ] }
+        """;
+        var resolver = NewResolver(new StubYtDlp(json));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => resolver.ResolveAsync("https://vimeo.com/123", TestContext.Current.CancellationToken));
+
+        Assert.Equal(SiteMediaResolver.AdaptiveOnlyMessage, ex.Message);
+    }
+
     /// <summary>A YouTube-shaped extraction as yt-dlp returns it today: storyboards, HLS copies (the audio
     /// ones carry no acodec at all), direct https video-only streams per height, the 360p progressive
     /// format, and a 2160p offered ONLY as HLS.</summary>

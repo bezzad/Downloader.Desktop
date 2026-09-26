@@ -2403,6 +2403,9 @@ Check `../Downloader` before instrumenting the app.
   HLS-only answer goes through the same re-extraction as a 403 (drop the session, then pinned clients).
   The message no longer says "install" a plugin: the Streaming media plugin takes a playlist LINK and is
   never handed a page, so that advice was a dead end.
+- **Every direct pick goes through `SiteExtractor.IsDirect`** (URL + `IsProgressiveHttp`: not HLS, not DASH
+  segments) — including yt-dlp's own `requested_formats`. With direct steps now running before the HLS
+  check, a looser "not HLS" test let an m3u8 or `http_dash_segments` format (Vimeo) through as a "file".
 - **Get a real extraction in the web container**: `curl -sSL -o yt-dlp
   https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux && chmod +x yt-dlp && ./yt-dlp
   --js-runtimes node -J --no-playlist <url>` (node is at /opt/node22). Some videos say "Video unavailable"
