@@ -2412,3 +2412,38 @@ Check `../Downloader` before instrumenting the app.
   from this IP; dQw4w9WgXcQ works. Reporter logs attached to issues: `curl` the
   `github.com/user-attachments/files/...` link → 302 → curl the signed `objects.githubusercontent.com`
   URL WebFetch reports (the direct curl is blocked by the session proxy, the redirect target is not).
+
+## Scheduler time picker = `Views/TimeRangeDial` (custom-drawn 24 h ring, 2026-09-27)
+- Replaced the two Fluent `TimePicker` spinners. Pure geometry lives in `Views/TimeDial` (midnight at the
+  top, clockwise, 1 min = 1/1440 turn; `MinutesAt`/`PointAt`/`WindowMinutes` wrap past midnight) and is
+  unit-tested exhaustively (`Unit/TimeDialTests` round-trips all 1440 minutes). The control is driven in
+  `UI/TimeRangeDialTests` through real `window.MouseDown/MouseMove/KeyPress` — hosted at 220×220 the
+  center is (110,110) and the ring radius 98.
+- Press moves the NEARER handle; arrows/wheel (wheel only while focused, so page scroll still works) step
+  1 min, Shift 15. Stop is optional: `ScheduleRowViewModel.HasStopTime` (on = start + 2 h). The line under
+  the dial is `Converters/ScheduleWindowConverter`, a MultiBinding that also takes `Localizer.Tick` — so it
+  follows a language switch without the row subscribing to the Localizer singleton (which would leak).
+- **A custom-drawn control is MIRRORED in an RTL window (fa/ar) — including its text.** A clock must not
+  be: `protected override bool BypassFlowDirectionPolicies => true;`. Pinned by
+  `A_right_to_left_window_does_not_mirror_the_clock` (fails without the override). Any future
+  custom-`Render` control with directional meaning needs the same decision.
+
+## Popup thumbnails are paired by EVIDENCE, never by position (x.com, extension 1.22.0, 2026-09-27)
+- **Reported**: on an x.com feed each row showed ANOTHER video's picture, so the user downloaded the
+  wrong video. The players play `blob:` URLs, so no `src` ever matches a sniffed URL; the v1.8.x fix
+  for "same photo on every row" handed the unmatched pictures out off a queue (largest player first)
+  in LIST order — pairing the popup's sort order with the page's layout order. Distinct, and wrong.
+- **Now**: `common.js mediaTokens(url)` = long all-digit path segments (x.com's media id, shared by
+  `pbs.twimg.com/ext_tw_video_thumb/<id>/…`/`amplify_video_thumb/<id>/…` and
+  `video.twimg.com/ext_tw_video/<id>/…`/`amplify_video/<id>/…`) + a ≥10-char mixed letters/digits file
+  stem (GIFs: `tweet_video_thumb/<name>.jpg` ↔ `tweet_video/<name>.mp4`). `buildThumbnailIndex` keys a
+  shot's image by the tokens of BOTH its src and its **poster** (the poster counts as evidence even when
+  a captured frame is what is displayed); a token two images claim is dropped. `pickThumbnail` tries
+  exact URL, then tokens of the group key + every option's `url` AND `sendUrl` (the master).
+- **No queue, no guessing on a multi-item list** — an unproven row gets the type placeholder. The one
+  allowed guess is `index.single` (largest player, else og:image) when the list has exactly ONE item;
+  the page row (`render()`'s "offer" branch) uses it too — it used to read a `fallback` field the index
+  never had, so the page row never got a picture.
+- e2e: `fixtures/two-videos.html` + `server.js` routes `/amplify_video/<id>/vid/<file>` and
+  `/amplify_video_thumb/<id>/img/*` (→ `poster.jpg`); unloaded players, so the poster is the only
+  evidence and the row's `img[src]` names whose it is. Verified it fails on the old code.

@@ -1146,63 +1146,90 @@ function shotImage(shot) {
   return shot?.frame || shot?.poster || null;
 }
 
-// Maps media URLs to images, plus a QUEUE of leftover images for elements whose src could not be
-// matched to any group at all (a blob: URL, from a page whose player streams through MSE — it shares
-// nothing with the network URLs that caused it).
+// What ties a player element to the network URL it plays, when its own src cannot (a blob: URL, from a
+// page whose player streams through MSE — it shares nothing with the network URLs that caused it).
+// Sites that do this still name the media in BOTH addresses: x.com's poster
+// pbs.twimg.com/ext_tw_video_thumb/<id>/pu/img/… and its playlist video.twimg.com/ext_tw_video/<id>/pu/…
+// carry the same numeric media id, and a GIF's tweet_video_thumb/<name>.jpg pairs with
+// tweet_video/<name>.mp4 by file stem. So a token is a long all-digit path segment, or a file stem long
+// and mixed enough (letters AND digits) that two different media will not share it by accident.
+function mediaTokens(url) {
+  let pathname;
+  try { pathname = new URL(url).pathname; } catch { return []; }
+  const tokens = [];
+  const segments = pathname.split("/").filter(Boolean);
+  for (const seg of segments) if (/^\d{10,}$/.test(seg)) tokens.push(seg);
+  const last = segments[segments.length - 1] || "";
+  const stem = last.includes(".") ? last.slice(0, last.lastIndexOf(".")) : last;
+  if (stem.length >= 10 && /\d/.test(stem) && /[a-z]/i.test(stem)) tokens.push(stem);
+  return tokens;
+}
+
+// Maps media URLs — and the media tokens of both a shot's src and its poster — to that shot's image.
 //
-// The queue exists instead of one shared "best" image because a feed page can hold several DISTINCT
-// videos with no exact match for any of them: reusing a single fallback for every unmatched group
-// made every row on a multi-video page show the SAME photo, which reads as broken (v1.8.0 regression
-// on x.com feeds — reported directly: "همون عکس رو تکرار میکند" / "the same photo repeats"). Handing
-// out the real captured images ONE PER GROUP, largest area first, means a page with as many visible
-// players as unmatched groups gets a distinct, plausible photo for each; a page with fewer players
-// than groups runs the queue dry and the rest get the type placeholder — which is honest, unlike a
-// repeated photo that visibly belongs to a different item. The page's own og:image (`pageImage`) is
-// appended LAST and therefore used for AT MOST ONE group — enough to be the right answer on a
-// single-video page, never enough to duplicate across a feed.
+// There is deliberately NO leftover queue. v1.8.0 showed one image on every unmatched row; the fix
+// after it handed the unmatched images out in list order, which paired two orders that have nothing
+// to do with each other (the popup sorts by quality/size, the page lays players out as it likes), so on
+// an x.com feed each row showed ANOTHER video's picture — worse than no picture, because the user picks
+// what to download by it. A row with no evidence of its own image now gets the type placeholder.
+//
+// `single` is the one guess that is safe: when the popup shows exactly ONE item, the page's largest
+// player (or else its og:image) is that item's picture.
 function buildThumbnailIndex(shots, pageImage) {
   const byUrl = new Map();
-  const unmatched = []; // { image, area } — elements with no http(s) src to key by
+  const tokenImages = new Map(); // token -> Set of images claiming it
+  let largest = null;
   for (const shot of shots || []) {
     const image = shotImage(shot);
     if (!image) continue;
-    if (isHttp(shot.src)) {
-      byUrl.set(shot.src, image);
-      byUrl.set(groupKey(shot.src), image);
-    } else {
-      unmatched.push({ image, area: Number(shot.area) || 0 });
+    const area = Number(shot.area) || 0;
+    if (!largest || area > largest.area) largest = { image, area };
+    for (const url of [shot.src, shot.poster]) {
+      if (!isHttp(url)) continue;
+      if (url === shot.src) {
+        byUrl.set(url, image);
+        byUrl.set(groupKey(url), image);
+      }
+      for (const token of mediaTokens(url)) {
+        if (!tokenImages.has(token)) tokenImages.set(token, new Set());
+        tokenImages.get(token).add(image);
+      }
     }
   }
-  unmatched.sort((a, b) => b.area - a.area);
-  const queue = unmatched.map(u => u.image);
-  if (pageImage) queue.push(pageImage);
-  return { byUrl, queue };
+  // A token two different images claim identifies neither, so it is dropped rather than guessed.
+  const byToken = new Map();
+  for (const [token, images] of tokenImages) if (images.size === 1) byToken.set(token, [...images][0]);
+  return { byUrl, byToken, single: largest?.image || pageImage || null };
 }
 
-// A group's own element's image, by exact URL match only — no fallback. Returns null when the group's
-// key/options never appeared as an element's src (the common MSE/blob: case).
+// A group's own element's image: an exact URL match, else a media token its URLs share with exactly
+// one element's src or poster. No fallback — null when nothing on the page is provably this group's.
 function pickThumbnail(index, group) {
   if (!index || !group) return null;
-  const candidates = [group.key, ...(group.options || []).map(o => o?.url)];
+  const candidates = [group.key, ...(group.options || []).flatMap(o => [o?.url, o?.sendUrl])];
   for (const url of candidates) {
     if (!url) continue;
     const hit = index.byUrl?.get(url) || index.byUrl?.get(groupKey(url));
     if (hit) return hit;
   }
+  for (const url of candidates) {
+    if (!url) continue;
+    for (const token of mediaTokens(url)) {
+      const hit = index.byToken?.get(token);
+      if (hit) return hit;
+    }
+  }
   return null;
 }
 
-// Assigns each group in `groups` (in the order they will be rendered) a distinct image: its own exact
-// match first, else the next unused image off the shared leftover queue, else null (the popup draws a
-// type placeholder — never a broken image, never a gap, and never someone else's photo). Pure: takes
-// its own copy of the queue, so calling it again (a re-render) reproduces the same assignment instead
-// of handing out whatever is left over from a previous call.
+// Each group in `groups` gets its own provable image (pickThumbnail) or null, which the popup draws as a
+// type placeholder. The only unproven pairing allowed is a list of exactly one item, where there is no
+// other video the picture could belong to.
 function assignThumbnails(index, groups) {
-  const queue = [...(index?.queue || [])];
+  const list = groups || [];
   const result = new Map();
-  for (const group of groups || []) {
-    result.set(group.key, pickThumbnail(index, group) ?? queue.shift() ?? null);
-  }
+  for (const group of list) result.set(group.key, pickThumbnail(index, group));
+  if (list.length === 1 && !result.get(list[0].key)) result.set(list[0].key, index?.single ?? null);
   return result;
 }
 
@@ -1767,7 +1794,7 @@ if (typeof module !== "undefined") {
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
-    shotImage, buildThumbnailIndex, pickThumbnail, assignThumbnails,
+    shotImage, mediaTokens, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     chipLabel,
     isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,

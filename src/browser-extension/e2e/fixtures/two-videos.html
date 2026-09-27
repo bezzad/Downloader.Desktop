@@ -1,19 +1,16 @@
 <!doctype html>
 <html><body>
-<!-- Regression fixture for the v1.8.0 "every item shows the same photo" bug: a feed-like page with
-     TWO distinct videos, each fetched then played from a blob: URL — exactly how a real MSE-based
-     player's <video src> never matches the network URL that caused it. Both groups must fall through
-     to the leftover-image queue, and each must end up with its OWN captured frame, not the other's. -->
-<video id="a" autoplay muted loop playsinline width="320" height="240"></video>
-<video id="b" autoplay muted loop playsinline width="320" height="240"></video>
+<!-- An x.com-shaped feed: two DIFFERENT videos whose players never name the URL they play (on x.com
+     the <video> plays a blob:), each with a poster that carries the same media id as its file's path.
+     Player A is first on the page and larger; the popup lists B first (it names a quality). Pairing
+     pictures by position — the reported bug — therefore gives each row the OTHER video's poster.
+     The players are deliberately never loaded, so the poster (and its id) is all there is. -->
+<video id="a" width="480" height="270"
+  poster="/amplify_video_thumb/1712345678901234567/img/thumbA.jpg"></video>
+<video id="b" width="320" height="180"
+  poster="/amplify_video_thumb/1798765432109876543/img/thumbB.jpg"></video>
 <script>
-  async function play(id, url) {
-    const blob = await (await fetch(url)).blob();
-    const video = document.getElementById(id);
-    video.src = URL.createObjectURL(blob);
-    await video.play().catch(() => {});
-  }
-  play('a', '/main_video.mp4');
-  play('b', '/videos/alpha_360p.mp4');
+  fetch('/amplify_video/1712345678901234567/vid/main_video.mp4');
+  fetch('/amplify_video/1798765432109876543/vid/videos/alpha_360p.mp4');
 </script>
 </body></html>

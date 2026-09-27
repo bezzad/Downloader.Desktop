@@ -12,7 +12,7 @@ const listCountEl = document.getElementById("listCount");
 
 let rawItems = []; // { url, type, group, capturedAt }
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
-let thumbIndex = { byUrl: new Map(), fallback: null };
+let thumbIndex = { byUrl: new Map(), byToken: new Map(), single: null };
 let currentTabId = null;
 let isUnsupportedHost = false;
 let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
@@ -375,7 +375,7 @@ function render() {
     currentGroups = [pageGroup()];
     selectsByGroup.clear();
     listEl.innerHTML = "";
-    listEl.append(buildCard(currentGroups[0], thumbIndex.fallback));
+    listEl.append(buildCard(currentGroups[0], thumbIndex.single));
     updateCount();
     emptyEl.style.display = "none";
     emptyEl.classList.remove("unsupported", "unknown");
@@ -402,8 +402,7 @@ function render() {
   currentGroups = buildGroups();
   selectsByGroup.clear();
   listEl.innerHTML = "";
-  // Computed ONCE per render, in list order, so each group gets its own image off the shared leftover
-  // queue instead of every card independently picking (and repeating) the same one.
+  // Each row gets the image that provably belongs to it (see assignThumbnails) — never a neighbour's.
   const thumbs = assignThumbnails(thumbIndex, currentGroups);
   for (const g of currentGroups) listEl.append(buildCard(g, thumbs.get(g.key)));
   updateCount();

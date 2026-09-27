@@ -103,8 +103,9 @@
                 </DataGridTemplateColumn>
                 <!-- MinWidth matters once the category sidebar is open: Name is the only star column,
                      so without a floor it absorbs the whole 204px the sidebar takes and the file names
-                     collapse to three characters. Below this the grid scrolls sideways instead. -->
-                <DataGridTemplateColumn Header="{i18n:Tr Col_Name}" Width="*" MinWidth="180"
+                     collapse to three characters. When even the floor does not fit, the view hides the
+                     optional columns (Time left, Queue, Type) rather than let the grid crush the rest. -->
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Name}" Width="*" MinWidth="160"
                                         SortMemberPath="FileName">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
@@ -140,7 +141,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="{i18n:Tr Col_Queue}" Width="120" SortMemberPath="QueueName">
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Queue}" Width="110" SortMemberPath="QueueName">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <TextBlock Text="{Binding QueueName}" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -157,7 +158,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="{i18n:Tr Col_Progress}" Width="170" SortMemberPath="Progress">
+                <DataGridTemplateColumn Header="{i18n:Tr Col_Progress}" Width="150" SortMemberPath="Progress">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="6 0" Spacing="3">
@@ -188,7 +189,9 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="" Width="192">
+                <!-- At most five 28px icon buttons show at once (e.g. a finished row: action, open, folder,
+                     archive, remove). -->
+                <DataGridTemplateColumn Header="" Width="150">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
