@@ -13,7 +13,7 @@ const {
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
-  buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage,
+  buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage, mediaTokens,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
@@ -374,62 +374,111 @@ test("pickThumbnail returns null on an unmatched group — no page-image or othe
 
 test("buildThumbnailIndex tolerates junk shots", () => {
   const index = buildThumbnailIndex([null, {}, { src: 42, frame: "F", area: "x" }], undefined);
-  assert.deepEqual(index.queue, ["F"]);
   assert.equal(index.byUrl.size, 0); // a non-http src is never indexed
+  assert.equal(index.byToken.size, 0);
+  assert.equal(index.single, "F");
 });
 
-// ---------------- assignThumbnails: one distinct image per group, never a repeat ----------------
-// The actual bug report: a feed page with several DIFFERENT videos (all blob: src, so none has an
-// exact URL match) showed the SAME photo on every row — because the old pickThumbnail fell back to
-// one shared "best" image for every group that asked. assignThumbnails hands out the captured images
-// one at a time, in list order, so distinct videos get distinct photos.
+// ---------------- Thumbnails on a feed: match by media id, never by position ----------------
+// The reported bug (x.com, a page with ~10 videos): each row showed ANOTHER video's picture, so the
+// user downloaded the wrong one. The players stream from blob: URLs, so no src ever matches; the
+// previous fix handed the leftover pictures out in list order — pairing the popup's sort order with
+// the page's layout order, which have nothing to do with each other. x.com does name the media in both
+// addresses (the poster and the playlist share the numeric media id), and that is what pairs them now.
 
-test("two distinct unmatched videos on one page get two distinct photos, not the same one", () => {
+const X_A = "1712345678901234567";
+const X_B = "1798765432109876543";
+const xShot = (id, frame, area) => ({
+  src: `blob:https://x.com/${id.slice(-4)}`,
+  poster: `https://pbs.twimg.com/ext_tw_video_thumb/${id}/pu/img/Ab3dEfGh.jpg`,
+  frame, area
+});
+const xMaster = id => group(`https://video.twimg.com/ext_tw_video/${id}/pu/pl/Zq9WxYv8.m3u8?tag=12`);
+
+test("mediaTokens reads x.com's media id out of both the poster and the playlist", () => {
+  assert.deepEqual(mediaTokens(`https://pbs.twimg.com/ext_tw_video_thumb/${X_A}/pu/img/Ab3dEfGh.jpg`), [X_A]);
+  assert.deepEqual(mediaTokens(`https://video.twimg.com/amplify_video/${X_A}/pl/avc1/720x1280/Zq9WxYv8.m3u8`), [X_A]);
+  // A GIF pairs by file stem instead.
+  assert.deepEqual(mediaTokens("https://pbs.twimg.com/tweet_video_thumb/GxYz12abcDE.jpg"), ["GxYz12abcDE"]);
+  assert.deepEqual(mediaTokens("https://video.twimg.com/tweet_video/GxYz12abcDE.mp4"), ["GxYz12abcDE"]);
+  // Nothing an unrelated file could share by accident.
+  assert.deepEqual(mediaTokens("https://c/videos/master.m3u8"), []);
+  assert.deepEqual(mediaTokens("https://c/2024/clip.mp4"), []);
+  assert.deepEqual(mediaTokens("not a url"), []);
+});
+
+test("each x.com row gets its OWN video's picture, whatever order the page lays the players out in", () => {
+  // Player A is first on the page and bigger; the popup lists B first. Pairing by position (the old
+  // queue) gave B's row A's picture — this exact assertion failed on that code.
+  const index = buildThumbnailIndex([xShot(X_A, "FRAME_A", 900), xShot(X_B, "FRAME_B", 400)], "https://x.com/og.jpg");
+  const assigned = assignThumbnails(index, [xMaster(X_B), xMaster(X_A)]);
+  assert.equal(assigned.get(xMaster(X_B).key), "FRAME_B");
+  assert.equal(assigned.get(xMaster(X_A).key), "FRAME_A");
+});
+
+test("a row whose media is not among the page's players gets the placeholder, not a neighbour's picture", () => {
+  const index = buildThumbnailIndex([xShot(X_A, "FRAME_A", 900)], "https://x.com/og.jpg");
+  const assigned = assignThumbnails(index, [xMaster(X_B), xMaster(X_A)]);
+  assert.equal(assigned.get(xMaster(X_B).key), null); // the old queue handed it FRAME_A
+  assert.equal(assigned.get(xMaster(X_A).key), "FRAME_A");
+});
+
+test("the poster still pairs a row when a frame was captured and is the picture shown", () => {
+  // shotImage prefers the frame for DISPLAY; the poster URL must still count as evidence for matching.
+  const index = buildThumbnailIndex([xShot(X_A, "data:image/jpeg;base64,AAA", 100)], null);
+  assert.equal(pickThumbnail(index, xMaster(X_A)), "data:image/jpeg;base64,AAA");
+});
+
+test("a rendition row pairs through the master it will send", () => {
+  const index = buildThumbnailIndex([xShot(X_A, "FRAME_A", 100)], null);
+  const g = { key: "https://c/other.m3u8", kind: "hls",
+    options: [{ url: "https://c/other.m3u8", sendUrl: `https://video.twimg.com/amplify_video/${X_A}/pl/Zq9WxYv8.m3u8` }] };
+  assert.equal(pickThumbnail(index, g), "FRAME_A");
+});
+
+test("a media id two different pictures claim identifies neither", () => {
+  const index = buildThumbnailIndex([xShot(X_A, "FRAME_1", 500), xShot(X_A, "FRAME_2", 400)], null);
+  assert.equal(pickThumbnail(index, xMaster(X_A)), null);
+});
+
+test("unmatched rows on a multi-item list are never paired by guesswork", () => {
   const index = buildThumbnailIndex([
     { src: "blob:https://x.com/1", frame: "PHOTO_A", area: 500 },
     { src: "blob:https://x.com/2", frame: "PHOTO_B", area: 400 }
   ], "https://c/og.jpg");
-  const groups = [group("https://c/videoA.m3u8"), group("https://c/videoB.m3u8")];
-  const assigned = assignThumbnails(index, groups);
-  assert.equal(assigned.get("https://c/videoA.m3u8"), "PHOTO_A"); // largest first
-  assert.equal(assigned.get("https://c/videoB.m3u8"), "PHOTO_B");
-  assert.notEqual(assigned.get("https://c/videoA.m3u8"), assigned.get("https://c/videoB.m3u8"));
+  const assigned = assignThumbnails(index, [group("https://c/videoA.m3u8"), group("https://c/videoB.m3u8")]);
+  assert.equal(assigned.get("https://c/videoA.m3u8"), null);
+  assert.equal(assigned.get("https://c/videoB.m3u8"), null);
 });
 
-test("an exact match is never displaced by the queue", () => {
+test("an exact match is kept alongside unmatched rows", () => {
   const index = buildThumbnailIndex([
     { src: "https://c/known.mp4", frame: "KNOWN_FRAME", area: 10 },
-    { src: "blob:https://x.com/1", frame: "QUEUE_PHOTO", area: 900 }
+    { src: "blob:https://x.com/1", frame: "OTHER_PHOTO", area: 900 }
   ], null);
-  const groups = [group("https://c/known.mp4"), group("https://c/other.m3u8")];
-  const assigned = assignThumbnails(index, groups);
-  assert.equal(assigned.get("https://c/known.mp4"), "KNOWN_FRAME"); // its own image, not the bigger queued one
-  assert.equal(assigned.get("https://c/other.m3u8"), "QUEUE_PHOTO");
+  const assigned = assignThumbnails(index, [group("https://c/known.mp4"), group("https://c/other.m3u8")]);
+  assert.equal(assigned.get("https://c/known.mp4"), "KNOWN_FRAME");
+  assert.equal(assigned.get("https://c/other.m3u8"), null);
 });
 
-test("once the queue runs dry, later groups get null (placeholder), never a repeat", () => {
-  const index = buildThumbnailIndex([{ src: "blob:https://x.com/1", frame: "ONLY_PHOTO", area: 500 }], null);
-  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8"), group("https://c/c.m3u8")];
-  const assigned = assignThumbnails(index, groups);
-  assert.equal(assigned.get("https://c/a.m3u8"), "ONLY_PHOTO");
-  assert.equal(assigned.get("https://c/b.m3u8"), null);
-  assert.equal(assigned.get("https://c/c.m3u8"), null);
-});
-
-test("the page image is used for at most ONE group, never repeated across a feed", () => {
-  const index = buildThumbnailIndex([], "https://c/og.jpg"); // no captured elements at all
-  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8")];
-  const assigned = assignThumbnails(index, groups);
-  assert.equal(assigned.get("https://c/a.m3u8"), "https://c/og.jpg");
-  assert.equal(assigned.get("https://c/b.m3u8"), null); // NOT the same og:image again
+test("a single-item list uses the page's largest player, else its og:image", () => {
+  const withPlayers = buildThumbnailIndex([
+    { src: "blob:https://x.com/1", frame: "SMALL", area: 100 },
+    { src: "blob:https://x.com/2", frame: "BIG", area: 900 }
+  ], "https://c/og.jpg");
+  assert.equal(assignThumbnails(withPlayers, [group("https://c/a.m3u8")]).get("https://c/a.m3u8"), "BIG");
+  const noPlayers = buildThumbnailIndex([], "https://c/og.jpg");
+  assert.equal(assignThumbnails(noPlayers, [group("https://c/a.m3u8")]).get("https://c/a.m3u8"), "https://c/og.jpg");
+  // …and never on a list of two, where the picture could belong to either.
+  const two = assignThumbnails(noPlayers, [group("https://c/a.m3u8"), group("https://c/b.m3u8")]);
+  assert.equal(two.get("https://c/a.m3u8"), null);
+  assert.equal(two.get("https://c/b.m3u8"), null);
 });
 
 test("assignThumbnails is pure — calling it again reproduces the same assignment", () => {
-  const index = buildThumbnailIndex([{ src: "blob:https://x.com/1", frame: "PHOTO", area: 500 }], "https://c/og.jpg");
-  const groups = [group("https://c/a.m3u8"), group("https://c/b.m3u8")];
-  const first = assignThumbnails(index, groups);
-  const second = assignThumbnails(index, groups);
-  assert.deepEqual([...first], [...second]);
+  const index = buildThumbnailIndex([xShot(X_A, "FRAME_A", 500)], "https://c/og.jpg");
+  const groups = [xMaster(X_A), xMaster(X_B)];
+  assert.deepEqual([...assignThumbnails(index, groups)], [...assignThumbnails(index, groups)]);
 });
 
 // ---------------- App port discovery (range fallback) ----------------

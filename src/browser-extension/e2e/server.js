@@ -8,11 +8,11 @@ const path = require("node:path");
 const ROOT = path.join(__dirname, "fixtures");
 const PORT = 8991;
 
-const MIME = { ".html": "text/html", ".m3u8": "application/vnd.apple.mpegurl", ".mp4": "video/mp4", ".ts": "video/mp2t", ".zip": "application/zip" };
+const MIME = { ".html": "text/html", ".m3u8": "application/vnd.apple.mpegurl", ".mp4": "video/mp4", ".ts": "video/mp2t", ".zip": "application/zip", ".jpg": "image/jpeg" };
 
 function start() {
   const server = http.createServer((req, res) => {
-    const urlPath = decodeURIComponent(req.url.split("?")[0]);
+    let urlPath = decodeURIComponent(req.url.split("?")[0]);
 
     // A signed-CDN shaped response: an opaque path with NO file extension, a generic content type,
     // and the real name only in Content-Disposition. This is what GitHub releases, APKPure and
@@ -74,6 +74,14 @@ function start() {
       stream.pipe(res);
       return;
     }
+
+    // x.com-shaped addresses: the playlist/file and the player's poster name the same numeric media
+    // id in their paths (video.twimg.com/amplify_video/<id>/… and pbs.twimg.com/amplify_video_thumb/<id>/…).
+    // That shared id is the only thing tying a blob:-playing <video> to the URL it plays, so the
+    // thumbnail test needs real routes of exactly that shape.
+    const xVideo = /^\/amplify_video\/\d+\/vid\/(.+)$/.exec(urlPath);
+    if (xVideo) urlPath = "/" + xVideo[1];
+    else if (/^\/amplify_video_thumb\/\d+\/img\//.test(urlPath)) urlPath = "/poster.jpg";
 
     // ?stall=1 answers with headers and then NEVER sends a body. That is the one thing a normal
     // static route cannot reproduce: the extension still SNIFFS the response (it only needs the
