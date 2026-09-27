@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,6 +14,8 @@ namespace Downloader.Desktop.Views;
 public partial class DownloadsView : UserControl
 {
     private DataGridColumn _queueColumn;
+    private DataGridColumn _typeColumn;
+    private DataGridColumn _timeLeftColumn;
     private DownloadItemViewModel _dragRow;
     private DataGridRow _sourceRow;
     private DataGridRow _dropRow;
@@ -25,7 +28,10 @@ public partial class DownloadsView : UserControl
     {
         InitializeComponent();
         _queueColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "QueueName");
+        _typeColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "CategoryOrder");
+        _timeLeftColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "TimeLeftText");
         DataContextChanged += (_, _) => HookQueueColumn();
+        Root.SizeChanged += (_, _) => FitColumns();
         // Tri-state sorting (#12): cancel the DataGrid's built-in 2-state sort and let the VM cycle
         // Asc → Desc → None instead (None = master order, where drag-to-reorder works). The header
         // glyph stays right because the grid renders it from the view's SortDescriptions.
@@ -43,13 +49,37 @@ public partial class DownloadsView : UserControl
     {
         if (DataContext is not DownloadsViewModel vm || _queueColumn is null)
             return;
-        _queueColumn.IsVisible = vm.ShowQueue;
+        FitColumns();
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(DownloadsViewModel.ShowQueue))
-                _queueColumn.IsVisible = vm.ShowQueue;
+                FitColumns();
         };
     }
+
+    /// <summary>
+    /// Shows the Queue column only with 2+ queues, and drops Time left, then Queue, then Type when the
+    /// grid is too narrow for every column (the sidebar open on a small window).
+    /// </summary>
+    private void FitColumns()
+    {
+        bool showQueue = DataContext is DownloadsViewModel { ShowQueue: true };
+        if (_queueColumn is not null)
+            _queueColumn.IsVisible = showQueue;
+
+        var optional = new List<DataGridColumn> { _timeLeftColumn, showQueue ? _queueColumn : null, _typeColumn };
+        optional.RemoveAll(c => c is null);
+        if (Root.Bounds.Width <= 0)
+            return;
+
+        double required = Root.Columns.Where(c => c != _queueColumn || showQueue).Sum(WidthOf);
+        int hide = ColumnFit.CountToHide(Root.Bounds.Width, required, optional.Select(WidthOf).ToList());
+        for (int i = 0; i < optional.Count; i++)
+            optional[i].IsVisible = i >= hide;
+    }
+
+    private static double WidthOf(DataGridColumn column) =>
+        column.Width.IsAbsolute ? column.Width.Value : column.MinWidth;
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {

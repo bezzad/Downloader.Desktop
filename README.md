@@ -26,8 +26,8 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 
 <!-- Theme-aware: GitHub shows the dark shot in dark mode, the light shot otherwise. -->
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
-  <img alt="Downloader" src="docs/screenshots/home-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/categories-dark.png">
+  <img alt="Downloader with the category sidebar open" src="docs/screenshots/categories-light.png">
 </picture>
 
 ## Features
@@ -39,6 +39,7 @@ Built with [Avalonia UI](https://avaloniaui.net/) on .NET and powered by the [Do
 - **Queues** — group downloads and control how many run at the same time.
 - **Scheduler** — start and stop a queue automatically at set times (e.g. download overnight).
 - **File-type icons** at a glance — video, audio, image, document, archive, app, disc.
+- **Categories** — open the menu (☰) beside the link box to sort downloads by type — video, audio, documents, archives and more — with live counts. Add your own categories, rename or recolor them, and move a download into any category.
 - **Clear status** — live progress and speed, a friendly reason when something fails, and a details view with per-connection progress.
 - **Light & dark themes** with a modern ocean-blue look.
 - **Desktop notifications** when a download completes or fails (uses your OS's native notifications where available).
