@@ -5,6 +5,9 @@
              xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
              xmlns:m="clr-namespace:Downloader.Desktop.Models"
              xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+             xmlns:v="clr-namespace:Downloader.Desktop.Views"
+             xmlns:conv="clr-namespace:Downloader.Desktop.Converters"
+             xmlns:services="clr-namespace:Downloader.Desktop.Services"
              mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="520"
              x:Class="Downloader.Desktop.Views.SchedulerView"
              x:DataType="vm:SchedulerViewModel">
@@ -49,29 +52,69 @@
                                     </Button>
                                 </Grid>
 
-                                <WrapPanel Orientation="Horizontal">
-                                    <StackPanel Spacing="3" Margin="0 0 18 8">
-                                        <TextBlock Text="{i18n:Tr Sched_Start}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                        <TimePicker SelectedTime="{Binding StartTime}" ClockIdentifier="24HourClock" />
+                                <!-- Centered: the dial (the window at a glance), the exact times, then the
+                                     queue settings. WrapPanel stacks them when the window is narrow. -->
+                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Panel Width="220" Height="220" Margin="0 0 32 8">
+                                        <v:TimeRangeDial StartTime="{Binding StartTime}" StopTime="{Binding StopTime}"
+                                                         TrackBrush="{DynamicResource SystemBaseLowColor}"
+                                                         ArcBrush="{DynamicResource SystemAccentColor}"
+                                                         HandleRingBrush="{DynamicResource SystemRegionColor}"
+                                                         TickBrush="{DynamicResource SystemBaseMediumColor}"
+                                                         ToolTip.Tip="{i18n:Tr Sched_DialTip}" />
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    IsHitTestVisible="False" Spacing="2">
+                                            <TextBlock Text="{Binding RangeText}" FontSize="17" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock FontSize="12" HorizontalAlignment="Center"
+                                                       Foreground="{DynamicResource SystemBaseMediumColor}">
+                                                <TextBlock.Text>
+                                                    <MultiBinding Converter="{x:Static conv:ScheduleWindowConverter.Instance}">
+                                                        <Binding Path="StartTime" />
+                                                        <Binding Path="StopTime" />
+                                                        <Binding Path="Tick" Source="{x:Static services:Localizer.Instance}" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Panel>
+
+                                    <StackPanel Spacing="14" VerticalAlignment="Center" MinWidth="150" Margin="0 0 32 8">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                         Fill="{DynamicResource SystemAccentColor}" />
+                                                <TextBlock Text="{i18n:Tr Sched_Start}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding StartText}" FontSize="20" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="10" Height="10" VerticalAlignment="Center" StrokeThickness="2"
+                                                         Stroke="{DynamicResource SystemAccentColor}" />
+                                                <TextBlock Text="{i18n:Tr Sched_Stop}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding StopText}" FontSize="20" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                        <CheckBox IsChecked="{Binding HasStopTime}" Content="{i18n:Tr Sched_StopAtTime}" />
                                     </StackPanel>
-                                    <StackPanel Spacing="3" Margin="0 0 18 8">
-                                        <TextBlock Text="{i18n:Tr Sched_StopOptional}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                        <TimePicker SelectedTime="{Binding StopTime}" ClockIdentifier="24HourClock" />
-                                    </StackPanel>
-                                    <StackPanel Spacing="3" Margin="0 0 18 8">
-                                        <TextBlock Text="{i18n:Tr Sched_Queue}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                        <ComboBox ItemsSource="{Binding QueueOptions}"
-                                                  SelectedItem="{Binding SelectedQueue}" Width="200">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate x:DataType="m:DownloadQueue">
-                                                    <TextBlock Text="{Binding Name}" />
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                    </StackPanel>
-                                    <StackPanel Spacing="3" Margin="0 0 0 8" VerticalAlignment="Bottom">
-                                        <TextBlock Text="{i18n:Tr Sched_Once}" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                                        <ToggleSwitch IsChecked="{Binding Once}" OffContent="{i18n:Tr Sched_OnceOff}" OnContent="{i18n:Tr Sched_OnceOn}" />
+
+                                    <StackPanel Spacing="14" VerticalAlignment="Center" Margin="0 0 0 8">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{i18n:Tr Sched_Queue}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                            <ComboBox ItemsSource="{Binding QueueOptions}"
+                                                      SelectedItem="{Binding SelectedQueue}" Width="200">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="m:DownloadQueue">
+                                                        <TextBlock Text="{Binding Name}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{i18n:Tr Sched_Once}" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                            <ToggleSwitch IsChecked="{Binding Once}" OffContent="{i18n:Tr Sched_OnceOff}" OnContent="{i18n:Tr Sched_OnceOn}" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </WrapPanel>
                             </StackPanel>

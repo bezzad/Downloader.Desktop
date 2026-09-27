@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
 using Downloader.Desktop.Models;
+using Downloader.Desktop.Views;
 using Downloader.Desktop.Services;
 using ReactiveUI;
 
@@ -41,14 +42,21 @@ public class SchedulerViewModel : ViewModelBase
             Schedules.Add(new ScheduleRowViewModel(s, _config, this));
     }
 
+    /// <summary>Length of the window a new schedule, or a newly switched-on stop time, starts with.</summary>
+    public const int DefaultWindowMinutes = 60;
+
     private void AddSchedule()
     {
+        int start = (DateTime.Now.Hour + 1) * 60;
         var schedule = new DownloadSchedule
         {
             // Numbered ("Schedule 1", "Schedule 2", …), NOT the "New schedule" button label — a new
             // item named like the button confused users about which one is the action (#14).
             Name = NextScheduleName(),
-            StartTime = DateTime.Now.TimeOfDay,
+            // A one-hour window starting at the next whole hour: both handles show on the dial, so it is
+            // obvious there are two times to set, and the new schedule does not fire the moment it exists.
+            StartTime = TimeDial.ToTime(start),
+            StopTime = TimeDial.ToTime(start + DefaultWindowMinutes),
             TargetQueueId = _config.Queues.FirstOrDefault()?.Id,
             Enabled = true
         };
@@ -109,13 +117,46 @@ public class ScheduleRowViewModel : ViewModelBase
     public TimeSpan? StartTime
     {
         get => Schedule.StartTime;
-        set { Schedule.StartTime = value ?? TimeSpan.Zero; this.RaisePropertyChanged(); }
+        set
+        {
+            Schedule.StartTime = value ?? TimeSpan.Zero;
+            this.RaisePropertyChanged();
+            RaiseTimeTexts();
+        }
     }
 
     public TimeSpan? StopTime
     {
         get => Schedule.StopTime;
-        set { Schedule.StopTime = value; this.RaisePropertyChanged(); }
+        set
+        {
+            Schedule.StopTime = value;
+            this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(HasStopTime));
+            RaiseTimeTexts();
+        }
+    }
+
+    /// <summary>The "Stop at a time" switch: turning it on starts with a one-hour window.</summary>
+    public bool HasStopTime
+    {
+        get => StopTime is not null;
+        set
+        {
+            if (value == HasStopTime) return;
+            StopTime = value ? TimeDial.ToTime(TimeDial.ToMinutes(StartTime) + SchedulerViewModel.DefaultWindowMinutes) : null;
+        }
+    }
+
+    public string StartText => TimeDial.Format(TimeDial.ToMinutes(StartTime));
+    public string StopText => StopTime is null ? "—" : TimeDial.Format(TimeDial.ToMinutes(StopTime));
+    public string RangeText => StopTime is null ? StartText : $"{StartText} – {StopText}";
+
+    private void RaiseTimeTexts()
+    {
+        this.RaisePropertyChanged(nameof(StartText));
+        this.RaisePropertyChanged(nameof(StopText));
+        this.RaisePropertyChanged(nameof(RangeText));
     }
 
     public DownloadQueue SelectedQueue

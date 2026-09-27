@@ -2412,3 +2412,18 @@ Check `../Downloader` before instrumenting the app.
   from this IP; dQw4w9WgXcQ works. Reporter logs attached to issues: `curl` the
   `github.com/user-attachments/files/...` link → 302 → curl the signed `objects.githubusercontent.com`
   URL WebFetch reports (the direct curl is blocked by the session proxy, the redirect target is not).
+
+## Scheduler time picker = `Views/TimeRangeDial` (custom-drawn 24 h ring, 2026-09-27)
+- Replaced the two Fluent `TimePicker` spinners. Pure geometry lives in `Views/TimeDial` (midnight at the
+  top, clockwise, 1 min = 1/1440 turn; `MinutesAt`/`PointAt`/`WindowMinutes` wrap past midnight) and is
+  unit-tested exhaustively (`Unit/TimeDialTests` round-trips all 1440 minutes). The control is driven in
+  `UI/TimeRangeDialTests` through real `window.MouseDown/MouseMove/KeyPress` — hosted at 220×220 the
+  center is (110,110) and the ring radius 98.
+- Press moves the NEARER handle; arrows/wheel (wheel only while focused, so page scroll still works) step
+  1 min, Shift 15. Stop is optional: `ScheduleRowViewModel.HasStopTime` (on = start + 2 h). The line under
+  the dial is `Converters/ScheduleWindowConverter`, a MultiBinding that also takes `Localizer.Tick` — so it
+  follows a language switch without the row subscribing to the Localizer singleton (which would leak).
+- **A custom-drawn control is MIRRORED in an RTL window (fa/ar) — including its text.** A clock must not
+  be: `protected override bool BypassFlowDirectionPolicies => true;`. Pinned by
+  `A_right_to_left_window_does_not_mirror_the_clock` (fails without the override). Any future
+  custom-`Render` control with directional meaning needs the same decision.
