@@ -234,6 +234,8 @@ public class MainViewModel : ViewModelBase
     {
         _config = (await _fileService.LoadFromFileAsync()).EnsureValid();
         AppLog.SetEnabled(_config.Settings.EnableLogging);
+        AppLog.WriteHeader(SessionHeader.Build(_config));
+        _settingsSnapshot = SettingsDiff.Snapshot(_config.Settings);
         NotificationService.Enabled = _config.Settings.EnableNotifications;
         Localizer.Instance.Load(_config.Settings.Language);
         ThemeService.Apply(_config); // theme variant + chosen accent
@@ -772,6 +774,7 @@ public class MainViewModel : ViewModelBase
         {
             AppLog.SetEnabled(_config.Settings.EnableLogging);
             NotificationService.Enabled = _config.Settings.EnableNotifications;
+            LogSettingChanges();
         }
 
         _saveSoonTimer.Stop();
@@ -825,8 +828,26 @@ public class MainViewModel : ViewModelBase
         RequestSave();
     }
 
+    private DownloadSettings _settingsSnapshot;
+
+    /// <summary>Logs each setting that changed since the last call (<c>name: old → new</c>), once —
+    /// including changes made by Reset to defaults and by importing settings.</summary>
+    internal void LogSettingChanges()
+    {
+        if (_config?.Settings == null)
+            return;
+        var changes = SettingsDiff.Compute(_settingsSnapshot, _config.Settings);
+        if (changes.Count == 0)
+            return;
+        foreach (var line in changes)
+            AppLog.Info($"Setting changed: {line}");
+        _settingsSnapshot = SettingsDiff.Snapshot(_config.Settings);
+    }
+
     private void Navigate(NavSection section)
     {
+        if (section != _section)
+            AppLog.Info($"UI: page {section} opened");
         _section = section;
         CurrentPage = section switch
         {

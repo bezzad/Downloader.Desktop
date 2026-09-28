@@ -255,6 +255,7 @@ public static class LocalApiService
 
             if (path.Contains("ping", StringComparison.OrdinalIgnoreCase))
             {
+                AppLog.Debug("Local API: ping");
                 // Health check used by the extension to show "connected".
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Close();
@@ -262,6 +263,7 @@ public static class LocalApiService
             }
 
             var url = ExtractUrl(ctx.Request.Url);
+            AppLog.Info("Local API: legacy /add");
             ctx.Response.StatusCode = string.IsNullOrWhiteSpace(url) ? 400 : 200;
             ctx.Response.Close();
 
@@ -278,6 +280,8 @@ public static class LocalApiService
 
     private static async Task HandleApiAsync(HttpListenerContext ctx, string route)
     {
+        // The route name only — never the query: the GET form of /api/add carries a live session.
+        AppLog.Info($"Local API: {ctx.Request.HttpMethod} /api/{route}");
         var manager = Manager;
         var config = Config;
         if (manager == null || config == null)

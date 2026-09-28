@@ -107,6 +107,7 @@ public static class UpdateFlow
         }
 
         _busy = true;
+        AppLog.Info($"Update check started ({(manual ? "by the user" : "automatic")})");
         try
         {
             LastCheckMessage = "Checking for updates…";
@@ -138,6 +139,7 @@ public static class UpdateFlow
             // seen, and nothing downloads behind their back).
             _pending = info;
             LastCheckMessage = $"Downloader {info.Tag} is available.";
+            AppLog.Info($"Update check: {info.Tag} is available");
             Raise(UpdateState.Available, 0);
             if (PromptUpdate is { } prompt)
                 Dispatcher.UIThread.Post(() => prompt(info));
@@ -165,6 +167,7 @@ public static class UpdateFlow
     private static void Report(string title, string detail, bool manual, bool isError)
     {
         LastCheckMessage = string.IsNullOrWhiteSpace(detail) ? title : detail;
+        AppLog.Info($"Update check: {title} — {detail}");
         if (manual)
             NotificationService.Inform(title, detail, isError);
     }

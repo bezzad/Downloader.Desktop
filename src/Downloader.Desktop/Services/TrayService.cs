@@ -66,18 +66,19 @@ public static class TrayService
         var menu = new NativeMenu();
 
         var open = new NativeMenuItem("Open Downloader");
-        open.Click += (_, _) => ShowWindow();
+        open.Click += (_, _) => { AppLog.Info("UI: tray menu \"Open Downloader\""); ShowWindow(); };
 
         _disableNotifItem = new NativeMenuItem(NotifItemHeader());
         _disableNotifItem.Click += (_, _) =>
         {
+            AppLog.Info($"UI: tray menu \"{_disableNotifItem.Header}\"");
             NotificationService.Enabled = !NotificationService.Enabled;
             _disableNotifItem.Header = NotifItemHeader();
             NotificationsToggled?.Invoke(NotificationService.Enabled);
         };
 
         var quit = new NativeMenuItem("Quit Downloader");
-        quit.Click += (_, _) => _onQuit?.Invoke();
+        quit.Click += (_, _) => { AppLog.Info("UI: tray menu \"Quit Downloader\""); _onQuit?.Invoke(); };
 
         menu.Items.Add(open);
         menu.Items.Add(_disableNotifItem);
@@ -90,7 +91,7 @@ public static class TrayService
         // no-op there rather than a conflict — it does NOT swallow the menu. The point is resilience:
         // when the DBus/StatusNotifierItem menu comes up stale/corrupted (the recurring Ubuntu bug),
         // clicking the icon is still a working way back into the app, independent of the menu.
-        _tray.Clicked += (_, _) => ShowWindow();
+        _tray.Clicked += (_, _) => { AppLog.Info("UI: tray icon clicked"); ShowWindow(); };
 
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
     }
