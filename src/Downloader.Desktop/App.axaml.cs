@@ -22,6 +22,7 @@ public partial class App : Application
     {
         AvaloniaXamlLoader.Load(this);
         InstallDispatcherSafetyNet();
+        UiActionLog.Register();
     }
 
     /// <summary>

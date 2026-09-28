@@ -245,6 +245,8 @@ public class SettingViewModel : ViewModelBase
         {
             S.EnableLogging = value;
             AppLog.SetEnabled(value);
+            if (value)
+                AppLog.WriteHeader(SessionHeader.Build(_config));
             this.RaisePropertyChanged();
         }
     }
@@ -794,23 +796,34 @@ public class SettingViewModel : ViewModelBase
         return ImportProblem.None;
     }
 
-    private static async Task ExportLogs()
+    /// <summary>Saves every kept log file (up to <see cref="AppLog.KeepDays"/> days) as one zip, and
+    /// says whether it worked — or that there is nothing to export.</summary>
+    internal static async Task ExportLogs()
     {
-        var source = AppLog.CurrentLogFile;
-        if (!System.IO.File.Exists(source))
+        var title = Localizer.Instance["Btn_ExportLog"].TrimEnd('…', '.');
+        if (AppLog.KeptFiles().Length == 0)
+        {
+            NotificationService.Inform(title, Localizer.Instance["Set_LogExportNothing"], isError: false);
             return;
+        }
 
-        var target = await DialogHelper.SaveFilePicker("Export log file", System.IO.Path.GetFileName(source));
+        var target = await DialogHelper.SaveFilePicker(title, $"downloader-logs-{DateTime.Now:yyyy-MM-dd}.zip");
         if (target == null)
-            return;
+            return; // cancelled — write nothing, say nothing
 
         try
         {
-            System.IO.File.Copy(source, target.LocalPath, overwrite: true);
+            var path = target.LocalPath;
+            if (System.IO.File.Exists(path))
+                System.IO.File.Delete(path);
+            var count = AppLog.ExportZip(path);
+            NotificationService.Inform(title,
+                string.Format(Localizer.Instance["Set_LogExportDone"], count, path), isError: false);
         }
-        catch
+        catch (Exception ex)
         {
-            // best-effort
+            AppLog.Error("Log export failed", ex);
+            NotificationService.Inform(title, ex.Message, isError: true);
         }
     }
 }

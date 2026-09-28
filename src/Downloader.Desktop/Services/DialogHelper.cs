@@ -57,7 +57,12 @@ public static class DialogHelper
             return;
 
         Modals.Add(view);
-        view.Closed += (_, _) => Modals.Remove(view);
+        AppLog.Info($"UI: dialog {view.GetType().Name} opened");
+        view.Closed += (_, _) =>
+        {
+            Modals.Remove(view);
+            AppLog.Info($"UI: dialog {view.GetType().Name} closed");
+        };
     }
 
     /// <summary>Copies text to the system clipboard (best-effort).</summary>
@@ -118,7 +123,9 @@ public static class DialogHelper
 
             // Show as a modal dialog and wait for it to close
             BeginModal(view);
-            return await view.ShowDialog<TResult>(MainWindow);
+            var result = await view.ShowDialog<TResult>(MainWindow);
+            AppLog.Info($"UI: dialog {view.GetType().Name} result: {(result == null ? "cancelled" : "confirmed")}");
+            return result;
         }
 
         return default;
@@ -151,7 +158,9 @@ public static class DialogHelper
         if (MainWindow == null)
             return true;
         var view = new ConfirmView { DataContext = new ConfirmViewModel(title, message) };
+        AppLog.Info("UI: confirmation opened");
         var result = await view.ShowDialog<bool?>(MainWindow);
+        AppLog.Info($"UI: confirmation answered {(result == true ? "yes" : "no")}");
         return result == true;
     }
 

@@ -2461,3 +2461,28 @@ Check `../Downloader` before instrumenting the app.
   mark their own press handled so they never drag.
 - In `CaptureScreenshots`, move focus off the search after the focused shot or every later capture
   (e.g. `home-fa-dark`) shows it wide with no title.
+
+## Detailed logging (`detailed-logging`, 2026-09-28) — how to read a log and how to add a line
+- **Asking the author for a log**: Settings → Logging → turn on "Write a log file", reproduce, then
+  **Export log…** → attach the saved `.zip` (every kept day, up to 7) to the chat or the issue. Files live
+  in `<AppData>/Downloader/logs/downloader-yyyy-MM-dd.log`; older than `AppLog.KeepDays` are pruned on
+  the first write of each day.
+- **What a log holds**: a `===== Session start =====` header (version, OS, runtime, language, theme, every
+  setting masked), `UI: click "<label>" (<Type>) #name in <View> on "<file>"` for every Button / MenuItem /
+  toggle (one place: `Services/UiActionLog`, class handlers registered in `App.Initialize`),
+  `UI: page X opened`, `UI: dialog X opened/closed/result`, tray lines, `Setting changed: name: old → new`
+  (`SettingsDiff`, diffed in `MainViewModel.LogSettingChanges` on each debounced settings save — so Reset
+  and Import are covered), the download lifecycle (Added/Resume/Paused/Stopped/Retry/Archived/Removed,
+  queue decisions `Queue "x": starting … (n/cap slots)`), plugin calls with ms, update checks and
+  `Local API: GET /api/<route>`. Errors carry `ex.ToString()` (full stack). No progress ticks, ever.
+- **Rule for NEW log lines**: a URL goes through `LogText.Url(...)` (scheme+host+port+path only); a proxy
+  through `LogText.MaskUserInfo`; never log cookies, headers, the request query, or typed text. A row is
+  named by `DownloadManager.Who(vm)` (file name, else the sanitised link).
+- **One held `StreamWriter`** (`FileShare.ReadWrite|Delete`, AutoFlush) — so a reader must open the file
+  with sharing on too (Windows refuses a plain `File.ReadAllText` while it is open). Tests use
+  `TestSupport/LogScope` (temp folder + on/off, restores both); it is process-wide, so never touch
+  `AppLog.LogFolder` without it.
+- **Test trap**: a `MainViewModel` built under `[AvaloniaFact]` runs its init inline and applies the
+  loaded config's `EnableLogging` — a stub returning `Config.New()` switches the logger OFF mid-test.
+- Headless clicks: `window.KeyPress` alone does not click a Button — Space clicks on key-UP, so send
+  `KeyRelease` too. A `ReactiveCommand.Execute(null)` needs `Dispatcher.UIThread.RunJobs()` after it.

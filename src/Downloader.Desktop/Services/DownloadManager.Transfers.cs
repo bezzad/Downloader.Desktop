@@ -78,7 +78,7 @@ public partial class DownloadManager
             {
                 vm.ErrorMessage = Describe(ex);
                 vm.Status = DownloadStatus.Failed;
-                AppLog.Error($"Transfer failed: {url}", ex);
+                AppLog.Error($"Transfer failed: {LogText.Url(url)}", ex);
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? url, vm.ErrorMessage);
                 FinishTerminal(vm);
