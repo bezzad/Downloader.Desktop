@@ -83,7 +83,19 @@ public static class TrayService
         menu.Items.Add(open);
         menu.Items.Add(_disableNotifItem);
         menu.Items.Add(quit);
-        _tray.Menu = menu;
+
+        // On-device diagnosis (tray-popup-menu, step 1): with DLDESKTOP_TRAY_DIAG set, log when the
+        // native menu opens/closes and on which thread each event arrives; "nomenu" also leaves the menu
+        // off, to learn whether the shell then reports clicks to us at all.
+        var diag = ParseDiag(Environment.GetEnvironmentVariable(DiagVariable));
+        if (diag != TrayDiag.None)
+        {
+            AppLog.Info($"TRAY-DIAG: mode={diag}, os={Environment.OSVersion}, desktop={Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP")}, session={Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")}");
+            menu.Opening += (_, _) => AppLog.Info($"TRAY-DIAG: native menu opening (thread {Environment.CurrentManagedThreadId})");
+            menu.Closed += (_, _) => AppLog.Info($"TRAY-DIAG: native menu closed (thread {Environment.CurrentManagedThreadId})");
+        }
+        if (diag != TrayDiag.NoMenu)
+            _tray.Menu = menu;
 
         // Open the main window when the icon is activated (left-click on backends that raise Activate,
         // e.g. KDE/KStatusNotifierItem and libappindicator secondary-activate). On Ubuntu GNOME the
@@ -91,7 +103,7 @@ public static class TrayService
         // no-op there rather than a conflict — it does NOT swallow the menu. The point is resilience:
         // when the DBus/StatusNotifierItem menu comes up stale/corrupted (the recurring Ubuntu bug),
         // clicking the icon is still a working way back into the app, independent of the menu.
-        _tray.Clicked += (_, _) => { AppLog.Info("UI: tray icon clicked"); ShowWindow(); };
+        _tray.Clicked += (_, _) => { AppLog.Info($"UI: tray icon clicked (thread {Environment.CurrentManagedThreadId})"); ShowWindow(); };
 
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
     }
@@ -115,6 +127,19 @@ public static class TrayService
 
     private static string NotifItemHeader() =>
         NotificationService.Enabled ? "Disable notifications" : "Enable notifications";
+
+    /// <summary>Environment variable that switches on the tray diagnosis (see <see cref="ParseDiag"/>).</summary>
+    internal const string DiagVariable = "DLDESKTOP_TRAY_DIAG";
+
+    internal enum TrayDiag { None, Log, NoMenu }
+
+    /// <summary>Unset/empty/"0" = off; "nomenu" = log and attach no native menu; anything else = log.</summary>
+    internal static TrayDiag ParseDiag(string value) => value?.Trim().ToLowerInvariant() switch
+    {
+        null or "" or "0" => TrayDiag.None,
+        "nomenu" => TrayDiag.NoMenu,
+        _ => TrayDiag.Log
+    };
 
     /// <summary>Tray icons must be SMALL. Public for testing only — see <see cref="TraySize"/>.</summary>
     internal static readonly PixelSize TraySize = new(64, 64);
