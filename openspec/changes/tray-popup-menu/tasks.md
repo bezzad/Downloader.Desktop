@@ -1,7 +1,7 @@
 ## 1. On-device diagnosis (BLOCKS the rest — needs the author's Ubuntu machine)
 
 - [ ] 1.1 Add a diagnostic switch (`DLDESKTOP_TRAY_DIAG=1`): log every tray event (`Clicked`, menu opening, item clicks) with its thread; `DLDESKTOP_TRAY_DIAG=nomenu` also skips attaching the `NativeMenu`
-- [ ] 1.2 Write the exact steps for the author (dev-run.sh with logging on; left + right click in both variants; `dbus-monitor "interface='org.kde.StatusNotifierItem'"`; which log file to send)
+- [ ] 1.2 Write the exact steps for the author (dev-run.sh with logging on; left + right click in both variants; `dbus-monitor "interface='org.kde.StatusNotifierItem'"`; send the zip from Settings → Logging → Export log). Build `detailed-logging` first so the tray events land in that log.
 - [ ] 1.3 AUTHOR: run the steps and send the log + dbus output
 - [ ] 1.4 Record the findings in design.md (decision 1 outcome) and in the skill file; pick the Linux path from them
 
