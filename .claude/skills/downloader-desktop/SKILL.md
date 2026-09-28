@@ -2447,3 +2447,17 @@ Check `../Downloader` before instrumenting the app.
 - e2e: `fixtures/two-videos.html` + `server.js` routes `/amplify_video/<id>/vid/<file>` and
   `/amplify_video_thumb/<id>/img/*` (→ `poster.jpg`); unloaded players, so the poster is the only
   evidence and the row's `img[src]` names whose it is. Verified it fails on the old code.
+
+## Title bar holds search + app buttons (`titlebar-search`, 2026-09-28)
+- `TitleBar` has `CenterTitle` + `RightContent` (only MainWindow sets them; dialogs unchanged). The
+  centered title spans the whole bar and hides via `TitleFits(bar, title, left, right)` (pure) when the
+  right side would touch it — toggled with **Opacity, not IsVisible**: a hidden control is not measured,
+  so its width reads 0 and the check could never turn it back on.
+- Search box grow = `TextBox.search` style 200 → 280 on `:focus-within` or `.hasText`
+  (`Classes.hasText` bound via `StringConverters.IsNotNullOrEmpty`) + a `DoubleTransition` on Width.
+  In tests set `box.Transitions = null` to read the target width. At the default 1000 px width a
+  focused search hides the title (by design).
+- `TitleBar.DragStarted` (internal) is the test seam for "press starts a window drag"; TextBox/Button
+  mark their own press handled so they never drag.
+- In `CaptureScreenshots`, move focus off the search after the focused shot or every later capture
+  (e.g. `home-fa-dark`) shows it wide with no title.

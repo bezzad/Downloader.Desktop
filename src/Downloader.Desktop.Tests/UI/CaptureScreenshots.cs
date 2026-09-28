@@ -171,6 +171,15 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "home-light.png");
 
+        // Title-bar search while focused: the box widens (transition off so the frame shows the end width).
+        var search = window.GetVisualDescendants().OfType<Avalonia.Controls.TextBox>().First(t => t.Name == "SearchBox");
+        search.Transitions = null;
+        search.Focus();
+        Save(window, "home-search-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        Save(window, "home-search-dark.png");
+        grid?.Focus(); // move focus off the search box so later shots show it at rest
+
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
         // Management pages open IN the main window now (toolbar nav swaps the central content).

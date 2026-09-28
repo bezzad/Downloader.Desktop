@@ -31,25 +31,37 @@
         </Style>
     </UserControl.Styles>
 
-    <!-- The whole bar is the drag region; double-tap toggles maximize -->
-    <Grid ColumnDefinitions="Auto,*,Auto" Height="42" Margin="1"
+    <!-- The whole bar is the drag region; double-tap toggles maximize. Controls placed in
+         RightContent (TextBox, Buttons) mark their own press handled, so they never start a drag. -->
+    <Grid x:Name="Bar" ColumnDefinitions="Auto,*,Auto,Auto" Height="42" Margin="1"
           Background="{DynamicResource SystemChromeLowColor}"
           PointerPressed="OnDrag" DoubleTapped="OnToggleMaximize">
 
         <!-- Icon + title live in the star column and the title ellipsizes, so a long title (e.g.
              a file name in the details window) can never push the caption buttons off-window.
              A horizontal StackPanel would give the text unbounded width — keep this a Grid. -->
-        <Grid Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*"
-              Margin="10 0 8 0" VerticalAlignment="Center">
+        <Grid x:Name="Left" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*"
+              Margin="10 0 8 0" VerticalAlignment="Center" HorizontalAlignment="Left">
             <Image Source="/Assets/downloader.png" Width="26" Height="26" VerticalAlignment="Center"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
             <TextBlock Grid.Column="1" Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold"
                        FontSize="15" VerticalAlignment="Center" Margin="10 0 0 0"
                        TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                       IsVisible="{Binding !CenterTitle, ElementName=Root}"
                        ToolTip.Tip="{Binding Title, ElementName=Root}" />
         </Grid>
 
-        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+        <!-- Centered across the WHOLE bar (not the leftover space); hidden when it would touch
+             the right-side content (see TitleFits). -->
+        <TextBlock x:Name="CenteredTitle" Grid.Column="0" Grid.ColumnSpan="4"
+                   Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold" FontSize="15"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap"
+                   IsHitTestVisible="False" Opacity="0" />
+
+        <ContentPresenter x:Name="Right" Grid.Column="2" VerticalAlignment="Center" Margin="0 0 6 0"
+                          Content="{Binding RightContent, ElementName=Root}" />
+
+        <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Classes="caption" Click="OnMinimize" IsVisible="{Binding ShowMinMax, ElementName=Root}"
                     ToolTip.Tip="Minimize">
                 <Path Data="M 0,0 H 11" />
