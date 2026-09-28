@@ -309,6 +309,14 @@ Rough order to turn the current skeleton into the MVP above:
      not offered, an HLS-only YouTube answer is re-extracted (no session, then other clients), and the
      message no longer tells users to install a plugin they have. SiteMedia **1.4.3**.
 
+22. ✅ **Sidebar: Categories + Queues sections (`sidebar-queues-sections`)** (DONE, 2026-09-28):
+   - The sidebar is **on by default** (schema v3 shows it once to users who had it hidden) and has two
+     collapsible sections: **Categories** (All + categories + Add) and **Queues** (each queue + count).
+   - Clicking a queue filters the list to it; **one selection** across both sections (a queue clears the
+     category, a category clears the queue, All clears both). The selected row has an **accent bar** on
+     its start edge (follows the accent picker, mirrors in RTL).
+   - Categories can be **dragged by a hover grip** to reorder (`CategoryService.MoveTo`); queues cannot.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

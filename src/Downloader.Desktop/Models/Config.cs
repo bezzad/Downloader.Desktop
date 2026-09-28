@@ -11,7 +11,7 @@ namespace Downloader.Desktop.Models;
 public class Config
 {
     /// <summary>Bumped when a load-time migration is added; see <see cref="EnsureValid"/>.</summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>Config format version for one-time migrations. 0 = written before the field existed.</summary>
     public int SchemaVersion { get; set; }
@@ -23,8 +23,8 @@ public class Config
     /// <summary>File-type categories in the user's order. Seeded with the built-ins on first run
     /// and on upgrade; see <see cref="Services.CategoryService"/>.</summary>
     public List<DownloadCategory> Categories { get; set; }
-    /// <summary>Whether the downloads page shows the category sidebar. Off until the user opens it.</summary>
-    public bool IsCategorySidebarOpen { get; set; }
+    /// <summary>Whether the downloads page shows the sidebar (categories + queues). On by default.</summary>
+    public bool IsCategorySidebarOpen { get; set; } = true;
     /// <summary>Ids of plugins the user turned OFF (so they stay disabled across restarts).</summary>
     public List<string> DisabledPlugins { get; set; }
     public bool IsThemeDarkMode { get; set; }
@@ -128,6 +128,11 @@ public class Config
         // user sets afterwards is versioned as v1 and never touched again.
         if (SchemaVersion < 1)
             Settings.EnableBrowserIntegration = true;
+
+        // v2 → v3: the sidebar (now categories + queues) became on-by-default. Show it ONCE to users
+        // who had it hidden; a choice saved after this is v3 and kept.
+        if (SchemaVersion < 3)
+            IsCategorySidebarOpen = true;
 
         SchemaVersion = CurrentSchemaVersion;
         return this;

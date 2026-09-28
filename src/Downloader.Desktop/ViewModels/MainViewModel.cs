@@ -59,6 +59,8 @@ public class MainViewModel : ViewModelBase
         ToggleCategorySidebarCommand = ReactiveCommand.Create(() => IsCategorySidebarOpen = !IsCategorySidebarOpen);
         AddCategoryCommand = ReactiveCommand.CreateFromTask(AddCategoryAsync);
         ClearFiltersCommand = ReactiveCommand.Create(ClearFilters);
+        ToggleCategoriesSectionCommand = ReactiveCommand.Create(() => IsCategoriesExpanded = !IsCategoriesExpanded);
+        ToggleQueuesSectionCommand = ReactiveCommand.Create(() => IsQueuesExpanded = !IsQueuesExpanded);
         ShowAboutCommand = ReactiveCommand.CreateFromTask(DialogHelper.ShowAbout);
         // In-app Donate modal — opening a browser page gave no visible feedback ("it sound like
         // do nothing"); the modal shows the channels right in the app (USDT copies in-app).
@@ -119,8 +121,8 @@ public class MainViewModel : ViewModelBase
     private void OnUpdateStateChanged() => this.RaisePropertyChanged(nameof(IsUpdateReady));
 
     /// <summary>
-    /// Whether the category sidebar is showing. Off on first run — it is an extra, not the way the
-    /// app works — and remembered across restarts once the user opens it.
+    /// Whether the sidebar (categories + queues) is showing. On by default and remembered across
+    /// restarts once the user closes or opens it.
     /// </summary>
     public bool IsCategorySidebarOpen
     {
@@ -142,6 +144,45 @@ public class MainViewModel : ViewModelBase
         }
     }
 
+    private bool _isCategoriesExpanded = true;
+    private bool _isQueuesExpanded = true;
+
+    /// <summary>Whether the sidebar's Categories section is open. Not persisted.</summary>
+    public bool IsCategoriesExpanded
+    {
+        get => _isCategoriesExpanded;
+        set => this.RaiseAndSetIfChanged(ref _isCategoriesExpanded, value);
+    }
+
+    /// <summary>Whether the sidebar's Queues section is open. Not persisted.</summary>
+    public bool IsQueuesExpanded
+    {
+        get => _isQueuesExpanded;
+        set => this.RaiseAndSetIfChanged(ref _isQueuesExpanded, value);
+    }
+
+    public ICommand ToggleCategoriesSectionCommand { get; }
+    public ICommand ToggleQueuesSectionCommand { get; }
+
+    /// <summary>The sidebar's Queues section: every queue in the configured order.</summary>
+    public ObservableCollection<SidebarQueueRowViewModel> QueueRows { get; } = new();
+
+    /// <summary>Id of the queue the list is narrowed to, or null. Exclusive with
+    /// <see cref="SelectedCategoryId"/>: picking one clears the other.</summary>
+    public string SelectedQueueId
+    {
+        get => Downloads?.QueueFilter;
+        set
+        {
+            if (Downloads is null || Downloads.QueueFilter == value)
+                return;
+
+            Downloads.CategoryFilter = null;
+            Downloads.QueueFilter = value;
+            ApplySidebarSelection();
+        }
+    }
+
     /// <summary>The sidebar's rows: "All", then every category in the user's order.</summary>
     public ObservableCollection<CategoryRowViewModel> CategoryRows { get; } = new();
 
@@ -151,14 +192,12 @@ public class MainViewModel : ViewModelBase
         get => Downloads?.CategoryFilter;
         set
         {
-            if (Downloads is null || Downloads.CategoryFilter == value)
+            if (Downloads is null || (Downloads.CategoryFilter == value && Downloads.QueueFilter is null))
                 return;
 
+            Downloads.QueueFilter = null;
             Downloads.CategoryFilter = value;
-            foreach (var row in CategoryRows)
-                row.IsSelected = row.Id == value;
-            this.RaisePropertyChanged();
-            RefreshCategoryCounts();
+            ApplySidebarSelection();
         }
     }
 
@@ -279,6 +318,8 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsCategorySidebarOpen));
         RebuildCategoryRows();
         _downloadManager.Categories.Changed += () => Dispatcher.UIThread.Post(RebuildCategoryRows);
+        RebuildQueueRows();
+        _downloadManager.QueuesChanged += () => Dispatcher.UIThread.Post(RebuildQueueRows);
 
         Navigate(NavSection.Downloads);
         OnStatsChanged();
@@ -888,25 +929,55 @@ public class MainViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(chosen) && _downloadManager.Categories.ById(chosen) is null)
             chosen = null;
 
-        foreach (var row in CategoryRows)
-            row.IsSelected = row.Id == chosen;
         if (Downloads != null)
             Downloads.CategoryFilter = chosen;
 
+        ApplySidebarSelection();
+    }
+
+    /// <summary>Rebuilds the Queues section (after a queue is added, renamed or removed). A selected
+    /// queue that no longer exists falls back to "All".</summary>
+    private void RebuildQueueRows()
+    {
+        QueueRows.Clear();
+        foreach (var queue in _downloadManager.Queues)
+            QueueRows.Add(new SidebarQueueRowViewModel(queue, id => SelectedQueueId = id));
+
+        if (Downloads != null && !string.IsNullOrWhiteSpace(Downloads.QueueFilter) &&
+            _downloadManager.Queues.All(q => q.Id != Downloads.QueueFilter))
+            Downloads.QueueFilter = null;
+
+        ApplySidebarSelection();
+    }
+
+    /// <summary>Marks the one selected sidebar row (a queue, a category, or "All" when neither) and
+    /// refreshes the counts. The single place row selection is derived from the two filters.</summary>
+    private void ApplySidebarSelection()
+    {
+        var queue = Downloads?.QueueFilter;
+        var category = Downloads?.CategoryFilter;
+        foreach (var row in QueueRows)
+            row.IsSelected = queue != null && row.Id == queue;
+        foreach (var row in CategoryRows)
+            row.IsSelected = queue == null && row.Id == category;
+
         this.RaisePropertyChanged(nameof(SelectedCategoryId));
+        this.RaisePropertyChanged(nameof(SelectedQueueId));
         RefreshCategoryCounts();
     }
 
-    /// <summary>Recomputes each row's count under everything EXCEPT the category filter, so each
+    /// <summary>Recomputes each row's count under everything EXCEPT the sidebar filter, so each
     /// number is exactly what clicking that row would show.</summary>
     private void RefreshCategoryCounts()
     {
-        if (Downloads is null || CategoryRows.Count == 0)
+        if (Downloads is null)
             return;
 
-        var visible = _downloadManager.Items.Where(Downloads.MatchesExceptCategory).ToList();
+        var visible = _downloadManager.Items.Where(Downloads.MatchesExceptSidebar).ToList();
         foreach (var row in CategoryRows)
             row.Count = row.IsAll ? visible.Count : visible.Count(i => i.Category?.Id == row.Id);
+        foreach (var row in QueueRows)
+            row.Count = visible.Count(i => i.GetItem().QueueId == row.Id);
     }
 
     private void SelectCategory(string categoryId) => SelectedCategoryId = categoryId;
@@ -919,6 +990,13 @@ public class MainViewModel : ViewModelBase
         // The service renumbers and announces the change; the rebuild rides on that.
         _downloadManager.Categories.Move(row.Id, delta);
         RequestSave();
+    }
+
+    /// <summary>Drops a dragged category at <paramref name="index"/> in the category list.</summary>
+    internal void MoveCategoryTo(string id, int index)
+    {
+        if (_downloadManager.Categories.MoveTo(id, index))
+            RequestSave();
     }
 
     private async Task AddCategoryAsync() => await EditCategoryAsync(null);
@@ -966,12 +1044,9 @@ public class MainViewModel : ViewModelBase
         // Assigned to the field, not through the property: the setter would push it back into
         // Downloads.Search, which has just been cleared.
         _searchText = null;
-        foreach (var row in CategoryRows)
-            row.IsSelected = row.IsAll;
-        this.RaisePropertyChanged(nameof(SelectedCategoryId));
         this.RaisePropertyChanged(nameof(SearchText));
         RaiseNavFlags();
-        RefreshCategoryCounts();
+        ApplySidebarSelection();
     }
 
     private void RaiseNavFlags()

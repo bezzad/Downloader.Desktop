@@ -23,6 +23,7 @@ public class DownloadsViewModel : ViewModelBase
     private readonly IDownloadManager _manager;
     private StatusFilter _filter = StatusFilter.All;
     private string _categoryFilter;
+    private string _queueFilter;
     private string _search;
 
     /// <summary>The shared config instance, for callers that need it (e.g. the Details dialog's persisted size).</summary>
@@ -263,10 +264,30 @@ public class DownloadsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Id of the queue the list is narrowed to, or null for every queue. The sidebar keeps this and
+    /// <see cref="CategoryFilter"/> exclusive; both AND with the status filter and the search box.
+    /// </summary>
+    public string QueueFilter
+    {
+        get => _queueFilter;
+        set
+        {
+            if (_queueFilter == value)
+                return;
+
+            _queueFilter = value;
+            this.RaisePropertyChanged();
+            this.RaisePropertyChanged(nameof(HasFilter));
+            Refresh();
+        }
+    }
+
     /// <summary>True while anything is hiding rows. The toolbar states how many downloads are
     /// selected only while this is true — with nothing hidden, the checkboxes say it already.</summary>
     public bool HasFilter =>
         !string.IsNullOrWhiteSpace(_categoryFilter) ||
+        !string.IsNullOrWhiteSpace(_queueFilter) ||
         _filter != StatusFilter.All ||
         !string.IsNullOrWhiteSpace(_search);
 
@@ -286,9 +307,11 @@ public class DownloadsViewModel : ViewModelBase
     public void ClearFilters()
     {
         _categoryFilter = null;
+        _queueFilter = null;
         _filter = StatusFilter.All;
         _search = null;
         this.RaisePropertyChanged(nameof(CategoryFilter));
+        this.RaisePropertyChanged(nameof(QueueFilter));
         this.RaisePropertyChanged(nameof(Filter));
         this.RaisePropertyChanged(nameof(Search));
         this.RaisePropertyChanged(nameof(HasFilter));
@@ -366,10 +389,10 @@ public class DownloadsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Everything the list is filtered by EXCEPT the category. The sidebar's per-category counts are
-    /// taken over this, so each number states exactly how many rows clicking that category will show.
+    /// Everything the list is filtered by EXCEPT the sidebar (category and queue). The sidebar's counts
+    /// are taken over this, so each number states exactly how many rows clicking that row will show.
     /// </summary>
-    public bool MatchesExceptCategory(DownloadItemViewModel vm) => vm != null && PassesSearchAndStatus(vm);
+    public bool MatchesExceptSidebar(DownloadItemViewModel vm) => vm != null && PassesSearchAndStatus(vm);
 
     private bool Matches(object o)
     {
@@ -380,6 +403,9 @@ public class DownloadsViewModel : ViewModelBase
         // row whatever its state — running, queued, paused, failed or completed — not only finished
         // ones. Null means "every category" and leaves the other two filters alone.
         if (!string.IsNullOrWhiteSpace(_categoryFilter) && vm.Category?.Id != _categoryFilter)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(_queueFilter) && vm.GetItem().QueueId != _queueFilter)
             return false;
 
         return PassesSearchAndStatus(vm);

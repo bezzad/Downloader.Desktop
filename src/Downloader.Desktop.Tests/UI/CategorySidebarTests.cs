@@ -65,6 +65,7 @@ public class CategorySidebarTests
     public void An_open_sidebar_is_still_open_next_launch()
     {
         var config = NewConfig();
+        config.IsCategorySidebarOpen = false;
         var (main, _) = Build(config);
         Assert.False(main.IsCategorySidebarOpen);
 

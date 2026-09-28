@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
@@ -258,14 +259,38 @@ public class CaptureScreenshots
 
         vm.ShowDownloadsCommand.Execute(null);
 
-        // The category sidebar (off by default, so it needs opening) — this is the shot that shows the
-        // new Type column beside it.
+        // The sidebar (on by default) — this is the shot that shows the Type column beside it.
         vm.IsCategorySidebarOpen = true;
         Pump();
         Save(window, "categories-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "categories-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // A selected queue in the sidebar's Queues section: the accent bar on its start edge.
+        vm.QueueRows.Last().SelectCommand.Execute(null);
+        var sidebarScroll = window.FindControl<ItemsControl>("CategoryList")!.FindAncestorOfType<ScrollViewer>()!;
+        Pump();
+        sidebarScroll.ScrollToEnd();
+        Pump();
+        Save(window, "sidebar-queue-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-queue-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        vm.CategoryRows[0].SelectCommand.Execute(null);
+        sidebarScroll.ScrollToHome();
+
+        // A hovered category row shows its six-dot drag handle.
+        var hovered = window.FindControl<Avalonia.Controls.ItemsControl>("CategoryList")!
+            .GetVisualDescendants().OfType<Avalonia.Controls.Button>().Where(b => b.Classes.Contains("cat")).ElementAt(2);
+        window.MouseMove(hovered.TranslatePoint(new Point(hovered.Bounds.Width / 2, hovered.Bounds.Height / 2), window)!.Value);
+        Pump();
+        Save(window, "sidebar-grip-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-grip-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        window.MouseMove(new Point(0, 0));
+        Pump();
 
         // Persian (RTL) home to verify translation + right-to-left mirroring — captured with the
         // sidebar OPEN, since mirroring a column of its own is the part worth looking at.
