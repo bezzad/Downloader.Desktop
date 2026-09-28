@@ -46,6 +46,21 @@ public class TrayServiceTests
         }
     }
 
+    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData(null, "None")]
+    [InlineData("", "None")]
+    [InlineData("0", "None")]
+    [InlineData("1", "Log")]
+    [InlineData("yes", "Log")]
+    [InlineData("nomenu", "NoMenu")]
+    [InlineData(" NoMenu ", "NoMenu")]
+    public void The_tray_diagnosis_switch_is_read_from_its_environment_value(string? value, string expected)
+    {
+        // The on-device diagnosis the author runs on Ubuntu depends on these exact spellings; "nomenu" is
+        // the variant that leaves the native menu off to see whether the shell reports clicks at all.
+        Assert.Equal(expected, TrayService.ParseDiag(value).ToString());
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Tray_icon_bitmap_is_downscaled_to_64x64_not_the_full_size_app_icon()
     {
