@@ -74,13 +74,13 @@ search box SHALL apply within the archived view.
 - **THEN** the archived list is narrowed to the archived downloads matching the search
 
 ### Requirement: Archive and Restore are reachable per row and in bulk
-Each download row SHALL offer an Archive action in its action strip, shown as Restore while the
+Each download row's right-click menu SHALL offer an Archive action, shown as Restore while the
 archived view is active. The toolbar SHALL offer an Archive button next to Remove, enabled by the
 current selection in the same way as Start, Pause and Stop. While the Archived filter is active the
 toolbar's download actions SHALL be Restore and Remove only.
 
-#### Scenario: Row action archives a single download
-- **WHEN** the user clicks the Archive icon on a download row
+#### Scenario: Row menu archives a single download
+- **WHEN** the user right-clicks a download row and chooses Archive
 - **THEN** that download is archived and leaves the list
 
 #### Scenario: Toolbar archives the selected downloads

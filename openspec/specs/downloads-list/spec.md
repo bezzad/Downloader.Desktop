@@ -58,32 +58,6 @@ Clicking a sortable column header SHALL cycle its sort through Ascending, Descen
 - **WHEN** a column sort is active and the user begins dragging a row to reorder it
 - **THEN** the sort is cleared to None, the visible order is preserved, and the drop reorders the item in master order (which persists)
 
-### Requirement: A Type column shows each download's category
-The downloads grid SHALL carry a Type column, placed immediately before the Name column, showing the
-download's category icon in the category's color. Hovering the icon SHALL name the category. The
-column SHALL be sortable, ordering rows by the user's category order rather than alphabetically.
-
-#### Scenario: The column shows the category icon
-- **WHEN** the downloads grid lists a `.mp4` download in the Video category
-- **THEN** the Type cell for that row shows the Video category's icon in its color
-
-#### Scenario: Hovering names the category
-- **WHEN** the user hovers the pointer over a Type cell
-- **THEN** a tooltip names that download's category
-
-#### Scenario: Sorting by type follows the user's category order
-- **WHEN** the user sorts ascending on the Type column
-- **THEN** rows are ordered by their category's position in the user's category list
-
-#### Scenario: The Type column sits before Name
-- **WHEN** the downloads grid is shown
-- **THEN** the Type column appears immediately before the Name column
-
-#### Scenario: The Name cell no longer repeats the type icon
-- **WHEN** the downloads grid is shown
-- **THEN** the Name cell shows the file name without a type icon, because the icon now lives in the
-  adjacent Type column
-
 ### Requirement: Select-all checkbox aligns over the row checkboxes
 The header select-all checkbox SHALL be horizontally aligned with the per-row selection checkboxes so
 the selection column reads as a single aligned column. The checkbox SHALL act only on the rows
@@ -150,3 +124,23 @@ that works on "the selected downloads" SHALL act on exactly the checked rows.
 #### Scenario: A filtered-out row is unselected
 - **WHEN** rows A and B are selected and a filter hides row B
 - **THEN** only row A is selected, and clearing the filter shows row B unchecked
+
+### Requirement: The Name cell shows the download's type icon
+The Name cell SHALL show the download's category icon, in the category's color, immediately before
+the file name on the same line. Hovering the icon SHALL name the category.
+
+#### Scenario: Icon before the name
+- **WHEN** the grid lists a `.mp4` download in the Video category
+- **THEN** its Name cell shows the Video icon in the Video color, then the file name
+
+#### Scenario: Hovering names the category
+- **WHEN** the user hovers the icon in a Name cell
+- **THEN** a tooltip names that download's category
+
+### Requirement: Download rows carry no action buttons
+Download rows SHALL NOT show per-row action buttons. Row actions SHALL be reached through the row's
+right-click menu, the toolbar, and double-click (which opens the Details window).
+
+#### Scenario: No action strip
+- **WHEN** the downloads grid is shown
+- **THEN** no row shows pause, resume, stop, open, folder, archive or remove buttons

@@ -106,8 +106,8 @@ and SHALL be paired with a user-chosen color. A category SHALL NOT reference an 
 
 #### Scenario: Picking an icon and a color
 - **WHEN** the user picks an icon and a color for a category
-- **THEN** that icon in that color is shown for the category in the sidebar and in the grid's Type
-  column
+- **THEN** that icon in that color is shown for the category in the sidebar and beside the file name
+  of each of its downloads in the grid
 
 #### Scenario: An unrecognized icon key degrades safely
 - **WHEN** a category carries an icon key this version of the app does not recognize
