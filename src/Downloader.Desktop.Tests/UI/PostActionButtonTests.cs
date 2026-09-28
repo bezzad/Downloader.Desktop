@@ -18,8 +18,8 @@ namespace Downloader.Desktop.Tests.UI;
 
 /// <summary>
 /// The post-download offer has to be VISIBLE, not merely computable: "Add to Ollama" is useless if the
-/// row's button never renders. This drives the real window with a completed row whose plugin offers an
-/// action and looks for the button in the visual tree.
+/// row's menu item never shows. This drives the real window with a completed row whose plugin offers an
+/// action and looks for the item in the row's right-click menu.
 /// </summary>
 public class PostActionButtonTests
 {
@@ -72,13 +72,9 @@ public class PostActionButtonTests
         Assert.True(vm.HasPostAction);
         Assert.Equal("Add to Test Store", vm.PostActionLabel);
 
-        // The button carries the action's label as its tooltip, which is what distinguishes it from the
-        // other icon buttons on the row.
-        var button = window.GetVisualDescendants().OfType<Button>()
-            .FirstOrDefault(b => ToolTip.GetTip(b) as string == "Add to Test Store");
-        Assert.NotNull(button);
-        Assert.True(button!.IsVisible);
-        Assert.True(button.IsEffectivelyVisible, "the install button exists but is not actually on screen");
+        var item = OpenMenuFor(window, vm).FirstOrDefault(m => m.Header as string == "Add to Test Store");
+        Assert.NotNull(item);
+        Assert.True(item!.IsVisible, "the install item exists but is hidden");
 
         window.Close();
         try { Directory.Delete(folder, recursive: true); } catch (IOException) { /* best effort */ }
@@ -108,11 +104,21 @@ public class PostActionButtonTests
         Pump();
 
         Assert.False(vm.HasPostAction);
-        var button = window.GetVisualDescendants().OfType<Button>()
-            .FirstOrDefault(b => ToolTip.GetTip(b) as string == "Add to Test Store");
-        Assert.True(button is null || !button.IsEffectivelyVisible);
+        var item = OpenMenuFor(window, vm).FirstOrDefault(m => m.Header as string == "Add to Test Store");
+        Assert.True(item is null || !item.IsVisible);
 
         window.Close();
+    }
+
+    /// <summary>Right-clicks <paramref name="row"/> the way the view does and returns the opened menu's items.</summary>
+    private static System.Collections.Generic.List<MenuItem> OpenMenuFor(Window window, DownloadItemViewModel row)
+    {
+        var view = window.GetVisualDescendants().OfType<DownloadsView>().First();
+        ((DownloadsViewModel)view.DataContext!).PrepareMenuFor(row);
+        var grid = view.FindControl<DataGrid>("Root")!;
+        grid.ContextMenu!.Open(grid);
+        Pump();
+        return grid.ContextMenu.Items.OfType<MenuItem>().ToList();
     }
 
     private sealed class AddToStoreAction : IPostDownloadAction

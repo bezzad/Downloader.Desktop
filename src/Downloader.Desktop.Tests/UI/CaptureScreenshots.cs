@@ -162,6 +162,20 @@ public class CaptureScreenshots
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             Save(window, "home-selected-light.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+            // The row's right-click menu, Copy submenu expanded.
+            var page = (DownloadsViewModel)grid.DataContext!;
+            page.PrepareMenuFor(manager.Items[1]);
+            HeadlessWindowExtensions.MouseMove(window, new Point(330, 180)); // the menu opens at the pointer
+            grid.ContextMenu!.Open(grid);
+            Pump();
+            grid.ContextMenu.Items.OfType<Avalonia.Controls.MenuItem>()
+                .First(m => m.Header as string == Localizer.Instance["Menu_Copy"]).IsSubMenuOpen = true;
+            Save(window, "row-menu-dark.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+            Save(window, "row-menu-light.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            grid.ContextMenu.Close();
             grid.SelectedIndex = -1;
         }
 

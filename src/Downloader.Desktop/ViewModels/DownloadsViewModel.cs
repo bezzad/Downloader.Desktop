@@ -10,6 +10,7 @@ using Downloader.Desktop.Services;
 using ReactiveUI;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using System.Reactive.Linq;
 using System.Windows.Input;
 
 namespace Downloader.Desktop.ViewModels;
@@ -62,6 +63,7 @@ public class DownloadsViewModel : ViewModelBase
         ArchiveSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Archive(i)), hasSelection);
         UnarchiveSelectedCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Unarchive(i)), hasSelection);
         StopAllCommand = ReactiveCommand.Create(() => _manager.StopAll());
+        CreateMenuCommands();
         ClearFiltersCommand = ReactiveCommand.Create(() =>
         {
             if (ClearFiltersRequested is null)
@@ -100,6 +102,7 @@ public class DownloadsViewModel : ViewModelBase
     {
         StartQueueTargets.Clear();
         StopQueueTargets.Clear();
+        MoveToQueueTargets.Clear();
         foreach (var q in (IEnumerable<DownloadQueue>)_manager?.Queues ?? Enumerable.Empty<DownloadQueue>())
         {
             var queue = q;
@@ -112,6 +115,11 @@ public class DownloadsViewModel : ViewModelBase
             {
                 Name = queue.Name,
                 Command = ReactiveCommand.Create(() => _manager.StopQueue(queue))
+            });
+            MoveToQueueTargets.Add(new QueueActionTarget
+            {
+                Name = queue.Name,
+                Command = ReactiveCommand.Create(() => ForEachSelected(i => _manager.MoveToQueue(i, queue.Id)))
             });
         }
     }
@@ -131,6 +139,8 @@ public class DownloadsViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(DownloadItemViewModel.IsChecked))
             RaiseSelectionChanged();
+        else if (e.PropertyName is nameof(DownloadItemViewModel.Status) or nameof(DownloadItemViewModel.IsArchived))
+            MenuState++;
     }
 
     private void RaiseSelectionChanged()
@@ -139,6 +149,7 @@ public class DownloadsViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(SelectAllState));
         this.RaisePropertyChanged(nameof(SelectedCount));
         this.RaisePropertyChanged(nameof(SelectedCountText));
+        MenuState++;
     }
 
     /// <summary>Filterable view bound to the DataGrid.</summary>
@@ -224,6 +235,7 @@ public class DownloadsViewModel : ViewModelBase
         set
         {
             _filter = value;
+            this.RaisePropertyChanged(nameof(IsArchivedView));
             Refresh();
         }
     }
@@ -429,6 +441,125 @@ public class DownloadsViewModel : ViewModelBase
                 action(item);
         });
         Refresh();
+    }
+
+    // ---- Row right-click menu ----
+    // The menu acts on the selection (SelectedTargets), like the toolbar. Each item is enabled when it
+    // applies to at least one target; the manager's own guards skip the targets it does not apply to.
+
+    private int _menuState;
+
+    /// <summary>Bumped whenever the selection or a row's state changes, so the menu commands re-check.</summary>
+    public int MenuState
+    {
+        get => _menuState;
+        private set => this.RaiseAndSetIfChanged(ref _menuState, value);
+    }
+
+    private IObservable<bool> Applies(Func<List<DownloadItemViewModel>, bool> rule) =>
+        this.WhenAnyValue(x => x.MenuState).Select(_ => rule(SelectedTargets()));
+
+    private static bool Any(List<DownloadItemViewModel> targets, Func<DownloadStatus, bool> rule) =>
+        targets.Any(t => rule(t.Status));
+
+    private void CreateMenuCommands()
+    {
+        OpenCommand = ReactiveCommand.Create(
+            () => ForEachSelected(i => { if (i.IsCompleted) i.OpenFileCommand.Execute(null); }),
+            Applies(t => Any(t, s => s == DownloadStatus.Completed)));
+        OpenFolderMenuCommand = ReactiveCommand.Create(() =>
+        {
+            foreach (var row in SelectedTargets().GroupBy(i => i.GetItem().FolderPath).Select(g => g.First()))
+                row.OpenFolderCommand.Execute(null);
+        }, Applies(t => t.Count > 0));
+        ResumeMenuCommand = ReactiveCommand.Create(
+            () => ForEachSelected(i =>
+            {
+                if (i.Status == DownloadStatus.Failed)
+                    _manager.Retry(i);
+                else
+                    _manager.Resume(i);
+            }),
+            Applies(t => Any(t, s => s is DownloadStatus.Paused or DownloadStatus.Stopped or DownloadStatus.Failed
+                or DownloadStatus.Created or DownloadStatus.None)));
+        PauseMenuCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Pause(i)),
+            Applies(t => Any(t, s => s == DownloadStatus.Running)));
+        StopMenuCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Cancel(i)),
+            Applies(t => Any(t, s => s is DownloadStatus.Running or DownloadStatus.Paused
+                or DownloadStatus.Created or DownloadStatus.None)));
+        RestartCommand = ReactiveCommand.Create(() => ForEachSelected(i => _manager.Restart(i)),
+            Applies(t => Any(t, s => s is not (DownloadStatus.Running or DownloadStatus.Completed))));
+        var hasTargets = Applies(t => t.Count > 0);
+        CopyLinkCommand = ReactiveCommand.CreateFromTask(() => CopyText(DownloadCopyFormat.Links(SelectedItems())), hasTargets);
+        CopyJsonCommand = ReactiveCommand.CreateFromTask(() => CopyText(DownloadCopyFormat.Json(SelectedItems())), hasTargets);
+        CopyCurlCommand = ReactiveCommand.CreateFromTask(() => CopyText(DownloadCopyFormat.Curl(SelectedItems())), hasTargets);
+        PostActionMenuCommand = ReactiveCommand.Create(() => MenuRow?.PostActionCommand.Execute(null));
+        PropertiesCommand = ReactiveCommand.CreateFromTask(async () =>
+        {
+            if (MenuRow is { } row)
+                await DialogHelper.ShowDetails(row, Config);
+        }, Applies(t => t.Count == 1));
+    }
+
+    private IEnumerable<DownloadItem> SelectedItems() => SelectedTargets().Select(i => i.GetItem());
+
+    /// <summary>Clipboard write; a seam so tests can see what would be copied.</summary>
+    public Func<string, Task> CopyText { get; set; } = DialogHelper.CopyTextAsync;
+
+    public ICommand OpenCommand { get; private set; }
+    public ICommand OpenFolderMenuCommand { get; private set; }
+
+    /// <summary>Continues a paused/stopped/queued download and retries a failed one.</summary>
+    public ICommand ResumeMenuCommand { get; private set; }
+    public ICommand PauseMenuCommand { get; private set; }
+    public ICommand StopMenuCommand { get; private set; }
+    public ICommand RestartCommand { get; private set; }
+    public ICommand CopyLinkCommand { get; private set; }
+    public ICommand CopyJsonCommand { get; private set; }
+    public ICommand CopyCurlCommand { get; private set; }
+    public ICommand PostActionMenuCommand { get; private set; }
+
+    /// <summary>Opens the Details window; enabled only with exactly one download selected.</summary>
+    public ICommand PropertiesCommand { get; private set; }
+
+    /// <summary>"Move to queue ▸" entries, rebuilt in place when queues change. Shown only with 2+ queues.</summary>
+    public ObservableCollection<QueueActionTarget> MoveToQueueTargets { get; } = new();
+
+    /// <summary>True while the Archived filter is on: the menu shows Restore instead of Archive.</summary>
+    public bool IsArchivedView => _filter == StatusFilter.Archived;
+
+    /// <summary>The single selected row, or null with none or several.</summary>
+    private DownloadItemViewModel MenuRow => SelectedTargets() is { Count: 1 } t ? t[0] : null;
+
+    /// <summary>Category entries for the menu: the first selected row's choices, applied to every selected row.</summary>
+    public List<CategoryChoice> MenuCategoryChoices =>
+        SelectedTargets().FirstOrDefault()?.CategoryChoices
+            .Select(c => new CategoryChoice(c.Id, c.Label, id => ForEachSelected(i => i.CategoryId = id)))
+            .ToList() ?? new List<CategoryChoice>();
+
+    /// <summary>The plugin action offered for the single selected row (e.g. "Add to Ollama"), or null.</summary>
+    public string MenuPostActionLabel => MenuRow?.PostActionLabel;
+
+    public bool HasMenuPostAction => MenuPostActionLabel != null;
+
+    /// <summary>
+    /// Called when the menu opens on <paramref name="row"/>. A row outside the selection becomes the only
+    /// selected row (other ticks are cleared); a row inside it keeps the selection. Returns true when the
+    /// selection changed. The view moves the grid's highlight from the ticks.
+    /// </summary>
+    public bool PrepareMenuFor(DownloadItemViewModel row)
+    {
+        var changed = false;
+        if (row != null && !SelectedTargets().Contains(row))
+        {
+            foreach (var item in _manager?.Items ?? Enumerable.Empty<DownloadItemViewModel>())
+                item.IsChecked = item == row;
+            changed = true;
+        }
+        this.RaisePropertyChanged(nameof(MenuCategoryChoices));
+        this.RaisePropertyChanged(nameof(MenuPostActionLabel));
+        this.RaisePropertyChanged(nameof(HasMenuPostAction));
+        return changed;
     }
 
     private void RemoveSelected()
