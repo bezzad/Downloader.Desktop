@@ -155,7 +155,9 @@ public class CaptureScreenshots
         var grid = window.GetVisualDescendants().OfType<Avalonia.Controls.DataGrid>().FirstOrDefault();
         if (grid != null)
         {
+            // Two rows selected (click + Ctrl+click): their checkboxes follow the selection.
             grid.SelectedIndex = 1;
+            grid.SelectedItems.Add(grid.ItemsSource.Cast<object>().ElementAt(3));
             Save(window, "home-selected-dark.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             Save(window, "home-selected-light.png");

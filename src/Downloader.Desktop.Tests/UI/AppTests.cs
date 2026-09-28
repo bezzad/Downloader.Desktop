@@ -1728,26 +1728,6 @@ public class AppTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void Grid_row_selection_enables_bulk_commands_without_checkboxes()
-    {
-        var manager = new DownloadManager();
-        manager.Initialize(Config.New());
-        var view = new DownloadsViewModel(manager);
-        var a = manager.Add(new DownloadItem { Url = "https://host/a.zip" }, autoStart: false);
-
-        Assert.False(view.HasSelection);
-
-        // Selecting (highlighting) a row in the DataGrid counts as selected — no checkbox needed (#3).
-        view.SetGridSelection(new System.Collections.Generic.List<object> { a });
-        Assert.True(view.HasSelection);
-        Assert.True(((System.Windows.Input.ICommand)view.StartSelectedCommand).CanExecute(null));
-        Assert.False(a.IsChecked); // the checkbox stays unchecked
-
-        view.SetGridSelection(null);
-        Assert.False(view.HasSelection);
-    }
-
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void StartQueue_runs_remaining_stopped_and_failed_items()
     {
         var manager = new DownloadManager();

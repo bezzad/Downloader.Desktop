@@ -167,23 +167,8 @@ public class DownloadsViewModel : ViewModelBase
     /// <summary>Menu entries for "Stop queue ▾" — one per queue, each stopping all its items.</summary>
     public ObservableCollection<QueueActionTarget> StopQueueTargets { get; } = new();
 
-    // Rows highlighted in the DataGrid (independent of the checkboxes). Pushed in from the view's
-    // SelectionChanged so that simply selecting a row also counts as "selected" for the toolbar.
-    private readonly System.Collections.Generic.List<DownloadItemViewModel> _gridSelection = new();
-
-    /// <summary>Called by the view when the DataGrid's highlighted rows change.</summary>
-    public void SetGridSelection(System.Collections.IList items)
-    {
-        _gridSelection.Clear();
-        if (items != null)
-            foreach (var it in items)
-                if (it is DownloadItemViewModel vm)
-                    _gridSelection.Add(vm);
-        RaiseSelectionChanged();
-    }
-
     /// <summary>
-    /// The rows the toolbar acts on: checked or DataGrid-highlighted rows that are ALSO visible under
+    /// The rows the toolbar acts on: checked rows (the view keeps checkboxes and grid selection equal) that are ALSO visible under
     /// the active filters. The visibility clause matters — a filter can hide a row the user checked
     /// earlier, and removing or stopping a download nobody can see is the kind of surprise a Remove
     /// button must never spring.
@@ -191,9 +176,9 @@ public class DownloadsViewModel : ViewModelBase
     private System.Collections.Generic.List<DownloadItemViewModel> SelectedTargets() =>
         _manager == null
             ? new System.Collections.Generic.List<DownloadItemViewModel>()
-            : _manager.Items.Where(i => (i.IsChecked || _gridSelection.Contains(i)) && PassesView(i)).ToList();
+            : _manager.Items.Where(i => i.IsChecked && PassesView(i)).ToList();
 
-    /// <summary>True while at least one row is checked OR highlighted — drives the bulk buttons' enabled state.</summary>
+    /// <summary>True while at least one visible row is checked — drives the bulk buttons' enabled state.</summary>
     public bool HasSelection => SelectedTargets().Count > 0;
 
     /// <summary>

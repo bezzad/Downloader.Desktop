@@ -23,6 +23,7 @@ public partial class DownloadsView : UserControl
     private double _ghostLeft;
     private double _ghostGrabY;
     private bool _dragging;
+    private bool _syncing; // stops the checkbox <-> grid-selection sync from looping
 
     public DownloadsView()
     {
@@ -54,6 +55,8 @@ public partial class DownloadsView : UserControl
         {
             if (e.PropertyName == nameof(DownloadsViewModel.ShowQueue))
                 FitColumns();
+            else if (e.PropertyName == nameof(DownloadsViewModel.SelectAllState))
+                SyncGridFromChecks();
         };
     }
 
@@ -81,11 +84,34 @@ public partial class DownloadsView : UserControl
     private static double WidthOf(DataGridColumn column) =>
         column.Width.IsAbsolute ? column.Width.Value : column.MinWidth;
 
+    // The row checkbox IS the row's selection. The grid gives us click / Ctrl+click / Shift+click;
+    // its changes set the checkboxes, and a checkbox (or select-all) change updates the grid.
+
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // A highlighted row counts as "selected" for the toolbar, even when its checkbox is unchecked.
-        if (sender is DataGrid grid && DataContext is DownloadsViewModel vm)
-            vm.SetGridSelection(grid.SelectedItems);
+        if (_syncing)
+            return;
+        _syncing = true;
+        foreach (var item in e.RemovedItems.OfType<DownloadItemViewModel>())
+            item.IsChecked = false;
+        foreach (var item in e.AddedItems.OfType<DownloadItemViewModel>())
+            item.IsChecked = true;
+        _syncing = false;
+    }
+
+    /// <summary>Makes the grid's selection equal the checked rows, without touching the others.</summary>
+    private void SyncGridFromChecks()
+    {
+        if (_syncing || Root.ItemsSource is null)
+            return;
+        _syncing = true;
+        var selected = Root.SelectedItems;
+        foreach (var item in selected.OfType<DownloadItemViewModel>().Where(i => !i.IsChecked).ToList())
+            selected.Remove(item);
+        foreach (var item in Root.ItemsSource.OfType<DownloadItemViewModel>())
+            if (item.IsChecked && !selected.Contains(item))
+                selected.Add(item);
+        _syncing = false;
     }
 
     // --- Drag-to-reorder (grip handle in the first column) ---
