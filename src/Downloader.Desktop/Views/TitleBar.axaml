@@ -44,7 +44,7 @@
               Margin="10 0 8 0" VerticalAlignment="Center" HorizontalAlignment="Left">
             <Image Source="/Assets/downloader.png" Width="26" Height="26" VerticalAlignment="Center"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
-            <TextBlock Grid.Column="1" Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold"
+            <TextBlock Grid.Column="1" Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold" Foreground="{DynamicResource SystemBaseHighColor}"
                        FontSize="15" VerticalAlignment="Center" Margin="10 0 0 0"
                        TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                        IsVisible="{Binding !CenterTitle, ElementName=Root}"
@@ -54,7 +54,7 @@
         <!-- Centered across the WHOLE bar (not the leftover space); hidden when it would touch
              the right-side content (see TitleFits). -->
         <TextBlock x:Name="CenteredTitle" Grid.Column="0" Grid.ColumnSpan="4"
-                   Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold" FontSize="15"
+                   Text="{Binding Title, ElementName=Root}" FontWeight="SemiBold" Foreground="{DynamicResource SystemBaseHighColor}" FontSize="15"
                    HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap"
                    IsHitTestVisible="False" Opacity="0" />
 
