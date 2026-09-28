@@ -2486,3 +2486,11 @@ Check `../Downloader` before instrumenting the app.
   loaded config's `EnableLogging` — a stub returning `Config.New()` switches the logger OFF mid-test.
 - Headless clicks: `window.KeyPress` alone does not click a Button — Space clicks on key-UP, so send
   `KeyRelease` too. A `ReactiveCommand.Execute(null)` needs `Dispatcher.UIThread.RunJobs()` after it.
+
+## Row right-click menu (row-context-menu) — patterns worth caching
+- **One `ContextMenu` on the DataGrid** (`Root.ContextMenu`, DataContext = `DownloadsViewModel`), not per row. A **tunnel** `ContextRequested` handler on the grid (`OnContextRequested`) cancels it off-row (header/empty area) and calls `vm.PrepareMenuFor(row)`: a row outside the selection becomes the only selected one (ticks cleared). Commands act on `SelectedTargets()`.
+- **Menu enabled rules** are `ReactiveCommand` canExecute over `WhenAnyValue(MenuState)`; `MenuState` is an int bumped on selection change AND on a row's `Status`/`IsArchived` change. `WhenAnyValue` needs a PUBLIC getter (private set is fine).
+- **Shortcuts**: `MenuItem.InputGesture` + matching grid `KeyBindings`, built in code-behind from `PlatformSettings.HotkeyConfiguration.CommandModifiers` (Cmd on macOS). `ClipboardCopyMode="None"` on the grid so its own Ctrl+C doesn't compete. Bound on the grid only → Ctrl+C in a TextBox still copies text.
+- **Headless menu screenshot**: `grid.ContextMenu.Open(grid)` renders inside the window frame (`CaptureRenderedFrame(window)` shows it); it opens at the pointer, so `HeadlessWindowExtensions.MouseMove` first. Open a submenu with `MenuItem.IsSubMenuOpen = true`.
+- **Restart** (`DownloadManager.Restart`): bump `vm.AttemptGeneration` after `Cancel` so the old engine's late cancel report is stale and can't mark the re-queued row Failed. Deletes only `<name>.download` (`TryDeletePartialFile`), never the final file.
+- The screenshot capture re-renders *unrelated* dialogs with tiny pixel diffs on a fresh box — commit only the PNGs of views that changed.

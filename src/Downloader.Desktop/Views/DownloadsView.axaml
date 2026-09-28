@@ -22,6 +22,7 @@
                   CanUserResizeColumns="True"
                   CanUserSortColumns="True"
                   SelectionMode="Extended"
+                  ClipboardCopyMode="None"
                   RowHeight="46"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Hidden"
@@ -54,6 +55,82 @@
                     <Setter Property="Opacity" Value="0.45" />
                 </Style>
             </DataGrid.Styles>
+            <!-- One right-click menu for every row. It acts on the selected rows; the view makes a
+                 right-clicked row outside the selection the only selected one first (OnContextRequested).
+                 Shortcut labels (InputGesture) and the matching grid key bindings are set in code-behind so
+                 macOS gets Cmd instead of Ctrl. -->
+            <DataGrid.ContextMenu>
+                <ContextMenu x:Name="RowMenu">
+                    <MenuItem x:Name="MenuOpen" Header="{i18n:Tr Menu_Open}" Command="{Binding OpenCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource DocumentRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="{i18n:Tr Action_OpenFolder}" Command="{Binding OpenFolderMenuCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource FolderRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem x:Name="MenuResume" Header="{i18n:Tr Action_Resume}" Command="{Binding ResumeMenuCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource PlayRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem x:Name="MenuPause" Header="{i18n:Tr Action_Pause}" Command="{Binding PauseMenuCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource PauseRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="{i18n:Tr Action_Stop}" Command="{Binding StopMenuCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource StopRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="{i18n:Tr Menu_Restart}" Command="{Binding RestartCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource ArrowDownloadRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem x:Name="MenuMoveToQueue" Header="{i18n:Tr Menu_MoveToQueue}"
+                              ItemsSource="{Binding MoveToQueueTargets}" IsVisible="{Binding ShowQueue}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource ArrowMoveRegular}" /></MenuItem.Icon>
+                        <MenuItem.ItemContainerTheme>
+                            <ControlTheme TargetType="MenuItem" x:DataType="vm:QueueActionTarget"
+                                          BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <Setter Property="Header" Value="{Binding Name}" />
+                                <Setter Property="Command" Value="{Binding Command}" />
+                            </ControlTheme>
+                        </MenuItem.ItemContainerTheme>
+                    </MenuItem>
+                    <MenuItem Header="{i18n:Tr Cat_Category}" ItemsSource="{Binding MenuCategoryChoices}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource TabsRegular}" /></MenuItem.Icon>
+                        <MenuItem.ItemContainerTheme>
+                            <ControlTheme TargetType="MenuItem" x:DataType="vm:CategoryChoice"
+                                          BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <Setter Property="Header" Value="{Binding Label}" />
+                                <Setter Property="Command" Value="{Binding Command}" />
+                            </ControlTheme>
+                        </MenuItem.ItemContainerTheme>
+                    </MenuItem>
+                    <MenuItem Header="{i18n:Tr Menu_Copy}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource CopyRegular}" /></MenuItem.Icon>
+                        <MenuItem x:Name="MenuCopyLink" Header="{i18n:Tr Menu_CopyLink}" Command="{Binding CopyLinkCommand}" />
+                        <MenuItem Header="{i18n:Tr Menu_CopyJson}" Command="{Binding CopyJsonCommand}" />
+                        <MenuItem Header="{i18n:Tr Menu_CopyCurl}" Command="{Binding CopyCurlCommand}" />
+                    </MenuItem>
+                    <!-- Plugin-offered action on the selected completed download (e.g. "Add to Ollama"). -->
+                    <MenuItem Header="{Binding MenuPostActionLabel}" Command="{Binding PostActionMenuCommand}"
+                              IsVisible="{Binding HasMenuPostAction}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource SendRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem Header="{i18n:Tr Action_Archive}" Command="{Binding ArchiveSelectedCommand}"
+                              IsVisible="{Binding !IsArchivedView}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource ArchiveRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="{i18n:Tr Action_Restore}" Command="{Binding UnarchiveSelectedCommand}"
+                              IsVisible="{Binding IsArchivedView}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource ArchiveRestoreRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem x:Name="MenuDelete" Header="{i18n:Tr Menu_Delete}" Command="{Binding RemoveSelectedCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource DeleteRegular}" Foreground="IndianRed" /></MenuItem.Icon>
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem x:Name="MenuProperties" Header="{i18n:Tr Menu_Properties}" Command="{Binding PropertiesCommand}">
+                        <MenuItem.Icon><PathIcon Data="{StaticResource InfoRegular}" /></MenuItem.Icon>
+                    </MenuItem>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
                 <!-- Drag handle (6-dot grip): drag a row up/down to reorder (= queue pump priority).
                      Dropping onto a row in another queue moves this item into that queue. -->
@@ -86,52 +163,20 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <!-- Type: the category icon, sorted by the category's place in the USER's order
-                     (CategoryOrder) rather than by a name, which would order on the alphabet of
-                     whatever language is loaded. The tooltip says which category it is. -->
-                <DataGridTemplateColumn Header="{i18n:Tr Col_Type}" Width="70" SortMemberPath="CategoryOrder"
-                                        CanUserResize="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                            <PathIcon Data="{Binding FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
-                                      Height="16" Width="16"
-                                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                                      Foreground="{Binding CategoryColor, Converter={x:Static conv:HexToBrushConverter.Instance}}"
-                                      ToolTip.Tip="{Binding CategoryName}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
                 <!-- MinWidth matters once the category sidebar is open: Name is the only star column,
                      so without a floor it absorbs the whole 204px the sidebar takes and the file names
                      collapse to three characters. When even the floor does not fit, the view hides the
-                     optional columns (Time left, Queue, Type) rather than let the grid crush the rest. -->
+                     optional columns (Time left, Queue) rather than let the grid crush the rest. -->
                 <DataGridTemplateColumn Header="{i18n:Tr Col_Name}" Width="*" MinWidth="160"
                                         SortMemberPath="FileName">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:DownloadItemViewModel">
                             <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-                                <StackPanel.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="{i18n:Tr Action_CopyUrl}" Command="{Binding CopyUrlCommand}" />
-                                        <MenuItem Header="{i18n:Tr Action_OpenFile}" Command="{Binding OpenFileCommand}" />
-                                        <MenuItem Header="{i18n:Tr Action_OpenFolder}" Command="{Binding OpenFolderCommand}" />
-                                        <Separator />
-                                        <MenuItem Header="{i18n:Tr Cat_Category}" ItemsSource="{Binding CategoryChoices}">
-                                            <MenuItem.ItemContainerTheme>
-                                                <ControlTheme TargetType="MenuItem" x:DataType="vm:CategoryChoice"
-                                                              BasedOn="{StaticResource {x:Type MenuItem}}">
-                                                    <Setter Property="Header" Value="{Binding Label}" />
-                                                    <Setter Property="Command" Value="{Binding Command}" />
-                                                </ControlTheme>
-                                            </MenuItem.ItemContainerTheme>
-                                        </MenuItem>
-                                        <!-- Plugin-offered action on this completed item (e.g. "Add to Ollama"). -->
-                                        <MenuItem Header="{Binding PostActionLabel}" Command="{Binding PostActionCommand}"
-                                                  IsVisible="{Binding HasPostAction}" />
-                                        <Separator />
-                                        <MenuItem Header="{i18n:Tr Action_Remove}" Command="{Binding RemoveCommand}" />
-                                    </ContextMenu>
-                                </StackPanel.ContextMenu>
+                                <!-- The category icon, in the category's color; hovering names the category. -->
+                                <PathIcon Data="{Binding FileKind, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
+                                          Height="16" Width="16" VerticalAlignment="Center"
+                                          Foreground="{Binding CategoryColor, Converter={x:Static conv:HexToBrushConverter.Instance}}"
+                                          ToolTip.Tip="{Binding CategoryName}" />
                                 <!-- Name keeps a single consistent style across all states (#7); only the
                                      progress bar color + status text below it reflect the state. -->
                                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
@@ -189,48 +234,6 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <!-- At most five 28px icon buttons show at once (e.g. a finished row: action, open, folder,
-                     archive, remove). -->
-                <DataGridTemplateColumn Header="" Width="150">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                                        Spacing="1" VerticalAlignment="Center">
-                                <Button Classes="icon" Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}" ToolTip.Tip="{i18n:Tr Action_Pause}">
-                                    <PathIcon Data="{DynamicResource PauseRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" ToolTip.Tip="{i18n:Tr Action_Resume}">
-                                    <PathIcon Data="{DynamicResource PlayRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" ToolTip.Tip="{i18n:Tr Action_Retry}">
-                                    <PathIcon Data="{DynamicResource PlayRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" ToolTip.Tip="{i18n:Tr Action_Stop}">
-                                    <PathIcon Data="{DynamicResource StopRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding PostActionCommand}" IsVisible="{Binding HasPostAction}" ToolTip.Tip="{Binding PostActionLabel}">
-                                    <PathIcon Data="{DynamicResource SendRegular}" Height="14" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding OpenFileCommand}" IsVisible="{Binding IsCompleted}" ToolTip.Tip="{i18n:Tr Action_OpenFile}">
-                                    <PathIcon Data="{DynamicResource DocumentRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="{i18n:Tr Action_OpenFolder}">
-                                    <PathIcon Data="{DynamicResource FolderRegular}" />
-                                </Button>
-                                <!-- Archive / Restore share one slot: a row is only ever one of the two. -->
-                                <Button Classes="icon" Command="{Binding ArchiveCommand}" IsVisible="{Binding !IsArchived}" ToolTip.Tip="{i18n:Tr Action_Archive}">
-                                    <PathIcon Data="{DynamicResource ArchiveRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding UnarchiveCommand}" IsVisible="{Binding IsArchived}" ToolTip.Tip="{i18n:Tr Action_Restore}">
-                                    <PathIcon Data="{DynamicResource ArchiveRestoreRegular}" />
-                                </Button>
-                                <Button Classes="icon" Command="{Binding RemoveCommand}" ToolTip.Tip="{i18n:Tr Action_Remove}">
-                                    <PathIcon Data="{DynamicResource DeleteRegular}" Foreground="IndianRed" />
-                                </Button>
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 

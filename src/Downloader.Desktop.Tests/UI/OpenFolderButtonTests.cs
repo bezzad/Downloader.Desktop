@@ -93,11 +93,11 @@ public class OpenFolderButtonTests : IDisposable
     }
 
     /// <summary>
-    /// The grid's button is really bound to that command. An unbound button is indistinguishable from a
-    /// launcher failure from the user's side, so this is worth pinning rather than eyeballing the XAML.
+    /// The grid's right-click menu really carries a bound Open folder item that reaches the launcher. An
+    /// unbound item is indistinguishable from a launcher failure from the user's side.
     /// </summary>
     [AvaloniaFact(Timeout = TestTimeouts.SlowMs)]
-    public void The_grid_renders_a_bound_open_folder_button()
+    public void The_grid_menu_has_a_bound_open_folder_item()
     {
         var manager = new DownloadManager();
         var config = Config.New();
@@ -108,17 +108,25 @@ public class OpenFolderButtonTests : IDisposable
             Url = "https://10.255.255.1/sample.zip",
             FileName = "sample.zip",
             SaveFolder = Path.GetTempPath(),
-        }, autoStart: false);
+        }, autoStart: false).IsChecked = true;
 
-        var view = new DownloadsView { DataContext = new DownloadsViewModel(manager) };
+        var page = new DownloadsViewModel(manager);
+        var view = new DownloadsView { DataContext = page };
         var window = new Window { Content = view, Width = 1000, Height = 600 };
         window.Show();
         DesktopLifetimeScope.Pump(8);
 
-        var bound = view.GetVisualDescendants().OfType<Button>()
-            .Count(b => ReferenceEquals(b.Command, manager.Items[0].OpenFolderCommand));
-        Assert.True(bound > 0, "no rendered button is bound to the row's OpenFolderCommand");
+        var grid = view.FindControl<DataGrid>("Root");
+        grid.ContextMenu.Open(grid);
+        DesktopLifetimeScope.Pump(4);
+        var item = grid.ContextMenu.Items.OfType<MenuItem>()
+            .FirstOrDefault(m => ReferenceEquals(m.Command, page.OpenFolderMenuCommand));
+        Assert.NotNull(item);
 
+        item.Command.Execute(null);
+        Assert.True(_ran.Count > 0 || _opened.Count > 0, "the menu item never reached ShellLauncher");
+
+        grid.ContextMenu.Close();
         window.Close();
     }
 

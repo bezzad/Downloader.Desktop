@@ -1501,6 +1501,33 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         NotifyList();
     }
 
+    /// <summary>Throws the partial file away and queues the download again from 0 %. Refused for a running
+    /// download (stop it first) and for a completed one (that would mean deleting the finished file).
+    /// Only <c>&lt;name&gt;.download</c> is deleted; the start goes through the pump, so the queue's cap holds.</summary>
+    public void Restart(DownloadItemViewModel vm)
+    {
+        if (vm == null || vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
+            return;
+        AppLog.Info($"Restart: {Who(vm)} (was {vm.Status})");
+        Cancel(vm); // stops a paused or queued row; no-op for Failed/Stopped
+        // The cancelled engine still reports back later; make that report stale so it cannot mark the
+        // re-queued row Failed.
+        vm.AttemptGeneration++;
+        TryDeletePartialFile(vm);
+        TryDeletePartsFolder(vm.GetItem());
+        vm.GetItem().PlanJson = null;
+        vm.Downloaded = 0;
+        vm.Progress = 0;
+        vm.IsArchived = false;
+        vm.LinkRefreshAttempts = 0;
+        vm.UrlAttempt = 0;
+        ResetConnectionBackoff(vm);
+        vm.Status = DownloadStatus.Created;
+        EnsureQueueRunning(vm.GetItem().QueueId);
+        PumpQueue(vm.GetItem().QueueId);
+        NotifyList();
+    }
+
     /// <summary>Files a download away: it keeps its record and its file but leaves the working list.
     /// A download in flight or waiting is STOPPED first — that is the invariant every other archive rule
     /// rests on (an archived download is never running or queued), and it is what keeps an archived
