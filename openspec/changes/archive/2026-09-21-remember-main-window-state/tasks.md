@@ -60,7 +60,7 @@
 - [x] 6.2 Full bounded suite green:
       `timeout -k 30 900 dotnet test Downloader.Desktop.Tests/Downloader.Desktop.Tests.csproj -v q
       --nologo --blame-hang --blame-hang-timeout 180s --blame-crash`.
-- [ ] 6.3 Author's manual check (cannot be verified headlessly): maximize → quit from the tray →
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 6.3 Author's manual check (cannot be verified headlessly): maximize → quit from the tray →
       relaunch; move to a second monitor → disconnect it → relaunch; resize → OS restart → relaunch.
 - [x] 6.4 No screenshot refresh needed: no view markup or style changed (the only XAML touched was
       nothing — MainWindow.axaml is unmodified), so `docs/screenshots/` is untouched.

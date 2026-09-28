@@ -60,8 +60,8 @@
       `dotnet test` run.
 - [x] 5.4 Append the non-obvious findings to `.claude/skills/downloader-desktop/SKILL.md` — the
       pause-vs-plan-runner trap in particular, since it is invisible from `DownloadManager.Pause`.
-- [ ] 5.5 **Author's manual check**: a real gated stream added through the GET query form with real
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.5 **Author's manual check**: a real gated stream added through the GET query form with real
       cookies, paused mid-download (confirm the network genuinely goes quiet), resumed, and
       completed. Not verifiable headlessly.
-- [ ] 5.6 **Blocked on the reporter**: ask for the app log from the encrypted-stream failure and
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.6 **Blocked on the reporter**: ask for the app log from the encrypted-stream failure and
       confirm whether the key fetch was the ~99% cause. Do not close issue #7 as fixed until then.

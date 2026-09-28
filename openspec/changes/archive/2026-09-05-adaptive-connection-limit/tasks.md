@@ -31,4 +31,4 @@
 
 - [x] 5.1 `dotnet build Downloader.Desktop.sln -t:Rebuild` — 0 warnings.
 - [x] 5.2 `dotnet test` green, plus the extension suites (`node --test src/browser-extension/common.test.js` and the Playwright specs) since the release routine requires all three.
-- [ ] 5.3 Reply on [#14](https://github.com/bezzad/Downloader.Desktop/issues/14) with what shipped — draft the text and get the author's OK before posting.
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.3 Reply on [#14](https://github.com/bezzad/Downloader.Desktop/issues/14) with what shipped — draft the text and get the author's OK before posting.

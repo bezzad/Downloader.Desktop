@@ -55,7 +55,7 @@ Keep build + full `dotnet test` green; commit to `develop` per logical step.
       engine → concatenates each stream → muxes with the real ffmpeg. Verified run: 10 parts → a 355 KB MP4,
       ffprobe reports `[video, audio]`, duration 8.01s. Gated on ffmpeg being on PATH (see the skill for how
       to run it).
-- [ ] 6.4 Author check in the real app (the one thing still unproven): paste a `.mpd` from an actual site
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 6.4 Author check in the real app (the one thing still unproven): paste a `.mpd` from an actual site
       into the GUI and confirm the quality picker lists the representations and the saved file plays. The
       automated e2e covers the whole pipeline but only against an ffmpeg-generated stream on loopback — not
       a real CDN's manifest quirks, and not the Add-window UI.

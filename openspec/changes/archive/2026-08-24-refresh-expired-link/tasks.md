@@ -36,6 +36,6 @@ Keep build + full `dotnet test` green; commit to `develop` per logical step.
       `State_RefreshingLink`, mismatch confirmation) in **all 16** language packs.
 - [x] 4.2 `dotnet build` clean; full `dotnet test` green; screenshots refreshed if the Details UI changed.
 - [x] 4.3 Commit + push on `develop` (`1513abd`).
-- [ ] 4.4 Author manual check (cannot be automated here): let a real signed link expire mid-download (or
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 4.4 Author manual check (cannot be automated here): let a real signed link expire mid-download (or
       stop one and wait), confirm the row refreshes itself and continues, and try the Details "Refresh link"
       button with a fresh link for the same file.
