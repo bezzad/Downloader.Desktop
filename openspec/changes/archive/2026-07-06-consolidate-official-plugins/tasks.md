@@ -62,9 +62,9 @@
 
 ## 9. Coordination with `add-video-site-extraction`
 
-- [ ] 9.1 Once the migrated, fixed Hls plugin is loadable through the host, run that change's blocked manual check (its task 7.3): paste a YouTube/x.com video URL in the app and confirm it downloads and plays.
+- [x] 9.1 **Closed as obsolete (2026-09-28)** — HLS 2.0.0 dropped site extraction (it handles only real `.m3u8`/`.m3u`), and YouTube/x.com pages are now the job of the separate `com.bezzad.site-media` plugin. The check below tests a path that no longer exists. Original text: Once the migrated, fixed Hls plugin is loadable through the host, run that change's blocked manual check (its task 7.3): paste a YouTube/x.com video URL in the app and confirm it downloads and plays.
   > AUTHOR ACTION — cannot be verified headlessly (needs a display + network + yt-dlp/ffmpeg/deno provisioning + "plays"). The Hls plugin is optional/catalog tier now, so install it first: Settings → Plugins → More plugins → Add (once a release carries the catalog) OR drop the built `Downloader.Desktop.Plugins.Hls` DLL into `~/.config/Downloader/plugins`. Everything up to this point is in place (build green, plugin loadable, Phase-2 runner exists).
-- [~] 9.2 Record the result in `add-video-site-extraction`'s tasks.md and unblock its archival — do not duplicate or re-derive its already-completed tasks 1–7.2 here.
+- [x] 9.2 (closed with 9.1 — nothing left to record) Record the result in `add-video-site-extraction`'s tasks.md and unblock its archival — do not duplicate or re-derive its already-completed tasks 1–7.2 here.
   > Coordination done: updated `add-video-site-extraction`'s task 7.3 note (2026-07-06) — its blocker ("host Phase-2 doesn't exist / plugin in a separate repo") is resolved; only the author's manual e2e (9.1) remains before it can be archived. The actual result recording + archival waits on 9.1. Did not touch its completed tasks.
 
 ## 10. Docs and wrap-up
