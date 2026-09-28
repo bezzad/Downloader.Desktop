@@ -101,6 +101,53 @@
         <Style Selector="Button.cat.empty">
             <Setter Property="Opacity" Value="0.45" />
         </Style>
+        <!-- Selected sidebar row: a 3px bar on the start edge in the live accent (mirrors in RTL). The
+             negative start margin pulls it out of the row padding to the row edge. -->
+        <Style Selector="Button.cat Border.accentbar">
+            <Setter Property="Width" Value="3" />
+            <Setter Property="Margin" Value="-9 -3 6 -3" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Button.cat.selected Border.accentbar">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <!-- Six-dot drag handle: only on hover, only on rows that can be reordered. -->
+        <Style Selector="Button.cat PathIcon.grip">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Margin" Value="6 0 0 0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Button.cat.draggable:pointerover PathIcon.grip, Button.cat.draggable.dragging PathIcon.grip">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="Button.cat.droptarget /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <!-- Section header ("Categories", "Queues"): small caps-like label with a chevron. -->
+        <Style Selector="Button.catsection">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8 4" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+        </Style>
+        <Style Selector="Button.catsection:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemListLowColor}" />
+        </Style>
+        <Style Selector="PathIcon.chevron">
+            <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+        </Style>
+        <Style Selector="PathIcon.chevron.expanded">
+            <Setter Property="RenderTransform" Value="none" />
+        </Style>
         <!-- "Add category": present, but never competing with the categories themselves. -->
         <Style Selector="Button.catadd">
             <Setter Property="Background" Value="Transparent" />

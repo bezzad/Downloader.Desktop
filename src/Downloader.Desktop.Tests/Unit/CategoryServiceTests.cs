@@ -138,6 +138,76 @@ public class CategoryServiceTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void MoveTo_drops_a_category_at_the_given_position_and_announces_it()
+    {
+        var service = Service();
+        var before = service.Categories.Select(c => c.Id).ToList();
+        var changed = 0;
+        service.Changed += () => changed++;
+
+        // Drag the fourth category to the top.
+        Assert.True(service.MoveTo(before[3], 0));
+
+        var expected = new List<string> { before[3], before[0], before[1], before[2] };
+        expected.AddRange(before.Skip(4));
+        Assert.Equal(expected, service.Categories.Select(c => c.Id).ToList());
+        Assert.Equal(Enumerable.Range(0, before.Count), service.Categories.Select(c => c.Position));
+        Assert.Equal(1, changed);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void MoveTo_clamps_to_the_list_and_ignores_a_drop_in_place()
+    {
+        var service = Service();
+        var ids = service.Categories.Select(c => c.Id).ToList();
+
+        Assert.True(service.MoveTo(ids[2], -5));
+        Assert.Equal(ids[2], service.Categories.First().Id);
+        Assert.True(service.MoveTo(ids[2], 999));
+        Assert.Equal(ids[2], service.Categories.Last().Id);
+
+        Assert.False(service.MoveTo(ids[2], ids.Count - 1));
+        Assert.False(service.MoveTo("no-such-id", 0));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void MoveTo_order_survives_a_save_and_reload()
+    {
+        var config = Config.New();
+        var service = Service(config);
+        var last = service.Categories.Last().Id;
+        service.MoveTo(last, 0);
+
+        // The config holds the same list objects, so a save writes the new positions; a reload sorts by them.
+        var reloaded = Service(config);
+        Assert.Equal(last, reloaded.Categories.First().Id);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_config_shows_the_sidebar()
+    {
+        Assert.True(Config.New().IsCategorySidebarOpen);
+        Assert.True(new Config().EnsureValid().IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_v2_config_with_the_sidebar_hidden_shows_it_once_then_keeps_the_users_choice()
+    {
+        var config = Config.New();
+        config.SchemaVersion = 2;
+        config.IsCategorySidebarOpen = false;
+
+        config.EnsureValid();
+        Assert.True(config.IsCategorySidebarOpen);
+        Assert.Equal(3, config.SchemaVersion);
+
+        // The user hides it again; the next load (already v3) leaves that alone.
+        config.IsCategorySidebarOpen = false;
+        config.EnsureValid();
+        Assert.False(config.IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void A_category_cannot_be_moved_off_either_end()
     {
         var service = Service();
@@ -296,8 +366,8 @@ public class CategoryServiceTests
         // built-ins carry the extension table the app already used.
         Assert.Null(config.Downloads[0].CategoryId);
         Assert.Equal("video", CategoryService.Detect(config.Categories, "a.mp4", null).Id);
-        // The sidebar stays out of the way until asked for.
-        Assert.False(config.IsCategorySidebarOpen);
+        // The sidebar (categories + queues) is shown once on upgrade — v3 made it on by default.
+        Assert.True(config.IsCategorySidebarOpen);
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

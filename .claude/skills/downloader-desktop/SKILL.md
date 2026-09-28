@@ -2487,3 +2487,12 @@ Check `../Downloader` before instrumenting the app.
   loaded config's `EnableLogging` — a stub returning `Config.New()` switches the logger OFF mid-test.
 - Headless clicks: `window.KeyPress` alone does not click a Button — Space clicks on key-UP, so send
   `KeyRelease` too. A `ReactiveCommand.Execute(null)` needs `Dispatcher.UIThread.RunJobs()` after it.
+
+## Sidebar = Categories + Queues sections (`sidebar-queues-sections`, 2026-09-28)
+- **On by default** (`Config.IsCategorySidebarOpen = true`; schema v3 shows it ONCE to v2 users who had it hidden).
+- **One selection**: `MainViewModel.SelectedCategoryId` / `SelectedQueueId` map to `DownloadsViewModel.CategoryFilter` / `QueueFilter`; setting one clears the other. Row `IsSelected` is derived ONLY in `ApplySidebarSelection()` — call it, don't set flags by hand. Clicking "All" while a queue is selected must still clear the queue (the category setter's early-return checks both).
+- Counts use `DownloadsViewModel.MatchesExceptSidebar` (status + search). Queue rows rebuild on `IDownloadManager.QueuesChanged` (posted to the UI thread; tests must `Dispatcher.UIThread.RunJobs()` after `AddQueue`/`RenameQueue`/`RemoveQueue`).
+- Queue match = exact `DownloadItem.QueueId` (same rule as `QueuesViewModel.Mine`).
+- Accent bar = `Border.accentbar` inside each `Button.cat`, shown by the `Button.cat.selected` style; negative start margin reaches the row edge and mirrors in RTL automatically.
+- Category drag = `MainWindow.axaml.cs` grip handlers (pointer capture, `droptarget` class) → `MainViewModel.MoveCategoryTo` → `CategoryService.MoveTo(id, index)` (clamped). Row index i in `CategoryRows` = category i-1 (row 0 is "All"). Grip visible via `Button.cat.draggable:pointerover` (class bound to `CanEdit`).
+- Headless drag/hover works with `window.MouseMove/MouseDown/MouseUp` (Avalonia.Headless) at `TranslatePoint` centres.
