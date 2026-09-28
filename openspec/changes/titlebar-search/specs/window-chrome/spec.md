@@ -20,9 +20,8 @@ menu bar (File, Tasks, Help, …).
 
 ### Requirement: The search box lives in the main window's title bar
 The downloads search box SHALL be placed in the main window's title bar, immediately left of the
-app-level buttons, and SHALL filter the downloads list exactly as before. The Update, Donate and About
-buttons SHALL be placed in the title bar between the search box and the window buttons. The top bar
-below the title bar SHALL contain only the sidebar toggle, the link box and the Add button. Clicking
+window buttons, and SHALL filter the downloads list exactly as before. The Update, Donate and About
+buttons SHALL stay at the right end of the top bar below the title bar (author's decision after review). Clicking
 the search box or a title-bar button SHALL NOT start a window drag; empty title-bar space SHALL still
 drag the window and double-clicking it SHALL still toggle maximize.
 
@@ -30,10 +29,10 @@ drag the window and double-clicking it SHALL still toggle maximize.
 - **WHEN** the user types a word into the title-bar search box
 - **THEN** the downloads list shows only the matching downloads
 
-#### Scenario: App buttons are in the title bar
+#### Scenario: App buttons stay in the top bar
 - **WHEN** the main window is shown
-- **THEN** the Donate and About buttons (and Update, when an update is ready) are in the title bar
-  and not in the top bar
+- **THEN** the Donate and About buttons (and Update, when an update is ready) are in the top bar
+  and not in the title bar
 
 #### Scenario: Clicking the search box does not drag the window
 - **WHEN** the user presses the mouse inside the search box

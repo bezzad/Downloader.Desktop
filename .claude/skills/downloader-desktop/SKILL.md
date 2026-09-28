@@ -2453,6 +2453,7 @@ Check `../Downloader` before instrumenting the app.
   centered title spans the whole bar and hides via `TitleFits(bar, title, left, right)` (pure) when the
   right side would touch it — toggled with **Opacity, not IsVisible**: a hidden control is not measured,
   so its width reads 0 and the check could never turn it back on.
+- Donate/About/Update stay in the TOP bar (author reverted moving them). Only the search box is in the title bar.
 - Search box grow = `TextBox.search` style 200 → 280 on `:focus-within` or `.hasText`
   (`Classes.hasText` bound via `StringConverters.IsNotNullOrEmpty`) + a `DoubleTransition` on Width.
   In tests set `box.Transitions = null` to read the target width. At the default 1000 px width a

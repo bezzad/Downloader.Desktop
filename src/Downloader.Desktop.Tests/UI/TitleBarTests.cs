@@ -61,23 +61,52 @@ public class TitleBarTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void The_search_box_and_app_buttons_are_in_the_title_bar_not_the_top_bar()
+    public void The_search_box_is_in_the_title_bar_and_the_app_buttons_stay_in_the_top_bar()
     {
-        var (window, _, _) = Show();
+        var (window, main, _) = Show();
         var bar = window.GetVisualDescendants().OfType<TitleBar>().Single();
+        var inBar = bar.GetVisualDescendants().ToList();
 
         Assert.True(bar.CenterTitle);
-        Assert.Contains(Named<TextBox>(window, "SearchBox"), bar.GetVisualDescendants());
-        // Donate + About: two icon buttons inside the bar's right content.
-        var right = (Control)bar.RightContent;
-        Assert.Equal(2, right.GetVisualDescendants().OfType<Button>().Count(b => b.Classes.Contains("icon")));
-        // The top bar keeps the link box only: exactly one TextBox outside the title bar.
-        var outside = window.GetVisualDescendants().OfType<TextBox>()
-            .Where(t => !bar.GetVisualDescendants().Contains(t) && t.Name == "TopUrlBox");
-        Assert.Single(outside);
-        Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBox>(),
-            t => t.Classes.Contains("search") && !bar.GetVisualDescendants().Contains(t));
+        Assert.Contains(Named<TextBox>(window, "SearchBox"), inBar);
+        // Donate + About stay in the top bar, not the title bar.
+        var appButtons = window.GetVisualDescendants().OfType<Button>()
+            .Where(b => b.Command == main.DonateCommand || b.Command == main.ShowAboutCommand
+                        || b.Command == main.ApplyUpdateCommand).ToList();
+        Assert.Equal(3, appButtons.Count);
+        Assert.All(appButtons, b => Assert.DoesNotContain(b, inBar));
         window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_title_stays_visible_while_the_search_is_focused_at_the_default_size()
+    {
+        var (window, _, _) = Show();
+        Search(window).Focus();
+        Pump();
+        Assert.True(window.GetVisualDescendants().OfType<TitleBar>().Single().IsCenteredTitleShown);
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_title_is_light_in_the_dark_theme()
+    {
+        var previous = Application.Current!.RequestedThemeVariant;
+        try
+        {
+            var (window, _, _) = Show();
+            Application.Current.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            Pump();
+            var title = Named<TextBlock>(window, "CenteredTitle");
+            var brush = Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(title.Foreground);
+            var c = brush.Color;
+            Assert.True(c.R + c.G + c.B > 3 * 180, $"title color {c} is too dark for a dark background");
+            window.Close();
+        }
+        finally
+        {
+            Application.Current.RequestedThemeVariant = previous;
+        }
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
