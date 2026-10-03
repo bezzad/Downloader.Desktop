@@ -130,6 +130,15 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource SystemBaseHighColor}" />
         </Style>
+        <!-- A sidebar dragged narrow shows only the icons: names, counts and drag handles go
+             (the row's tooltip still names it, and its menu can still move it). -->
+        <Style Selector="Panel.compact :is(Control).sidetext, Panel.compact Border.pill">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Panel.compact Border.grip">
+            <Setter Property="MaxWidth" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
         <Style Selector="PathIcon.chevron.collapsed">
             <Setter Property="RenderTransform" Value="rotate(-90deg)" />
         </Style>

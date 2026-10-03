@@ -315,4 +315,72 @@ public class SidebarViewTests
         Assert.Equal(shown, Sidebar(window).Bounds.Width);
         window.Close();
     }
+
+    private static PathIcon Part(Button header, string cls) =>
+        header.GetVisualDescendants().OfType<PathIcon>().Single(i => i.Classes.Contains(cls));
+
+    private static TextBlock Title(Button header) =>
+        header.GetVisualDescendants().OfType<TextBlock>().Single();
+
+    private static Button[] Headers(Window window) =>
+        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("sechead")).ToArray();
+
+    private static double X(Visual v, Window window) => v.TranslatePoint(default, window)!.Value.X;
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_section_header_reads_icon_title_then_the_chevron()
+    {
+        var (window, _, _, _) = Show();
+        foreach (var header in Headers(window))
+        {
+            var icon = X(Part(header, "secicon"), window);
+            var title = X(Title(header), window);
+            var chevron = X(Part(header, "chevron"), window);
+            Assert.True(icon < title && title < chevron, $"icon {icon}, title {title}, chevron {chevron}");
+        }
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Dragged_to_its_narrowest_the_sidebar_shows_only_the_icons()
+    {
+        var (window, main, _, _) = Show();
+        var video = CategoryRow(window, "video");
+        var name = ((CategoryRowViewModel)video.DataContext).Name;
+        Assert.Contains(video.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == name && t.IsEffectivelyVisible);
+
+        var start = Center(Splitter(window), window);
+        window.MouseDown(start, MouseButton.Left);
+        window.MouseMove(new Point(1, start.Y));
+        window.MouseUp(new Point(1, start.Y), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(MainViewModel.MinSidebarWidth, main.SidebarWidth);
+        Assert.True(main.IsSidebarCompact);
+        foreach (var row in Rows(window))
+        {
+            // No name, no count, no drag handle: just the icon, fully inside the row.
+            Assert.DoesNotContain(row.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible);
+            var icon = row.GetVisualDescendants().OfType<PathIcon>().First(i => i.IsEffectivelyVisible);
+            Assert.True(X(icon, window) + icon.Bounds.Width <= X(row, window) + row.Bounds.Width,
+                $"icon cut off in a {row.Bounds.Width}px row");
+            Assert.Equal(0, Grip(row)?.Bounds.Width ?? 0);
+        }
+        foreach (var header in Headers(window))
+        {
+            Assert.False(Title(header).IsEffectivelyVisible);
+            Assert.True(Part(header, "secicon").IsEffectivelyVisible);
+            var chevron = Part(header, "chevron");
+            Assert.True(X(chevron, window) + chevron.Bounds.Width <= X(header, window) + header.Bounds.Width,
+                "chevron cut off");
+        }
+
+        // Widen it again: the names come back.
+        main.SidebarWidth = MainViewModel.DefaultSidebarWidth;
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(main.IsSidebarCompact);
+        Assert.Contains(CategoryRow(window, "video").GetVisualDescendants().OfType<TextBlock>(),
+            t => t.Text == name && t.IsEffectivelyVisible);
+        window.Close();
+    }
 }

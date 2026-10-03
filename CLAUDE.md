@@ -318,7 +318,8 @@ Rough order to turn the current skeleton into the MVP above:
      RTL). A category row shows a **6-dot drag handle on hover**; dragging reorders
      (`CategoryService.MoveTo`). Sidebar counts now also follow the search box.
    - Section headers carry icons (folder / queues), and the sidebar **width is resized by dragging its
-     end edge** (`MainViewModel.SidebarWidth`, 150–400 px, saved in `Config.SidebarWidth`).
+     end edge** (`MainViewModel.SidebarWidth`, 68–400 px, saved in `Config.SidebarWidth`); below
+     120 px it shows only the icons (`IsSidebarCompact` → `compact` class on the `Sidebar` panel).
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

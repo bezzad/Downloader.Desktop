@@ -2524,3 +2524,9 @@ Check `../Downloader` before instrumenting the app.
   on the side where the working area is inset (taskbar/top bar). The popup hides (not closes) on
   Deactivated / Esc / after a command, so one instance is reused.
 - **A `NativeMenuItemSeparator` IS a `NativeMenuItem` with Header "-"** — filter it out when listing labels.
+
+### Avalonia: a type selector matches the EXACT type
+`Control.myclass` in a style selector matches only elements whose type is exactly `Control` — a
+`TextBlock` or `Panel` with that class is NOT matched (it builds, then silently does nothing).
+To match any control by class, write `:is(Control).myclass`. A bare `.myclass` fails to build here
+(AVLN2200 "Can not find parent Style Selector").

@@ -34,7 +34,10 @@ public class MainViewModel : ViewModelBase
     private double _sidebarWidth = DefaultSidebarWidth;
 
     public const double DefaultSidebarWidth = 204;
-    public const double MinSidebarWidth = 150;
+    /// <summary>Narrow enough to show only the icons (the rows' padding plus one icon).</summary>
+    public const double MinSidebarWidth = 68;
+    /// <summary>Below this width the names and counts are hidden and only the icons are shown.</summary>
+    public const double CompactSidebarWidth = 120;
     public const double MaxSidebarWidth = 400;
 
     public MainViewModel(IFileService fileService, IDownloadManager downloadManager, PluginManager pluginManager = null)
@@ -155,7 +158,8 @@ public class MainViewModel : ViewModelBase
 
     /// <summary>
     /// The sidebar's width, changed by dragging its edge. Kept between <see cref="MinSidebarWidth"/>
-    /// and <see cref="MaxSidebarWidth"/> so it can neither vanish nor swallow the list.
+    /// and <see cref="MaxSidebarWidth"/> so it can neither vanish nor swallow the list. Dragged narrow,
+    /// it shows only the icons (<see cref="IsSidebarCompact"/>).
     /// </summary>
     public double SidebarWidth
     {
@@ -167,6 +171,7 @@ public class MainViewModel : ViewModelBase
                 return;
 
             this.RaiseAndSetIfChanged(ref _sidebarWidth, value);
+            this.RaisePropertyChanged(nameof(IsSidebarCompact));
             if (_config != null)
             {
                 _config.SidebarWidth = value;
@@ -174,6 +179,9 @@ public class MainViewModel : ViewModelBase
             }
         }
     }
+
+    /// <summary>True when the sidebar is too narrow for names: only the icons are shown.</summary>
+    public bool IsSidebarCompact => _sidebarWidth < CompactSidebarWidth;
 
     /// <summary>The sidebar's rows: "All", then every category in the user's order.</summary>
     public ObservableCollection<CategoryRowViewModel> CategoryRows { get; } = new();
@@ -332,6 +340,7 @@ public class MainViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(IsCategorySidebarOpen));
         _sidebarWidth = Math.Clamp(_config.SidebarWidth, MinSidebarWidth, MaxSidebarWidth);
         this.RaisePropertyChanged(nameof(SidebarWidth));
+        this.RaisePropertyChanged(nameof(IsSidebarCompact));
         RebuildCategoryRows();
         _downloadManager.Categories.Changed += () => Dispatcher.UIThread.Post(RebuildCategoryRows);
         RebuildQueueRows();

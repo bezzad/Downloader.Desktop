@@ -371,7 +371,8 @@
         <!-- ===== Sidebar: Categories + Queues (shown by default, toggled beside the link box) =====
              Only on the downloads page: it filters that list, and showing it over Settings would
              offer a filter with nothing to filter. -->
-        <Panel x:Name="Sidebar" DockPanel.Dock="Left" Width="{Binding SidebarWidth}">
+        <Panel x:Name="Sidebar" DockPanel.Dock="Left" Width="{Binding SidebarWidth}"
+               Classes.compact="{Binding IsSidebarCompact}">
             <Panel.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="IsCategorySidebarOpen" />
@@ -387,12 +388,13 @@
                     <!-- Each section header expands/collapses its rows; both start expanded. -->
                     <Button Classes="sechead" Command="{Binding ToggleCategoriesSectionCommand}"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <PathIcon Classes="chevron" Classes.collapsed="{Binding !IsCategoriesExpanded}"
-                                      Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
+                        <Grid ColumnDefinitions="Auto,*,Auto">
                             <PathIcon Classes="secicon" Data="{DynamicResource FolderRegular}" Width="13" Height="13" />
-                            <TextBlock Text="{i18n:Tr Cat_Sidebar}" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="1" Classes="sidetext" Text="{i18n:Tr Cat_Sidebar}"
+                                       Margin="6 0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <PathIcon Grid.Column="2" Classes="chevron" Classes.collapsed="{Binding !IsCategoriesExpanded}"
+                                      Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
+                        </Grid>
                     </Button>
                     <StackPanel IsVisible="{Binding IsCategoriesExpanded}">
                         <ItemsControl x:Name="CategoryList" ItemsSource="{Binding CategoryRows}">
@@ -450,12 +452,14 @@
                                      language switch (Localizer.Tick). Subscribing the shell
                                      to the Localizer singleton instead would leak a handler
                                      for the life of the process. -->
-                                <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="10 0 6 0"
-                                           IsVisible="{Binding !IsAll}"
-                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{i18n:Tr Cat_All}" Margin="10 0 6 0"
-                                           IsVisible="{Binding IsAll}"
-                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <Panel Grid.Column="2" Classes="sidetext">
+                                    <TextBlock Text="{Binding Name}" Margin="10 0 6 0"
+                                               IsVisible="{Binding !IsAll}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{i18n:Tr Cat_All}" Margin="10 0 6 0"
+                                               IsVisible="{Binding IsAll}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </Panel>
                                 <Border Grid.Column="3" Classes="pill">
                                     <TextBlock Text="{Binding Count}" FontSize="11" />
                                 </Border>
@@ -479,19 +483,20 @@
                                 Command="{Binding AddCategoryCommand}" ToolTip.Tip="{i18n:Tr Cat_Add}">
                             <StackPanel Orientation="Horizontal" Spacing="9">
                                 <PathIcon Data="{DynamicResource AddRegular}" Height="12" Width="12" />
-                                <TextBlock Text="{i18n:Tr Cat_Add}" VerticalAlignment="Center" FontSize="12" />
+                                <TextBlock Classes="sidetext" Text="{i18n:Tr Cat_Add}" VerticalAlignment="Center" FontSize="12" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
 
                     <Button Classes="sechead" Margin="0 12 0 0" Command="{Binding ToggleQueuesSectionCommand}"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <PathIcon Classes="chevron" Classes.collapsed="{Binding !IsQueuesExpanded}"
-                                      Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
+                        <Grid ColumnDefinitions="Auto,*,Auto">
                             <PathIcon Classes="secicon" Data="{DynamicResource TabsRegular}" Width="13" Height="13" />
-                            <TextBlock Text="{i18n:Tr Nav_Queues}" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="1" Classes="sidetext" Text="{i18n:Tr Nav_Queues}"
+                                       Margin="6 0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <PathIcon Grid.Column="2" Classes="chevron" Classes.collapsed="{Binding !IsQueuesExpanded}"
+                                      Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
+                        </Grid>
                     </Button>
                     <ItemsControl x:Name="QueueList" ItemsSource="{Binding QueueRows}"
                                   IsVisible="{Binding IsQueuesExpanded}">
@@ -507,7 +512,7 @@
                                         <Border Grid.Column="0" Classes="selbar" IsVisible="{Binding IsSelected}" />
                                         <PathIcon Grid.Column="1" Width="15" Height="15"
                                                   Data="{DynamicResource TabsRegular}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="10 0 6 0"
+                                        <TextBlock Grid.Column="2" Classes="sidetext" Text="{Binding Name}" Margin="10 0 6 0"
                                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                         <Border Grid.Column="3" Classes="pill">
                                             <TextBlock Text="{Binding Count}" FontSize="11" />

@@ -179,14 +179,15 @@ at once when the user picks another accent, and SHALL sit on the right edge in r
 - **THEN** the bar is on the right edge of the selected row
 
 ### Requirement: Each section header shows an icon
-The Categories header SHALL show a folder icon and the Queues header SHALL show the queues icon (the same one the toolbar's Queues button uses), between the collapse chevron and the title.
+The Categories header SHALL show a folder icon and the Queues header SHALL show the queues icon (the same one the toolbar's Queues button uses). A header reads, from its start edge: the icon, the title, then the collapse chevron at the header's end.
 
 #### Scenario: Both headers carry their icon
 - **WHEN** the sidebar is shown
 - **THEN** the Categories header shows the folder icon and the Queues header shows the queues icon
+- **AND** each header's chevron is after its title
 
 ### Requirement: The sidebar width is changed by dragging its edge
-The sidebar's end edge SHALL show the resize (west-east) pointer and, while the left button is held on it, the sidebar width SHALL follow the pointer. The width SHALL stay between 150 and 400 pixels, SHALL be saved, and SHALL be used again after a restart (a saved value outside the limits is clamped). In right-to-left languages the edge is on the left side and the same rules apply.
+The sidebar's end edge SHALL show the resize (west-east) pointer and, while the left button is held on it, the sidebar width SHALL follow the pointer. The width SHALL stay between 68 pixels (just the icons) and 400 pixels, SHALL be saved, and SHALL be used again after a restart (a saved value outside the limits is clamped). In right-to-left languages the edge is on the left side and the same rules apply.
 
 #### Scenario: Drag to widen
 - **WHEN** the user drags the sidebar edge 80 pixels away from the sidebar
@@ -194,8 +195,13 @@ The sidebar's end edge SHALL show the resize (west-east) pointer and, while the 
 
 #### Scenario: Limits
 - **WHEN** the user drags the edge to the window's far side, or onto the sidebar's start
-- **THEN** the width stops at 400 or at 150 pixels
+- **THEN** the width stops at 400 or at 68 pixels
 
 #### Scenario: Restart
 - **WHEN** the app starts with a saved width
 - **THEN** the sidebar uses that width, clamped to the limits
+
+#### Scenario: Icons only
+- **WHEN** the sidebar is dragged narrower than 120 pixels
+- **THEN** the names, counts, drag handles and section titles are hidden, and every row and header shows only its icon (the header keeps its chevron); the row's tooltip still names it
+- **AND** widening it again past 120 pixels brings the names back

@@ -308,6 +308,16 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         Avalonia.Headless.HeadlessWindowExtensions.MouseMove(window, new Avalonia.Point(900, 600));
 
+        // The sidebar dragged to its narrowest: icons only.
+        vm.SidebarWidth = MainViewModel.MinSidebarWidth;
+        Pump();
+        Save(window, "sidebar-compact-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-compact-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        vm.SidebarWidth = MainViewModel.DefaultSidebarWidth;
+        Pump();
+
         // The app-drawn tray menu (Linux/Windows), light and dark.
         TrayService.Init(window, () => { });
         TrayService.ShowMenuPopup();
