@@ -420,8 +420,11 @@
              the row with the solid accent, which made the dark row text almost invisible (#row-select).
              RowSelectionBrush is a translucent accent kept in sync with the chosen accent by ThemeService;
              the fallback here covers first paint before any accent is applied. Foreground is pinned to the
-             normal high-contrast text color so inherited (filename) text never goes white-on-light. -->
-        <Style Selector="DataGridCell:selected">
+             normal high-contrast text color so inherited (filename) text never goes white-on-light.
+             Keyed on the ROW's :selected, not the cell's: Avalonia's DataGrid refreshes a cell's own
+             :selected only when the pointer enters that cell, so a cell-keyed tint stayed painted on the
+             previously selected row until each cell was hovered. -->
+        <Style Selector="DataGridRow:selected DataGridCell">
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />

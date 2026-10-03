@@ -2530,3 +2530,12 @@ Check `../Downloader` before instrumenting the app.
 `TextBlock` or `Panel` with that class is NOT matched (it builds, then silently does nothing).
 To match any control by class, write `:is(Control).myclass`. A bare `.myclass` fails to build here
 (AVLN2200 "Can not find parent Style Selector").
+
+## DataGrid selection tint must key on the ROW's `:selected`, never the cell's (2026-10-03)
+Avalonia.Controls.DataGrid 12.0.0: `DataGridRow.ApplyState` sets the row's `:selected` but never calls
+`ApplyCellsState()`, so a `DataGridCell`'s own `:selected` is refreshed only when the pointer enters that
+cell (`MouseOverColumnIndex`) or on recycling. A `DataGridCell:selected` background therefore stayed
+painted, cell by cell, on the previously selected row until each cell was hovered ("old selection still
+shows, disappears on hover"). Style `DataGridRow:selected DataGridCell` instead (App.axaml). Pinned by
+`UI/GridSelectionHighlightTests`. Decompile the DataGrid with `ilspycmd -p -o <dir>
+~/.nuget/packages/avalonia.controls.datagrid/12.0.0/lib/net10.0/Avalonia.Controls.DataGrid.dll`.
