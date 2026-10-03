@@ -56,6 +56,33 @@ close-to-tray behaviour.
 7. **Labels via `Localizer`** (`Tray_ShowDownloads`, `Tray_Settings`, `Tray_Notifications`, `Tray_Exit`),
    refreshed on language change; native macOS item headers are rebuilt on change.
 
+## Findings (task 1.4 — on-device, Ubuntu GNOME, snap 2.15.0 rev 33, 2026-10-03)
+
+Evidence: `dbus-monitor` + `journalctl` from the author's machine (run C in device-test.md).
+
+- **The snap's menu is blocked by AppArmor.** Right after each start, gnome-shell calls `GetLayout` on
+  the app's menu at `/net/avaloniaui/dbusmenu/<guid>`; the dbus-daemon logs
+  `apparmor="DENIED" operation="dbus_method_call" … member="GetLayout" mask="receive"
+  label="snap.downloader.downloader"`, and gnome-shell logs `AccessDenied`. The snap's `unity7`
+  interface only allows dbusmenu calls on fixed paths (`/MenuBar…`, `/com/canonical/menu/…`), and
+  Avalonia hard-codes its own path — so no snap plug can fix it. The shell never has the menu, so
+  right-click shows nothing. Every one of the 4 runs got this denial.
+- **Unconfined builds are not affected** (dev-run.sh, tarball, .deb) — which is why the dev build's menu
+  works and the snap's does not. The tray code is identical in both.
+- **Left clicks reach the app in the snap**: each left click arrives as `org.kde.StatusNotifierItem.
+  Activate` on `/StatusNotifierItem`, with no denial, so `TrayIcon.Clicked` fires.
+- Right click with NO menu attached: not observed yet (needs run B on the dev build — the shell's
+  behaviour does not depend on the sandbox).
+- Noise, not related: `IBus … Destroy` denied (the "[IME] Error while destroying the context" lines) and
+  `file_lock` on `/proc/<pid>/stat` denied.
+
+**Outcome of decision 1: `Clicked` arrives → the popup plan works, including in the snap.**
+Interim refinement of decision 3 until run B (Linux) and the Windows smoke test say right click reaches
+us without a menu: a LEFT click opens the app's popup; the native menu stays attached (same four items,
+translated) so a right click keeps working wherever the shell can read it (all unconfined Linux,
+Windows, macOS). In the snap the native menu stays blocked, but left click → popup gives the full menu
+there. If run B shows a right click also arrives as a click with no menu, drop the native menu on Linux.
+
 ## Risks / Trade-offs
 
 - [GNOME never tells the app about the click] → decision 1 finds this out before any UI work; the
