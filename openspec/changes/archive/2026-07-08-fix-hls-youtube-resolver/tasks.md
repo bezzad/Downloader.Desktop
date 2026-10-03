@@ -29,8 +29,8 @@
 ## 5. Verify YouTube works end-to-end
 
 - [x] 5.1 Re-run the gated test from task 1 against the same test video — it should now pass (or, if task 1.3 retargeted the fix, against whatever the actual root cause turned out to be).
-- [~] 5.2 Author manual verification: paste a session-gated YouTube video URL into the app (or send it via the updated browser extension) and confirm it downloads and plays.
-- [~] 5.3 Record the diagnosis outcome and the manual verification result in this change before archiving.
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.2 Author manual verification: paste a session-gated YouTube video URL into the app (or send it via the updated browser extension) and confirm it downloads and plays.
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.3 Record the diagnosis outcome and the manual verification result in this change before archiving.
 
 ## 6. Follow-up (explicitly out of scope for this change)
 

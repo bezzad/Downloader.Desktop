@@ -79,7 +79,7 @@
   `docs/writing-plugins.md` (paths + `IPostDownloadAction` row).
 - [x] 7.1b README feature bullet: "Download Ollama models" (paste a link or type `gemma3:12b` → download
   → one-click Add to Ollama) + built-in plugins (GitHub Releases + Ollama Models).
-- [ ] 7.2 Settings/Plugins screenshots: **carried over to the next Linux session** (macOS captures must
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 7.2 Settings/Plugins screenshots: **carried over to the next Linux session** (macOS captures must
   not be committed per SKILL.md). Archived with this box open by the author's decision — the reminder
   also lives in the SKILL screenshot routine.
 - [x] 7.4 **(reprocess — author feedback)** The completion toast's button said a bare "Open", which read

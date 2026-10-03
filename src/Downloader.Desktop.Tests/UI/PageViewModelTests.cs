@@ -17,8 +17,8 @@ namespace Downloader.Desktop.Tests.UI;
 /// setting overwrites the cap on next launch), and the Run/Pause switch must go through the manager's
 /// StartQueue/PauseQueue rather than flipping the flag directly.
 ///
-/// The Downloads page's bulk actions act on checked rows PLUS DataGrid-highlighted rows, which is why
-/// the grid-selection seam is exercised rather than only the checkboxes.
+/// The Downloads page's bulk actions act on the checked rows; the view keeps the grid selection equal
+/// to them (see DownloadsSelectionSyncTests).
 /// </summary>
 public class PageViewModelTests
 {
@@ -216,22 +216,6 @@ public class PageViewModelTests
 
         Assert.False(page.HasSelection);
         Assert.Equal(false, page.SelectAllState);
-    }
-
-    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void Highlighting_a_row_in_the_grid_counts_as_selecting_it()
-    {
-        var (manager, config) = Build();
-        var a = Add(manager, "a.bin", DownloadStatus.Running);
-        var page = new DownloadsViewModel(manager);
-
-        // A plain click highlights without checking the box; the toolbar must still act on it.
-        page.SetGridSelection(new[] { a });
-
-        Assert.True(page.HasSelection);
-
-        page.SetGridSelection(null);
-        Assert.False(page.HasSelection);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

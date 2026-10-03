@@ -33,7 +33,7 @@
 ## 3. Interception: diagnostics and the app-detection report
 
 - [x] 3.1 Show an explicit "Downloader not found on ports 15151–15155" state in the popup when discovery fails, clearing when the app returns; cover both with a Playwright e2e case (app stub down, then up).
-- [ ] 3.2 Record in the issue thread — from the evidence in design.md — that nothing in extension 1.5.0 requires app 2.7.0 (`/ping` since 2.5.0, `id` since v1.6.0, app diff v2.6.1→v2.7.0 touches only the updater), and ask the reporter to confirm with the new diagnostic. **Draft the text and get the author's explicit OK before posting** (standing rule).
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 3.2 Record in the issue thread — from the evidence in design.md — that nothing in extension 1.5.0 requires app 2.7.0 (`/ping` since 2.5.0, `id` since v1.6.0, app diff v2.6.1→v2.7.0 touches only the updater), and ask the reporter to confirm with the new diagnostic. **Draft the text and get the author's explicit OK before posting** (standing rule).
 - [x] 3.3 Bump the extension version, refresh `PUBLISHING.md`/`README.md` where they state what is fixed, and verify the packaged zip loads unpacked in Chromium with no console errors.
 
 ## 4. YouTube: an optional site-extraction plugin (author's choice — see design decision 7)

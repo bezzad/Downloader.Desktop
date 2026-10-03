@@ -155,11 +155,27 @@ public class CaptureScreenshots
         var grid = window.GetVisualDescendants().OfType<Avalonia.Controls.DataGrid>().FirstOrDefault();
         if (grid != null)
         {
+            // Two rows selected (click + Ctrl+click): their checkboxes follow the selection.
             grid.SelectedIndex = 1;
+            grid.SelectedItems.Add(grid.ItemsSource.Cast<object>().ElementAt(3));
             Save(window, "home-selected-dark.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             Save(window, "home-selected-light.png");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+            // The row's right-click menu, Copy submenu expanded.
+            var page = (DownloadsViewModel)grid.DataContext!;
+            page.PrepareMenuFor(manager.Items[1]);
+            HeadlessWindowExtensions.MouseMove(window, new Point(330, 180)); // the menu opens at the pointer
+            grid.ContextMenu!.Open(grid);
+            Pump();
+            grid.ContextMenu.Items.OfType<Avalonia.Controls.MenuItem>()
+                .First(m => m.Header as string == Localizer.Instance["Menu_Copy"]).IsSubMenuOpen = true;
+            Save(window, "row-menu-dark.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+            Save(window, "row-menu-light.png");
+            Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+            grid.ContextMenu.Close();
             grid.SelectedIndex = -1;
         }
 
@@ -170,6 +186,15 @@ public class CaptureScreenshots
 
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "home-light.png");
+
+        // Title-bar search while focused: the box widens (transition off so the frame shows the end width).
+        var search = window.GetVisualDescendants().OfType<Avalonia.Controls.TextBox>().First(t => t.Name == "SearchBox");
+        search.Transitions = null;
+        search.Focus();
+        Save(window, "home-search-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        Save(window, "home-search-dark.png");
+        grid?.Focus(); // move focus off the search box so later shots show it at rest
 
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
 
@@ -249,14 +274,58 @@ public class CaptureScreenshots
 
         vm.ShowDownloadsCommand.Execute(null);
 
-        // The category sidebar (off by default, so it needs opening) — this is the shot that shows the
-        // new Type column beside it.
+        // The sidebar (Categories + Queues, shown by default) beside the Type column.
         vm.IsCategorySidebarOpen = true;
         Pump();
         Save(window, "categories-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "categories-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // A selected queue: only its downloads listed, and the accent bar on its row.
+        vm.SelectedQueueId = vm.QueueRows.Last().Id;
+        Pump();
+        // The queue rows sit below the categories; scroll the sidebar so the selected one is in view.
+        var sidebarScroll = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+            .First(b => b.DataContext is SidebarQueueRowViewModel)
+            .FindAncestorOfType<Avalonia.Controls.ScrollViewer>();
+        ScrollTo(sidebarScroll, sidebarScroll.Extent.Height);
+        Save(window, "sidebar-queue-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-queue-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        vm.SelectedCategoryId = null;
+        ScrollTo(sidebarScroll, 0);
+
+        // A hovered category row shows its drag handle.
+        var hovered = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+            .First(b => b.DataContext is CategoryRowViewModel { Id: "video" });
+        Avalonia.Headless.HeadlessWindowExtensions.MouseMove(window,
+            hovered.TranslatePoint(new Avalonia.Point(hovered.Bounds.Width / 2, hovered.Bounds.Height / 2), window)!.Value);
+        Save(window, "sidebar-grip-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-grip-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        Avalonia.Headless.HeadlessWindowExtensions.MouseMove(window, new Avalonia.Point(900, 600));
+
+        // The sidebar dragged to its narrowest: icons only.
+        vm.SidebarWidth = MainViewModel.MinSidebarWidth;
+        Pump();
+        Save(window, "sidebar-compact-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-compact-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        vm.SidebarWidth = MainViewModel.DefaultSidebarWidth;
+        Pump();
+
+        // The app-drawn tray menu (Linux/Windows), light and dark.
+        TrayService.Init(window, () => { });
+        TrayService.ShowMenuPopup();
+        Save(TrayService.Popup, "tray-menu-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(TrayService.Popup, "tray-menu-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        TrayService.Disable();
 
         // Persian (RTL) home to verify translation + right-to-left mirroring — captured with the
         // sidebar OPEN, since mirroring a column of its own is the part worth looking at.

@@ -59,7 +59,7 @@
 - [x] 6.2 Test the worst case explicitly: the app accepts the add and then fails to start it — the user
       must not be left with neither a browser download nor a working one.
 - [x] 6.3 Run `node --test src/browser-extension/common.test.js` and the Playwright suite green.
-- [ ] 6.4 **Author's manual check**: load the unpacked extension in Chrome, download a real file from a
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 6.4 **Author's manual check**: load the unpacked extension in Chrome, download a real file from a
       real site with interception on, then with it off, then with the app closed.
 
 ## 7. Docs and release

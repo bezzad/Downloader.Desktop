@@ -143,7 +143,7 @@ public class SmallServiceTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Enabling_logging_writes_each_level_and_the_exception_detail()
     {
-        AppLog.SetEnabled(true);
+        using var log = new LogScope();
         Assert.True(AppLog.IsEnabled);
 
         var marker = Guid.NewGuid().ToString("N");
@@ -151,7 +151,7 @@ public class SmallServiceTests : IDisposable
         AppLog.Warn("warn-" + marker);
         AppLog.Error("error-" + marker, new InvalidOperationException("boom-" + marker));
 
-        var text = File.ReadAllText(AppLog.CurrentLogFile);
+        var text = log.Text();
         Assert.Contains("info-" + marker, text);
         Assert.Contains("warn-" + marker, text);
         Assert.Contains("error-" + marker, text);
@@ -163,7 +163,7 @@ public class SmallServiceTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void The_engine_logger_bridge_writes_into_the_same_file()
     {
-        AppLog.SetEnabled(true);
+        using var log = new LogScope();
         var marker = Guid.NewGuid().ToString("N");
 
         // The Downloader engine takes an ILoggerFactory; its output has to land in OUR log or the
@@ -171,7 +171,7 @@ public class SmallServiceTests : IDisposable
         var logger = AppLog.Factory.CreateLogger("test");
         logger.LogInformation("bridged-" + marker);
 
-        Assert.Contains("bridged-" + marker, File.ReadAllText(AppLog.CurrentLogFile));
+        Assert.Contains("bridged-" + marker, log.Text());
 
         // The bridge must tolerate the scope API even though it does not implement scopes.
         using (logger.BeginScope("scope")) { }
@@ -329,7 +329,7 @@ public class SmallServiceTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Every_engine_log_level_maps_onto_a_readable_tag()
     {
-        AppLog.SetEnabled(true);
+        using var log = new LogScope();
         var marker = Guid.NewGuid().ToString("N");
         var logger = AppLog.Factory.CreateLogger("Downloader.Engine.ChunkDownloader");
 
@@ -337,7 +337,7 @@ public class SmallServiceTests : IDisposable
         logger.LogWarning("warn-" + marker);
         logger.LogCritical("critical-" + marker);
 
-        var lines = File.ReadAllLines(AppLog.CurrentLogFile)
+        var lines = log.Text().Split('\n')
             .Where(l => l.Contains(marker))
             .ToList();
 
@@ -353,13 +353,13 @@ public class SmallServiceTests : IDisposable
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void An_exception_logged_through_the_bridge_keeps_its_type_and_message()
     {
-        AppLog.SetEnabled(true);
+        using var log = new LogScope();
         var marker = Guid.NewGuid().ToString("N");
 
         AppLog.Factory.CreateLogger("test")
             .LogError(new TimeoutException("timed-out-" + marker), "download failed " + marker);
 
-        var text = File.ReadAllText(AppLog.CurrentLogFile);
+        var text = log.Text();
         Assert.Contains("TimeoutException", text);
         Assert.Contains("timed-out-" + marker, text);
     }

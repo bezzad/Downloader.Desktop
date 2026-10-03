@@ -265,6 +265,50 @@ public class CategoryServiceTests
         Assert.Equal(4, changes);
     }
 
+    // ---- drag to reorder ------------------------------------------------------------------------
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void MoveTo_puts_a_category_at_the_drop_index_and_renumbers()
+    {
+        var config = Config.New();
+        var service = Service(config);
+        var changes = 0;
+        service.Changed += () => changes++;
+        var before = config.Categories.Select(c => c.Id).ToList();
+        var last = before[^1];
+
+        Assert.True(service.MoveTo(last, 1));
+
+        var after = config.Categories.Select(c => c.Id).ToList();
+        Assert.Equal(last, after[1]);
+        Assert.Equal(before.Count, after.Count);
+        // The list the config saves is the one reordered, so the order persists.
+        Assert.Equal(Enumerable.Range(0, after.Count), config.Categories.Select(c => c.Position));
+        Assert.Equal(1, changes);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void MoveTo_clamps_so_nothing_lands_outside_the_list()
+    {
+        var config = Config.New();
+        var service = Service(config);
+        var second = config.Categories[1].Id;
+        var first = config.Categories[0].Id;
+
+        Assert.True(service.MoveTo(second, -5));
+        Assert.Equal(second, config.Categories[0].Id);
+
+        Assert.True(service.MoveTo(first, 999));
+        Assert.Equal(first, config.Categories[^1].Id);
+
+        // Same place or unknown id: no change, no announcement.
+        var changes = 0;
+        service.Changed += () => changes++;
+        Assert.False(service.MoveTo(first, config.Categories.Count - 1));
+        Assert.False(service.MoveTo("nope", 0));
+        Assert.Equal(0, changes);
+    }
+
     // ---- upgrading an existing configuration ---------------------------------------------------
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -296,7 +340,30 @@ public class CategoryServiceTests
         // built-ins carry the extension table the app already used.
         Assert.Null(config.Downloads[0].CategoryId);
         Assert.Equal("video", CategoryService.Detect(config.Categories, "a.mp4", null).Id);
-        // The sidebar stays out of the way until asked for.
+        // The sidebar is how categories and queues are reached, so an upgrade shows it.
+        Assert.True(config.IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_configuration_shows_the_sidebar()
+    {
+        Assert.True(Config.New().IsCategorySidebarOpen);
+        // What an empty/older config.json without the field deserializes to.
+        Assert.True(new Config().EnsureValid().IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_v2_configuration_with_the_sidebar_hidden_shows_it_once_then_keeps_the_choice()
+    {
+        var config = new Config { SchemaVersion = 2, IsCategorySidebarOpen = false };
+
+        config.EnsureValid();
+        Assert.True(config.IsCategorySidebarOpen);
+        Assert.Equal(3, config.SchemaVersion);
+
+        // The user hides it again; the next load must respect that.
+        config.IsCategorySidebarOpen = false;
+        config.EnsureValid();
         Assert.False(config.IsCategorySidebarOpen);
     }
 

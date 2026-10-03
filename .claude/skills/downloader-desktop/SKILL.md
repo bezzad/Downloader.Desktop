@@ -68,7 +68,7 @@ Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
 - **Queues page = a real queue manager** (`Views/QueuesView.axaml`, `ViewModels/QueuesViewModel.cs`): per-queue card shows live aggregate stats (`RunningCount/WaitingCount/DoneCount/FailedCount`, `TotalSpeedText`, `SummaryText`) + a combined `OverallProgress` bar (average of item `Progress`), a run/pause `ToggleSwitch`, the concurrency cap, and the queue's downloads with per-item progress + pause/resume/retry/cancel/remove + reorder (`ChevronUp/Down` → `manager.MovePriority(vm, ±1)`) + move-between-queues (a `MenuFlyout` of `QueueMoveTarget`s → `manager.MoveToQueue(vm, queueId)`, hidden when only one queue). Rows are wrapped in `QueueItemViewModel` (holds the real `DownloadItemViewModel` as `Item` + the reorder/move commands); the card's `Items` is an `ObservableCollection<QueueItemViewModel>` rebuilt on `ListChanged` (order = master `Items` order = pump priority), and aggregates refresh on both `ListChanged` and `StatsChanged` (live). `QueueRowViewModel.Detach()` unsubscribes both events. **Pump order follows master-list order**, so `MovePriority` just `Items.Move`s past the same-queue neighbour. `Initialize` now backfills `QueueId=DefaultQueue.Id` for items saved without one (older configs) so they always appear on a queue. `DownloadItemViewModel.FormatBytes` is now `public static` for reuse. **Queue set changes sync via `IDownloadManager.QueuesChanged`**: queues can be created/removed OUTSIDE the Queues page (the Add-download dialog's inline "new queue" box → `manager.AddQueue`), so `QueuesViewModel` subscribes to `QueuesChanged` and reconciles its rows from `_config.Queues` (`SyncFromConfig` — drops gone rows, inserts new in config order, keeps existing rows/UI state). The page's own Add/Remove buttons just call the manager and let the event add/remove the card — don't mutate `Queues` directly or a queue made elsewhere won't show until restart (the original bug).
 
 ## System tray / startup / auto-update (Round 11) — patterns worth caching
-- **Tray** (`Services/TrayService`, static): create `TrayIcon` in code and register via `TrayIcon.SetIcons(Application.Current, new TrayIcons { icon })`. **`NativeMenuItemToggleType` does NOT exist in this Avalonia 12** — don't use `ToggleType`/`IsChecked` on `NativeMenuItem`; reflect state by swapping the item's `Header` ("Disable/Enable notifications"). Wrap creation in try/catch — headless/no-session platforms throw; on failure leave `_tray=null` so close-to-tray fails soft. **Linux tray (Ubuntu GNOME/AppIndicator) — DO NOT make speculative changes here. Ever.** This code has flip-flopped three times (`2654f9a` removed the Clicked handler, `3aac545` re-added it, `fa6b925` gated it off for Linux) and each theory about the `TrayIcon.Clicked → ShowWindow` handler was later contradicted by on-device behavior: after `fa6b925` gated the handler off, the author reported the tray **icon stopped appearing at all** (previously it appeared and only the right-click menu was broken) — so the handler was reverted to unconditional, which is the configuration of every build where the icon did show. Conclusions that ARE settled: (a) keep the unconditional `_tray.Clicked += → ShowWindow` subscription; (b) **use a SMALL tray icon** (downscale to 64×64 via `Bitmap.CreateScaledBitmap` — the 1080×1080 PNG is a ~4.6 MB pixmap over DBus and can make the SNI item render while its menu fails to attach). The right-click-menu-doesn't-open bug is still OPEN and **cannot be diagnosed from this headless box** (no desktop session, no DBus StatusNotifierWatcher): any further change requires on-device evidence first — e.g. run the app on the Ubuntu box with logging enabled, `dbus-monitor` the `org.kde.StatusNotifierItem` traffic, or test a minimal Avalonia tray repro — never another code-only guess.
+- **Tray** (`Services/TrayService`, static): create `TrayIcon` in code and register via `TrayIcon.SetIcons(Application.Current, new TrayIcons { icon })`. **`NativeMenuItemToggleType` does NOT exist in this Avalonia 12** — don't use `ToggleType`/`IsChecked` on `NativeMenuItem`; reflect state by swapping the item's `Header` ("Disable/Enable notifications"). Wrap creation in try/catch — headless/no-session platforms throw; on failure leave `_tray=null` so close-to-tray fails soft. **Linux tray (Ubuntu GNOME/AppIndicator) — DO NOT make speculative changes here. Ever.** This code has flip-flopped three times (`2654f9a` removed the Clicked handler, `3aac545` re-added it, `fa6b925` gated it off for Linux) and each theory about the `TrayIcon.Clicked → ShowWindow` handler was later contradicted by on-device behavior: after `fa6b925` gated the handler off, the author reported the tray **icon stopped appearing at all** (previously it appeared and only the right-click menu was broken) — so the handler was reverted to unconditional, which is the configuration of every build where the icon did show. Conclusions that ARE settled: (a) keep the unconditional `_tray.Clicked += → ShowWindow` subscription; (b) **use a SMALL tray icon** (downscale to 64×64 via `Bitmap.CreateScaledBitmap` — the 1080×1080 PNG is a ~4.6 MB pixmap over DBus and can make the SNI item render while its menu fails to attach). **ROOT CAUSE FOUND (on-device, 2026-10-03): in the SNAP the right-click menu is blocked by AppArmor.** gnome-shell's `com.canonical.dbusmenu.GetLayout` call to Avalonia's menu path `/net/avaloniaui/dbusmenu/<guid>` is DENIED (`apparmor="DENIED" … member="GetLayout" mask="receive" label="snap.downloader.downloader"` in `journalctl --user`): the `unity7` interface only allows dbusmenu on `/MenuBar…`/`/com/canonical/menu/…`, and Avalonia hard-codes its path, so no plug fixes it. Unconfined builds (dev-run.sh, tarball, .deb) are fine — "works in dev, not in the snap" is this, not a code difference. LEFT clicks DO reach the snap (`StatusNotifierItem.Activate`, not denied → `TrayIcon.Clicked`), which is why the app-drawn popup (tray-popup-menu) is the fix. Diagnose any future tray report with: `dbus-monitor "interface='org.kde.StatusNotifierItem'" "interface='com.canonical.dbusmenu'"` + `journalctl --user | grep -i -E 'apparmor|downloader'` while running `snap run downloader` (steps in the archived change's device-test.md). Still: no code change without on-device evidence.
 - **Close-to-tray**: handle `window.Closing`, `e.Cancel=true; window.Hide()` — but gate on **`TrayService.IsActive`**, NOT the setting, or a failed tray strands the window with no way back. Real quit sets a `_quitting` flag then `window.Close()` (ShutdownMode is OnMainWindowClose → App.ShutdownRequested still saves). Wired in `MainViewModel.SetupAppShell()` after config loads (needs `View as Window`).
 - **Run-at-startup** (`Services/StartupService`): no extra deps — Windows via `reg.exe add/query/delete HKCU\...\Run` (avoids `Microsoft.Win32.Registry` package on the non-windows TFM), Linux `~/.config/autostart/downloader.desktop`, macOS `~/Library/LaunchAgents/*.plist`. Launches with `--minimized`; `MainViewModel` hides the window at startup if that arg is present AND tray active. Coupling lives in `SettingViewModel`: disabling tray disables startup; enabling startup enables tray.
 - **Auto-update** (`Services/UpdateService` + `UpdateFlow`): **version compare uses `Assembly.GetName().Version` (`CurrentVersion` = `Major.Minor.Build`), NOT `InformationalVersion`** (that has the date-derived revision and would never compare sensibly to a `v1.1.0` tag). **Versioning fix (#update-false-alarm, 2026-06-19):** `VersionPrefix` is now the FULL 3-part semver (e.g. `1.1.2`) and `AssemblyVersion=$(VersionPrefix).0` so the app reports its real patch — the old `major.minor.0.0` pin made it always report `x.y.0`, so every patch release (e.g. `v1.1.1`) looked "newer" forever → false "update available". `release.yml` stamps `-p:VersionPrefix=<tag-without-v>` from the tag so a released build reports exactly the tag; About card (`SettingViewModel.AppVersion`) shows `UpdateService.CurrentVersion` so About + update status + release tag all agree. **Keep `VersionPrefix` three-part.** `UpdateService.IsNewer(tag, current)` + `Normalize(tag)` are pure/tested. Flow: GitHub `releases/latest` → if newer, the in-app `UpdateFlow.PromptUpdate` dialog (Download/Later) + a passive OS notification (NOT a clickable toast — see the OS-only note below) → download the per-RID asset (`ExpectedAssetName()` matches release.yml names) via a throwaway `DownloadService` → `ApplyDownloadedArchive` spawns a detached unix `.sh`/win `.cmd` that waits for the PID to exit, extracts over the app dir, relaunches → `UpdateFlow.RequestShutdown` (= MainViewModel.Quit). The self-swap is untestable here; only the version logic has tests.
@@ -2447,3 +2447,105 @@ Check `../Downloader` before instrumenting the app.
 - e2e: `fixtures/two-videos.html` + `server.js` routes `/amplify_video/<id>/vid/<file>` and
   `/amplify_video_thumb/<id>/img/*` (→ `poster.jpg`); unloaded players, so the poster is the only
   evidence and the row's `img[src]` names whose it is. Verified it fails on the old code.
+
+## Title bar holds search + app buttons (`titlebar-search`, 2026-09-28)
+- `TitleBar` has `CenterTitle` + `RightContent` (only MainWindow sets them; dialogs unchanged). The
+  centered title spans the whole bar and hides via `TitleFits(bar, title, left, right)` (pure) when the
+  right side would touch it — toggled with **Opacity, not IsVisible**: a hidden control is not measured,
+  so its width reads 0 and the check could never turn it back on.
+- Donate/About/Update stay in the TOP bar (author reverted moving them). Only the search box is in the title bar.
+- Search box grow = `TextBox.search` style 200 → 280 on `:focus-within` or `.hasText`
+  (`Classes.hasText` bound via `StringConverters.IsNotNullOrEmpty`) + a `DoubleTransition` on Width.
+  In tests set `box.Transitions = null` to read the target width. At the default 1000 px width a
+  focused search hides the title (by design).
+- `TitleBar.DragStarted` (internal) is the test seam for "press starts a window drag"; TextBox/Button
+  mark their own press handled so they never drag.
+- In `CaptureScreenshots`, move focus off the search after the focused shot or every later capture
+  (e.g. `home-fa-dark`) shows it wide with no title.
+
+## Detailed logging (`detailed-logging`, 2026-09-28) — how to read a log and how to add a line
+- **Asking the author for a log**: Settings → Logging → turn on "Write a log file", reproduce, then
+  **Export log…** → attach the saved `.zip` (every kept day, up to 7) to the chat or the issue. Files live
+  in `<AppData>/Downloader/logs/downloader-yyyy-MM-dd.log`; older than `AppLog.KeepDays` are pruned on
+  the first write of each day.
+- **What a log holds**: a `===== Session start =====` header (version, OS, runtime, language, theme, every
+  setting masked), `UI: click "<label>" (<Type>) #name in <View> on "<file>"` for every Button / MenuItem /
+  toggle (one place: `Services/UiActionLog`, class handlers registered in `App.Initialize`),
+  `UI: page X opened`, `UI: dialog X opened/closed/result`, tray lines, `Setting changed: name: old → new`
+  (`SettingsDiff`, diffed in `MainViewModel.LogSettingChanges` on each debounced settings save — so Reset
+  and Import are covered), the download lifecycle (Added/Resume/Paused/Stopped/Retry/Archived/Removed,
+  queue decisions `Queue "x": starting … (n/cap slots)`), plugin calls with ms, update checks and
+  `Local API: GET /api/<route>`. Errors carry `ex.ToString()` (full stack). No progress ticks, ever.
+- **Rule for NEW log lines**: a URL goes through `LogText.Url(...)` (scheme+host+port+path only); a proxy
+  through `LogText.MaskUserInfo`; never log cookies, headers, the request query, or typed text. A row is
+  named by `DownloadManager.Who(vm)` (file name, else the sanitised link).
+- **One held `StreamWriter`** (`FileShare.ReadWrite|Delete`, AutoFlush) — so a reader must open the file
+  with sharing on too (Windows refuses a plain `File.ReadAllText` while it is open). Tests use
+  `TestSupport/LogScope` (temp folder + on/off, restores both); it is process-wide, so never touch
+  `AppLog.LogFolder` without it.
+- **Test trap**: a `MainViewModel` built under `[AvaloniaFact]` runs its init inline and applies the
+  loaded config's `EnableLogging` — a stub returning `Config.New()` switches the logger OFF mid-test.
+- Headless clicks: `window.KeyPress` alone does not click a Button — Space clicks on key-UP, so send
+  `KeyRelease` too. A `ReactiveCommand.Execute(null)` needs `Dispatcher.UIThread.RunJobs()` after it.
+
+## Row right-click menu (row-context-menu) — patterns worth caching
+- **One `ContextMenu` on the DataGrid** (`Root.ContextMenu`, DataContext = `DownloadsViewModel`), not per row. A **tunnel** `ContextRequested` handler on the grid (`OnContextRequested`) cancels it off-row (header/empty area) and calls `vm.PrepareMenuFor(row)`: a row outside the selection becomes the only selected one (ticks cleared). Commands act on `SelectedTargets()`.
+- **Menu enabled rules** are `ReactiveCommand` canExecute over `WhenAnyValue(MenuState)`; `MenuState` is an int bumped on selection change AND on a row's `Status`/`IsArchived` change. `WhenAnyValue` needs a PUBLIC getter (private set is fine).
+- **Shortcuts**: `MenuItem.InputGesture` + matching grid `KeyBindings`, built in code-behind from `PlatformSettings.HotkeyConfiguration.CommandModifiers` (Cmd on macOS). `ClipboardCopyMode="None"` on the grid so its own Ctrl+C doesn't compete. Bound on the grid only → Ctrl+C in a TextBox still copies text.
+- **Headless menu screenshot**: `grid.ContextMenu.Open(grid)` renders inside the window frame (`CaptureRenderedFrame(window)` shows it); it opens at the pointer, so `HeadlessWindowExtensions.MouseMove` first. Open a submenu with `MenuItem.IsSubMenuOpen = true`.
+- **Restart** (`DownloadManager.Restart`): bump `vm.AttemptGeneration` after `Cancel` so the old engine's late cancel report is stale and can't mark the re-queued row Failed. Deletes only `<name>.download` (`TryDeletePartialFile`), never the final file.
+- The screenshot capture re-renders *unrelated* dialogs with tiny pixel diffs on a fresh box — commit only the PNGs of views that changed.
+
+## Sidebar: Categories + Queues sections (sidebar-queues-sections, 2026-10-03)
+- **One selection, two filters**: `DownloadsViewModel.CategoryFilter` + `QueueFilter`; the shell sets them
+  ONLY through `MainViewModel.SelectSidebar(categoryId, queueId)` (setting one clears the other; "All" =
+  both null) and marks rows in `MarkSelectedRows()`. Counts use `MatchesExceptSidebar` (status + search).
+- `QueueRows` (`SidebarQueueRowViewModel`) are rebuilt on `IDownloadManager.QueuesChanged` (inline when on
+  the UI thread, else posted) — `RenameQueue` fires it per keystroke, which is fine for a few rows.
+- **The sidebar's overlay scroll bar covered the rows' right edge** (where the drag handle is) once the
+  list was taller than the window — a hit-test there landed on the `ScrollBar`'s `Rectangle`. The inner
+  StackPanel keeps an 8 px right margin for it. Any new control at a scrollable list's right edge needs the
+  same room. Symptom in a headless test: a press "does nothing" only when the whole class runs.
+- Accent bar = `Border.selbar` bound `IsVisible="{Binding IsSelected}"`, styled in App.axaml with
+  `{DynamicResource SystemAccentColor}` (so `ThemeService.ApplyAccent` recolors it live); negative left
+  margin puts it on the row edge; RTL mirrors it for free.
+- Drag handle = `Border.grip` (Opacity 0 → visible on `Button.cat:pointerover`), with pointer handlers in
+  `MainWindow.axaml.cs` (manual capture like the grid's row drag); release → `MainViewModel.DropCategory`
+  → `CategoryService.MoveTo(id, index)` (clamped to the list). Tested with real `window.MouseDown/Move/Up`
+  in `UI/SidebarViewTests`.
+
+## Tray menu: app-drawn popup (tray-popup-menu, 2026-10-03)
+- `TrayService.Init(window, onQuit, showDownloads, showSettings)` builds ONE `TrayMenuViewModel`
+  (`TrayService.Menu`) shared by the app-drawn `Views/TrayMenuView` (Linux/Windows, opened by
+  `OnClicked` → `ShowMenuPopup`) and the native menu (`BuildNativeMenu`, same 4 items, translated via
+  `Tray_*` keys; notifications shown as a "✓ " prefix). macOS: a click just brings the window back; its
+  native menu is the menu.
+- Popup placement is pure: `Views/TrayMenuPlacement.Place(bounds, workingArea, size, rtl)` — the corner
+  on the side where the working area is inset (taskbar/top bar). The popup hides (not closes) on
+  Deactivated / Esc / after a command, so one instance is reused.
+- **A `NativeMenuItemSeparator` IS a `NativeMenuItem` with Header "-"** — filter it out when listing labels.
+
+### Avalonia: a type selector matches the EXACT type
+`Control.myclass` in a style selector matches only elements whose type is exactly `Control` — a
+`TextBlock` or `Panel` with that class is NOT matched (it builds, then silently does nothing).
+To match any control by class, write `:is(Control).myclass`. A bare `.myclass` fails to build here
+(AVLN2200 "Can not find parent Style Selector").
+
+## DataGrid selection tint must key on the ROW's `:selected`, never the cell's (2026-10-03)
+Avalonia.Controls.DataGrid 12.0.0: `DataGridRow.ApplyState` sets the row's `:selected` but never calls
+`ApplyCellsState()`, so a `DataGridCell`'s own `:selected` is refreshed only when the pointer enters that
+cell (`MouseOverColumnIndex`) or on recycling. A `DataGridCell:selected` background therefore stayed
+painted, cell by cell, on the previously selected row until each cell was hovered ("old selection still
+shows, disappears on hover"). Style `DataGridRow:selected DataGridCell` instead (App.axaml). Pinned by
+`UI/GridSelectionHighlightTests`. Decompile the DataGrid with `ilspycmd -p -o <dir>
+~/.nuget/packages/avalonia.controls.datagrid/12.0.0/lib/net10.0/Avalonia.Controls.DataGrid.dll`.
+
+## Two "always red on one OS" tests fixed before v2.16.0 (2026-10-03)
+- **Windows: never `File.ReadAllText(AppLog.CurrentLogFile)` in a test.** Since detailed logging (6663862)
+  `AppLog` keeps ONE writer open; `ReadAllText` asks for `FileShare.Read`, which Windows refuses while a
+  writer exists → `IOException: being used by another process`. Linux/macOS don't lock, so it is green
+  here. Use `TestSupport/LogScope` (temp folder + shared read via `log.Text()`), which also stops tests
+  writing into the real user's AppData log.
+- **macOS: a test that calls an `OperatingSystem.IsX()`-branching method tests only the runner's branch.**
+  `TrayService.OnClicked()` now forwards to `OnClicked(bool macOS)`; tests pass the OS explicitly and
+  cover both branches. Same rule as `BrowserDetector`: inject the OS probe.

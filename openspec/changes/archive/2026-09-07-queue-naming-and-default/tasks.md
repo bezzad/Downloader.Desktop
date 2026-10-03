@@ -33,4 +33,5 @@
 - [x] 5.1 CI green on ubuntu Debug+Release and Windows Debug for the final commit; the legs that did not finish were killed by the 30-minute timeout with no `[FAIL]` (the known hang, recorded in `SKILL.md`).
 - [x] 5.2 Note the patterns in `.claude/skills/downloader-desktop/SKILL.md` (rename propagation, name-first creation, the suggester).
 - [x] 5.3 Author verified the four behaviours by hand in the running app.
-- [ ] 5.4 Regenerate `docs/screenshots/` for the changed Queues page — NOT done: the session's container has no .NET SDK (the SDK host is blocked by the proxy), so the capture test cannot run. Needs a Linux box with the SDK.
+- [x] 5.4 Regenerate `docs/screenshots/` for the changed Queues page — NOT done: the session's container has no .NET SDK (the SDK host is blocked by the proxy), so the capture test cannot run. Needs a Linux box with the SDK.
+  > 2026-09-28: done by a later session — `docs/screenshots/queues-dark.png` now shows the per-queue **Default** checkbox (checked on Main queue, unchecked on Media).

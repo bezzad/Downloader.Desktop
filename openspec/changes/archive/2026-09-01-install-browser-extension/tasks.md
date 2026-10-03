@@ -315,7 +315,7 @@
       happened. `settings-logging-*` shifted (a row was added above them); `about-dark` and
       `details-refresh-dark` also re-rendered — those two carry the build-time-derived version string, so
       they churn on any rebuild and are unrelated to this change.
-- [ ] 10.6 **NOT DONE — cannot be verified from this machine, and is the author's to run.** The real
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 10.6 **NOT DONE — cannot be verified from this machine, and is the author's to run.** The real
       end-to-end check is: launch the app, open the dialog, install for Chrome, load the unpacked folder in
       a real Chrome, and confirm the row flips to **Connected ✓** with the right version. This box needs a
       desktop session with a browser; this box is deliberately left unticked rather than claimed.

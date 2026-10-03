@@ -124,6 +124,10 @@ public interface IDownloadManager
     /// so choosing one clears the previous choice.</summary>
     void SetDefaultQueue(DownloadQueue queue);
 
+    /// <summary>Deletes the partial file and queues the download again from 0 %. No-op for a running or
+    /// completed download.</summary>
+    void Restart(DownloadItemViewModel vm);
+
     /// <summary>Moves a download into another queue and re-pumps both (capped) queues.</summary>
     void MoveToQueue(DownloadItemViewModel vm, string queueId);
 

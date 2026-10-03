@@ -362,6 +362,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
 
     private void TriggerStart(DownloadSchedule sch)
     {
+        AppLog.Info($"Scheduler: start window reached (schedule \"{sch.Name}\")");
         if (!string.IsNullOrEmpty(sch.TargetQueueId))
         {
             var queue = FindQueue(sch.TargetQueueId);
@@ -378,6 +379,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
 
     private void TriggerStop(DownloadSchedule sch)
     {
+        AppLog.Info($"Scheduler: stop time reached (schedule \"{sch.Name}\")");
         if (!string.IsNullOrEmpty(sch.TargetQueueId))
         {
             var queue = FindQueue(sch.TargetQueueId);
@@ -395,6 +397,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     public DownloadItemViewModel Add(DownloadItem item, bool autoStart)
     {
         var vm = AddCore(item, probeName: true);
+        AppLog.Info($"Added: {Who(vm)} (queue {FindQueue(item.QueueId)?.Name}, {(autoStart ? "start now" : "not started")})");
         if (autoStart)
             PumpQueue(item.QueueId); // starts now if a slot is free, otherwise stays queued
         NotifyList();
@@ -538,7 +541,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         vm.Status = DownloadStatus.Running;
         _allCompleteFired = false; // a new run means "all complete" can fire again when it drains
         EnsureUiPump();
-        AppLog.Info($"Starting: {urls[0]}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
+        AppLog.Info($"Starting: {LogText.Url(urls[0])}{(urls.Length > 1 ? $" (+{urls.Length - 1} mirror[s])" : "")}");
 
         var configuration = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
         // The configured maximum is a CEILING, not a number every server must accept (issues #9, #14).
@@ -630,7 +633,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                             urls[0] = plan.Parts[0].Url;
                             if (string.IsNullOrWhiteSpace(fileName))
                                 fileName = plan.SuggestedFileName;
-                            AppLog.Info($"Plugin resolved {item.Url} -> {urls[0]}");
+                            AppLog.Info($"Plugin resolved {LogText.Url(item.Url)} -> {LogText.Url(urls[0])}");
                         }
                     }
                 }
@@ -646,7 +649,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                 var resolved = await UrlResolver.ResolveAsync(urls[0], configuration).ConfigureAwait(false);
                 if (!string.Equals(resolved, urls[0], StringComparison.Ordinal))
                 {
-                    AppLog.Info($"Resolved redirect: {urls[0]} -> {resolved}");
+                    AppLog.Info($"Resolved redirect: {LogText.Url(urls[0])} -> {LogText.Url(resolved)}");
                     urls[0] = resolved;
                 }
 
@@ -679,7 +682,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         }
         catch (Exception ex)
         {
-            AppLog.Error($"Failed to start: {urls[0]}", ex);
+            AppLog.Error($"Failed to start: {LogText.Url(urls[0])}", ex);
             OnUi(() =>
             {
                 // DescribeFailure, not Describe: a resolver that claimed this link has its own reason to
@@ -870,11 +873,11 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             // turns into, so the real reason never reaches the user. Only an UNCLAIMED link falls through.
             if (_plugins.FindResolver(url) != null)
             {
-                AppLog.Error($"Plugin resolve failed for {url}", ex);
+                AppLog.Error($"Plugin resolve failed for {LogText.Url(url)}", ex);
                 throw new PluginResolveException(ex.Message, ex);
             }
 
-            AppLog.Error($"Plugin resolve failed for {url} — using the link as-is", ex);
+            AppLog.Error($"Plugin resolve failed for {LogText.Url(url)} — using the link as-is", ex);
             return null;
         }
     }
@@ -894,7 +897,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             return (url, currentFileName);
 
         var name = string.IsNullOrWhiteSpace(currentFileName) ? plan.SuggestedFileName : currentFileName;
-        AppLog.Info($"Plugin resolved {url} -> {part.Url}");
+        AppLog.Info($"Plugin resolved {LogText.Url(url)} -> {LogText.Url(part.Url)}");
         return (part.Url, name);
     }
 
@@ -926,7 +929,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         }
         catch (Exception ex)
         {
-            AppLog.Error($"Post-download action '{action.Label}' failed for {item.Url}", ex);
+            AppLog.Error($"Post-download action '{action.Label}' failed for {LogText.Url(item.Url)}", ex);
             OnUi(() =>
             {
                 vm.ErrorMessage = Describe(ex);
@@ -1116,7 +1119,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             ? DescribeFailure(error, vm.GetItem(), refusedEvenAlone)
             : fallbackMessage;
         vm.Status = DownloadStatus.Failed;
-        AppLog.Error($"{logPrefix}: {vm.FileName ?? vm.Url}", error);
+        AppLog.Error($"{logPrefix}: {vm.FileName ?? LogText.Url(vm.Url)}", error);
         if (NotifyFailedEnabled)
             NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
         return false;
@@ -1400,6 +1403,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // touch completed/failed/queued rows.
         if (vm.Status != DownloadStatus.Running)
             return;
+        AppLog.Info($"Paused: {Who(vm)}");
         vm.Download?.Pause();
         // A multi-part plan has several part engines in flight; vm.Download is only the newest of them, so
         // this is what makes Pause actually stop the transfer (and stop the runner starting the next part).
@@ -1419,6 +1423,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
 
         // Starting an archived download brings it back: the pair of rules (archiving stops, starting
         // restores) is what guarantees an archived download is never running or queued.
+        AppLog.Info($"Resume: {Who(vm)} (was {vm.Status})");
         vm.IsArchived = false;
 
         // The user asked for this attempt, so the automatic budgets start over (issue #6): a link that
@@ -1464,6 +1469,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // freed slots and the pump immediately started the next queued rows ("3 stop, 3 start").
         if (vm.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Stopped)
             return;
+        AppLog.Info($"Stopped: {Who(vm)} (was {vm.Status})");
         vm.Download?.CancelAsync();
         // Cancel every in-flight part, un-pausing them first: a suspended engine never completes its task,
         // so stopping a PAUSED plan would otherwise leave the runner waiting on it forever.
@@ -1480,6 +1486,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         // one from 0%. Re-queue it; the pump starts it when the queue has a free slot (cap-aware).
         if (vm.Status is not (DownloadStatus.Failed or DownloadStatus.Stopped))
             return;
+        AppLog.Info($"Retry: {Who(vm)} (was {vm.Status}{(vm.ErrorMessage is { } err ? $": {err}" : "")})");
         vm.IsArchived = false;      // see Resume: an explicit start takes the download out of the archive
         vm.LinkRefreshAttempts = 0; // a user-initiated retry restarts the automatic budgets (#6)
         vm.UrlAttempt = 0;          // …including which address leads, so Retry starts from the first again
@@ -1494,6 +1501,33 @@ public partial class DownloadManager : IDownloadManager, IDisposable
         NotifyList();
     }
 
+    /// <summary>Throws the partial file away and queues the download again from 0 %. Refused for a running
+    /// download (stop it first) and for a completed one (that would mean deleting the finished file).
+    /// Only <c>&lt;name&gt;.download</c> is deleted; the start goes through the pump, so the queue's cap holds.</summary>
+    public void Restart(DownloadItemViewModel vm)
+    {
+        if (vm == null || vm.Status is DownloadStatus.Running or DownloadStatus.Completed)
+            return;
+        AppLog.Info($"Restart: {Who(vm)} (was {vm.Status})");
+        Cancel(vm); // stops a paused or queued row; no-op for Failed/Stopped
+        // The cancelled engine still reports back later; make that report stale so it cannot mark the
+        // re-queued row Failed.
+        vm.AttemptGeneration++;
+        TryDeletePartialFile(vm);
+        TryDeletePartsFolder(vm.GetItem());
+        vm.GetItem().PlanJson = null;
+        vm.Downloaded = 0;
+        vm.Progress = 0;
+        vm.IsArchived = false;
+        vm.LinkRefreshAttempts = 0;
+        vm.UrlAttempt = 0;
+        ResetConnectionBackoff(vm);
+        vm.Status = DownloadStatus.Created;
+        EnsureQueueRunning(vm.GetItem().QueueId);
+        PumpQueue(vm.GetItem().QueueId);
+        NotifyList();
+    }
+
     /// <summary>Files a download away: it keeps its record and its file but leaves the working list.
     /// A download in flight or waiting is STOPPED first — that is the invariant every other archive rule
     /// rests on (an archived download is never running or queued), and it is what keeps an archived
@@ -1502,6 +1536,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     {
         if (vm == null || vm.IsArchived)
             return;
+        AppLog.Info($"Archived: {Who(vm)}");
         Cancel(vm); // no-ops on Completed/Failed/Stopped, stops anything else
         vm.IsArchived = true;
         vm.IsChecked = false; // it is leaving the view; a stale tick would aim the next bulk action at it
@@ -1514,6 +1549,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     {
         if (vm == null || !vm.IsArchived)
             return;
+        AppLog.Info($"Restored from archive: {Who(vm)}");
         vm.IsArchived = false;
         vm.IsChecked = false;
         NotifyList();
@@ -1521,6 +1557,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
 
     public Task Remove(DownloadItemViewModel vm)
     {
+        AppLog.Info($"Removed: {Who(vm)} (was {vm.Status})");
         try
         {
             vm.Download?.CancelAsync();
@@ -1639,13 +1676,22 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             .OrderByDescending(i => i.Status == DownloadStatus.Paused)
             .ToList();
 
+        var started = 0;
         foreach (var vm in pending)
         {
             if (Running() >= cap)
                 break;
+            AppLog.Info($"Queue \"{queue.Name}\": {(vm.Status == DownloadStatus.Paused ? "resuming" : "starting")} {Who(vm)} ({Running() + 1}/{cap} slots)");
             StartOrResume(vm);
+            started++;
         }
+        if (pending.Count > started)
+            AppLog.Debug($"Queue \"{queue.Name}\": {pending.Count - started} waiting for a free slot ({cap} max)");
     }
+
+    /// <summary>How a download is named in the log: its file name, else its link without the query.</summary>
+    private static string Who(DownloadItemViewModel vm) =>
+        string.IsNullOrEmpty(vm.FileName) ? LogText.Url(vm.Url) : vm.FileName;
 
     /// <summary>Resumes a paused item in place (if it still has a live handle) or starts it fresh.</summary>
     private void StartOrResume(DownloadItemViewModel vm)
@@ -1668,6 +1714,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     {
         if (queue == null)
             return;
+        AppLog.Info($"Queue \"{queue.Name}\": started");
         queue.IsRunning = true;
 
         // "Start queue" should run every *remaining* (non-completed) download in it. The pump only
@@ -1689,6 +1736,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     {
         if (queue == null)
             return;
+        AppLog.Info($"Queue \"{queue.Name}\": paused");
         queue.IsRunning = false;
         foreach (var vm in Items.Where(i =>
                      i.GetItem().QueueId == queue.Id && i.Status == DownloadStatus.Running).ToList())
@@ -1700,6 +1748,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     {
         if (queue == null)
             return;
+        AppLog.Info($"Queue \"{queue.Name}\": stopped");
         queue.IsRunning = false;
         // "Stop queue" stops every item in the queue (running/paused/queued → Stopped), not just a
         // pause of the running ones. Cancel() guards terminal states, so completed/failed are untouched.
@@ -1970,7 +2019,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
                 // Treat it as a failure with a clear message instead of a confusing "complete" stub.
                 vm.ErrorMessage = Localizer.Instance["Error_LinkExpired"];
                 vm.Status = DownloadStatus.Failed;
-                AppLog.Error($"Link expired/invalid (server returned a page, not the file): {vm.FileName ?? vm.Url}");
+                AppLog.Error($"Link expired/invalid (server returned a page, not the file): {vm.FileName ?? LogText.Url(vm.Url)}");
                 if (NotifyFailedEnabled)
                     NotificationService.NotifyFailed(vm.FileName ?? vm.Url, vm.ErrorMessage);
             }
@@ -2037,7 +2086,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             if (!IsStalled(vm.Status, vm.Download != null, vm.PlanStage, vm.LastProgressUtc, now))
                 continue;
 
-            AppLog.Error($"No progress for {StallTimeout.TotalSeconds:0}s and no completion: {vm.FileName ?? vm.Url}");
+            AppLog.Error($"No progress for {StallTimeout.TotalSeconds:0}s and no completion: {vm.FileName ?? LogText.Url(vm.Url)}");
             vm.LastProgressUtc = now; // don't re-trigger while the failure is being handled
             ReleaseEngine(vm);
             HandleFailure(vm, new DownloadStalledException(
@@ -2122,7 +2171,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             {
                 if (vm.AttemptGeneration != generation)
                     return; // another attempt owns this row now; its own outcome decides
-                AppLog.Error($"Completed with no data: {vm.FileName ?? vm.Url} (expected at {savedPath})");
+                AppLog.Error($"Completed with no data: {vm.FileName ?? LogText.Url(vm.Url)} (expected at {savedPath})");
                 HandleFailure(vm, EmptyDownloadError(), Localizer.Instance["Error_NothingDownloaded"],
                     "Completed with no data");
             });

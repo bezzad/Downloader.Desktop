@@ -96,6 +96,52 @@
         <Style Selector="Button.cat.selected TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
+        <!-- The selected row's accent bar on its start edge (mirrors in RTL). It reaches into the
+             row's left padding so it sits on the row's edge; the accent resource recolors live. -->
+        <Style Selector="Button.cat Border.selbar">
+            <Setter Property="Width" Value="3" />
+            <Setter Property="CornerRadius" Value="1.5" />
+            <Setter Property="Margin" Value="-10 -3 7 -3" />
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <!-- Six-dot drag handle on a category row: hidden until the row is hovered or dragged. -->
+        <Style Selector="Button.cat Border.grip">
+            <Setter Property="Margin" Value="6 0 0 0" />
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="Button.cat:pointerover Border.grip, Button.cat.dragging Border.grip">
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="Button.cat.droptarget /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="BorderThickness" Value="0 0 0 2" />
+        </Style>
+        <!-- Section header (Categories / Queues): small caps-like label with a chevron. -->
+        <Style Selector="Button.sechead">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6 4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseMediumColor}" />
+        </Style>
+        <Style Selector="Button.sechead:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemBaseHighColor}" />
+        </Style>
+        <!-- A sidebar dragged narrow shows only the icons: names, counts and drag handles go
+             (the row's tooltip still names it, and its menu can still move it). -->
+        <Style Selector="Panel.compact :is(Control).sidetext, Panel.compact Border.pill">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Panel.compact Border.grip">
+            <Setter Property="MaxWidth" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style Selector="PathIcon.chevron.collapsed">
+            <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+        </Style>
         <!-- An empty category stays listed, just dimmed. Hiding and re-showing rows as downloads
              arrive would make the sidebar twitch under the pointer. -->
         <Style Selector="Button.cat.empty">
@@ -374,8 +420,11 @@
              the row with the solid accent, which made the dark row text almost invisible (#row-select).
              RowSelectionBrush is a translucent accent kept in sync with the chosen accent by ThemeService;
              the fallback here covers first paint before any accent is applied. Foreground is pinned to the
-             normal high-contrast text color so inherited (filename) text never goes white-on-light. -->
-        <Style Selector="DataGridCell:selected">
+             normal high-contrast text color so inherited (filename) text never goes white-on-light.
+             Keyed on the ROW's :selected, not the cell's: Avalonia's DataGrid refreshes a cell's own
+             :selected only when the pointer enters that cell, so a cell-keyed tint stayed painted on the
+             previously selected row until each cell was hovered. -->
+        <Style Selector="DataGridRow:selected DataGridCell">
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />

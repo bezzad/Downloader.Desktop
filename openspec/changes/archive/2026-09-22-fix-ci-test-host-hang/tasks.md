@@ -118,7 +118,7 @@ and asked whether a command contained a shutdown. None did — the suite did it.
 
 ## 5. Prove it, then write it down
 
-- [ ] 5.1 Five consecutive `.NET Desktop` runs on `develop` with all 6 legs green and **no re-runs**
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.1 Five consecutive `.NET Desktop` runs on `develop` with all 6 legs green and **no re-runs**
   (the failure rate was ~1 leg in 6, so one green run proves nothing).
   **Not yet met — the counter has never got past one, and the clock restarts from the group 6 fix.**
   Three distinct faults were seen on `develop` on 2026-09-21 alone:
@@ -139,7 +139,7 @@ and asked whether a command contained a shutdown. None did — the suite did it.
   that answered it (ubuntu never hung because its runner refuses a power-off), the guard rails
   (`RealProcessStartBlocked`, the in-step deadline and how to prove it), and how to tell an ordinary red
   leg from that signature.
-- [ ] 5.3 `/opsx:sync` the `resource-management` delta, then `/opsx:archive` this change.
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 5.3 `/opsx:sync` the `resource-management` delta, then `/opsx:archive` this change.
   **Deliberately not done: this change is not finished.** 4.4 turned up a live cause and 5.1 has never
   been met, so archiving now would file a solved case over a fault that is still failing CI. The change
   stays active.

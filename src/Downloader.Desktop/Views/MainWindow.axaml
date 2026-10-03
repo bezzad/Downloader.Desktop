@@ -49,6 +49,19 @@
         <Style Selector="Button.filterpill.active TextBlock">
             <Setter Property="Foreground" Value="White" />
         </Style>
+
+        <!-- Title-bar search: 200 wide, 280 while focused or holding text; the width animates. -->
+        <Style Selector="TextBox.search">
+            <Setter Property="Width" Value="200" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Width" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="TextBox.search:focus-within, TextBox.search.hasText">
+            <Setter Property="Width" Value="280" />
+        </Style>
     </Window.Styles>
 
 
@@ -59,7 +72,20 @@
             Background="{DynamicResource SystemRegionColor}">
     <DockPanel>
         <!-- ===== Custom window title bar ===== -->
-        <v:TitleBar DockPanel.Dock="Top" Title="Downloader" ShowMinMax="True" />
+        <v:TitleBar DockPanel.Dock="Top" Title="Downloader" ShowMinMax="True" CenterTitle="True">
+            <v:TitleBar.RightContent>
+                <!-- Grows on focus and stays wide while it holds text (TextBox.search styles above). -->
+                <TextBox x:Name="SearchBox" Classes="search" Height="30" Text="{Binding SearchText}"
+                         Classes.hasText="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         CornerRadius="8" VerticalContentAlignment="Center"
+                         PlaceholderText="{i18n:Tr Top_Search}">
+                    <TextBox.InnerLeftContent>
+                        <PathIcon Data="{StaticResource SearchRegular}" Height="14" Width="14"
+                                  Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    </TextBox.InnerLeftContent>
+                </TextBox>
+            </v:TitleBar.RightContent>
+        </v:TitleBar>
 
         <!-- ===== Top bar ===== -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource SystemChromeLowColor}"
@@ -99,14 +125,6 @@
                 </Grid>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                    <TextBox Width="200" Height="34" Text="{Binding SearchText}"
-                             CornerRadius="8" VerticalContentAlignment="Center"
-                             PlaceholderText="{i18n:Tr Top_Search}">
-                        <TextBox.InnerLeftContent>
-                            <PathIcon Data="{StaticResource SearchRegular}" Height="14" Width="14"
-                                      Margin="9 0 2 0" Foreground="{DynamicResource SystemBaseMediumColor}" />
-                        </TextBox.InnerLeftContent>
-                    </TextBox>
                     <!-- "Update Downloader" appears once a new version is downloaded and ready (#update). -->
                     <Button Classes="accent" IsVisible="{Binding IsUpdateReady}" Command="{Binding ApplyUpdateCommand}"
                             CornerRadius="8" Height="34" Padding="12 0" Cursor="Hand"
@@ -350,92 +368,153 @@
         <!-- ===== Central content: the downloads list or a management page. Views are cached and
              reused across navigation (PageViewCache, wired in code-behind) — a DataTemplate here
              would rebuild the whole page on every swap. ===== -->
-        <!-- ===== Category sidebar (optional, off by default) =====
+        <!-- ===== Sidebar: Categories + Queues (shown by default, toggled beside the link box) =====
              Only on the downloads page: it filters that list, and showing it over Settings would
              offer a filter with nothing to filter. -->
-        <Border DockPanel.Dock="Left" Width="204"
-                Background="{DynamicResource SystemRegionColor}"
-                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
-                Padding="8 10">
-            <Border.IsVisible>
+        <Panel x:Name="Sidebar" DockPanel.Dock="Left" Width="{Binding SidebarWidth}"
+               Classes.compact="{Binding IsSidebarCompact}">
+            <Panel.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="IsCategorySidebarOpen" />
                     <Binding Path="IsDownloadsSelected" />
                 </MultiBinding>
-            </Border.IsVisible>
-            <DockPanel>
-                <!-- "Add" sits under the list, low-emphasis: it is how the list grows, not an item in it. -->
-                <Button DockPanel.Dock="Bottom" Classes="catadd" Cursor="Hand" Margin="0 8 0 0"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                        Command="{Binding AddCategoryCommand}" ToolTip.Tip="{i18n:Tr Cat_Add}">
-                    <StackPanel Orientation="Horizontal" Spacing="9">
-                        <PathIcon Data="{DynamicResource AddRegular}" Height="12" Width="12" />
-                        <TextBlock Text="{i18n:Tr Cat_Add}" VerticalAlignment="Center" FontSize="12" />
+            </Panel.IsVisible>
+        <Border Background="{DynamicResource SystemRegionColor}"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
+                Padding="8 10">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <!-- The right margin keeps the scroll bar off the rows' drag handles. -->
+                <StackPanel Margin="0 0 8 0">
+                    <!-- Each section header expands/collapses its rows; both start expanded. -->
+                    <Button Classes="sechead" Command="{Binding ToggleCategoriesSectionCommand}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <PathIcon Classes="secicon" Data="{DynamicResource FolderRegular}" Width="13" Height="13" />
+                            <TextBlock Grid.Column="1" Classes="sidetext" Text="{i18n:Tr Cat_Sidebar}"
+                                       Margin="6 0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <PathIcon Grid.Column="2" Classes="chevron" Classes.collapsed="{Binding !IsCategoriesExpanded}"
+                                      Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
+                        </Grid>
+                    </Button>
+                    <StackPanel IsVisible="{Binding IsCategoriesExpanded}">
+                        <ItemsControl x:Name="CategoryList" ItemsSource="{Binding CategoryRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CategoryRowViewModel">
+                        <Button Classes="cat" Classes.selected="{Binding IsSelected}"
+                                Classes.empty="{Binding IsEmpty}"
+                                Cursor="Hand" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Stretch"
+                                Command="{Binding SelectCommand}"
+                                ToolTip.Tip="{Binding Name}">
+                            <!-- Right-click is where a category is managed, so the row stays a
+                                 single obvious thing to click: select it. -->
+                            <Button.ContextMenu>
+                                <!-- Look and spacing come from the global ContextMenu/MenuItem
+                                     styles in App.axaml; only the icons are local. -->
+                                <ContextMenu IsVisible="{Binding CanEdit}">
+                                    <MenuItem Header="{i18n:Tr Cat_Edit}" Command="{Binding EditCommand}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Data="{DynamicResource OptionsRegular}" Width="14" Height="14" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <Separator />
+                                    <MenuItem Header="{i18n:Tr Cat_MoveUp}" Command="{Binding MoveUpCommand}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Data="{DynamicResource ChevronUpRegular}" Width="14" Height="14" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{i18n:Tr Cat_MoveDown}" Command="{Binding MoveDownCommand}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Data="{DynamicResource ChevronDownRegular}" Width="14" Height="14" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <!-- Only for a category the user made: a built-in one cannot
+                                         be removed, so the item is absent rather than dead. -->
+                                    <Separator IsVisible="{Binding CanDelete}" />
+                                    <MenuItem Header="{i18n:Tr Cat_Delete}" Command="{Binding DeleteCommand}"
+                                              IsVisible="{Binding CanDelete}"
+                                              Foreground="{DynamicResource DangerColor}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Data="{DynamicResource DeleteRegular}" Width="14" Height="14"
+                                                      Foreground="{DynamicResource DangerColor}" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                                <Border Grid.Column="0" Classes="selbar" IsVisible="{Binding IsSelected}" />
+                                <PathIcon Grid.Column="1" Width="15" Height="15"
+                                          Data="{Binding Icon, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
+                                          Foreground="{Binding Color, Converter={x:Static conv:HexToBrushConverter.Instance}}" />
+                                <!-- A category's name is the user's own data and is shown
+                                     verbatim; "All" is the one label that is interface text,
+                                     so it goes through {i18n:Tr}, which refreshes on a
+                                     language switch (Localizer.Tick). Subscribing the shell
+                                     to the Localizer singleton instead would leak a handler
+                                     for the life of the process. -->
+                                <Panel Grid.Column="2" Classes="sidetext">
+                                    <TextBlock Text="{Binding Name}" Margin="10 0 6 0"
+                                               IsVisible="{Binding !IsAll}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{i18n:Tr Cat_All}" Margin="10 0 6 0"
+                                               IsVisible="{Binding IsAll}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </Panel>
+                                <Border Grid.Column="3" Classes="pill">
+                                    <TextBlock Text="{Binding Count}" FontSize="11" />
+                                </Border>
+                                <!-- Drag handle: shown on hover (App.axaml), never on "All". -->
+                                <Border Grid.Column="4" Classes="grip" IsVisible="{Binding !IsAll}"
+                                        Background="Transparent" Cursor="SizeNorthSouth"
+                                        PointerPressed="OnCategoryGripPressed"
+                                        PointerMoved="OnCategoryGripMoved"
+                                        PointerReleased="OnCategoryGripReleased"
+                                        PointerCaptureLost="OnCategoryGripCaptureLost">
+                                    <PathIcon Data="{DynamicResource GripDotsRegular}" Width="12" Height="12" />
+                                </Border>
+                            </Grid>
+                        </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <!-- "Add" sits under the list, low-emphasis: it is how the list grows, not an item in it. -->
+                        <Button Classes="catadd" Cursor="Hand" Margin="0 4 0 0"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                Command="{Binding AddCategoryCommand}" ToolTip.Tip="{i18n:Tr Cat_Add}">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                <PathIcon Data="{DynamicResource AddRegular}" Height="12" Width="12" />
+                                <TextBlock Classes="sidetext" Text="{i18n:Tr Cat_Add}" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                </Button>
 
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding CategoryRows}">
+                    <Button Classes="sechead" Margin="0 12 0 0" Command="{Binding ToggleQueuesSectionCommand}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <PathIcon Classes="secicon" Data="{DynamicResource TabsRegular}" Width="13" Height="13" />
+                            <TextBlock Grid.Column="1" Classes="sidetext" Text="{i18n:Tr Nav_Queues}"
+                                       Margin="6 0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <PathIcon Grid.Column="2" Classes="chevron" Classes.collapsed="{Binding !IsQueuesExpanded}"
+                                      Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
+                        </Grid>
+                    </Button>
+                    <ItemsControl x:Name="QueueList" ItemsSource="{Binding QueueRows}"
+                                  IsVisible="{Binding IsQueuesExpanded}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:CategoryRowViewModel">
+                            <DataTemplate x:DataType="vm:SidebarQueueRowViewModel">
                                 <Button Classes="cat" Classes.selected="{Binding IsSelected}"
                                         Classes.empty="{Binding IsEmpty}"
                                         Cursor="Hand" HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"
                                         Command="{Binding SelectCommand}"
                                         ToolTip.Tip="{Binding Name}">
-                                    <!-- Right-click is where a category is managed, so the row stays a
-                                         single obvious thing to click: select it. -->
-                                    <Button.ContextMenu>
-                                        <!-- Look and spacing come from the global ContextMenu/MenuItem
-                                             styles in App.axaml; only the icons are local. -->
-                                        <ContextMenu IsVisible="{Binding CanEdit}">
-                                            <MenuItem Header="{i18n:Tr Cat_Edit}" Command="{Binding EditCommand}">
-                                                <MenuItem.Icon>
-                                                    <PathIcon Data="{DynamicResource OptionsRegular}" Width="14" Height="14" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                            <Separator />
-                                            <MenuItem Header="{i18n:Tr Cat_MoveUp}" Command="{Binding MoveUpCommand}">
-                                                <MenuItem.Icon>
-                                                    <PathIcon Data="{DynamicResource ChevronUpRegular}" Width="14" Height="14" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                            <MenuItem Header="{i18n:Tr Cat_MoveDown}" Command="{Binding MoveDownCommand}">
-                                                <MenuItem.Icon>
-                                                    <PathIcon Data="{DynamicResource ChevronDownRegular}" Width="14" Height="14" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                            <!-- Only for a category the user made: a built-in one cannot
-                                                 be removed, so the item is absent rather than dead. -->
-                                            <Separator IsVisible="{Binding CanDelete}" />
-                                            <MenuItem Header="{i18n:Tr Cat_Delete}" Command="{Binding DeleteCommand}"
-                                                      IsVisible="{Binding CanDelete}"
-                                                      Foreground="{DynamicResource DangerColor}">
-                                                <MenuItem.Icon>
-                                                    <PathIcon Data="{DynamicResource DeleteRegular}" Width="14" Height="14"
-                                                              Foreground="{DynamicResource DangerColor}" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                        </ContextMenu>
-                                    </Button.ContextMenu>
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <PathIcon Grid.Column="0" Width="15" Height="15"
-                                                  Data="{Binding Icon, Converter={x:Static conv:FileKindToIconConverter.Instance}}"
-                                                  Foreground="{Binding Color, Converter={x:Static conv:HexToBrushConverter.Instance}}" />
-                                        <!-- A category's name is the user's own data and is shown
-                                             verbatim; "All" is the one label that is interface text,
-                                             so it goes through {i18n:Tr}, which refreshes on a
-                                             language switch (Localizer.Tick). Subscribing the shell
-                                             to the Localizer singleton instead would leak a handler
-                                             for the life of the process. -->
-                                        <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="10 0 6 0"
-                                                   IsVisible="{Binding !IsAll}"
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                        <Border Grid.Column="0" Classes="selbar" IsVisible="{Binding IsSelected}" />
+                                        <PathIcon Grid.Column="1" Width="15" Height="15"
+                                                  Data="{DynamicResource TabsRegular}" />
+                                        <TextBlock Grid.Column="2" Classes="sidetext" Text="{Binding Name}" Margin="10 0 6 0"
                                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1" Text="{i18n:Tr Cat_All}" Margin="10 0 6 0"
-                                                   IsVisible="{Binding IsAll}"
-                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        <Border Grid.Column="2" Classes="pill">
+                                        <Border Grid.Column="3" Classes="pill">
                                             <TextBlock Text="{Binding Count}" FontSize="11" />
                                         </Border>
                                     </Grid>
@@ -443,9 +522,16 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </ScrollViewer>
-            </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
+            <!-- The sidebar's end edge: drag it to change the width (kept across restarts). -->
+            <Border x:Name="SidebarSplitter" HorizontalAlignment="Right" Width="6"
+                    Background="Transparent" Cursor="SizeWestEast"
+                    PointerPressed="OnSidebarSplitterPressed"
+                    PointerMoved="OnSidebarSplitterMoved"
+                    PointerReleased="OnSidebarSplitterReleased" />
+        </Panel>
 
         <ContentControl x:Name="PageHost" />
     </DockPanel>

@@ -14,7 +14,6 @@ namespace Downloader.Desktop.Views;
 public partial class DownloadsView : UserControl
 {
     private DataGridColumn _queueColumn;
-    private DataGridColumn _typeColumn;
     private DataGridColumn _timeLeftColumn;
     private DownloadItemViewModel _dragRow;
     private DataGridRow _sourceRow;
@@ -23,12 +22,12 @@ public partial class DownloadsView : UserControl
     private double _ghostLeft;
     private double _ghostGrabY;
     private bool _dragging;
+    private bool _syncing; // stops the checkbox <-> grid-selection sync from looping
 
     public DownloadsView()
     {
         InitializeComponent();
         _queueColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "QueueName");
-        _typeColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "CategoryOrder");
         _timeLeftColumn = Root.Columns.FirstOrDefault(c => c.SortMemberPath == "TimeLeftText");
         DataContextChanged += (_, _) => HookQueueColumn();
         Root.SizeChanged += (_, _) => FitColumns();
@@ -36,6 +35,50 @@ public partial class DownloadsView : UserControl
         // Asc → Desc → None instead (None = master order, where drag-to-reorder works). The header
         // glyph stays right because the grid renders it from the view's SortDescriptions.
         Root.Sorting += OnColumnSorting;
+        // Tunnel, so this runs before the grid's ContextMenu opens.
+        Root.AddHandler(ContextRequestedEvent, OnContextRequested, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        DataContextChanged += (_, _) => BindShortcuts();
+    }
+
+    /// <summary>The shortcut shown for a menu item: <paramref name="command"/> (Ctrl, or Cmd on macOS) +
+    /// key, except Delete, which stands alone.</summary>
+    public static KeyGesture Shortcut(Key key, KeyModifiers command) =>
+        new(key, key == Key.Delete ? KeyModifiers.None : command);
+
+    /// <summary>Puts the shortcut labels on the menu items and the same keys on the grid. Bound on the grid
+    /// only, so Ctrl+C in a text box still copies that text.</summary>
+    private void BindShortcuts()
+    {
+        Root.KeyBindings.Clear();
+        if (DataContext is not DownloadsViewModel vm || vm.OpenCommand is null)
+            return;
+        var command = Application.Current?.PlatformSettings?.HotkeyConfiguration.CommandModifiers ?? KeyModifiers.Control;
+        foreach (var (item, key, action) in new (MenuItem, Key, System.Windows.Input.ICommand)[]
+                 {
+                     (MenuOpen, Key.O, vm.OpenCommand),
+                     (MenuResume, Key.R, vm.ResumeMenuCommand),
+                     (MenuPause, Key.P, vm.PauseMenuCommand),
+                     (MenuCopyLink, Key.C, vm.CopyLinkCommand),
+                     (MenuDelete, Key.Delete, vm.RemoveSelectedCommand),
+                     (MenuProperties, Key.I, vm.PropertiesCommand),
+                 })
+        {
+            var gesture = Shortcut(key, command);
+            item.InputGesture = gesture;
+            Root.KeyBindings.Add(new KeyBinding { Gesture = gesture, Command = action });
+        }
+    }
+
+    private void OnContextRequested(object sender, ContextRequestedEventArgs e)
+    {
+        // Only a row opens the menu — not the header or the empty space under the rows.
+        var row = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>(includeSelf: true);
+        if (row?.DataContext is not DownloadItemViewModel item || DataContext is not DownloadsViewModel vm)
+        {
+            e.Handled = true;
+            return;
+        }
+        vm.PrepareMenuFor(item);
     }
 
     private void OnColumnSorting(object sender, DataGridColumnEventArgs e)
@@ -54,11 +97,13 @@ public partial class DownloadsView : UserControl
         {
             if (e.PropertyName == nameof(DownloadsViewModel.ShowQueue))
                 FitColumns();
+            else if (e.PropertyName == nameof(DownloadsViewModel.SelectAllState))
+                SyncGridFromChecks();
         };
     }
 
     /// <summary>
-    /// Shows the Queue column only with 2+ queues, and drops Time left, then Queue, then Type when the
+    /// Shows the Queue column only with 2+ queues, and drops Time left, then Queue when the
     /// grid is too narrow for every column (the sidebar open on a small window).
     /// </summary>
     private void FitColumns()
@@ -67,7 +112,7 @@ public partial class DownloadsView : UserControl
         if (_queueColumn is not null)
             _queueColumn.IsVisible = showQueue;
 
-        var optional = new List<DataGridColumn> { _timeLeftColumn, showQueue ? _queueColumn : null, _typeColumn };
+        var optional = new List<DataGridColumn> { _timeLeftColumn, showQueue ? _queueColumn : null };
         optional.RemoveAll(c => c is null);
         if (Root.Bounds.Width <= 0)
             return;
@@ -81,11 +126,34 @@ public partial class DownloadsView : UserControl
     private static double WidthOf(DataGridColumn column) =>
         column.Width.IsAbsolute ? column.Width.Value : column.MinWidth;
 
+    // The row checkbox IS the row's selection. The grid gives us click / Ctrl+click / Shift+click;
+    // its changes set the checkboxes, and a checkbox (or select-all) change updates the grid.
+
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // A highlighted row counts as "selected" for the toolbar, even when its checkbox is unchecked.
-        if (sender is DataGrid grid && DataContext is DownloadsViewModel vm)
-            vm.SetGridSelection(grid.SelectedItems);
+        if (_syncing)
+            return;
+        _syncing = true;
+        foreach (var item in e.RemovedItems.OfType<DownloadItemViewModel>())
+            item.IsChecked = false;
+        foreach (var item in e.AddedItems.OfType<DownloadItemViewModel>())
+            item.IsChecked = true;
+        _syncing = false;
+    }
+
+    /// <summary>Makes the grid's selection equal the checked rows, without touching the others.</summary>
+    private void SyncGridFromChecks()
+    {
+        if (_syncing || Root.ItemsSource is null)
+            return;
+        _syncing = true;
+        var selected = Root.SelectedItems;
+        foreach (var item in selected.OfType<DownloadItemViewModel>().Where(i => !i.IsChecked).ToList())
+            selected.Remove(item);
+        foreach (var item in Root.ItemsSource.OfType<DownloadItemViewModel>())
+            if (item.IsChecked && !selected.Contains(item))
+                selected.Add(item);
+        _syncing = false;
     }
 
     // --- Drag-to-reorder (grip handle in the first column) ---

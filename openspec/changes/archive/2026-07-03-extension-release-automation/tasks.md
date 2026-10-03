@@ -3,7 +3,8 @@
 ## 1. Release assets
 
 - [x] 1.1 Add an `extension` job to `.github/workflows/release.yml`: `needs: build`, runs `scripts/build-extension.sh`, attaches both zips via `softprops/action-gh-release` (no `generate_release_notes`, release already exists — the v1.4.0 race rule)
-- [ ] 1.2 (pending next `v*` tag — job can only run on a tag push) Verify on the next tag (or a re-run of a test tag) that both zips appear as release assets and notes are untouched
+- [x] 1.2 (pending next `v*` tag — job can only run on a tag push) Verify on the next tag (or a re-run of a test tag) that both zips appear as release assets and notes are untouched
+  > 2026-09-28: verified on `v2.15.0` — `downloader-extension-chrome.zip` and `downloader-extension-firefox.zip` are both attached, and the curated release notes are intact.
 
 ## 2. Mozilla AMO auto-publish
 

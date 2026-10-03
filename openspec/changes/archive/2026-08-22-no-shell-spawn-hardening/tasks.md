@@ -22,11 +22,11 @@
 
 ## Not done — deliberately out of scope
 
-- [ ] 9. **Authenticode-sign the Windows builds** (Azure Trusted Signing + a `release.yml` step). This is
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 9. **Authenticode-sign the Windows builds** (Azure Trusted Signing + a `release.yml` step). This is
       the remaining root cause — Bitdefender's timeline flags `Downloader.exe (unsigned)` — and it also
       fixes SmartScreen. Needs a certificate the author must obtain, so it cannot be done from here.
-- [ ] 10. **Manual Windows smoke test** of the three unverifiable paths (no Windows runner in CI): post a
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 10. **Manual Windows smoke test** of the three unverifiable paths (no Windows runner in CI): post a
       notification; delete `%APPDATA%\…\Start Menu\Programs\Downloader.lnk` and relaunch; toggle
       run-at-startup on/off and check `HKCU\…\Run`; take an update end to end. All three are fail-soft, so
       a mistake degrades silently rather than crashing — which is exactly why it needs eyes on Windows.
-- [ ] 11. **Report the false positive to Bitdefender** (and re-test once signing lands).
+- [x] *(Closed by the author, 2026-09-28 — marked finished without this step being verified.)* 11. **Report the false positive to Bitdefender** (and re-test once signing lands).

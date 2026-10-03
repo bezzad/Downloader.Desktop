@@ -205,9 +205,21 @@ public sealed class PluginManager
         var resolver = FindResolver(url);
         if (resolver == null)
             return null;
-        return options == null
-            ? await resolver.ResolveAsync(url, cancellationToken).ConfigureAwait(false)
-            : await resolver.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var plan = options == null
+                ? await resolver.ResolveAsync(url, cancellationToken).ConfigureAwait(false)
+                : await resolver.ResolveAsync(url, options, cancellationToken).ConfigureAwait(false);
+            AppLog.Info($"Plugin {resolver.GetType().Name} resolved {LogText.Url(url)} in {clock.ElapsedMilliseconds} ms " +
+                        $"({plan?.Parts?.Count ?? 0} part(s))");
+            return plan;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Info($"Plugin {resolver.GetType().Name} failed to resolve {LogText.Url(url)} after {clock.ElapsedMilliseconds} ms: {ex.GetType().Name}");
+            throw;
+        }
     }
 
     /// <summary>The selectable variants the claiming enabled resolver offers for this link (qualities,
@@ -236,7 +248,10 @@ public sealed class PluginManager
         {
             try
             {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 var variants = await resolver.GetVariantsAsync(url, options, cancellationToken).ConfigureAwait(false);
+                AppLog.Info($"Plugin {resolver.GetType().Name} listed {variants?.Count ?? 0} variant(s) for " +
+                            $"{LogText.Url(url)} in {clock.ElapsedMilliseconds} ms");
                 if (variants is { Count: > 0 })
                     return variants;
                 // Empty = "this resolver has no choices to offer" — a later (fallback) resolver may.
@@ -248,7 +263,7 @@ public sealed class PluginManager
                 // failed and the Website fallback's "Offline copy (.zip)" appeared under the HLS
                 // badge). Surface the reason instead of falling through — the Add window shows it, so
                 // a link the plugin can't handle says WHY rather than looking like nothing happened.
-                AppLog.Error($"Variant lookup failed for {url} — reporting the failure to the caller", ex);
+                AppLog.Error($"Variant lookup failed for {LogText.Url(url)} — reporting the failure to the caller", ex);
                 throw;
             }
         }

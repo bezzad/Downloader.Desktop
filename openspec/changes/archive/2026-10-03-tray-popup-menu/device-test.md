@@ -1,0 +1,108 @@
+# Tray test on Ubuntu — steps for the author
+
+Goal: learn which tray clicks really reach the app on your Ubuntu desktop. Nothing is fixed yet;
+this only collects facts. It takes about 5 minutes.
+
+## 0. Before you start
+
+1. Pull `develop`.
+2. **Quit every running Downloader** (tray menu → Quit). If one is still in the tray, a new start
+   only hands over to the old one and you test the old code.
+   Check: `ss -ltnp | grep 1515` must print nothing. If it prints a line, it shows `pid=NNNN`;
+   end it with `kill NNNN`.
+3. Turn logging on once: start the app, Settings → Logging → on, then quit it again.
+
+## 1. Tell me about the desktop (one command)
+
+```bash
+echo "$XDG_CURRENT_DESKTOP / $XDG_SESSION_TYPE"; gnome-shell --version; gnome-extensions list --enabled | grep -i -E 'appindicator|tray'
+```
+
+Copy the output.
+
+## 2. Run A — with the normal menu
+
+Terminal 1 (watch the tray messages):
+
+```bash
+dbus-monitor "interface='org.kde.StatusNotifierItem'" "interface='com.canonical.dbusmenu'" > ~/tray-dbus-A.txt
+```
+
+Terminal 2 (start the app in test mode):
+
+```bash
+DLDESKTOP_TRAY_DIAG=1 ./scripts/dev-run.sh
+```
+
+Then:
+1. Wait until the tray icon shows. Close the main window (it goes to the tray).
+2. **Left-click** the tray icon once. Wait 3 seconds. Write down what you saw.
+3. **Right-click** the tray icon once. Wait 3 seconds. Write down what you saw.
+4. If a menu opened, click "Open Downloader".
+5. Quit the app. Stop terminal 1 with Ctrl+C.
+
+## 3. Run B — no menu attached
+
+Same as run A, with two changes:
+
+```bash
+dbus-monitor "interface='org.kde.StatusNotifierItem'" "interface='com.canonical.dbusmenu'" > ~/tray-dbus-B.txt
+```
+
+```bash
+DLDESKTOP_TRAY_DIAG=nomenu ./scripts/dev-run.sh
+```
+
+Do the same left-click / right-click and write down what you saw. (No menu is expected here; the
+question is whether the window comes back.)
+
+## 3b. Run C — the installed snap (the one that fails)
+
+Reported 2026-10-03: the `dev-run.sh` build's tray menu works; the **snap** app's menu often does not
+("sometimes it works"). The tray code is the same in both (since v2.15.0 only log lines were added),
+so the difference is the snap sandbox or the way the app was started. This run collects facts about
+the snap only. Note: `DLDESKTOP_TRAY_DIAG` does nothing in the snap (that build is older) — the dbus
+file and the sandbox messages below are what matter.
+
+1. Quit every Downloader (step 0). Only one copy can run at a time.
+2. Which snap, and how was it started when the menu failed?
+   ```bash
+   snap list downloader; snap connections downloader
+   ```
+   Also write down: did it start **by itself at login** ("Run at startup"), or did **you** open it
+   from the app menu? Does the menu fail in both cases, or only in one?
+3. Terminal 1:
+   ```bash
+   dbus-monitor "interface='org.kde.StatusNotifierItem'" "interface='com.canonical.dbusmenu'" > ~/tray-dbus-snap.txt
+   ```
+4. Terminal 2:
+   ```bash
+   snap run downloader 2>&1 | tee ~/snap-console.txt
+   ```
+5. Close the main window. **Right-click** the tray icon, wait 3 s; **left-click** it, wait 3 s.
+   If no menu opens, try 2–3 more times. Write down what happened each time.
+6. Quit the app. Stop terminal 1 with Ctrl+C.
+7. Sandbox messages from the last 15 minutes:
+   ```bash
+   sudo journalctl -k --since "15 min ago" | grep -i 'apparmor="DENIED"' | grep -i downloader > ~/snap-denied.txt
+   journalctl --user --since "15 min ago" | grep -i -E 'downloader|appindicator|StatusNotifier' > ~/snap-user-journal.txt
+   ```
+8. If the menu fails only after a login start: turn on "Run at startup", log out and in, then do
+   steps 3, 5, 6 and 7 again (call the files `…-login.txt`).
+
+## 4. Send me
+
+1. Start the app normally, Settings → Logging → **Export log**, save the zip.
+2. Attach to the chat: the zip, `~/tray-dbus-A.txt`, `~/tray-dbus-B.txt`, the output of step 1,
+   and your notes (what happened on each click, in each run).
+3. From run C: `~/tray-dbus-snap.txt`, `~/snap-console.txt`, `~/snap-denied.txt`,
+   `~/snap-user-journal.txt`, the output of run C step 2, and your notes. (Runs A and B are still
+   useful, but run C is the important one now.)
+
+## What I will look for
+
+- `TRAY-DIAG: mode=…` lines: which run the log is from.
+- `UI: tray icon clicked (thread N)`: the shell reported a click to the app.
+- `TRAY-DIAG: native menu opening`: the shell asked for the menu.
+- `Activate` / `SecondaryActivate` / `ContextMenu` / `AboutToShow` calls in the dbus files: what the
+  shell sent, even if the app never saw it.
