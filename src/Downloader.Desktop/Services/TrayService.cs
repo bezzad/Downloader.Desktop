@@ -134,9 +134,12 @@ public static class TrayService
     /// <summary>A click on the icon. In the snap this is the ONLY way in: the native menu is blocked by
     /// AppArmor there (dbusmenu GetLayout denied), while the click arrives. macOS shows its native menu
     /// itself, so a click there just brings the window back, as before.</summary>
-    internal static void OnClicked()
+    internal static void OnClicked() => OnClicked(OperatingSystem.IsMacOS());
+
+    /// <summary>The click with the OS passed in, so both branches are testable on any machine.</summary>
+    internal static void OnClicked(bool macOS)
     {
-        if (OperatingSystem.IsMacOS())
+        if (macOS)
             ShowWindow();
         else
             Dispatcher.UIThread.Post(ShowMenuPopup);

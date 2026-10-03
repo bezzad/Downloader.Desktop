@@ -2539,3 +2539,13 @@ painted, cell by cell, on the previously selected row until each cell was hovere
 shows, disappears on hover"). Style `DataGridRow:selected DataGridCell` instead (App.axaml). Pinned by
 `UI/GridSelectionHighlightTests`. Decompile the DataGrid with `ilspycmd -p -o <dir>
 ~/.nuget/packages/avalonia.controls.datagrid/12.0.0/lib/net10.0/Avalonia.Controls.DataGrid.dll`.
+
+## Two "always red on one OS" tests fixed before v2.16.0 (2026-10-03)
+- **Windows: never `File.ReadAllText(AppLog.CurrentLogFile)` in a test.** Since detailed logging (6663862)
+  `AppLog` keeps ONE writer open; `ReadAllText` asks for `FileShare.Read`, which Windows refuses while a
+  writer exists → `IOException: being used by another process`. Linux/macOS don't lock, so it is green
+  here. Use `TestSupport/LogScope` (temp folder + shared read via `log.Text()`), which also stops tests
+  writing into the real user's AppData log.
+- **macOS: a test that calls an `OperatingSystem.IsX()`-branching method tests only the runner's branch.**
+  `TrayService.OnClicked()` now forwards to `OnClicked(bool macOS)`; tests pass the OS explicitly and
+  cover both branches. Same rule as `BrowserDetector`: inject the OS probe.
