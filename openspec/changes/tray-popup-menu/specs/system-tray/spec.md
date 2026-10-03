@@ -12,15 +12,24 @@ the main window on the downloads list.
 ## ADDED Requirements
 
 ### Requirement: The tray menu is drawn by the app on Linux and Windows
-On Linux and Windows, a left or right click on the tray icon SHALL open a menu drawn by the app: a
-rounded card near the tray area with one row per item, each with an icon and a label, a hover
-highlight, and the app's current light/dark theme and accent color. The menu SHALL close when it loses
-focus, when Esc is pressed, or after an item is chosen. On macOS the tray menu SHALL remain the native
-menu-bar menu with the same items.
+On Linux and Windows, a left click on the tray icon SHALL open a menu drawn by the app: a rounded
+card near the tray area with one row per item, each with an icon and a label, a hover highlight, and
+the app's current light/dark theme and accent color. The menu SHALL close when it loses focus, when Esc
+is pressed, or after an item is chosen. A right click SHALL show the native menu with the same items
+(until it is confirmed on device that a right click reaches the app without one). On macOS the tray
+menu SHALL remain the native menu-bar menu with the same items.
 
-#### Scenario: Click opens the themed menu
-- **WHEN** the user left-clicks or right-clicks the tray icon on Linux or Windows
+#### Scenario: Left click opens the themed menu
+- **WHEN** the user left-clicks the tray icon on Linux or Windows
 - **THEN** the app's menu opens near the tray area in the current theme
+
+#### Scenario: The left click works inside the snap
+- **WHEN** the app runs as a snap on Ubuntu GNOME, where the native menu is blocked by the sandbox
+- **THEN** a left click on the tray icon still opens the app's menu
+
+#### Scenario: Right click shows the same items
+- **WHEN** the user right-clicks the tray icon where the native menu can be shown
+- **THEN** a menu with Show downloads, Settings, Notifications and Exit opens, in the app language
 
 #### Scenario: Clicking elsewhere closes it
 - **WHEN** the tray menu is open and the user clicks outside it
