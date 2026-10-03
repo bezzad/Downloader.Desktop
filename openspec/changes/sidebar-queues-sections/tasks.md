@@ -1,14 +1,14 @@
 ## 1. On by default
 
-- [ ] 1.1 `Config`: `IsCategorySidebarOpen` default true; `CurrentSchemaVersion` 2 → 3; `EnsureValid` shows the sidebar once when `SchemaVersion < 3`
-- [ ] 1.2 Tests: new config → shown; v2 config with hidden → shown once, then a saved "hidden" is kept
+- [x] 1.1 `Config`: `IsCategorySidebarOpen` default true; `CurrentSchemaVersion` 2 → 3; `EnsureValid` shows the sidebar once when `SchemaVersion < 3`
+- [x] 1.2 Tests: new config → shown; v2 config with hidden → shown once, then a saved "hidden" is kept
 
 ## 2. Queue filter + single selection
 
-- [ ] 2.1 `DownloadsViewModel.QueueFilter` in `Matches`; `MatchesExceptSidebar` for counts
-- [ ] 2.2 `MainViewModel.SelectedQueueId`; selecting a queue clears the category, a category clears the queue, All clears both; `ClearFilters` clears both
-- [ ] 2.3 `SidebarQueueRowViewModel` + `QueueRows`, rebuilt on `QueuesChanged` (UI thread); removed selected queue → All
-- [ ] 2.4 Tests: queue filter lists only that queue (any state) + combines with status/search; single selection rules; counts; new/renamed/removed queue updates the rows; removing the selected queue falls back to All; Clear filters resets both (drive the COMMAND, not the method — skill note)
+- [x] 2.1 `DownloadsViewModel.QueueFilter` in `Matches`; `MatchesExceptSidebar` for counts
+- [x] 2.2 `MainViewModel.SelectedQueueId`; selecting a queue clears the category, a category clears the queue, All clears both; `ClearFilters` clears both
+- [x] 2.3 `SidebarQueueRowViewModel` + `QueueRows`, rebuilt on `QueuesChanged` (UI thread); removed selected queue → All
+- [x] 2.4 Tests: queue filter lists only that queue (any state) + combines with status/search; single selection rules; counts; new/renamed/removed queue updates the rows; removing the selected queue falls back to All; Clear filters resets both (drive the COMMAND, not the method — skill note)
 
 ## 3. Sections
 

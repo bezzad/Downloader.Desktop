@@ -169,19 +169,19 @@ public class MainViewModelTests
     // ---- sidebar and inputs ------------------------------------------------
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void The_category_sidebar_starts_hidden_and_toggles_between_two_states()
+    public void The_category_sidebar_starts_shown_and_toggles_between_two_states()
     {
         var (main, _) = Build();
 
-        // Off on first run: it is an extra, not the way the app works. (The nav rail this replaces
-        // also had an icons-only middle state; there is deliberately no third state now.)
-        Assert.False(main.IsCategorySidebarOpen);
-
-        main.ToggleCategorySidebarCommand.Execute(null);
+        // Shown on first run: it is how categories and queues are reached. (There is deliberately
+        // no icons-only middle state.)
         Assert.True(main.IsCategorySidebarOpen);
 
         main.ToggleCategorySidebarCommand.Execute(null);
         Assert.False(main.IsCategorySidebarOpen);
+
+        main.ToggleCategorySidebarCommand.Execute(null);
+        Assert.True(main.IsCategorySidebarOpen);
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]

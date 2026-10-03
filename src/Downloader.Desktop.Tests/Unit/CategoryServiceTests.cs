@@ -296,7 +296,30 @@ public class CategoryServiceTests
         // built-ins carry the extension table the app already used.
         Assert.Null(config.Downloads[0].CategoryId);
         Assert.Equal("video", CategoryService.Detect(config.Categories, "a.mp4", null).Id);
-        // The sidebar stays out of the way until asked for.
+        // The sidebar is how categories and queues are reached, so an upgrade shows it.
+        Assert.True(config.IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_new_configuration_shows_the_sidebar()
+    {
+        Assert.True(Config.New().IsCategorySidebarOpen);
+        // What an empty/older config.json without the field deserializes to.
+        Assert.True(new Config().EnsureValid().IsCategorySidebarOpen);
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_v2_configuration_with_the_sidebar_hidden_shows_it_once_then_keeps_the_choice()
+    {
+        var config = new Config { SchemaVersion = 2, IsCategorySidebarOpen = false };
+
+        config.EnsureValid();
+        Assert.True(config.IsCategorySidebarOpen);
+        Assert.Equal(3, config.SchemaVersion);
+
+        // The user hides it again; the next load must respect that.
+        config.IsCategorySidebarOpen = false;
+        config.EnsureValid();
         Assert.False(config.IsCategorySidebarOpen);
     }
 

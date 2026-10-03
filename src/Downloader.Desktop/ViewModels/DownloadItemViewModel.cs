@@ -187,6 +187,9 @@ public class DownloadItemViewModel : ViewModelBase
     /// <summary>Grouping label for the list. Batched (multi-URL) adds share one; others group under "Downloads".</summary>
     public string Group => string.IsNullOrWhiteSpace(_item.Group) ? L("Group_Downloads") : _item.Group;
 
+    /// <summary>Id of the queue this download belongs to.</summary>
+    public string QueueId => _item.QueueId;
+
     /// <summary>Name of the queue this download belongs to (shown in the list only when more than one
     /// queue exists). Resolved live from the manager so a drag across queues updates it.</summary>
     public string QueueName =>
