@@ -308,6 +308,15 @@ public class CaptureScreenshots
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         Avalonia.Headless.HeadlessWindowExtensions.MouseMove(window, new Avalonia.Point(900, 600));
 
+        // The app-drawn tray menu (Linux/Windows), light and dark.
+        TrayService.Init(window, () => { });
+        TrayService.ShowMenuPopup();
+        Save(TrayService.Popup, "tray-menu-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(TrayService.Popup, "tray-menu-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        TrayService.Disable();
+
         // Persian (RTL) home to verify translation + right-to-left mirroring — captured with the
         // sidebar OPEN, since mirroring a column of its own is the part worth looking at.
         Localizer.Instance.Load("fa");

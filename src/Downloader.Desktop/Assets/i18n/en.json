@@ -410,5 +410,9 @@
   "Set_ImportFailed": "That file could not be read as a settings export. Nothing was changed.",
   "Set_ImportEmpty": "That file lists no categories, so it was not imported.",
   "Set_DeletePartialOnRemove": "Delete the partial file when removing a download",
-  "Set_DeletePartialOnRemove_Hint": "When you remove an unfinished download, also delete the half-downloaded file from disk. Finished files are never deleted."
+  "Set_DeletePartialOnRemove_Hint": "When you remove an unfinished download, also delete the half-downloaded file from disk. Finished files are never deleted.",
+  "Tray_ShowDownloads": "Show downloads",
+  "Tray_Settings": "Settings",
+  "Tray_Notifications": "Notifications",
+  "Tray_Exit": "Exit"
 }

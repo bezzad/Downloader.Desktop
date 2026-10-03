@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Diese Datei konnte nicht als Einstellungsexport gelesen werden. Es wurde nichts geändert.",
   "Set_ImportEmpty": "Diese Datei enthält keine Kategorien und wurde daher nicht importiert.",
   "Set_DeletePartialOnRemove": "Beim Entfernen eines Downloads die unfertige Datei löschen",
-  "Set_DeletePartialOnRemove_Hint": "Wenn Sie einen unfertigen Download entfernen, wird auch die halb heruntergeladene Datei von der Festplatte gelöscht. Fertige Dateien werden nie gelöscht."
+  "Set_DeletePartialOnRemove_Hint": "Wenn Sie einen unfertigen Download entfernen, wird auch die halb heruntergeladene Datei von der Festplatte gelöscht. Fertige Dateien werden nie gelöscht.",
+  "Tray_ShowDownloads": "Downloads anzeigen",
+  "Tray_Settings": "Einstellungen",
+  "Tray_Notifications": "Benachrichtigungen",
+  "Tray_Exit": "Beenden"
 }

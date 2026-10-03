@@ -410,5 +410,9 @@
   "Set_ImportFailed": "このファイルは設定の書き出しとして読み取れませんでした。何も変更されていません。",
   "Set_ImportEmpty": "このファイルにはカテゴリが含まれていないため、読み込みませんでした。",
   "Set_DeletePartialOnRemove": "ダウンロードを削除するとき未完了のファイルも削除する",
-  "Set_DeletePartialOnRemove_Hint": "未完了のダウンロードを削除すると、途中まで保存されたファイルもディスクから削除します。完了したファイルが削除されることはありません。"
+  "Set_DeletePartialOnRemove_Hint": "未完了のダウンロードを削除すると、途中まで保存されたファイルもディスクから削除します。完了したファイルが削除されることはありません。",
+  "Tray_ShowDownloads": "ダウンロードを表示",
+  "Tray_Settings": "設定",
+  "Tray_Notifications": "通知",
+  "Tray_Exit": "終了"
 }

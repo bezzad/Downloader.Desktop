@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Tiu dosiero ne legeblis kiel agorda eksporto. Nenio ŝanĝiĝis.",
   "Set_ImportEmpty": "Tiu dosiero listigas neniun kategorion, do ĝi ne estis importita.",
   "Set_DeletePartialOnRemove": "Forigi la partan dosieron kiam vi forigas elŝuton",
-  "Set_DeletePartialOnRemove_Hint": "Kiam vi forigas nefinitan elŝuton, ankaŭ forigu la duone elŝutitan dosieron de la disko. Finitaj dosieroj neniam estas forigataj."
+  "Set_DeletePartialOnRemove_Hint": "Kiam vi forigas nefinitan elŝuton, ankaŭ forigu la duone elŝutitan dosieron de la disko. Finitaj dosieroj neniam estas forigataj.",
+  "Tray_ShowDownloads": "Montri elŝutojn",
+  "Tray_Settings": "Agordoj",
+  "Tray_Notifications": "Sciigoj",
+  "Tray_Exit": "Eliri"
 }

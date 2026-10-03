@@ -410,5 +410,9 @@
   "Set_ImportFailed": "이 파일을 설정 내보내기로 읽을 수 없습니다. 아무것도 변경되지 않았습니다.",
   "Set_ImportEmpty": "이 파일에는 분류가 없어 가져오지 않았습니다.",
   "Set_DeletePartialOnRemove": "다운로드를 제거할 때 미완성 파일도 삭제",
-  "Set_DeletePartialOnRemove_Hint": "완료되지 않은 다운로드를 제거하면 절반만 받은 파일도 디스크에서 삭제합니다. 완료된 파일은 절대 삭제되지 않습니다."
+  "Set_DeletePartialOnRemove_Hint": "완료되지 않은 다운로드를 제거하면 절반만 받은 파일도 디스크에서 삭제합니다. 완료된 파일은 절대 삭제되지 않습니다.",
+  "Tray_ShowDownloads": "다운로드 보기",
+  "Tray_Settings": "설정",
+  "Tray_Notifications": "알림",
+  "Tray_Exit": "종료"
 }

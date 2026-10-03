@@ -1,0 +1,75 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Downloader.Desktop.ViewModels"
+        xmlns:i18n="clr-namespace:Downloader.Desktop.Markup"
+        xmlns:services="clr-namespace:Downloader.Desktop.Services"
+        x:Class="Downloader.Desktop.Views.TrayMenuView"
+        x:DataType="vm:TrayMenuViewModel"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        Topmost="True"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        FontSize="{StaticResource DefaultFontSize}"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        FlowDirection="{Binding FlowDirection, Source={x:Static services:Localizer.Instance}}"
+        Title="Downloader">
+
+    <!-- The tray menu: a small rounded card with icon rows, in the app's theme. Rows reuse the look of
+         the app's context menus (App.axaml), so the two menus read as one design. -->
+    <Window.Styles>
+        <Style Selector="Button.trayrow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="11 7" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.trayrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RowSelectionBrush}" />
+        </Style>
+        <Style Selector="Button.trayrow PathIcon">
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="15" />
+        </Style>
+    </Window.Styles>
+
+    <Border Background="{DynamicResource SystemAltHighColor}"
+            BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1"
+            CornerRadius="10" Padding="5" MinWidth="220" ClipToBounds="True">
+        <StackPanel Spacing="1">
+            <Button x:Name="ShowDownloadsRow" Classes="trayrow" Command="{Binding ShowDownloadsCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="11">
+                    <PathIcon Data="{DynamicResource ArrowDownloadRegular}" />
+                    <TextBlock Text="{i18n:Tr Tray_ShowDownloads}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="SettingsRow" Classes="trayrow" Command="{Binding ShowSettingsCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="11">
+                    <PathIcon Data="{DynamicResource SettingsRegular}" />
+                    <TextBlock Text="{i18n:Tr Tray_Settings}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <!-- The switch row: not a button, so a click on the switch does not close the menu. -->
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="11 2 6 2" MinHeight="32">
+                <PathIcon Grid.Column="0" Data="{DynamicResource AlertRegular}" Width="15" Height="15" />
+                <TextBlock Grid.Column="1" Text="{i18n:Tr Tray_Notifications}" Margin="11 0 12 0"
+                           VerticalAlignment="Center" />
+                <ToggleSwitch x:Name="NotificationsSwitch" Grid.Column="2" OnContent="" OffContent=""
+                              MinWidth="0" VerticalAlignment="Center"
+                              IsChecked="{Binding NotificationsEnabled, Mode=TwoWay}" />
+            </Grid>
+            <Separator Margin="6 3" Height="1" Background="{DynamicResource SystemBaseLowColor}" />
+            <Button x:Name="ExitRow" Classes="trayrow" Command="{Binding ExitCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="11">
+                    <PathIcon Data="{DynamicResource PowerRegular}" />
+                    <TextBlock Text="{i18n:Tr Tray_Exit}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Border>
+</Window>

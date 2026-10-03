@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Bu dosya bir ayar dışa aktarımı olarak okunamadı. Hiçbir şey değişmedi.",
   "Set_ImportEmpty": "Bu dosyada hiç kategori yok, bu yüzden içe aktarılmadı.",
   "Set_DeletePartialOnRemove": "İndirmeyi kaldırırken yarım kalan dosyayı da sil",
-  "Set_DeletePartialOnRemove_Hint": "Tamamlanmamış bir indirmeyi kaldırdığınızda yarım inen dosya da diskten silinir. Tamamlanmış dosyalar asla silinmez."
+  "Set_DeletePartialOnRemove_Hint": "Tamamlanmamış bir indirmeyi kaldırdığınızda yarım inen dosya da diskten silinir. Tamamlanmış dosyalar asla silinmez.",
+  "Tray_ShowDownloads": "İndirmeleri göster",
+  "Tray_Settings": "Ayarlar",
+  "Tray_Notifications": "Bildirimler",
+  "Tray_Exit": "Çıkış"
 }

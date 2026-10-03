@@ -2513,3 +2513,14 @@ Check `../Downloader` before instrumenting the app.
   `MainWindow.axaml.cs` (manual capture like the grid's row drag); release → `MainViewModel.DropCategory`
   → `CategoryService.MoveTo(id, index)` (clamped to the list). Tested with real `window.MouseDown/Move/Up`
   in `UI/SidebarViewTests`.
+
+## Tray menu: app-drawn popup (tray-popup-menu, 2026-10-03)
+- `TrayService.Init(window, onQuit, showDownloads, showSettings)` builds ONE `TrayMenuViewModel`
+  (`TrayService.Menu`) shared by the app-drawn `Views/TrayMenuView` (Linux/Windows, opened by
+  `OnClicked` → `ShowMenuPopup`) and the native menu (`BuildNativeMenu`, same 4 items, translated via
+  `Tray_*` keys; notifications shown as a "✓ " prefix). macOS: a click just brings the window back; its
+  native menu is the menu.
+- Popup placement is pure: `Views/TrayMenuPlacement.Place(bounds, workingArea, size, rtl)` — the corner
+  on the side where the working area is inset (taskbar/top bar). The popup hides (not closes) on
+  Deactivated / Esc / after a command, so one instance is reused.
+- **A `NativeMenuItemSeparator` IS a `NativeMenuItem` with Header "-"** — filter it out when listing labels.

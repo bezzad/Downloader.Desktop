@@ -410,5 +410,9 @@
   "Set_ImportFailed": "无法将该文件读取为设置导出文件。未做任何更改。",
   "Set_ImportEmpty": "该文件未列出任何分类，因此未导入。",
   "Set_DeletePartialOnRemove": "移除下载时删除未完成的文件",
-  "Set_DeletePartialOnRemove_Hint": "移除未完成的下载时，同时从磁盘删除下载了一半的文件。已完成的文件永远不会被删除。"
+  "Set_DeletePartialOnRemove_Hint": "移除未完成的下载时，同时从磁盘删除下载了一半的文件。已完成的文件永远不会被删除。",
+  "Tray_ShowDownloads": "显示下载",
+  "Tray_Settings": "设置",
+  "Tray_Notifications": "通知",
+  "Tray_Exit": "退出"
 }

@@ -486,7 +486,7 @@ public class MainViewModel : ViewModelBase
         RestoreWindowLayout(window);
         TrackWindowLayout(window);
 
-        TrayService.Init(window, Quit);
+        TrayService.Init(window, Quit, () => ShowFromTray(NavSection.Downloads), () => ShowFromTray(NavSection.Settings));
         TrayService.NotificationsToggled = enabled =>
         {
             _config.Settings.EnableNotifications = enabled;
@@ -757,6 +757,20 @@ public class MainViewModel : ViewModelBase
 
     /// <summary>Restores + activates the main window (used by single-instance and captured links).</summary>
     private void BringToFront() => Services.WindowActivation.BringToFront(View as Window);
+
+    /// <summary>The tray menu's "Show downloads" / "Settings": bring the window back on that page. Tray
+    /// events can arrive on a D-Bus thread, so the page switch is marshalled to the UI thread.</summary>
+    internal void ShowFromTray(NavSection section)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => ShowFromTray(section));
+            return;
+        }
+
+        Navigate(section);
+        BringToFront();
+    }
 
     /// <summary>Really exit the app (from the tray menu / updater), bypassing close-to-tray.</summary>
     private void Quit()

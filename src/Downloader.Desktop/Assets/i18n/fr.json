@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Ce fichier n'a pas pu être lu comme un export de réglages. Rien n'a été modifié.",
   "Set_ImportEmpty": "Ce fichier ne contient aucune catégorie, il n'a donc pas été importé.",
   "Set_DeletePartialOnRemove": "Supprimer le fichier partiel en retirant un téléchargement",
-  "Set_DeletePartialOnRemove_Hint": "Lorsque vous retirez un téléchargement inachevé, supprime aussi du disque le fichier à moitié téléchargé. Les fichiers terminés ne sont jamais supprimés."
+  "Set_DeletePartialOnRemove_Hint": "Lorsque vous retirez un téléchargement inachevé, supprime aussi du disque le fichier à moitié téléchargé. Les fichiers terminés ne sont jamais supprimés.",
+  "Tray_ShowDownloads": "Afficher les téléchargements",
+  "Tray_Settings": "Paramètres",
+  "Tray_Notifications": "Notifications",
+  "Tray_Exit": "Quitter"
 }

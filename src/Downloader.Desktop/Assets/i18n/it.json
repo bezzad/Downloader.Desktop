@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Impossibile leggere quel file come esportazione di impostazioni. Nulla è stato modificato.",
   "Set_ImportEmpty": "Quel file non elenca categorie, quindi non è stato importato.",
   "Set_DeletePartialOnRemove": "Elimina il file incompleto quando rimuovi un download",
-  "Set_DeletePartialOnRemove_Hint": "Quando rimuovi un download non terminato, elimina dal disco anche il file scaricato a metà. I file completati non vengono mai eliminati."
+  "Set_DeletePartialOnRemove_Hint": "Quando rimuovi un download non terminato, elimina dal disco anche il file scaricato a metà. I file completati non vengono mai eliminati.",
+  "Tray_ShowDownloads": "Mostra download",
+  "Tray_Settings": "Impostazioni",
+  "Tray_Notifications": "Notifiche",
+  "Tray_Exit": "Esci"
 }

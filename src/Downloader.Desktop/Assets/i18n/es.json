@@ -410,5 +410,9 @@
   "Set_ImportFailed": "No se pudo leer ese archivo como una exportación de configuración. No se cambió nada.",
   "Set_ImportEmpty": "Ese archivo no contiene categorías, así que no se importó.",
   "Set_DeletePartialOnRemove": "Eliminar el archivo parcial al quitar una descarga",
-  "Set_DeletePartialOnRemove_Hint": "Al quitar una descarga sin terminar, borra también del disco el archivo descargado a medias. Los archivos completos nunca se eliminan."
+  "Set_DeletePartialOnRemove_Hint": "Al quitar una descarga sin terminar, borra también del disco el archivo descargado a medias. Los archivos completos nunca se eliminan.",
+  "Tray_ShowDownloads": "Mostrar descargas",
+  "Tray_Settings": "Ajustes",
+  "Tray_Notifications": "Notificaciones",
+  "Tray_Exit": "Salir"
 }

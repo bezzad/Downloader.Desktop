@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Bu fayl parametr ixracı kimi oxunmadı. Heç nə dəyişmədi.",
   "Set_ImportEmpty": "Bu faylda heç bir kateqoriya yoxdur, ona görə idxal edilmədi.",
   "Set_DeletePartialOnRemove": "Yükləməni silərkən yarımçıq faylı da sil",
-  "Set_DeletePartialOnRemove_Hint": "Tamamlanmamış yükləməni siləndə yarımçıq yüklənmiş fayl da diskdən silinir. Tamamlanmış fayllar heç vaxt silinmir."
+  "Set_DeletePartialOnRemove_Hint": "Tamamlanmamış yükləməni siləndə yarımçıq yüklənmiş fayl da diskdən silinir. Tamamlanmış fayllar heç vaxt silinmir.",
+  "Tray_ShowDownloads": "Yükləmələri göstər",
+  "Tray_Settings": "Tənzimləmələr",
+  "Tray_Notifications": "Bildirişlər",
+  "Tray_Exit": "Çıxış"
 }

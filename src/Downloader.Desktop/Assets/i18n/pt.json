@@ -410,5 +410,9 @@
   "Set_ImportFailed": "Não foi possível ler esse arquivo como uma exportação de configurações. Nada foi alterado.",
   "Set_ImportEmpty": "Esse arquivo não lista categorias, então não foi importado.",
   "Set_DeletePartialOnRemove": "Excluir o arquivo incompleto ao remover um download",
-  "Set_DeletePartialOnRemove_Hint": "Ao remover um download não concluído, apaga também do disco o arquivo baixado pela metade. Arquivos concluídos nunca são excluídos."
+  "Set_DeletePartialOnRemove_Hint": "Ao remover um download não concluído, apaga também do disco o arquivo baixado pela metade. Arquivos concluídos nunca são excluídos.",
+  "Tray_ShowDownloads": "Mostrar downloads",
+  "Tray_Settings": "Configurações",
+  "Tray_Notifications": "Notificações",
+  "Tray_Exit": "Sair"
 }
