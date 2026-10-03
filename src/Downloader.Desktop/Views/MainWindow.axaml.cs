@@ -2,6 +2,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using Downloader.Desktop.ViewModels;
 
 namespace Downloader.Desktop.Views;
 
@@ -31,6 +33,78 @@ public partial class MainWindow : Window
                 PageHost.Content = _pages.GetView(_vm.CurrentPage);
             }
         };
+    }
+
+    // ---- Drag a category row by its grip to reorder (manual pointer capture: the OS drag session
+    // shows no visual on X11). Press on the grip, move to highlight the drop row, release to move. ----
+
+    private Button _dragRow;
+    private Button _dropRow;
+
+    private void OnCategoryGripPressed(object sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control grip || !e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
+            return;
+
+        _dragRow = grip.FindAncestorOfType<Button>();
+        if (_dragRow?.DataContext is not CategoryRowViewModel { IsAll: false })
+        {
+            _dragRow = null;
+            return;
+        }
+
+        _dragRow.Classes.Add("dragging");
+        e.Pointer.Capture(grip);
+        // Don't let the row's own press select the category.
+        e.Handled = true;
+    }
+
+    private void OnCategoryGripMoved(object sender, PointerEventArgs e)
+    {
+        if (_dragRow is null)
+            return;
+
+        var target = CategoryRowAt(e.GetPosition(CategoryList));
+        if (ReferenceEquals(target, _dragRow))
+            target = null;
+        if (ReferenceEquals(target, _dropRow))
+            return;
+
+        _dropRow?.Classes.Remove("droptarget");
+        _dropRow = target;
+        _dropRow?.Classes.Add("droptarget");
+    }
+
+    private void OnCategoryGripReleased(object sender, PointerReleasedEventArgs e)
+    {
+        if (_dragRow is null)
+            return;
+
+        var target = CategoryRowAt(e.GetPosition(CategoryList));
+        if (target != null && _vm != null)
+            _vm.DropCategory(_dragRow.DataContext as CategoryRowViewModel, target.DataContext as CategoryRowViewModel);
+
+        e.Handled = true;
+        ClearCategoryDrag();
+        e.Pointer.Capture(null);
+    }
+
+    private void OnCategoryGripCaptureLost(object sender, PointerCaptureLostEventArgs e) => ClearCategoryDrag();
+
+    private void ClearCategoryDrag()
+    {
+        _dragRow?.Classes.Remove("dragging");
+        _dropRow?.Classes.Remove("droptarget");
+        _dragRow = null;
+        _dropRow = null;
+    }
+
+    /// <summary>The category row (a <c>Button.cat</c>) under a point in <see cref="CategoryList"/>.</summary>
+    private Button CategoryRowAt(Avalonia.Point point)
+    {
+        var hit = CategoryList.InputHitTest(point) as Avalonia.Visual;
+        var row = hit as Button ?? hit?.FindAncestorOfType<Button>();
+        return row?.DataContext is CategoryRowViewModel ? row : null;
     }
 
     private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

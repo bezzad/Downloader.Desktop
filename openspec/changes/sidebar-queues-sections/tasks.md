@@ -12,24 +12,24 @@
 
 ## 3. Sections
 
-- [ ] 3.1 Two section headers (Categories, Queues) with chevrons + expanded flags (default true)
-- [ ] 3.2 Queue rows in the Queues section (name, count, de-emphasized when empty, tooltip for long names)
-- [ ] 3.3 i18n: section titles in `en.json` + all 16 packs (reuse existing keys where they fit)
-- [ ] 3.4 Test: collapsing a section hides its rows
+- [x] 3.1 Two section headers (Categories, Queues) with chevrons + expanded flags (default true)
+- [x] 3.2 Queue rows in the Queues section (name, count, de-emphasized when empty, tooltip for long names)
+- [x] 3.3 i18n: section titles in `en.json` + all 16 packs (reuse existing keys where they fit) — reused `Cat_Sidebar` ("Categories") and `Nav_Queues` ("Queues"), already in all 16 packs; no new keys
+- [x] 3.4 Test: collapsing a section hides its rows
 
 ## 4. Accent bar
 
-- [ ] 4.1 3 px start-edge bar on `Button.cat.selected` (category, queue, All) bound to `SystemAccentColor`
-- [ ] 4.2 Tests: only the selected row shows the bar; `ApplyAccent` changes its brush live; RTL puts it on the right
+- [x] 4.1 3 px start-edge bar on `Button.cat.selected` (category, queue, All) bound to `SystemAccentColor`
+- [x] 4.2 Tests: only the selected row shows the bar; `ApplyAccent` changes its brush live; RTL puts it on the right
 
 ## 5. Drag to reorder categories
 
-- [ ] 5.1 `CategoryService.MoveTo(id, index)` (clamped below All, persists, raises `Changed`)
-- [ ] 5.2 Hover grip on category rows (not All, not queues); pointer-capture drag with drop-target highlight; release → `MoveTo`
-- [ ] 5.3 Tests: `MoveTo` order + persistence + clamp; grip visibility rules; a simulated drag (pointer events on the grip) reorders
+- [x] 5.1 `CategoryService.MoveTo(id, index)` (clamped below All, persists, raises `Changed`)
+- [x] 5.2 Hover grip on category rows (not All, not queues); pointer-capture drag with drop-target highlight; release → `MoveTo`
+- [x] 5.3 Tests: `MoveTo` order + persistence + clamp; grip visibility rules; a simulated drag (pointer events on the grip) reorders
 
 ## 6. Finish
 
-- [ ] 6.1 Full solution `-t:Rebuild` → 0 warnings; `dotnet test` green
-- [ ] 6.2 Regenerate `docs/screenshots/` and add captures: sidebar with both sections and a selected queue (accent bar), a category row hovered with the grip, light + dark; view every changed PNG before committing
-- [ ] 6.3 Update CLAUDE.md (sidebar now on by default, sections) + skill notes; commit + push to `develop`
+- [x] 6.1 Full solution `-t:Rebuild` → 0 warnings; `dotnet test` green
+- [x] 6.2 Regenerate `docs/screenshots/` and add captures: sidebar with both sections and a selected queue (accent bar), a category row hovered with the grip, light + dark; view every changed PNG before committing
+- [x] 6.3 Update CLAUDE.md (sidebar now on by default, sections) + skill notes; commit + push to `develop`

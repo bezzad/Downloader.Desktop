@@ -2495,3 +2495,21 @@ Check `../Downloader` before instrumenting the app.
 - **Headless menu screenshot**: `grid.ContextMenu.Open(grid)` renders inside the window frame (`CaptureRenderedFrame(window)` shows it); it opens at the pointer, so `HeadlessWindowExtensions.MouseMove` first. Open a submenu with `MenuItem.IsSubMenuOpen = true`.
 - **Restart** (`DownloadManager.Restart`): bump `vm.AttemptGeneration` after `Cancel` so the old engine's late cancel report is stale and can't mark the re-queued row Failed. Deletes only `<name>.download` (`TryDeletePartialFile`), never the final file.
 - The screenshot capture re-renders *unrelated* dialogs with tiny pixel diffs on a fresh box — commit only the PNGs of views that changed.
+
+## Sidebar: Categories + Queues sections (sidebar-queues-sections, 2026-10-03)
+- **One selection, two filters**: `DownloadsViewModel.CategoryFilter` + `QueueFilter`; the shell sets them
+  ONLY through `MainViewModel.SelectSidebar(categoryId, queueId)` (setting one clears the other; "All" =
+  both null) and marks rows in `MarkSelectedRows()`. Counts use `MatchesExceptSidebar` (status + search).
+- `QueueRows` (`SidebarQueueRowViewModel`) are rebuilt on `IDownloadManager.QueuesChanged` (inline when on
+  the UI thread, else posted) — `RenameQueue` fires it per keystroke, which is fine for a few rows.
+- **The sidebar's overlay scroll bar covered the rows' right edge** (where the drag handle is) once the
+  list was taller than the window — a hit-test there landed on the `ScrollBar`'s `Rectangle`. The inner
+  StackPanel keeps an 8 px right margin for it. Any new control at a scrollable list's right edge needs the
+  same room. Symptom in a headless test: a press "does nothing" only when the whole class runs.
+- Accent bar = `Border.selbar` bound `IsVisible="{Binding IsSelected}"`, styled in App.axaml with
+  `{DynamicResource SystemAccentColor}` (so `ThemeService.ApplyAccent` recolors it live); negative left
+  margin puts it on the row edge; RTL mirrors it for free.
+- Drag handle = `Border.grip` (Opacity 0 → visible on `Button.cat:pointerover`), with pointer handlers in
+  `MainWindow.axaml.cs` (manual capture like the grid's row drag); release → `MainViewModel.DropCategory`
+  → `CategoryService.MoveTo(id, index)` (clamped to the list). Tested with real `window.MouseDown/Move/Up`
+  in `UI/SidebarViewTests`.

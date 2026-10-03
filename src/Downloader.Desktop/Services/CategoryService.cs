@@ -285,6 +285,31 @@ public class CategoryService
         return true;
     }
 
+    /// <summary>Moves a category to <paramref name="index"/> in the list (a sidebar drag). The index is
+    /// clamped to the list, so nothing can land above the sidebar's "All" row, which is not a category.</summary>
+    /// <returns>True when the order changed.</returns>
+    public bool MoveTo(string id, int index)
+    {
+        lock (_gate)
+        {
+            var from = _categories.FindIndex(c => c.Id == id);
+            if (from < 0)
+                return false;
+
+            var to = Math.Clamp(index, 0, _categories.Count - 1);
+            if (to == from)
+                return false;
+
+            var item = _categories[from];
+            _categories.RemoveAt(from);
+            _categories.Insert(to, item);
+        }
+
+        Renumber();
+        Changed?.Invoke();
+        return true;
+    }
+
     /// <summary>Whether a name is free — two categories with the same name are indistinguishable in
     /// the sidebar. <paramref name="exceptId"/> lets a category keep its own name while editing.</summary>
     public bool IsNameAvailable(string name, string exceptId = null) =>

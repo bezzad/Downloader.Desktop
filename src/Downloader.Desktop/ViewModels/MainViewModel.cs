@@ -1001,6 +1001,18 @@ public class MainViewModel : ViewModelBase
         RequestSave();
     }
 
+    /// <summary>A sidebar drag ended: <paramref name="dragged"/> takes <paramref name="target"/>'s place
+    /// (dropped on "All" = first). The order is persisted like a Move up/down.</summary>
+    internal void DropCategory(CategoryRowViewModel dragged, CategoryRowViewModel target)
+    {
+        if (dragged?.Id is null || target is null || ReferenceEquals(dragged, target))
+            return;
+
+        var index = target.IsAll ? 0 : _downloadManager.Categories.Categories.ToList().FindIndex(c => c.Id == target.Id);
+        if (index >= 0 && _downloadManager.Categories.MoveTo(dragged.Id, index))
+            RequestSave();
+    }
+
     private async Task AddCategoryAsync() => await EditCategoryAsync(null);
 
     private void EditCategory(CategoryRowViewModel row) => _ = EditCategoryAsync(row?.Category);

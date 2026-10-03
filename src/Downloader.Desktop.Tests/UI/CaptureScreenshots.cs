@@ -274,14 +274,39 @@ public class CaptureScreenshots
 
         vm.ShowDownloadsCommand.Execute(null);
 
-        // The category sidebar (off by default, so it needs opening) — this is the shot that shows the
-        // new Type column beside it.
+        // The sidebar (Categories + Queues, shown by default) beside the Type column.
         vm.IsCategorySidebarOpen = true;
         Pump();
         Save(window, "categories-dark.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         Save(window, "categories-light.png");
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+
+        // A selected queue: only its downloads listed, and the accent bar on its row.
+        vm.SelectedQueueId = vm.QueueRows.Last().Id;
+        Pump();
+        // The queue rows sit below the categories; scroll the sidebar so the selected one is in view.
+        var sidebarScroll = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+            .First(b => b.DataContext is SidebarQueueRowViewModel)
+            .FindAncestorOfType<Avalonia.Controls.ScrollViewer>();
+        ScrollTo(sidebarScroll, sidebarScroll.Extent.Height);
+        Save(window, "sidebar-queue-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-queue-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        vm.SelectedCategoryId = null;
+        ScrollTo(sidebarScroll, 0);
+
+        // A hovered category row shows its drag handle.
+        var hovered = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+            .First(b => b.DataContext is CategoryRowViewModel { Id: "video" });
+        Avalonia.Headless.HeadlessWindowExtensions.MouseMove(window,
+            hovered.TranslatePoint(new Avalonia.Point(hovered.Bounds.Width / 2, hovered.Bounds.Height / 2), window)!.Value);
+        Save(window, "sidebar-grip-dark.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "sidebar-grip-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        Avalonia.Headless.HeadlessWindowExtensions.MouseMove(window, new Avalonia.Point(900, 600));
 
         // Persian (RTL) home to verify translation + right-to-left mirroring — captured with the
         // sidebar OPEN, since mirroring a column of its own is the part worth looking at.
