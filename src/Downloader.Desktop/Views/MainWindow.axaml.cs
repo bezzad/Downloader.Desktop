@@ -91,6 +91,27 @@ public partial class MainWindow : Window
 
     private void OnCategoryGripCaptureLost(object sender, PointerCaptureLostEventArgs e) => ClearCategoryDrag();
 
+    // The sidebar splitter: while the pointer is held, the width follows it. The position is read
+    // relative to the sidebar itself, so it counts from the start edge in right-to-left too.
+    private void OnSidebarSplitterPressed(object sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        e.Pointer.Capture((IInputElement)sender);
+        e.Handled = true;
+    }
+
+    private void OnSidebarSplitterMoved(object sender, PointerEventArgs e)
+    {
+        if (e.Pointer.Captured != sender || DataContext is not MainViewModel main)
+            return;
+
+        main.SidebarWidth = e.GetPosition(Sidebar).X;
+    }
+
+    private void OnSidebarSplitterReleased(object sender, PointerReleasedEventArgs e) => e.Pointer.Capture(null);
+
     private void ClearCategoryDrag()
     {
         _dragRow?.Classes.Remove("dragging");

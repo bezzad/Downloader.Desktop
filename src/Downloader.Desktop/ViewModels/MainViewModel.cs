@@ -31,6 +31,11 @@ public class MainViewModel : ViewModelBase
     private DispatcherTimer _autoSaveTimer;
     private DateTime _lastSaveUtc;
     private bool _isCategorySidebarOpen;
+    private double _sidebarWidth = DefaultSidebarWidth;
+
+    public const double DefaultSidebarWidth = 204;
+    public const double MinSidebarWidth = 150;
+    public const double MaxSidebarWidth = 400;
 
     public MainViewModel(IFileService fileService, IDownloadManager downloadManager, PluginManager pluginManager = null)
     {
@@ -145,6 +150,28 @@ public class MainViewModel : ViewModelBase
 
             if (value)
                 RefreshCategoryCounts();
+        }
+    }
+
+    /// <summary>
+    /// The sidebar's width, changed by dragging its edge. Kept between <see cref="MinSidebarWidth"/>
+    /// and <see cref="MaxSidebarWidth"/> so it can neither vanish nor swallow the list.
+    /// </summary>
+    public double SidebarWidth
+    {
+        get => _sidebarWidth;
+        set
+        {
+            value = Math.Clamp(value, MinSidebarWidth, MaxSidebarWidth);
+            if (_sidebarWidth == value)
+                return;
+
+            this.RaiseAndSetIfChanged(ref _sidebarWidth, value);
+            if (_config != null)
+            {
+                _config.SidebarWidth = value;
+                SaveSoon();
+            }
         }
     }
 
@@ -303,6 +330,8 @@ public class MainViewModel : ViewModelBase
         // changes, from anywhere (the editor, a reorder, an import).
         _isCategorySidebarOpen = _config.IsCategorySidebarOpen;
         this.RaisePropertyChanged(nameof(IsCategorySidebarOpen));
+        _sidebarWidth = Math.Clamp(_config.SidebarWidth, MinSidebarWidth, MaxSidebarWidth);
+        this.RaisePropertyChanged(nameof(SidebarWidth));
         RebuildCategoryRows();
         _downloadManager.Categories.Changed += () => Dispatcher.UIThread.Post(RebuildCategoryRows);
         RebuildQueueRows();

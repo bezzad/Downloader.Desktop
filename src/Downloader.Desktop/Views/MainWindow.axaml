@@ -371,16 +371,16 @@
         <!-- ===== Sidebar: Categories + Queues (shown by default, toggled beside the link box) =====
              Only on the downloads page: it filters that list, and showing it over Settings would
              offer a filter with nothing to filter. -->
-        <Border DockPanel.Dock="Left" Width="204"
-                Background="{DynamicResource SystemRegionColor}"
-                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
-                Padding="8 10">
-            <Border.IsVisible>
+        <Panel x:Name="Sidebar" DockPanel.Dock="Left" Width="{Binding SidebarWidth}">
+            <Panel.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="IsCategorySidebarOpen" />
                     <Binding Path="IsDownloadsSelected" />
                 </MultiBinding>
-            </Border.IsVisible>
+            </Panel.IsVisible>
+        <Border Background="{DynamicResource SystemRegionColor}"
+                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="0 0 1 0"
+                Padding="8 10">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                 <!-- The right margin keeps the scroll bar off the rows' drag handles. -->
                 <StackPanel Margin="0 0 8 0">
@@ -390,7 +390,8 @@
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <PathIcon Classes="chevron" Classes.collapsed="{Binding !IsCategoriesExpanded}"
                                       Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
-                            <TextBlock Text="{i18n:Tr Cat_Sidebar}" />
+                            <PathIcon Classes="secicon" Data="{DynamicResource FolderRegular}" Width="13" Height="13" />
+                            <TextBlock Text="{i18n:Tr Cat_Sidebar}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <StackPanel IsVisible="{Binding IsCategoriesExpanded}">
@@ -488,7 +489,8 @@
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <PathIcon Classes="chevron" Classes.collapsed="{Binding !IsQueuesExpanded}"
                                       Data="{DynamicResource ChevronDownRegular}" Width="10" Height="10" />
-                            <TextBlock Text="{i18n:Tr Nav_Queues}" />
+                            <PathIcon Classes="secicon" Data="{DynamicResource TabsRegular}" Width="13" Height="13" />
+                            <TextBlock Text="{i18n:Tr Nav_Queues}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <ItemsControl x:Name="QueueList" ItemsSource="{Binding QueueRows}"
@@ -518,6 +520,13 @@
                 </StackPanel>
             </ScrollViewer>
         </Border>
+            <!-- The sidebar's end edge: drag it to change the width (kept across restarts). -->
+            <Border x:Name="SidebarSplitter" HorizontalAlignment="Right" Width="6"
+                    Background="Transparent" Cursor="SizeWestEast"
+                    PointerPressed="OnSidebarSplitterPressed"
+                    PointerMoved="OnSidebarSplitterMoved"
+                    PointerReleased="OnSidebarSplitterReleased" />
+        </Panel>
 
         <ContentControl x:Name="PageHost" />
     </DockPanel>

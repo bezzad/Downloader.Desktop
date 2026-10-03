@@ -25,6 +25,8 @@ public class Config
     public List<DownloadCategory> Categories { get; set; }
     /// <summary>Whether the downloads page shows the sidebar (categories + queues). Shown by default.</summary>
     public bool IsCategorySidebarOpen { get; set; } = true;
+    /// <summary>The sidebar's width in pixels, set by dragging its edge.</summary>
+    public double SidebarWidth { get; set; } = 204;
     /// <summary>Ids of plugins the user turned OFF (so they stay disabled across restarts).</summary>
     public List<string> DisabledPlugins { get; set; }
     public bool IsThemeDarkMode { get; set; }

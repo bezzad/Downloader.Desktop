@@ -317,6 +317,8 @@ Rough order to turn the current skeleton into the MVP above:
    - The selected row has a 3 px **accent bar** on its start edge (follows the accent picker, mirrors in
      RTL). A category row shows a **6-dot drag handle on hover**; dragging reorders
      (`CategoryService.MoveTo`). Sidebar counts now also follow the search box.
+   - Section headers carry icons (folder / queues), and the sidebar **width is resized by dragging its
+     end edge** (`MainViewModel.SidebarWidth`, 150–400 px, saved in `Config.SidebarWidth`).
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

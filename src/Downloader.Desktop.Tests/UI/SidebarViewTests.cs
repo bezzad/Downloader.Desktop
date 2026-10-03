@@ -33,10 +33,13 @@ public class SidebarViewTests
         public Task SaveToFileAsync(Config itemToSave) => Task.CompletedTask;
     }
 
-    private static (MainWindow window, MainViewModel main, DownloadManager manager, Config config) Show()
+    private static (MainWindow window, MainViewModel main, DownloadManager manager, Config config) Show(
+        double? savedWidth = null)
     {
         Localizer.Instance.Load("en");
         var config = Config.New();
+        if (savedWidth != null)
+            config.SidebarWidth = savedWidth.Value;
         config.Categories = CategoryService.CreateDefaults(key => key);
         config.DefaultQueue.IsRunning = false;
         var manager = new DownloadManager();
@@ -212,6 +215,104 @@ public class SidebarViewTests
         // The press on the handle did not select the row.
         Assert.Null(main.SelectedCategoryId);
         Assert.DoesNotContain(Rows(window), r => r.Classes.Contains("droptarget"));
+        window.Close();
+    }
+
+    private static Border Splitter(Window window) =>
+        window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "SidebarSplitter");
+
+    private static Control Sidebar(Window window) =>
+        window.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "Sidebar");
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Each_section_header_shows_its_icon()
+    {
+        var (window, _, _, _) = Show();
+        var headers = window.GetVisualDescendants().OfType<Button>()
+            .Where(b => b.Classes.Contains("sechead")).ToArray();
+        Assert.Equal(2, headers.Length);
+
+        object Icon(Button header) => header.GetVisualDescendants().OfType<PathIcon>()
+            .Single(i => i.Classes.Contains("secicon")).Data;
+
+        Assert.Same(window.FindResource("FolderRegular"), Icon(headers[0]));
+        Assert.Same(window.FindResource("TabsRegular"), Icon(headers[1]));
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Dragging_the_sidebar_edge_changes_its_width_and_keeps_it()
+    {
+        var (window, main, _, config) = Show();
+        var splitter = Splitter(window);
+        Assert.Equal(new Cursor(StandardCursorType.SizeWestEast).ToString(), splitter.Cursor?.ToString());
+        Assert.Equal(MainViewModel.DefaultSidebarWidth, Sidebar(window).Bounds.Width);
+
+        var start = Center(splitter, window);
+        window.MouseMove(start);
+        window.MouseDown(start, MouseButton.Left);
+        window.MouseMove(start + new Point(80, 0));
+        window.MouseUp(start + new Point(80, 0), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        var wider = main.SidebarWidth;
+        Assert.InRange(wider, MainViewModel.DefaultSidebarWidth + 70, MainViewModel.DefaultSidebarWidth + 90);
+        Assert.Equal(wider, Sidebar(window).Bounds.Width);
+        // The config is what gets saved, so the width survives a restart.
+        Assert.Equal(wider, config.SidebarWidth);
+
+        // Moving without the button held does nothing.
+        window.MouseMove(start + new Point(-60, 0));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(wider, main.SidebarWidth);
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void The_sidebar_width_has_limits()
+    {
+        var (window, main, _, _) = Show();
+        var start = Center(Splitter(window), window);
+        window.MouseDown(start, MouseButton.Left);
+        window.MouseMove(new Point(1, start.Y));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(MainViewModel.MinSidebarWidth, main.SidebarWidth);
+
+        window.MouseMove(new Point(window.Bounds.Width - 1, start.Y));
+        window.MouseUp(new Point(window.Bounds.Width - 1, start.Y), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(MainViewModel.MaxSidebarWidth, main.SidebarWidth);
+        window.Close();
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void Right_to_left_dragging_the_edge_away_from_the_start_widens_it()
+    {
+        var (window, main, _, _) = Show();
+        window.FlowDirection = FlowDirection.RightToLeft;
+        Dispatcher.UIThread.RunJobs();
+
+        // The sidebar is now on the right, so its edge moves LEFT to widen it.
+        var start = Center(Splitter(window), window);
+        Assert.True(start.X > window.Bounds.Width / 2, $"splitter at {start}");
+        window.MouseDown(start, MouseButton.Left);
+        window.MouseMove(start - new Point(50, 0));
+        window.MouseUp(start - new Point(50, 0), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.InRange(main.SidebarWidth, MainViewModel.DefaultSidebarWidth + 40, MainViewModel.DefaultSidebarWidth + 60);
+        window.Close();
+    }
+
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
+    [InlineData(260, 260)]
+    [InlineData(5, MainViewModel.MinSidebarWidth)]      // a hand-edited config cannot hide it
+    [InlineData(5000, MainViewModel.MaxSidebarWidth)]
+    public void The_saved_width_is_used_at_start(double saved, double shown)
+    {
+        var (window, main, _, _) = Show(saved);
+        Assert.Equal(shown, main.SidebarWidth);
+        Assert.Equal(shown, Sidebar(window).Bounds.Width);
         window.Close();
     }
 }
