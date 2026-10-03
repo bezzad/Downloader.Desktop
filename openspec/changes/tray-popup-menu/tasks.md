@@ -21,7 +21,7 @@
 
 ## 4. Device checks
 
-- [ ] 4.1 AUTHOR (Ubuntu): menu opens on left + right click, items work, closes on outside click
+- [ ] 4.1 AUTHOR (Ubuntu): menu opens on left + right click, items work, closes on outside click — 2026-10-03 (dev-run.sh, Ubuntu GNOME): left click opens the menu and all four rows work. Still to confirm: closes on outside click / Esc; right click with no native menu (run B)
 - [ ] 4.2 Windows smoke test (left + right click); macOS smoke test (native menu, labels)
 
 ## 5. Finish
