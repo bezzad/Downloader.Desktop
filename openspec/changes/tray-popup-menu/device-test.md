@@ -56,11 +56,48 @@ DLDESKTOP_TRAY_DIAG=nomenu ./scripts/dev-run.sh
 Do the same left-click / right-click and write down what you saw. (No menu is expected here; the
 question is whether the window comes back.)
 
+## 3b. Run C — the installed snap (the one that fails)
+
+Reported 2026-10-03: the `dev-run.sh` build's tray menu works; the **snap** app's menu often does not
+("sometimes it works"). The tray code is the same in both (since v2.15.0 only log lines were added),
+so the difference is the snap sandbox or the way the app was started. This run collects facts about
+the snap only. Note: `DLDESKTOP_TRAY_DIAG` does nothing in the snap (that build is older) — the dbus
+file and the sandbox messages below are what matter.
+
+1. Quit every Downloader (step 0). Only one copy can run at a time.
+2. Which snap, and how was it started when the menu failed?
+   ```bash
+   snap list downloader; snap connections downloader
+   ```
+   Also write down: did it start **by itself at login** ("Run at startup"), or did **you** open it
+   from the app menu? Does the menu fail in both cases, or only in one?
+3. Terminal 1:
+   ```bash
+   dbus-monitor "interface='org.kde.StatusNotifierItem'" "interface='com.canonical.dbusmenu'" > ~/tray-dbus-snap.txt
+   ```
+4. Terminal 2:
+   ```bash
+   snap run downloader 2>&1 | tee ~/snap-console.txt
+   ```
+5. Close the main window. **Right-click** the tray icon, wait 3 s; **left-click** it, wait 3 s.
+   If no menu opens, try 2–3 more times. Write down what happened each time.
+6. Quit the app. Stop terminal 1 with Ctrl+C.
+7. Sandbox messages from the last 15 minutes:
+   ```bash
+   sudo journalctl -k --since "15 min ago" | grep -i 'apparmor="DENIED"' | grep -i downloader > ~/snap-denied.txt
+   journalctl --user --since "15 min ago" | grep -i -E 'downloader|appindicator|StatusNotifier' > ~/snap-user-journal.txt
+   ```
+8. If the menu fails only after a login start: turn on "Run at startup", log out and in, then do
+   steps 3, 5, 6 and 7 again (call the files `…-login.txt`).
+
 ## 4. Send me
 
 1. Start the app normally, Settings → Logging → **Export log**, save the zip.
 2. Attach to the chat: the zip, `~/tray-dbus-A.txt`, `~/tray-dbus-B.txt`, the output of step 1,
    and your notes (what happened on each click, in each run).
+3. From run C: `~/tray-dbus-snap.txt`, `~/snap-console.txt`, `~/snap-denied.txt`,
+   `~/snap-user-journal.txt`, the output of run C step 2, and your notes. (Runs A and B are still
+   useful, but run C is the important one now.)
 
 ## What I will look for
 
