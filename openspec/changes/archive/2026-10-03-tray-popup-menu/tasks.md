@@ -29,3 +29,14 @@
 - [x] 5.1 Full solution `-t:Rebuild` → 0 warnings; `dotnet test` green
 - [x] 5.2 Screenshots: add a capture of the tray menu view (light + dark); view the PNGs before committing
 - [x] 5.3 Skill note replacing the "Linux tray right-click is OPEN" note with what the evidence showed; commit + push to `develop`
+
+## Archived with open checks (2026-10-03, the author's decision)
+
+4.1 and 4.2 stay unchecked on purpose. NOT yet verified on a real device:
+- Ubuntu: the popup closes on an outside click and on Esc (both pass in headless tests only).
+- Ubuntu: does a right click reach the app when no native menu is attached (run B,
+  `DLDESKTOP_TRAY_DIAG=nomenu ./scripts/dev-run.sh`)? If yes, drop the native menu on Linux so both
+  clicks open the popup — change code and `openspec/specs/system-tray/spec.md` together.
+- The snap: the popup on left click (needs the next release).
+- Windows: left + right click. macOS: native menu items and labels.
+Verified: Ubuntu GNOME, dev-run.sh — left click opens the menu, all four rows work.
