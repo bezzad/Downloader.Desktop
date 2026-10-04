@@ -11,10 +11,12 @@ namespace Downloader.Desktop.Services;
 
 /// <summary>
 /// Owns the system-tray icon and its menu (Show downloads / Settings / Notifications / Exit) and lets the
-/// app keep running in the background after the main window is closed. On Linux and Windows a click on
-/// the icon opens the app-drawn <see cref="TrayMenuView"/>; the native menu carries the same items for a
-/// right click (and is the only menu on macOS). Created on demand so the user can turn the
-/// whole behavior off in Settings. Cross-platform via Avalonia's <see cref="TrayIcon"/>.
+/// app keep running in the background after the main window is closed. On Windows a click on the icon
+/// opens the app-drawn <see cref="TrayMenuView"/> and the native menu is the right click. On Linux the
+/// shell opens the native menu itself on a click (served where the snap allows it, see
+/// <see cref="TrayDbusMenu"/>) and reports only a double click, which brings the window back — as on
+/// macOS. Created on demand so the user can turn the whole behavior off in Settings. Cross-platform via
+/// Avalonia's <see cref="TrayIcon"/>.
 /// </summary>
 public static class TrayService
 {
@@ -23,6 +25,7 @@ public static class TrayService
     private static Action _onQuit;
     private static NativeMenu _nativeMenu;
     private static TrayMenuView _popup;
+    private static IDisposable _linuxMenu;
 
     /// <summary>The popup, once it has been opened (for tests).</summary>
     internal static TrayMenuView Popup => _popup;
@@ -100,12 +103,16 @@ public static class TrayService
             menu.Closed += (_, _) => AppLog.Info($"TRAY-DIAG: native menu closed (thread {Environment.CurrentManagedThreadId})");
         }
         if (diag != TrayDiag.NoMenu)
-            _tray.Menu = menu;
+        {
+            // Linux: serve the menu where the snap's AppArmor lets the shell read it; elsewhere (or when
+            // Avalonia's internals moved) Avalonia's own exporter carries it, as before.
+            _linuxMenu = OperatingSystem.IsLinux() ? TrayDbusMenu.TryExport(_tray, menu) : null;
+            if (_linuxMenu == null)
+                _tray.Menu = menu;
+        }
 
-        // A click on the icon opens the app-drawn menu (OnClicked). Keep this subscription
-        // unconditional (skill: settled). On-device evidence (2026-10-03): on Ubuntu GNOME a left click
-        // arrives as StatusNotifierItem.Activate — also inside the snap, where the native menu's
-        // GetLayout is denied by AppArmor — so this is the one path that works everywhere.
+        // Keep this subscription unconditional (skill: settled). On Ubuntu GNOME it is the DOUBLE click
+        // (StatusNotifierItem.Activate) — the AppIndicator extension handles a single click itself.
         _tray.Clicked += (_, _) => { AppLog.Info($"UI: tray icon clicked (thread {Environment.CurrentManagedThreadId})"); OnClicked(); };
 
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
@@ -118,6 +125,9 @@ public static class TrayService
             _tray.IsVisible = false;
             _tray.Dispose();
             _tray = null;
+            try { _linuxMenu?.Dispose(); }
+            catch (Exception ex) { AppLog.Warn($"Tray menu exporter did not dispose cleanly: {ex.Message}"); }
+            _linuxMenu = null;
             _nativeMenu = null;
             Localizer.Instance.PropertyChanged -= OnLanguageChanged;
         }
@@ -131,15 +141,18 @@ public static class TrayService
     /// helper marshals to the UI thread and defers activation past the show (see WindowActivation, #6).</summary>
     public static void ShowWindow() => WindowActivation.BringToFront(_window);
 
-    /// <summary>A click on the icon. In the snap this is the ONLY way in: the native menu is blocked by
-    /// AppArmor there (dbusmenu GetLayout denied), while the click arrives. macOS shows its native menu
-    /// itself, so a click there just brings the window back, as before.</summary>
-    internal static void OnClicked() => OnClicked(OperatingSystem.IsMacOS());
+    /// <summary>A click the app is told about. On Windows that is a single left click, and it opens the
+    /// app-drawn menu. On Linux it is a DOUBLE click (the shell opens the native menu on a single one) and on
+    /// macOS the native menu is the click, so there it brings the window back.</summary>
+    internal static void OnClicked() => OnClicked(ClickOpensPopup());
 
-    /// <summary>The click with the OS passed in, so both branches are testable on any machine.</summary>
-    internal static void OnClicked(bool macOS)
+    /// <summary>Whether the click the app hears opens the app-drawn menu on this platform (Windows only).</summary>
+    internal static bool ClickOpensPopup() => OperatingSystem.IsWindows();
+
+    /// <summary>The click with the platform's answer passed in, so both branches are testable anywhere.</summary>
+    internal static void OnClicked(bool opensPopup)
     {
-        if (macOS)
+        if (!opensPopup)
             ShowWindow();
         else
             Dispatcher.UIThread.Post(ShowMenuPopup);
