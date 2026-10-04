@@ -1846,7 +1846,18 @@ one-shot, so two arms in one process measure nothing): touch `Dispatcher.UIThrea
 `HeadlessUnitTestSession.GetOrStartForAssembly(...)` and dispatch → **hangs**; the same without the
 touch → passes in ~170 ms. Measured: 240 s kill vs 173 ms.
 
-**NOT YET FIXED — and the obvious fix is WORSE, so do not re-apply it.** `HeadlessSessionFirst`, an
+**FIXED 2026-10-04 at the source — the OFFENDERS, not the session (read this first).** A probe (an
+env-gated assembly `BeforeAfterTestAttribute` that skipped every Avalonia test, reset `Dispatcher.s_uiThread`
+before each plain test and recorded it non-null after) listed every plain test that creates the dispatcher:
+9 tests in `DownloadRowStateTests`, `DownloadDetailsViewModelTests`, `DetailsGuardTests`, `AppProxyTests`,
+`PlanRunnerTests` (anything building a `DownloadManager`/row VM and changing state). They are
+`[AvaloniaFact]/[AvaloniaTheory]` now, and **`TestSupport/DispatcherBindingGuard`** (assembly-level, always on)
+FAILS a plain test that creates the dispatcher — naming it and the fix — and resets `s_uiThread` so the
+session still starts. So a new offender is a red test with a message, never a hang. Trigger evidence:
+69dcd72's macOS/Debug leg hung twice in a row right after `DownloadRowStateTests` ran FIRST.
+The paragraphs below are the history of what did NOT work.
+
+**(History) Previously: NOT YET FIXED — and the obvious fix is WORSE, so do not re-apply it.** `HeadlessSessionFirst`, an
 `ITestPipelineStartup` that started the session and dispatched once before any test, looked right on
 every local signal: the hung arm went to 19 ms and the full suite passed **1967/1967**. On CI it took
 the `Test Run Aborted / Total tests: Unknown` abort from ~1 leg in 6 to **4 in 6** (runs on `214b186`

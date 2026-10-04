@@ -243,7 +243,7 @@ public class DetailsGuardTests
 
     // ---- opening on a download that is already in a terminal state ---------
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Failed)]
     [InlineData(DownloadStatus.Stopped)]
     [InlineData(DownloadStatus.Paused)]
