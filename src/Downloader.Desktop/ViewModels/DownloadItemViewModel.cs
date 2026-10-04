@@ -406,6 +406,12 @@ public class DownloadItemViewModel : ViewModelBase
     /// them let an abandoned attempt mark the row Completed over a file that was never written.</summary>
     public int AttemptGeneration { get; set; }
 
+    /// <summary>Held while a new attempt takes over the row (<c>Download</c> + <c>AttemptGeneration</c>) and
+    /// while a finished attempt's completion is handled, so neither can happen in the middle of the other.
+    /// Without it a retry attaching on a worker could slip between the old completion's stale check and
+    /// its release, and the old attempt released — disposed — the NEW engine.</summary>
+    internal object EngineGate { get; } = new();
+
     /// <summary>When this download last showed a sign of life. Set when an attempt starts and on every
     /// progress event; the watchdog fails an attempt that has gone quiet, because a download the engine
     /// has stopped reporting on is otherwise indistinguishable from one that is simply slow — and it

@@ -2148,7 +2148,7 @@ Inventory of the last 100 `.NET Desktop` runs (39 red) plus the Extension workfl
   pumped the dispatcher BEFORE asserting, and with a 1-second countdown that pump could run the countdown
   to zero (or an earlier test's posted `Close`), leaving `IsScheduled` false. Now: cancel first for a known
   baseline, 3-second countdown, assert with no pump in between, then wait 6 s to catch a leaked timer.
-- **macOS/Release: `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`**: still open.
+- **macOS/Release: `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`**: FIXED 2026-10-04 (see "A finished attempt released the NEXT attempt's engine" below).
   It is NOT reproducible in isolation — a macOS CI probe (`.github/workflows/probe-flaky-test.yml`, which
   repeats one test on a chosen runner OS) ran it **20 times: 0 failures**, and 25 single-core Release runs
   here were green. So it needs the full suite around it. The assertion now prints the row's error, progress,
@@ -2574,3 +2574,22 @@ menu came up empty, a single click did nothing at all (reported 2026-10-04).
   (the `--` is needed for the `-1`). The item's bus name is listed by the watcher's
   `RegisteredStatusNotifierItems` property. A confined check needs a snap build: dispatch `snap.yml` on
   develop (artifact only — publishing is tag-gated) and `snap install --dangerous` it.
+
+## A finished attempt released the NEXT attempt's engine (2026-10-04, the last flaky MemoryReleaseTests failure)
+CI evidence (ubuntu/Debug): `retry ended Failed: error=Value cannot be null. (Parameter 'source'),
+progress=100%, downloaded=0/65536, attempt=2, saved=1 file(s)`. `Parameter 'source'` = a LINQ call on
+null; in engine 5.9.8 that is `RequestInstances.First()`, and `RequestInstances` is nulled only by
+`Clear()` — i.e. by DISPOSING an engine that is starting up.
+- **Mechanism**: Stop right after Add leaves attempt 1 still resolving off-thread; Retry's attempt 2 waits
+  for attempt 1's TASK, but attempt 1's completion is POSTED to the UI and handled later. Attempt 2 then
+  `Attach`es its engine on a worker. If that lands between the old completion's `Stale()` check and
+  `FinishTerminal` → `ReleaseEngine(vm)`, the release takes `vm.Download` — the NEW engine.
+- **Fix**: `DownloadItemViewModel.EngineGate` — `Attach`'s swap (`Download` + `AttemptGeneration`) and the
+  whole completion handler run under it. Safe from deadlock: the UI never waits on a worker while holding
+  it (Start's attempt is awaited asynchronously; disposal is off-stack).
+- **Deterministic test**: `Integration/EngineSwapRaceTests` — hook `DownloadManager.AfterCompletionStaleCheck`
+  starts the second `AttachForTest` on a real worker inside the handler and waits 500 ms. Old code:
+  `vm.Download` ends null. Raise an engine's completion with reflection on the protected
+  `AbstractDownloadService.OnDownloadFileCompleted`.
+- General rule: **release the engine an event belongs to, never "whatever the row points at now"**, unless
+  the swap and the release are serialized.
