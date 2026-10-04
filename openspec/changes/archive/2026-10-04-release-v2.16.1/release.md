@@ -12,6 +12,7 @@ Bug-fix release for the Linux tray icon (reported on v2.16.0, Ubuntu GNOME, snap
 - **Double click brings the app back** on Linux; the app-drawn popup is Windows-only.
 - **Popup on the primary screen**, not on whichever monitor its hidden window last sat.
 - Verified by the author on a CI-built confined snap (`snap install --dangerous`) before the release.
+- Confirmed by the author on the Snap Store build after `snap refresh` (2026-10-04): the menu works.
 
 ## Coordinates
 
