@@ -120,8 +120,8 @@ public class TrayMenuTests
         InitTray();
         try
         {
-            // Windows and Linux: a click means the popup, whatever OS runs the test.
-            TrayService.OnClicked(macOS: false);
+            // Windows: a click means the popup, whatever OS runs the test.
+            TrayService.OnClicked(opensPopup: true);
             Dispatcher.UIThread.RunJobs();
 
             var popup = TrayService.Popup;
@@ -137,14 +137,16 @@ public class TrayMenuTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
-    public void On_macOS_a_click_brings_the_window_back_instead_of_the_popup()
+    public void On_Linux_and_macOS_a_click_brings_the_window_back_instead_of_the_popup()
     {
-        // macOS shows its native menu itself; the app-drawn popup there would be a second menu.
+        // There the shell shows the native menu itself (on Linux the app hears only a DOUBLE click), so
+        // the click the app does hear means "show me the app"; a popup would be a second menu.
+        Assert.False(OperatingSystem.IsLinux() && TrayService.ClickOpensPopup());
         var window = new Window();
         InitTray(window);
         try
         {
-            TrayService.OnClicked(macOS: true);
+            TrayService.OnClicked(opensPopup: false);
             Dispatcher.UIThread.RunJobs();
 
             Assert.Null(TrayService.Popup);

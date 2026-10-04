@@ -39,12 +39,14 @@ public partial class TrayMenuView : Window
         base.OnKeyDown(e);
     }
 
-    /// <summary>Shows the menu in the corner by the tray on the screen the pointer is likely on.</summary>
+    /// <summary>Shows the menu in the corner by the tray. The tray sits on the PRIMARY screen (the taskbar /
+    /// top bar's home); the screen this hidden window last landed on says nothing about where the icon is,
+    /// and asking it opened the menu on a second monitor.</summary>
     public void ShowNearTray()
     {
         _vm?.Refresh();
         Show();
-        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        var screen = Screens.Primary ?? Screens.ScreenFromWindow(this);
         if (screen != null)
         {
             var size = new Avalonia.PixelSize(

@@ -2549,3 +2549,28 @@ shows, disappears on hover"). Style `DataGridRow:selected DataGridCell` instead 
 - **macOS: a test that calls an `OperatingSystem.IsX()`-branching method tests only the runner's branch.**
   `TrayService.OnClicked()` now forwards to `OnClicked(bool macOS)`; tests pass the OS explicitly and
   cover both branches. Same rule as `BrowserDetector`: inject the OS probe.
+
+## Linux tray: the shell, not the app, decides what a click does (2026-10-04, supersedes the popup on Linux)
+Read the AppIndicator extension's own source before theorising — it is on disk:
+`/usr/share/gnome-shell/extensions/ubuntu-appindicators@ubuntu.com/indicatorStatusIcon.js`
+(`vfunc_button_press_event`). **Single left click** → waits out the double-click time, then toggles the
+extension's dbusmenu menu IF it has items — the app is sent NOTHING. **Right click** → toggles that menu.
+**Double click** → `Activate` (= Avalonia `TrayIcon.Clicked`). **Middle** → `SecondaryActivate`.
+So the earlier note "a left click arrives as Activate" was a double click; and in the snap, where the
+menu came up empty, a single click did nothing at all (reported 2026-10-04).
+- **The fix is to make the native menu readable in the snap, not to handle clicks**: the snap profile
+  (`/var/lib/snapd/apparmor/profiles/snap.downloader.downloader`, `# dbusmenu`) allows dbusmenu only at
+  `/MenuBar{,/HEX}` and `/com/canonical/{menu/HEX,dbusmenu}`. Avalonia hard-codes
+  `/net/avaloniaui/dbusmenu/<guid>` with no hook, so `Services/TrayDbusMenu` creates a second Avalonia
+  exporter at `/MenuBar` on the tray's own connection (reflection; `MissingMembers()` is pinned by
+  `UI/TrayDbusMenuTests`) and repoints the StatusNotifierItem's `Menu` before it registers. Fails soft to
+  `_tray.Menu = menu`.
+- Clicked → `ShowWindow` on Linux and macOS; the app-drawn popup is Windows-only now
+  (`TrayService.ClickOpensPopup`). The popup picks `Screens.Primary` — `ScreenFromWindow` of the hidden
+  popup opened it on a second monitor.
+- **Verify on device without clicking**: run the app, then
+  `gdbus call --session --dest <org.kde.StatusNotifierItem-PID-N> --object-path /StatusNotifierItem --method org.freedesktop.DBus.Properties.Get org.kde.StatusNotifierItem Menu`
+  (→ `/MenuBar`) and `… --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout -- 0 -1 "[]"`
+  (the `--` is needed for the `-1`). The item's bus name is listed by the watcher's
+  `RegisteredStatusNotifierItems` property. A confined check needs a snap build: dispatch `snap.yml` on
+  develop (artifact only — publishing is tag-gated) and `snap install --dangerous` it.
