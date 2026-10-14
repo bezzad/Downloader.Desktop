@@ -2604,3 +2604,14 @@ null; in engine 5.9.8 that is `RequestInstances.First()`, and `RequestInstances`
   `AbstractDownloadService.OnDownloadFileCompleted`.
 - General rule: **release the engine an event belongs to, never "whatever the row points at now"**, unless
   the swap and the release are serialized.
+
+## Pasted links: one splitting rule for every add path (issue #19, `Services/LinkText`)
+- Splitting on spaces/tabs/commas/semicolons is DELIBERATE (a batch pasted into a box that collapsed its
+  new lines; the clipboard suggestion pulls http links out of free text), so it was kept. The exception:
+  a line that starts with an http(s) link and whose other parts are not links (no `scheme:` prefix — a
+  model tag like `llama3:8b` counts as a link) is ONE link, whitespace percent-encoded
+  (`my file.zip` → `my%20file.zip`). `LinkText.Split` backs `AddDownloadItemViewModel.SplitUrls`
+  (dialog, top paste box `CountUrls`, clipboard suggestion, confirm-mode/legacy `/add` seeds);
+  `LocalApiService.BuildItem` applies `LinkText.EscapeWhitespace` to url + mirrors, which covers the
+  silent `/api/add` and every CLI add (the CLI forwards JSON that `SilentAdd` builds with `BuildItem`).
+  Known ambiguity, accepted: `https://h/x.zip is the file` on one line now reads as one link.
