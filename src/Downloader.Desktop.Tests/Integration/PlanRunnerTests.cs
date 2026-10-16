@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Downloader.Desktop.Models;
 using Downloader.Desktop.Plugins;
 using Downloader.Desktop.Services;
+using Avalonia.Headless.XUnit;
 using Xunit;
 
 namespace Downloader.Desktop.Tests.Integration;
@@ -524,7 +525,7 @@ public class PlanRunnerTests
 
     /// <summary>Segment concurrency is the user's connections-per-download setting, not a hard-coded 4:
     /// for a segmented stream one segment IS one connection.</summary>
-    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Segment_concurrency_follows_the_connections_setting()
     {
         var mgr = new DownloadManager();

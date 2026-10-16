@@ -178,19 +178,14 @@ public class AddDownloadItemViewModel : ViewModelBase
         }
     }
 
-    // Accept multiple links separated by new lines, spaces, tabs, commas or semicolons so pasting a
-    // batch into the single-line top box (which can collapse new lines to spaces) still splits (#19).
-    private static readonly char[] UrlSeparators = { '\n', '\r', '\t', ' ', ',', ';' };
-
     /// <summary>Count the links in raw text (same splitting the dialog uses) — lets the paste handlers
     /// decide whether a paste is "bulk" without laying it out in a TextBox first.</summary>
     public static int CountUrls(string raw) => SplitUrls(raw).Count;
 
-    private static IReadOnlyList<string> SplitUrls(string raw) =>
-        (raw ?? string.Empty)
-        .Split(UrlSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .Where(u => u.Length > 0)
-        .ToList();
+    // Links are separated by new lines, spaces, tabs, commas or semicolons (a batch pasted into a box that
+    // collapsed its new lines still splits) — except that a line holding ONE link with spaces in its path
+    // stays one link (issue #19). The same rule serves the CLI and the local API: see LinkText.
+    private static IReadOnlyList<string> SplitUrls(string raw) => LinkText.Split(raw);
 
     private IReadOnlyList<string> ParsedUrls => _parsed;
 
@@ -207,9 +202,7 @@ public class AddDownloadItemViewModel : ViewModelBase
     /// <summary>Clears the entered links (returns from bulk summary to the editable box).</summary>
     public ICommand ClearUrlsCommand { get; }
 
-    private static bool IsHttpUrl(string s) =>
-        s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-        s.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+    private static bool IsHttpUrl(string s) => LinkText.IsHttpLink(s);
 
     /// <summary>Adding is blocked while a variant lookup is in flight (author's decision: on links whose
     /// resolver offers choices — video qualities, model tags — the user must see them before starting).

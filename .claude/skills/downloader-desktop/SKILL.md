@@ -32,7 +32,7 @@ Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
 4. **Build once per logical chunk**, not after every edit; `Edit` already fails loudly on a bad match, so don't re-`Read` a file just to confirm an edit landed.
 5. For a small, well-scoped fix, target the one file the Code map names, edit, then one build+filtered-test — that's the whole loop.
 
-## Engine (`Downloader` 5.9.8) quick reference
+## Engine (`Downloader` 5.10.1) quick reference
 - `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
 - `DownloadService(DownloadConfiguration cfg, ILoggerFactory factory = null)` — implements `IDownloadService`: same events (`DownloadStarted/DownloadProgressChanged/ChunkDownloadProgressChanged/DownloadFileCompleted`), plus `Package`, `Pause()`, `Resume()`, `CancelAsync()`/`CancelTaskAsync()`, `Clear()`, and `AddLogger(ILogger)`.
 - **Multi-URL / mirrors** are first-class: `DownloadFileTaskAsync(string[] urls, DirectoryInfo folder, ct)` (auto-resolves name), `(string[] urls, string fileName, ct)`, and package overloads. `DownloadPackage.Urls` is `string[]`. So the data model should carry `List<string> Urls` (first = primary, rest = mirrors), not a separate `Url` + `Mirrors`.
@@ -1846,7 +1846,18 @@ one-shot, so two arms in one process measure nothing): touch `Dispatcher.UIThrea
 `HeadlessUnitTestSession.GetOrStartForAssembly(...)` and dispatch → **hangs**; the same without the
 touch → passes in ~170 ms. Measured: 240 s kill vs 173 ms.
 
-**NOT YET FIXED — and the obvious fix is WORSE, so do not re-apply it.** `HeadlessSessionFirst`, an
+**FIXED 2026-10-04 at the source — the OFFENDERS, not the session (read this first).** A probe (an
+env-gated assembly `BeforeAfterTestAttribute` that skipped every Avalonia test, reset `Dispatcher.s_uiThread`
+before each plain test and recorded it non-null after) listed every plain test that creates the dispatcher:
+9 tests in `DownloadRowStateTests`, `DownloadDetailsViewModelTests`, `DetailsGuardTests`, `AppProxyTests`,
+`PlanRunnerTests` (anything building a `DownloadManager`/row VM and changing state). They are
+`[AvaloniaFact]/[AvaloniaTheory]` now, and **`TestSupport/DispatcherBindingGuard`** (assembly-level, always on)
+FAILS a plain test that creates the dispatcher — naming it and the fix — and resets `s_uiThread` so the
+session still starts. So a new offender is a red test with a message, never a hang. Trigger evidence:
+69dcd72's macOS/Debug leg hung twice in a row right after `DownloadRowStateTests` ran FIRST.
+The paragraphs below are the history of what did NOT work.
+
+**(History) Previously: NOT YET FIXED — and the obvious fix is WORSE, so do not re-apply it.** `HeadlessSessionFirst`, an
 `ITestPipelineStartup` that started the session and dispatched once before any test, looked right on
 every local signal: the hung arm went to 19 ms and the full suite passed **1967/1967**. On CI it took
 the `Test Run Aborted / Total tests: Unknown` abort from ~1 leg in 6 to **4 in 6** (runs on `214b186`
@@ -2148,7 +2159,7 @@ Inventory of the last 100 `.NET Desktop` runs (39 red) plus the Extension workfl
   pumped the dispatcher BEFORE asserting, and with a 1-second countdown that pump could run the countdown
   to zero (or an earlier test's posted `Close`), leaving `IsScheduled` false. Now: cancel first for a known
   baseline, 3-second countdown, assert with no pump in between, then wait 6 s to catch a leaked timer.
-- **macOS/Release: `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`**: still open.
+- **macOS/Release: `MemoryReleaseTests.A_released_stopped_row_can_be_retried_to_completion`**: FIXED 2026-10-04 (see "A finished attempt released the NEXT attempt's engine" below).
   It is NOT reproducible in isolation — a macOS CI probe (`.github/workflows/probe-flaky-test.yml`, which
   repeats one test on a chosen runner OS) ran it **20 times: 0 failures**, and 25 single-core Release runs
   here were green. So it needs the full suite around it. The assertion now prints the row's error, progress,
@@ -2574,3 +2585,33 @@ menu came up empty, a single click did nothing at all (reported 2026-10-04).
   (the `--` is needed for the `-1`). The item's bus name is listed by the watcher's
   `RegisteredStatusNotifierItems` property. A confined check needs a snap build: dispatch `snap.yml` on
   develop (artifact only — publishing is tag-gated) and `snap install --dangerous` it.
+
+## A finished attempt released the NEXT attempt's engine (2026-10-04, the last flaky MemoryReleaseTests failure)
+CI evidence (ubuntu/Debug): `retry ended Failed: error=Value cannot be null. (Parameter 'source'),
+progress=100%, downloaded=0/65536, attempt=2, saved=1 file(s)`. `Parameter 'source'` = a LINQ call on
+null; in engine 5.9.8 that is `RequestInstances.First()`, and `RequestInstances` is nulled only by
+`Clear()` — i.e. by DISPOSING an engine that is starting up.
+- **Mechanism**: Stop right after Add leaves attempt 1 still resolving off-thread; Retry's attempt 2 waits
+  for attempt 1's TASK, but attempt 1's completion is POSTED to the UI and handled later. Attempt 2 then
+  `Attach`es its engine on a worker. If that lands between the old completion's `Stale()` check and
+  `FinishTerminal` → `ReleaseEngine(vm)`, the release takes `vm.Download` — the NEW engine.
+- **Fix**: `DownloadItemViewModel.EngineGate` — `Attach`'s swap (`Download` + `AttemptGeneration`) and the
+  whole completion handler run under it. Safe from deadlock: the UI never waits on a worker while holding
+  it (Start's attempt is awaited asynchronously; disposal is off-stack).
+- **Deterministic test**: `Integration/EngineSwapRaceTests` — hook `DownloadManager.AfterCompletionStaleCheck`
+  starts the second `AttachForTest` on a real worker inside the handler and waits 500 ms. Old code:
+  `vm.Download` ends null. Raise an engine's completion with reflection on the protected
+  `AbstractDownloadService.OnDownloadFileCompleted`.
+- General rule: **release the engine an event belongs to, never "whatever the row points at now"**, unless
+  the swap and the release are serialized.
+
+## Pasted links: one splitting rule for every add path (issue #19, `Services/LinkText`)
+- Splitting on spaces/tabs/commas/semicolons is DELIBERATE (a batch pasted into a box that collapsed its
+  new lines; the clipboard suggestion pulls http links out of free text), so it was kept. The exception:
+  a line that starts with an http(s) link and whose other parts are not links (no `scheme:` prefix — a
+  model tag like `llama3:8b` counts as a link) is ONE link, whitespace percent-encoded
+  (`my file.zip` → `my%20file.zip`). `LinkText.Split` backs `AddDownloadItemViewModel.SplitUrls`
+  (dialog, top paste box `CountUrls`, clipboard suggestion, confirm-mode/legacy `/add` seeds);
+  `LocalApiService.BuildItem` applies `LinkText.EscapeWhitespace` to url + mirrors, which covers the
+  silent `/api/add` and every CLI add (the CLI forwards JSON that `SilentAdd` builds with `BuildItem`).
+  Known ambiguity, accepted: `https://h/x.zip is the file` on one line now reads as one link.

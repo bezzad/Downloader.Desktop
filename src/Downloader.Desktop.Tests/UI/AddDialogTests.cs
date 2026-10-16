@@ -75,6 +75,28 @@ public class AddDialogTests
     }
 
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_link_with_spaces_in_its_path_becomes_one_download_not_two()
+    {
+        // Issue #19: this used to add "https://10.255.255.1/my" and "file.zip".
+        var vm = Build("https://10.255.255.1/my file.zip");
+
+        Assert.True(vm.IsSingleLink);
+        Assert.Equal("https://10.255.255.1/my%20file.zip", vm.BuildItems().Single().Url);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_confirm_mode_api_add_with_spaces_opens_as_one_download()
+    {
+        // A confirm-mode /api/add (and the legacy /add?url=) seeds this dialog with the caller's URL, so
+        // it must come out the same single escaped link a silent API add produces.
+        Localizer.Instance.Load("en");
+        var req = ApiAddRequest.FromJson("""{ "url": "https://10.255.255.1/my file.zip" }""");
+        var vm = new AddDownloadItemViewModel(Config.New(), req.Url, apiRequest: req);
+
+        Assert.Equal(LocalApiService.BuildItem(req, Config.New()).Url, vm.BuildItems().Single().Url);
+    }
+
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Nothing_pasted_means_nothing_to_download()
     {
         var vm = Build("   ");

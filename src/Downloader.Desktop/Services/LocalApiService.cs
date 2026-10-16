@@ -704,8 +704,10 @@ public static class LocalApiService
     /// <summary>Builds the download descriptor for a programmatic add — mirrors the Add dialog.</summary>
     public static DownloadItem BuildItem(ApiAddRequest req, Config config)
     {
-        var urls = new List<string> { req.Url.Trim() };
-        urls.AddRange(req.Mirrors.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()));
+        // Spaces inside a link are escaped the same way the Add dialog escapes them (issue #19), so a
+        // link reads the same whether it was pasted, sent by the CLI or posted to the API.
+        var urls = new List<string> { LinkText.EscapeWhitespace(req.Url) };
+        urls.AddRange(req.Mirrors.Where(m => !string.IsNullOrWhiteSpace(m)).Select(LinkText.EscapeWhitespace));
 
         // Queue may be given as an id or a (case-insensitive) name; unknown/absent → default queue.
         var queue = string.IsNullOrWhiteSpace(req.Queue)

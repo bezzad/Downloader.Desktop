@@ -1626,6 +1626,13 @@ public partial class DownloadManager : IDownloadManager, IDisposable
 
     private void TryStartNextInQueue(string queueId) => PumpQueue(queueId);
 
+    /// <summary>Test seam: make <paramref name="engine"/> the row's live attempt, as Start does.</summary>
+    internal void AttachForTest(DownloadItemViewModel vm, DownloadService engine) => Attach(vm, engine);
+
+    /// <summary>Test seam: runs inside an engine's completion handler right after its stale check — the
+    /// moment another thread's <see cref="Attach"/> must not be able to slip into.</summary>
+    internal static Action<DownloadItemViewModel> AfterCompletionStaleCheck;
+
     /// <summary>Test seam: fire the stats pump event so status-bar readouts recompute.</summary>
     public void RaiseStatsForTest() => StatsChanged?.Invoke();
 
@@ -1905,12 +1912,18 @@ public partial class DownloadManager : IDownloadManager, IDisposable
 
     private void Attach(DownloadItemViewModel vm, DownloadService download)
     {
-        vm.Download = download;
         // This engine's events are only meaningful while it IS the row's attempt. A superseded engine
         // (one we failed over from, or backed off from) can still deliver a completion afterwards, and
         // acting on it wrote the outcome of an abandoned attempt over the live one — a row marked
         // Completed with no file, because the attempt that actually produced the file had not finished.
-        var generation = ++vm.AttemptGeneration;
+        // Taken under the row's gate: this runs on a worker, and the previous attempt's completion may be
+        // being handled on the UI thread right now (see EngineGate).
+        int generation;
+        lock (vm.EngineGate)
+        {
+            vm.Download = download;
+            generation = ++vm.AttemptGeneration;
+        }
         bool Stale() => vm.AttemptGeneration != generation;
 
         download.DownloadStarted += (_, e) => OnUi(() =>
@@ -1954,9 +1967,19 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             vm.StageProgress(e.ProgressPercentage, e.BytesPerSecondSpeed, e.ReceivedBytesSize, e.TotalBytesToReceive);
         };
 
+        // The whole outcome is decided under the row's gate: between the stale check and the release in
+        // FinishTerminal, a retry attaching on a worker would otherwise become "the row's engine" — and be
+        // released in this attempt's place (the retry then died in its own start-up).
         download.DownloadFileCompleted += (_, e) => OnUi(() =>
         {
+            lock (vm.EngineGate)
+                OnCompleted(e);
+        });
+
+        void OnCompleted(System.ComponentModel.AsyncCompletedEventArgs e)
+        {
             if (Stale()) return;
+            AfterCompletionStaleCheck?.Invoke(vm);
             vm.Speed = 0;
             if (e.Cancelled)
             {
@@ -2029,7 +2052,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
             }
 
             FinishTerminal(vm);
-        });
+        }
     }
 
     private static bool IsCorruptedAfterResume(DownloadItemViewModel vm,

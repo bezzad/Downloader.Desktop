@@ -80,7 +80,7 @@ public class DownloadDetailsViewModelTests
 
     // ---- editing the source URL -------------------------------------------
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Stopped, true)]
     [InlineData(DownloadStatus.Failed, true)]
     [InlineData(DownloadStatus.Paused, true)]

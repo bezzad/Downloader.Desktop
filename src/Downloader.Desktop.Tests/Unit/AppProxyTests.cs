@@ -2,6 +2,7 @@ using Downloader.Desktop.Models;
 using Downloader.Desktop.Services;
 using System;
 using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
 using Xunit;
 
 namespace Downloader.Desktop.Tests.Unit;
@@ -111,7 +112,7 @@ public class AppProxyTests : IDisposable
         Assert.True(proxy.IsBypassed(destination));
     }
 
-    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Starting_the_manager_points_the_proxy_at_the_live_settings()
     {
         // The single wiring point. It takes the CONFIG, not the address, so a later edit in Settings

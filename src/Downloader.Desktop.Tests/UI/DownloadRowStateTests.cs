@@ -33,7 +33,7 @@ public class DownloadRowStateTests
 
     // ---- which buttons a row offers ---------------------------------------
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Running, true)]
     [InlineData(DownloadStatus.Paused, false)]
     [InlineData(DownloadStatus.Stopped, false)]
@@ -44,7 +44,7 @@ public class DownloadRowStateTests
     public void Only_a_running_download_can_be_paused(DownloadStatus status, bool expected) =>
         Assert.Equal(expected, Row(status).CanPause);
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Paused, true)]
     [InlineData(DownloadStatus.Stopped, true)]
     [InlineData(DownloadStatus.Created, true)]
@@ -63,7 +63,7 @@ public class DownloadRowStateTests
     public void Only_a_failed_download_offers_retry(DownloadStatus status, bool expected) =>
         Assert.Equal(expected, Row(status).CanRetry);
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Running, true)]
     [InlineData(DownloadStatus.Paused, true)]
     [InlineData(DownloadStatus.Created, false)]
@@ -73,7 +73,7 @@ public class DownloadRowStateTests
     public void A_download_is_active_while_running_or_paused(DownloadStatus status, bool expected) =>
         Assert.Equal(expected, Row(status).IsActive);
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Completed, true)]
     [InlineData(DownloadStatus.Running, false)]
     [InlineData(DownloadStatus.Failed, false)]
@@ -89,7 +89,7 @@ public class DownloadRowStateTests
     public void The_status_badge_shows_for_every_state_except_running(DownloadStatus status, bool expected) =>
         Assert.Equal(expected, Row(status).ShowStatusBadge);
 
-    [Theory(Timeout = TestTimeouts.DefaultMs)]
+    [AvaloniaTheory(Timeout = TestTimeouts.DefaultMs)]
     [InlineData(DownloadStatus.Failed, true)]
     [InlineData(DownloadStatus.Completed, false)]
     [InlineData(DownloadStatus.Stopped, false)]
