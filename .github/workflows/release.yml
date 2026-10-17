@@ -37,9 +37,9 @@ jobs:
             rid: osx-x64
             artifact: Downloader-osx-x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -87,7 +87,7 @@ jobs:
           fi
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -97,7 +97,7 @@ jobs:
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ matrix.artifact }}.zip
@@ -123,9 +123,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -144,7 +144,7 @@ jobs:
         run: ./scripts/build-plugins.sh dist
 
       - name: Attach to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.zip
@@ -168,13 +168,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build extension zips + catalog
         run: ./scripts/build-extension.sh
 
       - name: Attach to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/downloader-extension-chrome.zip
@@ -203,7 +203,7 @@ jobs:
       # Job-level so step `if:` can gate on it (step-scoped env isn't visible to its own `if`).
       APT_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install packaging tools
         run: sudo apt-get update && sudo apt-get install -y dpkg-dev
@@ -221,7 +221,7 @@ jobs:
         run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/build-deb.sh pub
 
       - name: Attach the .deb to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/Downloader_*_amd64.deb
           fail_on_unmatched_files: true
@@ -243,14 +243,14 @@ jobs:
 
       - name: Upload Pages artifact
         if: env.APT_KEY != ''
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
       - name: Deploy to GitHub Pages
         id: deploy
         if: env.APT_KEY != ''
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   # Windows MSIX package (self-signed, for sideload testing). Store submission is author-gated and done
   # from Partner Center (see packaging/msix/README.md); this only produces + uploads the .msix artifact.
@@ -266,7 +266,7 @@ jobs:
       # aur.archlinux.org -> My Account) as the repo secret AUR_SSH_PRIVATE_KEY to enable this.
       AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Checksum the released linux-x64 tarball
         if: env.AUR_KEY != ''
@@ -316,7 +316,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download the released win-x64 zip
         env:
@@ -331,7 +331,7 @@ jobs:
         shell: pwsh
 
       - name: Upload MSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Downloader-msix
           path: |

@@ -47,7 +47,7 @@ jobs:
         uses: snapcore/action-build@v1
 
       - name: Upload snap artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: downloader-snap
           path: "*.snap"
@@ -55,7 +55,7 @@ jobs:
       - name: Attach snap to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         continue-on-error: true   # store publish below is what matters; don't fail the run on attach
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: "*.snap"
           # No generate_release_notes here: it races release.yml's create ("tag_name already_exists").
