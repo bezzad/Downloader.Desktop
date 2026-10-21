@@ -16,6 +16,8 @@ const els = {
   minSize: document.getElementById("minSize"),
   excludedSites: document.getElementById("excludedSites"),
   savePath: document.getElementById("savePath"),
+  listMinSize: document.getElementById("listMinSize"),
+  listMinSizeValue: document.getElementById("listMinSizeValue"),
   saved: document.getElementById("saved")
 };
 
@@ -90,6 +92,20 @@ async function renderSavePath() {
   if (appDefault) els.savePath.value = appDefault;
 }
 
+// The list's minimum size is its own stored value, like the save path: it applies to the popup
+// list whether interception is on or not. The slider moves through LIST_MIN_SIZE_STEPS.
+function showListMinSize() {
+  const bytes = LIST_MIN_SIZE_STEPS[Number(els.listMinSize.value)] || 0;
+  els.listMinSizeValue.textContent = formatBytes(bytes) || "0 (show all)";
+  return bytes;
+}
+
+async function renderListMinSize() {
+  els.listMinSize.max = String(LIST_MIN_SIZE_STEPS.length - 1);
+  els.listMinSize.value = String(listMinSizeStep(await getListMinSize()));
+  showListMinSize();
+}
+
 function flashSaved() {
   els.saved.hidden = false;
   clearTimeout(savedTimer);
@@ -106,6 +122,10 @@ async function showAppStatus() {
   render(await getInterceptSettings());
   showAppStatus();
   renderSavePath();
+  renderListMinSize();
+
+  els.listMinSize.addEventListener("input", showListMinSize); // label follows the drag
+  els.listMinSize.addEventListener("change", () => { setListMinSize(showListMinSize()); flashSaved(); });
 
   els.savePath.addEventListener("change", () => { // on blur, like the other text fields
     setSavePath(els.savePath.value);

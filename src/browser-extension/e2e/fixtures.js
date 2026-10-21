@@ -36,6 +36,12 @@ const test = base.test.extend({
     await warm.waitForTimeout(300);
     await warm.close();
 
+    // Every fixture file is far below the list's default 1 MB minimum, so the suite shows all sizes.
+    // The spec that tests the minimum itself puts the default back.
+    let [sw] = context.serviceWorkers();
+    if (!sw) sw = await context.waitForEvent("serviceworker");
+    await sw.evaluate(() => chrome.storage.local.set({ listMinSizeBytes: 0 }));
+
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });

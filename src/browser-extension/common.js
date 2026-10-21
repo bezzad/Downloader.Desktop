@@ -958,8 +958,39 @@ function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName, an
 // unprobed item's size is `null`, which always passes (never rejected before it's measured).
 const MIN_MEDIA_BYTES = 8192;
 
-function isPlausibleMediaSize(size) {
-  return size == null || size >= MIN_MEDIA_BYTES;
+function isPlausibleMediaSize(size, minBytes = MIN_MEDIA_BYTES) {
+  return size == null || size >= minBytes;
+}
+
+// The user's "hide files smaller than" choice for the popup list (options page slider). A slider
+// from 0 to 10 GB is useless on a straight line — 1 MB would sit a hair from 0 — so it moves
+// through these steps instead. An unknown size is never hidden (see isPlausibleMediaSize).
+const LIST_MIN_SIZE_STEPS = [
+  0, 100 * 1024, 500 * 1024,
+  ...[1, 2, 5, 10, 20, 50, 100, 200, 500].map(mb => mb * 1024 ** 2),
+  ...[1, 2, 5, 10].map(gb => gb * 1024 ** 3)
+];
+const LIST_MIN_SIZE_DEFAULT = 1024 ** 2; // 1 MB
+
+// The slider position for a stored size: the largest step not above it, so a value never moves up.
+function listMinSizeStep(bytes) {
+  let i = 0;
+  while (i + 1 < LIST_MIN_SIZE_STEPS.length && LIST_MIN_SIZE_STEPS[i + 1] <= bytes) i++;
+  return i;
+}
+
+async function getListMinSize() {
+  try {
+    const r = await api.storage.local.get({ listMinSizeBytes: LIST_MIN_SIZE_DEFAULT });
+    const n = Number(r.listMinSizeBytes);
+    return Number.isFinite(n) && n >= 0 ? n : LIST_MIN_SIZE_DEFAULT;
+  } catch {
+    return LIST_MIN_SIZE_DEFAULT;
+  }
+}
+
+function setListMinSize(bytes) {
+  try { api.storage.local.set({ listMinSizeBytes: Math.max(0, Number(bytes) || 0) }); } catch { /* optional */ }
 }
 
 // How the popup orders its one list. Two rules, in this order:
@@ -1791,6 +1822,7 @@ if (typeof module !== "undefined") {
     createLookupLimiter, MAX_VARIANT_LOOKUPS,
     appPageVariants, askAppPageVariants, variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
+    LIST_MIN_SIZE_STEPS, LIST_MIN_SIZE_DEFAULT, listMinSizeStep, getListMinSize, setListMinSize,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,

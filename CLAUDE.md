@@ -321,6 +321,14 @@ Rough order to turn the current skeleton into the MVP above:
      end edge** (`MainViewModel.SidebarWidth`, 68–400 px, saved in `Config.SidebarWidth`); below
      120 px it shows only the icons (`IsSidebarCompact` → `compact` class on the `Sidebar` panel).
 
+23. ✅ **Hide small files in the popup list (`listMinSizeBytes`)** (DONE, 2026-10-21):
+   - Options page → "Files found on a page" → **Hide files smaller than** slider, **1 MB by default**,
+     0 to 10 GB through fixed steps (`LIST_MIN_SIZE_STEPS` in `common.js`: 0, 100 KB, 500 KB, 1-2-5 MB …
+     10 GB) because a straight 0–10 GB slider cannot pick 1 MB. Stored apart from the interception
+     rules (it applies with interception off). An unknown size is always shown; the 8 KB junk floor
+     (`MIN_MEDIA_BYTES`) still applies at 0. The e2e fixtures set it to 0 (every fixture is < 1 MB);
+     `e2e/tests/min-size.spec.js` puts the default back. Extension 1.23.0.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

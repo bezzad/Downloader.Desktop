@@ -11,6 +11,7 @@ const statusTextEl = document.getElementById("statusText");
 const listCountEl = document.getElementById("listCount");
 
 let rawItems = []; // { url, type, group, capturedAt }
+let listMinBytes = LIST_MIN_SIZE_DEFAULT; // the user's minimum size for the list, see getListMinSize
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
 let thumbIndex = { byUrl: new Map(), byToken: new Map(), single: null };
 let currentTabId = null;
@@ -122,7 +123,7 @@ function buildGroups() {
 
     // Drop options a probe confirmed are implausibly tiny for real media (tracking beacons,
     // empty init segments — e.g. sub-1KB responses seen on X.com) — never before a probe has run.
-    g.options = g.options.filter(opt => isPlausibleMediaSize(opt.size));
+    g.options = g.options.filter(opt => isPlausibleMediaSize(opt.size, Math.max(listMinBytes, MIN_MEDIA_BYTES)));
   }
   for (const [key, g] of map) if (g.options.length === 0) map.delete(key);
 
@@ -607,6 +608,10 @@ document.getElementById("sendAll").onclick = async () => {
     await sendOption(g.options.find(o => optionKey(o) === key) || g.options[0]);
   }
 };
+
+// "Hide files smaller than" from the options page. The list first paints with the default and
+// repaints once the stored value is read.
+getListMinSize().then(bytes => { listMinBytes = bytes; render(); });
 
 // Silent-vs-dialog choice (persisted; the background worker reads it on every send).
 const silentEl = document.getElementById("silentMode");

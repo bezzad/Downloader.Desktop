@@ -10,6 +10,7 @@ const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
   runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
+  LIST_MIN_SIZE_STEPS, LIST_MIN_SIZE_DEFAULT, listMinSizeStep, getListMinSize, setListMinSize,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
@@ -1224,6 +1225,49 @@ test("a folder the app refuses is a failed send, never a silent success", async 
   const handed = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "relative/dir" });
   assert.equal(handed.ok, false);
   assert.equal(handed.reason, "app-rejected-400");
+});
+
+test("isPlausibleMediaSize hides files under the user's minimum, never an unknown size", () => {
+  const oneMb = 1024 * 1024;
+  assert.ok(!isPlausibleMediaSize(500 * 1024, oneMb)); // 500 KB under a 1 MB minimum is hidden
+  assert.ok(isPlausibleMediaSize(oneMb, oneMb));       // boundary is inclusive
+  assert.ok(isPlausibleMediaSize(null, 10 * 1024 ** 3)); // size not known yet -> always shown
+});
+
+test("list minimum size: 1 MB by default, slider runs 0 to 10 GB in steps", () => {
+  assert.equal(LIST_MIN_SIZE_DEFAULT, 1024 * 1024);
+  assert.equal(LIST_MIN_SIZE_STEPS[0], 0);
+  assert.equal(LIST_MIN_SIZE_STEPS.at(-1), 10 * 1024 ** 3);
+  for (let i = 1; i < LIST_MIN_SIZE_STEPS.length; i++)
+    assert.ok(LIST_MIN_SIZE_STEPS[i] > LIST_MIN_SIZE_STEPS[i - 1]);
+  assert.ok(LIST_MIN_SIZE_STEPS.includes(LIST_MIN_SIZE_DEFAULT));
+});
+
+test("listMinSizeStep maps a stored size to the largest step not above it", () => {
+  assert.equal(listMinSizeStep(0), 0);
+  assert.equal(LIST_MIN_SIZE_STEPS[listMinSizeStep(1024 * 1024)], 1024 * 1024);
+  assert.equal(LIST_MIN_SIZE_STEPS[listMinSizeStep(3 * 1024 * 1024)], 2 * 1024 * 1024);
+  assert.equal(listMinSizeStep(50 * 1024 ** 3), LIST_MIN_SIZE_STEPS.length - 1);
+});
+
+test("getListMinSize defaults to 1 MB and round-trips what setListMinSize stores", async () => {
+  const saved = global.chrome.storage;
+  const store = {};
+  global.chrome.storage = { local: {
+    get: async d => ({ ...d, ...store }),
+    set: v => Object.assign(store, v)
+  } };
+  try {
+    assert.equal(await getListMinSize(), 1024 * 1024);
+    setListMinSize(0);
+    assert.equal(await getListMinSize(), 0);
+    setListMinSize(5 * 1024 ** 3);
+    assert.equal(await getListMinSize(), 5 * 1024 ** 3);
+    store.listMinSizeBytes = "junk";
+    assert.equal(await getListMinSize(), 1024 * 1024);
+  } finally {
+    global.chrome.storage = saved;
+  }
 });
 
 test("getSavePath/setSavePath round-trip through extension storage, trimmed", async () => {
