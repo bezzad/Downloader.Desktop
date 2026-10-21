@@ -193,6 +193,36 @@ function setAddMode(mode) {
   try { api.storage.local.set({ addMode: mode === "dialog" ? "dialog" : "silent" }); } catch { /* optional */ }
 }
 
+// How the toolbar button opens the extension: "popup" (the browser closes it on any click outside)
+// or "panel" (the browser's side panel, which stays open until the button is clicked again).
+// Chrome/Edge have chrome.sidePanel; Firefox has a sidebar. The browser, not the extension,
+// decides whether that panel sits on the left or the right.
+function canOpenPanel() {
+  return !!(api.sidePanel?.setPanelBehavior || api.sidebarAction?.toggle);
+}
+
+async function getOpenMode() {
+  try {
+    const r = await api.storage.local.get({ openMode: "popup" });
+    return r.openMode === "panel" && canOpenPanel() ? "panel" : "popup";
+  } catch {
+    return "popup";
+  }
+}
+
+function setOpenMode(mode) {
+  try { api.storage.local.set({ openMode: mode === "panel" ? "panel" : "popup" }); } catch { /* optional */ }
+}
+
+// Makes the toolbar button do what the mode says. With no popup set, a click reaches
+// action.onClicked (Firefox toggles its sidebar there, see background.js); Chrome opens and
+// closes its side panel itself once openPanelOnActionClick is on.
+async function applyOpenMode(mode) {
+  const panel = mode === "panel" && canOpenPanel();
+  try { await api.action.setPopup({ popup: panel ? "" : "popup.html" }); } catch { /* keep the popup */ }
+  try { await api.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: panel }); } catch { /* optional */ }
+}
+
 // Silent add via the local API. Returns "ok" (added — on a pre-API app the same request opens
 // Map one browser cookie (chrome.cookies.getAll shape) to the app's /api/add cookie shape.
 // Session cookies (no expirationDate) omit `expires`; the app writes them with expiry 0.
@@ -1878,6 +1908,7 @@ if (typeof module !== "undefined") {
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
     getInterceptSettings, setInterceptSettings,
     postAdd, handOffToApp, awaitAddTicket,
-    getAddMode, setAddMode
+    getAddMode, setAddMode,
+    canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
   };
 }

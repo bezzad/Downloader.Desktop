@@ -682,3 +682,60 @@ syncAccent(document.documentElement);
 
 refreshStatus();
 loadDetected();
+
+// Panel mode: asks the page to say when it is scrolled, since a feed loads new videos as it
+// scrolls. Throttled in the page, so a long scroll sends one message a second at most.
+async function watchPageScroll() {
+  const tab = await activeTab();
+  try {
+    await api.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        if (window.__downloaderScrollWatch) return;
+        window.__downloaderScrollWatch = true;
+        let last = 0;
+        addEventListener("scroll", () => {
+          const now = Date.now();
+          if (now - last < 1000) return;
+          last = now;
+          try { chrome.runtime.sendMessage({ type: "pageScrolled" })?.catch?.(() => {}); } catch { /* reloaded */ }
+        }, { passive: true, capture: true });
+      }
+    });
+  } catch {
+    // Browser-internal pages and pages that forbid injection: media still arrives by mediaAdded.
+  }
+}
+
+// In panel mode this page is the side panel, which stays open while the user browses. So it fills
+// the panel's width, starts over when another tab is shown or the page loads again, and picks up
+// media the page starts playing, or shows on scroll, after the panel opened.
+getOpenMode().then(mode => {
+  if (mode !== "panel") return;
+  document.body.classList.add("panel");
+  let windowId = null;
+  api.windows?.getCurrent?.().then(w => { windowId = w.id; }).catch(() => {});
+  api.tabs.onActivated.addListener(info => {
+    if (windowId == null || info.windowId === windowId) location.reload();
+  });
+  api.tabs.onUpdated.addListener((tabId, change) => {
+    if (tabId === currentTabId && change.status === "complete") location.reload();
+  });
+  let pending = null;
+  let scanToo = false;
+  api.runtime.onMessage.addListener((msg, sender) => {
+    const added = msg?.type === "mediaAdded" && msg.tabId === currentTabId;
+    const scrolled = msg?.type === "pageScrolled" && sender?.tab?.id === currentTabId;
+    if (!(added || scrolled)) return;
+    scanToo ||= scrolled;
+    if (pending) return;
+    pending = setTimeout(async () => {
+      const scan = scanToo;
+      pending = null;
+      scanToo = false;
+      await loadDetected();
+      if (scan) scanPageLinks(); // the page's own video/audio tags and media links
+    }, 1000);
+  });
+  watchPageScroll();
+});

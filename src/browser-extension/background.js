@@ -47,9 +47,29 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === "dl-selection") {
     for (const url of extractUrls(info.selectionText)) await capture(url);
   } else if (info.menuItemId === "dl-page") {
-    if (tab?.id != null) api.action.openPopup?.();
+    if (tab?.id != null) openUi(tab);
   }
 });
+
+// ---------------- Popup or side panel ----------------
+// Kept in a variable so a click handler can act on it at once: a browser only opens a panel
+// while it is still handling the user's click, and an await would lose that.
+let openMode = "popup";
+getOpenMode().then(mode => { openMode = mode; applyOpenMode(mode); });
+api.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes.openMode) return;
+  getOpenMode().then(mode => { openMode = mode; applyOpenMode(mode); });
+});
+
+// Firefox: in panel mode the button has no popup, so its click arrives here. Chrome never gets
+// here in panel mode: it opens and closes its side panel by itself.
+api.action.onClicked.addListener(() => { api.sidebarAction?.toggle(); });
+
+function openUi(tab) {
+  if (openMode !== "panel") api.action.openPopup?.();
+  else if (api.sidePanel?.open) api.sidePanel.open({ windowId: tab.windowId });
+  else api.sidebarAction?.open();
+}
 
 function extractUrls(text) {
   if (!text) return [];
@@ -270,6 +290,8 @@ function addMedia(tabId, url, type) {
   if (map.has(url)) return;
   map.set(url, { url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now() });
   updateBadge(tabId, map.size);
+  // For an open side panel; with no panel open there is nobody to receive it, which is fine.
+  try { api.runtime.sendMessage({ type: "mediaAdded", tabId })?.catch?.(() => {}); } catch { /* none */ }
 }
 
 // Runs the size/resolution probes for every item currently known for a tab. Kept separate from

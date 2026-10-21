@@ -32,7 +32,8 @@ const {
   chipLabel,
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
   contrastRatio,
-  appFetch, APP_TIMEOUT_MS, awaitAddTicket
+  appFetch, APP_TIMEOUT_MS, awaitAddTicket,
+  canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -1405,9 +1406,12 @@ test("reading response headers needs no permission the extension did not already
       "cookies", "downloads"],
     hostPermissions: ["<all_urls>"]
   };
+  // Chrome/Edge also list "sidePanel" (1.24.0, the side panel open mode). It shows the user no
+  // warning; Firefox needs no permission for its sidebar.
+  const extra = { "manifest.json": ["sidePanel"], "manifest.firefox.json": [] };
   for (const file of ["manifest.json", "manifest.firefox.json"]) {
     const m = JSON.parse(fs.readFileSync(`${__dirname}/${file}`, "utf8"));
-    assert.deepEqual(m.permissions, expected.permissions, `${file} permissions changed`);
+    assert.deepEqual(m.permissions, [...expected.permissions, ...extra[file]], `${file} permissions changed`);
     assert.ok(m.host_permissions.includes("<all_urls>"), `${file} must already read every host`);
   }
 });
@@ -2334,4 +2338,67 @@ test("quality lookups for many pages never hold more than the cap of connections
   } finally {
     global.fetch = realFetch;
   }
+});
+
+// ---------------- Popup or side panel (the toolbar button's open mode) ----------------
+// Swaps the browser pieces the open mode touches, runs fn, and puts them back.
+async function withBrowser(parts, fn) {
+  const keys = ["storage", "action", "sidePanel", "sidebarAction"];
+  const saved = Object.fromEntries(keys.map(k => [k, global.chrome[k]]));
+  const store = {};
+  const calls = [];
+  for (const k of keys) delete global.chrome[k];
+  global.chrome.storage = { local: { get: async d => ({ ...d, ...store }), set: v => Object.assign(store, v) } };
+  global.chrome.action = { setPopup: async o => calls.push(["setPopup", o.popup]) };
+  if (parts.chrome) global.chrome.sidePanel = { setPanelBehavior: async o => calls.push(["behavior", o.openPanelOnActionClick]) };
+  if (parts.firefox) global.chrome.sidebarAction = { toggle: () => {} };
+  try {
+    await fn(calls, store);
+  } finally {
+    for (const k of keys) { if (saved[k] === undefined) delete global.chrome[k]; else global.chrome[k] = saved[k]; }
+  }
+}
+
+test("open mode is the popup by default and round-trips the side panel choice", async () => {
+  await withBrowser({ chrome: true }, async (_, store) => {
+    assert.equal(await getOpenMode(), "popup");
+    setOpenMode("panel");
+    assert.equal(await getOpenMode(), "panel");
+    setOpenMode("junk");
+    assert.equal(await getOpenMode(), "popup");
+    store.openMode = "panel";
+    assert.equal(await getOpenMode(), "panel");
+  });
+});
+
+test("a browser with no side panel never reads as panel mode, whatever was stored", async () => {
+  await withBrowser({}, async (calls, store) => {
+    assert.equal(canOpenPanel(), false);
+    store.openMode = "panel";
+    assert.equal(await getOpenMode(), "popup");
+    await applyOpenMode("panel");
+    assert.deepEqual(calls, [["setPopup", "popup.html"]]); // the button keeps its popup
+  });
+});
+
+test("Chrome/Edge: panel mode removes the popup and lets the button open and close the side panel", async () => {
+  await withBrowser({ chrome: true }, async calls => {
+    assert.equal(canOpenPanel(), true);
+    await applyOpenMode("panel");
+    assert.deepEqual(calls, [["setPopup", ""], ["behavior", true]]);
+    calls.length = 0;
+    await applyOpenMode("popup");
+    assert.deepEqual(calls, [["setPopup", "popup.html"], ["behavior", false]]);
+  });
+});
+
+test("Firefox: panel mode removes the popup so the click reaches the sidebar toggle", async () => {
+  await withBrowser({ firefox: true }, async calls => {
+    assert.equal(canOpenPanel(), true);
+    await applyOpenMode("panel");
+    assert.deepEqual(calls, [["setPopup", ""]]);
+    calls.length = 0;
+    await applyOpenMode("popup");
+    assert.deepEqual(calls, [["setPopup", "popup.html"]]);
+  });
 });

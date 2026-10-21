@@ -347,6 +347,18 @@ Rough order to turn the current skeleton into the MVP above:
      probed; the mean of finished parts stands in. A plan row's size may be replaced (`FlushProgress`).
    - Extension 1.23.1: size probes run 8 at a time (was 4); the popup waits for all of them.
 
+24. ✅ **Extension side panel (stays open)** (DONE, 2026-10-21, extension 1.24.0):
+   - A popup ALWAYS closes on an outside click (browser rule), so the options page got "Open as":
+     popup (default) or **side panel**. Chrome/Edge: `side_panel` + `sidePanel` permission;
+     `applyOpenMode` (common.js) sets `action.setPopup("")` + `sidePanel.setPanelBehavior({openPanelOnActionClick})`,
+     so the browser itself opens/closes the panel on the button. Firefox: `sidebar_action`
+     (`open_at_install: false`); with no popup the click reaches `action.onClicked` → `sidebarAction.toggle()`.
+   - **Left/right is the browser's choice, not an API**: Chrome/Edge Appearance settings, Firefox sidebar menu.
+   - The same `popup.html` is the panel; in panel mode it adds `body.panel` (fluid width), reloads on tab
+     switch / page load, and re-reads media on the background's `mediaAdded` message and on page scroll
+     (`watchPageScroll` injects a throttled scroll listener that sends `pageScrolled`; the panel then also
+     re-scans the page's media links).
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.
