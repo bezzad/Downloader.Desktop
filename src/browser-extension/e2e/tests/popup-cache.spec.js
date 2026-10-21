@@ -33,3 +33,23 @@ test("reloading the page measures the size again", async ({ context, extensionId
   const afterReload = await shownSize(context, extensionId, page);
   expect(afterReload).not.toBe(first);
 });
+
+test("a feed keeps the picture of a video that scrolled away and adds the new one", async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto("/feed.html");
+  await page.waitForTimeout(1500);
+
+  let popup = await openPopupFor(context, extensionId, page);
+  await expect(popup.locator("#list li .thumb img")).toHaveCount(1, { timeout: 10000 });
+  await popup.close();
+
+  await page.evaluate(() => scrollMore()); // A leaves the page, B arrives
+  await page.waitForTimeout(1500);
+
+  popup = await openPopupFor(context, extensionId, page);
+  await expect(popup.locator("#list li")).toHaveCount(2, { timeout: 10000 });
+  await expect(popup.locator("#list li .thumb img")).toHaveCount(2, { timeout: 10000 });
+  const srcs = await popup.locator("#list li .thumb img").evaluateAll(els => els.map(e => e.src));
+  expect(srcs.some(s => s.includes("thumbA"))).toBe(true);
+  expect(srcs.some(s => s.includes("thumbB"))).toBe(true);
+});

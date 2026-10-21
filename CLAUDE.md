@@ -332,6 +332,10 @@ Rough order to turn the current skeleton into the MVP above:
      (`probeUncached` in `common.js`) and the page's thumbnails per tab, so reopening the popup does not
      measure or capture again. Cleared on any `status: "loading"` (a reload has no `url` there). A probe
      that found no size is not cached. "Download all" sends `currentGroups`, i.e. only what the filter shows.
+   - **1.23.3 fix (x.com feed)**: `getMedia` now returns the cached probes + thumbnails so the first
+     paint is the same list as last time, and the page is ALWAYS looked at again; its shots are added to
+     the saved ones with `mergeShots` (key = poster, else src). x.com removes players that scroll away,
+     so replacing the shots lost their pictures, and caching "no picture" never retried it.
 
 23. ✅ **Size of a multi-part (HLS) download (Twitter showed ~1 KB)** (DONE, 2026-10-21):
    - The row kept the size of the PLAYLIST text (the name probe of the `.m3u8` link), because a size,

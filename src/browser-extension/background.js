@@ -330,12 +330,16 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // visibility hint from a content script being fresh at the exact moment the popup asked, which
         // on a feed page (x.com) it routinely was not — so the page's own video was demoted into a
         // collapsed section. The popup orders by media type instead (common.js sortDetectedGroups).
+        // With what earlier opens measured and saw, so the popup's first paint is already complete.
         const map = tabMedia.get(msg.tabId);
-        sendResponse({ media: map ? [...map.values()] : [] });
+        const cache = tabCache.get(msg.tabId);
+        sendResponse({
+          media: map ? [...map.values()] : [],
+          probes: cache ? [...cache.probes.values()] : [],
+          thumbs: cache?.thumbs || null
+        });
       } else if (msg.type === "probeMedia") {
         sendResponse({ results: await probeMediaForTab(msg.tabId) });
-      } else if (msg.type === "getThumbs") {
-        sendResponse({ thumbs: tabCache.get(msg.tabId)?.thumbs || null });
       } else if (msg.type === "saveThumbs") {
         cacheFor(msg.tabId).thumbs = msg.thumbs;
         sendResponse({});

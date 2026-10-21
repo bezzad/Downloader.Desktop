@@ -14,6 +14,8 @@ let rawItems = []; // { url, type, group, capturedAt }
 let listMinBytes = LIST_MIN_SIZE_DEFAULT; // the user's minimum size for the list, see getListMinSize
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
 let thumbIndex = { byUrl: new Map(), byToken: new Map(), single: null };
+let savedShots = []; // every player the page has shown while this tab stayed on it (see mergeShots)
+let savedPageImage = "";
 let currentTabId = null;
 let isUnsupportedHost = false;
 let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
@@ -526,8 +528,11 @@ async function collectThumbnails() {
     });
     const data = results?.[0]?.result;
     if (data) {
-      thumbIndex = buildThumbnailIndex(data.shots, data.pageImage);
-      send("saveThumbs", { tabId: currentTabId, thumbs: { ...data, itemCount: rawItems.length } });
+      // Added to what earlier opens saw: a feed drops players that scrolled away (see mergeShots).
+      savedShots = mergeShots(savedShots, data.shots);
+      const pageImage = data.pageImage || savedPageImage;
+      thumbIndex = buildThumbnailIndex(savedShots, pageImage);
+      send("saveThumbs", { tabId: currentTabId, thumbs: { shots: savedShots, pageImage } });
     }
   } catch {
     // Browser-internal pages and pages that forbid injection: rows keep their placeholders, and
@@ -558,15 +563,20 @@ async function loadDetected() {
     // seconds, so it must never hold up the first paint below.
     if (handled) loadPageVariants(tab.url);
   }
-  const { media } = await send("getMedia", { tabId: tab.id });
+  const { media, probes, thumbs } = (await send("getMedia", { tabId: tab.id })) || {};
   for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
+  // Sizes and pictures from earlier opens on this page, so the first paint is the same list as last time.
+  for (const r of probes || []) probedByUrl.set(r.url, r);
+  if (thumbs) {
+    savedShots = thumbs.shots || [];
+    savedPageImage = thumbs.pageImage || "";
+    thumbIndex = buildThumbnailIndex(savedShots, savedPageImage);
+  }
   render();
-  // Both upgrade the list in place; neither delays this first paint.
+  // Both upgrade the list in place; neither delays this first paint. Only new links are measured; the
+  // page is always looked at again, for new players and for pictures that were missing.
   probeAndRender();
-  // Pictures taken on an earlier open are reused; the page is asked again only when it has new media.
-  const { thumbs } = (await send("getThumbs", { tabId: tab.id })) || {};
-  if (thumbs) { thumbIndex = buildThumbnailIndex(thumbs.shots, thumbs.pageImage); render(); }
-  if (!thumbs || thumbs.itemCount < rawItems.length) collectThumbnails().then(render);
+  collectThumbnails().then(render);
 }
 
 async function loadPageVariants(url) {

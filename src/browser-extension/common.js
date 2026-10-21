@@ -1209,6 +1209,26 @@ function mediaTokens(url) {
   return tokens;
 }
 
+// Adds what the page shows now to what it showed on earlier opens. A feed (x.com) removes players
+// that scrolled away, so a fresh look alone would lose their pictures. A shot is known by its poster,
+// else its src. The newer look wins, but a frame or poster it lacks is kept from the older one — so a
+// picture missing once is tried again on the next open, and a picture found once is never lost.
+//
+// An old shot with only a blob: src is dropped: that address dies with its player and ties the
+// picture to no link, so it would only pile up.
+function mergeShots(oldShots, newShots) {
+  const byKey = new Map();
+  const keyOf = shot => shot?.poster || shot?.src;
+  const old = (oldShots || []).filter(shot => isHttp(keyOf(shot)));
+  for (const shot of [...old, ...(newShots || [])]) {
+    const key = keyOf(shot);
+    if (!key) continue;
+    const before = byKey.get(key);
+    byKey.set(key, { ...shot, frame: shot.frame || before?.frame || null, poster: shot.poster || before?.poster || "" });
+  }
+  return [...byKey.values()];
+}
+
 // Maps media URLs — and the media tokens of both a shot's src and its poster — to that shot's image.
 //
 // There is deliberately NO leftover queue. v1.8.0 showed one image on every unmatched row; the fix
@@ -1839,7 +1859,7 @@ if (typeof module !== "undefined") {
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
-    shotImage, mediaTokens, buildThumbnailIndex, pickThumbnail, assignThumbnails,
+    shotImage, mediaTokens, mergeShots, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     chipLabel,
     isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,

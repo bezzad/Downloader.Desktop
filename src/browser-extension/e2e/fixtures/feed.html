@@ -1,0 +1,20 @@
+<!doctype html>
+<html><body>
+<!-- An x.com-shaped feed that removes players as they scroll away: `scrollMore()` takes video A off
+     the page and puts video B on it. Each poster names its file's media id (see two-videos.html). -->
+<div id="feed">
+  <video id="a" width="480" height="270"
+    poster="/amplify_video_thumb/1712345678901234567/img/thumbA.jpg"></video>
+</div>
+<script>
+  fetch('/amplify_video/1712345678901234567/vid/main_video.mp4');
+  function scrollMore() {
+    document.getElementById('a').remove();
+    const b = document.createElement('video');
+    b.width = 480; b.height = 270;
+    b.poster = '/amplify_video_thumb/1798765432109876543/img/thumbB.jpg';
+    document.getElementById('feed').append(b);
+    fetch('/amplify_video/1798765432109876543/vid/videos/alpha_360p.mp4');
+  }
+</script>
+</body></html>

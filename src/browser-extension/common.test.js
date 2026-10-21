@@ -14,7 +14,7 @@ const {
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
-  buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage, mediaTokens,
+  buildThumbnailIndex, pickThumbnail, mergeShots, assignThumbnails, shotImage, mediaTokens,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
@@ -1237,6 +1237,28 @@ test("a folder the app refuses is a failed send, never a silent success", async 
   const handed = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "relative/dir" });
   assert.equal(handed.ok, false);
   assert.equal(handed.reason, "app-rejected-400");
+});
+
+test("mergeShots keeps players that scrolled away and retries a missing picture", () => {
+  const a = { src: "blob:https://x.com/1", poster: "https://pbs.twimg.com/amplify_video_thumb/111/img/a.jpg", frame: "data:A", area: 10 };
+  const bNoPicture = { src: "https://video.twimg.com/222/vid/b.mp4", poster: "", frame: null, area: 10 };
+  const first = mergeShots([], [a, bNoPicture]);
+
+  // Next open: x.com removed A's player from the page, B now has a frame, and C is new.
+  const bFrame = { ...bNoPicture, frame: "data:B" };
+  const c = { src: "blob:https://x.com/3", poster: "https://pbs.twimg.com/amplify_video_thumb/333/img/c.jpg", frame: null, area: 5 };
+  const second = mergeShots(first, [bFrame, c]);
+  const byKey = new Map(second.map(s => [s.poster || s.src, s]));
+  assert.equal(byKey.get(a.poster).frame, "data:A");       // scrolled away, picture kept
+  assert.equal(byKey.get(bNoPicture.src).frame, "data:B"); // missing last time, found now
+  assert.ok(byKey.has(c.poster));                          // new player added
+
+  // A later look without A's frame (canvas tainted this time) never loses the frame found before.
+  const third = mergeShots(second, [{ ...a, frame: null }]);
+  assert.equal(third.find(s => s.poster === a.poster).frame, "data:A");
+
+  // An old blob-only shot ties to no link; it is not carried forward.
+  assert.equal(mergeShots([{ src: "blob:https://x.com/9", poster: "", frame: "data:Z" }], []).length, 0);
 });
 
 test("probeUncached measures each link once and keeps the answer for the next open", async () => {
