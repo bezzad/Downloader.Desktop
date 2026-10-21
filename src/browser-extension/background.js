@@ -9,6 +9,15 @@ if (typeof importScripts === "function") importScripts("common.js");
 
 // tabId -> Map(url -> { url, type, group, capturedAt })   detected media for the current page
 const tabMedia = new Map();
+// tabId -> { probes: Map(url -> probe result), thumbs }   what the popup measured on this page, kept
+// so opening the popup again is instant. Cleared when the tab reloads or navigates.
+const tabCache = new Map();
+
+function cacheFor(tabId) {
+  let c = tabCache.get(tabId);
+  if (!c) { c = { probes: new Map(), thumbs: null }; tabCache.set(tabId, c); }
+  return c;
+}
 
 // ---------------- Context menus ----------------
 api.runtime.onInstalled.addListener(() => {
@@ -270,7 +279,7 @@ async function probeMediaForTab(tabId) {
   const map = tabMedia.get(tabId);
   if (!map) return [];
   const items = [...map.values()];
-  const tasks = items.map(item => async signal => {
+  return probeUncached(items, cacheFor(tabId).probes, item => async signal => {
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
       // Unreadable: report nothing rather than guess. The popup then falls back to judging the URL.
@@ -289,7 +298,6 @@ async function probeMediaForTab(tabId) {
     }
     return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
   });
-  return runProbesBounded(tasks);
 }
 
 function updateBadge(tabId, count) {
@@ -301,6 +309,8 @@ function updateBadge(tabId, count) {
 
 // Reset a tab's findings when it navigates.
 api.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  // A reload has no `url` here, but its sizes and pictures may have changed, so they are measured again.
+  if (changeInfo.status === "loading") tabCache.delete(tabId);
   if (changeInfo.status === "loading" && changeInfo.url) {
     tabMedia.delete(tabId);
     updateBadge(tabId, 0);
@@ -308,6 +318,7 @@ api.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 api.tabs.onRemoved.addListener(tabId => {
   tabMedia.delete(tabId);
+  tabCache.delete(tabId);
 });
 
 // ---------------- Messages from the popup + content script ----------------
@@ -323,6 +334,11 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ media: map ? [...map.values()] : [] });
       } else if (msg.type === "probeMedia") {
         sendResponse({ results: await probeMediaForTab(msg.tabId) });
+      } else if (msg.type === "getThumbs") {
+        sendResponse({ thumbs: tabCache.get(msg.tabId)?.thumbs || null });
+      } else if (msg.type === "saveThumbs") {
+        cacheFor(msg.tabId).thumbs = msg.thumbs;
+        sendResponse({});
       } else if (msg.type === "send") {
         sendResponse({ ok: await sendToApp(msg.url, msg.filename, { variantId: msg.variantId }) });
       } else if (msg.type === "ping") {

@@ -8,7 +8,7 @@ const assert = require("node:assert/strict");
 global.chrome = { cookies: {} };
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
-  runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
+  runProbesBounded, probeUncached, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
   LIST_MIN_SIZE_STEPS, LIST_MIN_SIZE_DEFAULT, listMinSizeStep, getListMinSize, setListMinSize,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
@@ -1237,6 +1237,23 @@ test("a folder the app refuses is a failed send, never a silent success", async 
   const handed = await handOffToApp("https://e.com/a.zip", "a.zip", { savePath: "relative/dir" });
   assert.equal(handed.ok, false);
   assert.equal(handed.reason, "app-rejected-400");
+});
+
+test("probeUncached measures each link once and keeps the answer for the next open", async () => {
+  const cache = new Map();
+  const calls = [];
+  const sizes = { "https://a/x.mp4": 5000, "https://a/y.mp4": null };
+  const make = item => async () => { calls.push(item.url); return { url: item.url, kind: "direct", size: sizes[item.url] }; };
+  const items = [{ url: "https://a/x.mp4" }, { url: "https://a/y.mp4" }];
+
+  const first = await probeUncached(items, cache, make);
+  assert.deepEqual(first.map(r => r.size), [5000, null]);
+  assert.deepEqual(calls, ["https://a/x.mp4", "https://a/y.mp4"]);
+
+  calls.length = 0;
+  const second = await probeUncached(items, cache, make);
+  assert.equal(second[0].size, 5000);
+  assert.deepEqual(calls, ["https://a/y.mp4"]); // only the one with no size yet is asked again
 });
 
 test("isPlausibleMediaSize hides files under the user's minimum, never an unknown size", () => {

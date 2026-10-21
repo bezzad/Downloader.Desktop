@@ -884,6 +884,17 @@ async function runProbesBounded(tasks, { concurrency = 8, timeoutMs = 2500 } = {
   return results;
 }
 
+// Probes only the items `cache` (url -> result) has no answer for, and keeps each new answer there,
+// so opening the popup again on the same page does not measure every link again. A probe that found
+// nothing (null, or a direct file with no size) is not kept: the next open tries it once more.
+async function probeUncached(items, cache, makeTask, options) {
+  const todo = items.filter(item => !cache.has(item.url));
+  const fresh = await runProbesBounded(todo.map(makeTask), options);
+  for (const r of fresh)
+    if (r && !(r.kind === "direct" && r.size == null)) cache.set(r.url, r);
+  return items.map(item => cache.get(item.url) || fresh[todo.indexOf(item)] || null);
+}
+
 // Hostnames known to stream via MSE/DRM with no stable, single-file downloadable URL (see
 // docs/plugins-architecture.md and this file's MEDIA_EXTENSIONS comment). On a matching hostname
 // the popup ALWAYS shows the explanatory message and suppresses the detected list, even if
@@ -1818,7 +1829,7 @@ if (typeof module !== "undefined") {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
     isManifest, MANIFEST_EXTENSIONS,
     formatBytes, shortVersion, probeSize, parseHlsMaster, estimateHlsSize,
-    groupKey, extractQualityToken, runProbesBounded,
+    groupKey, extractQualityToken, runProbesBounded, probeUncached,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
     createLookupLimiter, MAX_VARIANT_LOOKUPS,

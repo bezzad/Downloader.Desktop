@@ -525,7 +525,10 @@ async function collectThumbnails() {
       }
     });
     const data = results?.[0]?.result;
-    if (data) thumbIndex = buildThumbnailIndex(data.shots, data.pageImage);
+    if (data) {
+      thumbIndex = buildThumbnailIndex(data.shots, data.pageImage);
+      send("saveThumbs", { tabId: currentTabId, thumbs: { ...data, itemCount: rawItems.length } });
+    }
   } catch {
     // Browser-internal pages and pages that forbid injection: rows keep their placeholders, and
     // every Download action still works.
@@ -560,7 +563,10 @@ async function loadDetected() {
   render();
   // Both upgrade the list in place; neither delays this first paint.
   probeAndRender();
-  collectThumbnails().then(render);
+  // Pictures taken on an earlier open are reused; the page is asked again only when it has new media.
+  const { thumbs } = (await send("getThumbs", { tabId: tab.id })) || {};
+  if (thumbs) { thumbIndex = buildThumbnailIndex(thumbs.shots, thumbs.pageImage); render(); }
+  if (!thumbs || thumbs.itemCount < rawItems.length) collectThumbnails().then(render);
 }
 
 async function loadPageVariants(url) {

@@ -328,6 +328,10 @@ Rough order to turn the current skeleton into the MVP above:
      rules (it applies with interception off). An unknown size is always shown; the 8 KB junk floor
      (`MIN_MEDIA_BYTES`) still applies at 0. The e2e fixtures set it to 0 (every fixture is < 1 MB);
      `e2e/tests/min-size.spec.js` puts the default back. Extension 1.23.0.
+   - **Popup cache** (1.23.2): `background.js` `tabCache` keeps each link's probe result
+     (`probeUncached` in `common.js`) and the page's thumbnails per tab, so reopening the popup does not
+     measure or capture again. Cleared on any `status: "loading"` (a reload has no `url` there). A probe
+     that found no size is not cached. "Download all" sends `currentGroups`, i.e. only what the filter shows.
 
 23. ✅ **Size of a multi-part (HLS) download (Twitter showed ~1 KB)** (DONE, 2026-10-21):
    - The row kept the size of the PLAYLIST text (the name probe of the `.m3u8` link), because a size,
