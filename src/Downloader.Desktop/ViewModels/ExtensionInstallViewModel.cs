@@ -340,6 +340,12 @@ public class ExtensionInstallViewModel : ViewModelBase
             Browsers.Clear();
             foreach (var b in _detect() ?? Array.Empty<DetectedBrowser>())
                 Browsers.Add(new ExtensionBrowserRow(b));
+            this.RaisePropertyChanged(nameof(HasBrowsers));
+
+            // Fill the dialog BEFORE the network call: the catalog takes seconds (two GitHub requests),
+            // and the bundled copy is enough to show every section. The rows are rebuilt once it arrives.
+            RebuildTargets();
+            RefreshConnectionState();
 
             _catalog = await _fetchCatalog(CancellationToken.None).ConfigureAwait(true)
                        ?? Array.Empty<ExtensionCatalogEntry>();

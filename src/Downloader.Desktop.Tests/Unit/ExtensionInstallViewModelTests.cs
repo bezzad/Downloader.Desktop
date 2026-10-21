@@ -94,6 +94,36 @@ public class ExtensionInstallViewModelTests
     }
 
     /// <summary>
+    /// The reported bug: the dialog stayed empty (only a progress bar) for ~10 s, because nothing was
+    /// shown until the release catalog arrived from the network. The browsers and both folder sections
+    /// must be there while that call is still running.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task Dialog_is_filled_before_the_catalog_arrives()
+    {
+        var catalog = new TaskCompletionSource<IReadOnlyList<ExtensionCatalogEntry>>();
+        var vm = new ExtensionInstallViewModel(
+            detect: () => new[] { Chrome, Firefox },
+            fetchCatalog: _ => catalog.Task,
+            lastSeenVersion: _ => null,
+            readInstalled: _ => null,
+            bundledVersion: () => "1.0.0");
+
+        var load = vm.LoadAsync();
+
+        Assert.False(load.IsCompleted);
+        Assert.True(vm.HasBrowsers);
+        Assert.Equal(2, vm.Browsers.Count);
+        Assert.Equal(new[] { BrowserFamily.Chromium, BrowserFamily.Gecko }, vm.Targets.Select(t => t.Family));
+        Assert.All(vm.Targets, t => Assert.Equal("1.0.0", t.AvailableVersion));
+
+        catalog.SetResult(new[] { Entry("chrome", "chromium", "2.0.0") });
+        await load;
+
+        Assert.Equal("2.0.0", vm.Targets.Single(t => t.Family == BrowserFamily.Chromium).AvailableVersion);
+    }
+
+    /// <summary>
     /// The reported bug: with only Firefox detected, the dialog offered ONLY the Gecko folder — so a user
     /// running Chrome (which a snap-confined app cannot see at all) had no folder to install into. Both
     /// families are always offered, whatever detection found.
