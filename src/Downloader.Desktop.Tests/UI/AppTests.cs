@@ -1382,6 +1382,30 @@ public class AppTests
         Assert.Equal(42, vm.Progress);
     }
 
+    /// <summary>A multi-part row (Twitter HLS) kept the size of the playlist text (~1 KB) for its whole run,
+    /// because a size, once set, was never replaced. A plan's estimate must replace it, and keep improving.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public void A_plan_row_replaces_its_size_with_the_runner_estimate()
+    {
+        var item = new DownloadItem { Status = DownloadStatus.Running, Size = 1100 };
+        var vm = new DownloadItemViewModel(item, null) { Status = DownloadStatus.Running, PlanRun = new PlanRunState(3) };
+
+        vm.StageProgress(10, 0, 30_000, 300_000);
+        Assert.True(vm.FlushProgress());
+        Assert.Equal(300_000, vm.Size);
+
+        vm.StageProgress(20, 0, 64_000, 320_000);
+        Assert.True(vm.FlushProgress());
+        Assert.Equal(320_000, vm.Size);
+
+        // An ordinary download still keeps the size it already has.
+        var plain = new DownloadItemViewModel(new DownloadItem { Status = DownloadStatus.Running, Size = 5000 }, null)
+            { Status = DownloadStatus.Running };
+        plain.StageProgress(10, 0, 500, 9999);
+        plain.FlushProgress();
+        Assert.Equal(5000, plain.Size);
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Completed_item_ignores_stop_resume_and_retry()
     {

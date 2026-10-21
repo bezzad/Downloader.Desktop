@@ -65,6 +65,9 @@ public partial class DownloadManager
             // normalized to "video.mp4" above — the row must not keep showing the playlist name).
             if (!string.Equals(item.FileName, finalName, StringComparison.Ordinal))
                 vm.FileName = finalName;
+            // Any size the row has now belongs to the link (for HLS, the tiny playlist text), not to the
+            // file the parts make. The runner reports the real total, or an estimate, as it goes.
+            vm.Size = null;
             vm.PlanRun = runState;
             vm.PlanControl = controller;
         });
@@ -198,9 +201,28 @@ public partial class DownloadManager
             }
             else
             {
-                pct = partFraction.Sum() / parts.Count * 100.0 * downloadShare;
-                onProgress?.Invoke(new PlanProgress(pct, partSpeed.Sum(), 0, 0));
+                var fraction = partFraction.Sum() / parts.Count;
+                var total = EstimatedTotal();
+                pct = fraction * 100.0 * downloadShare;
+                onProgress?.Invoke(new PlanProgress(pct, partSpeed.Sum(), (long)(fraction * total), total));
             }
+        }
+
+        // No part says how big it is (an HLS playlist never does), so the total is an estimate: the mean
+        // size of a few parts spread over the whole list, times the part count. Until those probes answer,
+        // the mean of the parts finished so far stands in.
+        long sampledTotal = 0;
+        if (!allSized)
+            _ = Task.Run(async () => Interlocked.Exchange(ref sampledTotal,
+                await SampleTotalAsync(parts, context).ConfigureAwait(false)), ct);
+
+        long EstimatedTotal()
+        {
+            var sampled = Interlocked.Read(ref sampledTotal);
+            if (sampled > 0)
+                return sampled;
+            var done = partFraction.Count(f => f >= 1);
+            return done == 0 ? 0 : Interlocked.Read(ref doneBytes) / done * parts.Count;
         }
 
         controller ??= new PlanController();
@@ -429,6 +451,37 @@ public partial class DownloadManager
 
         TryDeleteDir(partsDir);
         return finalPath;
+    }
+
+    /// <summary>How many parts are probed for their size to estimate an unsized plan's total.</summary>
+    internal const int SizeSamples = 8;
+
+    /// <summary>Pure: which parts to probe — spread evenly over the WHOLE list, so a plan whose video
+    /// segments come first and audio segments last is measured fairly. None for a short plan: there the
+    /// mean of the finished parts is right soon enough, and the probes would cost a request per part.</summary>
+    internal static IReadOnlyList<int> SampleIndices(int partCount) =>
+        partCount < SizeSamples * 4
+            ? Array.Empty<int>()
+            : Enumerable.Range(0, SizeSamples).Select(i => (int)((i + 0.5) * partCount / SizeSamples)).ToList();
+
+    /// <summary>Pure: the mean of the sizes that are known, times the part count (0 when none is known).</summary>
+    internal static long EstimateTotal(IEnumerable<long> sampleSizes, int partCount)
+    {
+        var known = sampleSizes.Where(s => s > 0).ToList();
+        return known.Count == 0 ? 0 : (long)(known.Average() * partCount);
+    }
+
+    private async Task<long> SampleTotalAsync(List<PersistedPart> parts, RequestContext context)
+    {
+        var probes = SampleIndices(parts.Count).Select(async i =>
+        {
+            var cfg = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
+            ApplyRequestContext(cfg, context);
+            ApplyHeaders(cfg, parts[i].Headers);
+            var info = await UrlResolver.ResolveFileInfoAsync(parts[i].Url, cfg).ConfigureAwait(false);
+            return info?.FileSize ?? 0;
+        });
+        return EstimateTotal(await Task.WhenAll(probes).ConfigureAwait(false), parts.Count);
     }
 
     /// <summary>Pure: a part downloads single-chunk when it's a segment (HLS) or known-small — multipart

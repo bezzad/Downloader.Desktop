@@ -861,7 +861,9 @@ function groupKey(url) {
 // Runs `tasks` (each a function receiving an AbortSignal and returning a promise) with a
 // concurrency cap and a per-task timeout. Never rejects: a timed-out or throwing task resolves to
 // null in the result array, in the same order as `tasks` — callers never need to catch.
-async function runProbesBounded(tasks, { concurrency = 4, timeoutMs = 2500 } = {}) {
+// The popup shows sizes only once EVERY probe has answered, and a feed page (x.com) holds dozens of
+// streams, so 4 at a time made the sizes appear many seconds late.
+async function runProbesBounded(tasks, { concurrency = 8, timeoutMs = 2500 } = {}) {
   const results = new Array(tasks.length).fill(null);
   let next = 0;
   async function worker() {

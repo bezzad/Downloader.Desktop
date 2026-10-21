@@ -117,6 +117,18 @@ test("probeSize returns null when both attempts fail", async () => {
   assert.equal(await probeSize("https://cdn.example.com/a.mp4"), null);
 });
 
+test("runProbesBounded runs 8 probes at once by default, so a busy page's sizes are not late", async () => {
+  let running = 0, max = 0;
+  const tasks = Array.from({ length: 16 }, () => async () => {
+    max = Math.max(max, ++running);
+    await new Promise(r => setTimeout(r, 20));
+    running--;
+    return 1;
+  });
+  await runProbesBounded(tasks);
+  assert.equal(max, 8);
+});
+
 test("runProbesBounded resolves in order and tolerates throws/timeouts", async () => {
   const tasks = [
     async () => 1,

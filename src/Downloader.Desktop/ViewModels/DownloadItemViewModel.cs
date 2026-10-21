@@ -79,7 +79,8 @@ public class DownloadItemViewModel : ViewModelBase
         Progress = _pendingProgress;
         Speed = _pendingSpeed;
         Downloaded = _pendingDownloaded;
-        if (_pendingSize > 0 && _item.Size is null or 0)
+        // A multi-part plan's total is an estimate that improves as it runs, so it may replace an earlier one.
+        if (_pendingSize > 0 && (_item.Size is null or 0 || PlanRun != null))
             Size = _pendingSize;
         return true;
     }

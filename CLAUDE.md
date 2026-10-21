@@ -329,6 +329,16 @@ Rough order to turn the current skeleton into the MVP above:
      (`MIN_MEDIA_BYTES`) still applies at 0. The e2e fixtures set it to 0 (every fixture is < 1 MB);
      `e2e/tests/min-size.spec.js` puts the default back. Extension 1.23.0.
 
+23. ✅ **Size of a multi-part (HLS) download (Twitter showed ~1 KB)** (DONE, 2026-10-21):
+   - The row kept the size of the PLAYLIST text (the name probe of the `.m3u8` link), because a size,
+     once set, was never replaced, and an unsized plan reported a total of 0. Now `RunPlanAsync` clears
+     the row's size, and an unsized plan reports an estimate: the mean size of 8 parts spread over the
+     WHOLE list (probed once, `SampleIndices`/`EstimateTotal`) × part count — spread, because a plan
+     with a separate audio rendition has big video segments first and small audio segments last, so
+     "mean of the parts done so far" was ~2× too big for the first half. Short plans (< 32 parts) are not
+     probed; the mean of finished parts stands in. A plan row's size may be replaced (`FlushProgress`).
+   - Extension 1.23.1: size probes run 8 at a time (was 4); the popup waits for all of them.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

@@ -289,7 +289,7 @@ async function probeMediaForTab(tabId) {
     }
     return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
   });
-  return runProbesBounded(tasks, { concurrency: 4, timeoutMs: 2500 });
+  return runProbesBounded(tasks);
 }
 
 function updateBadge(tabId, count) {
