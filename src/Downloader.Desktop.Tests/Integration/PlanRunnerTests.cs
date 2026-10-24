@@ -572,8 +572,11 @@ public class PlanRunnerTests
     [Fact(Timeout = TestTimeouts.SlowMs)]
     public async Task An_unsized_segment_plan_reports_its_estimated_total_while_running()
     {
-        var files = Enumerable.Range(0, 40).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 20 ? 3000 : 500));
-        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(150) };
+        // 80 parts at 4 at a time: the first half takes ~10 server delays (~2.5 s), the 8 size probes (3 at
+        // a time, through the shared probe gate) about 3. With 40 parts and 150 ms the window was ~0.75 s,
+        // and busy CI runners missed it again and again.
+        var files = Enumerable.Range(0, 80).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 40 ? 3000 : 500));
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
         var dir = TempDir();
         try
         {
@@ -584,7 +587,7 @@ public class PlanRunnerTests
                 CancellationToken.None);
 
             Assert.NotNull(finalPath);
-            const long real = 20 * 3000 + 20 * 500;
+            const long real = 40 * 3000 + 40 * 500;
             Assert.Contains(reports, r => r.Total == real && r.Downloaded < real / 2);
         }
         finally { TryDelete(dir); }
