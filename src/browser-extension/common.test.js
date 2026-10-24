@@ -8,12 +8,13 @@ const assert = require("node:assert/strict");
 global.chrome = { cookies: {} };
 const {
   groupKey, extractQualityToken, parseHlsMaster, probeSize,
-  runProbesBounded, formatBytes, shortVersion, isKnownUnsupportedHost,
+  runProbesBounded, probeUncached, formatBytes, shortVersion, isKnownUnsupportedHost,
   isPlausibleMediaSize, MIN_MEDIA_BYTES,
+  LIST_MIN_SIZE_STEPS, LIST_MIN_SIZE_DEFAULT, listMinSizeStep, getListMinSize, setListMinSize,
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
-  buildThumbnailIndex, pickThumbnail, assignThumbnails, shotImage, mediaTokens,
+  buildThumbnailIndex, pickThumbnail, mergeShots, assignThumbnails, shotImage, mediaTokens,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
@@ -31,7 +32,8 @@ const {
   chipLabel,
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
   contrastRatio,
-  appFetch, APP_TIMEOUT_MS, awaitAddTicket
+  appFetch, APP_TIMEOUT_MS, awaitAddTicket,
+  canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -114,6 +116,18 @@ test("probeSize falls back to a ranged GET when HEAD has no length", async () =>
 test("probeSize returns null when both attempts fail", async () => {
   global.fetch = async () => { throw new Error("down"); };
   assert.equal(await probeSize("https://cdn.example.com/a.mp4"), null);
+});
+
+test("runProbesBounded runs 8 probes at once by default, so a busy page's sizes are not late", async () => {
+  let running = 0, max = 0;
+  const tasks = Array.from({ length: 16 }, () => async () => {
+    max = Math.max(max, ++running);
+    await new Promise(r => setTimeout(r, 20));
+    running--;
+    return 1;
+  });
+  await runProbesBounded(tasks);
+  assert.equal(max, 8);
 });
 
 test("runProbesBounded resolves in order and tolerates throws/timeouts", async () => {
@@ -1226,6 +1240,88 @@ test("a folder the app refuses is a failed send, never a silent success", async 
   assert.equal(handed.reason, "app-rejected-400");
 });
 
+test("mergeShots keeps players that scrolled away and retries a missing picture", () => {
+  const a = { src: "blob:https://x.com/1", poster: "https://pbs.twimg.com/amplify_video_thumb/111/img/a.jpg", frame: "data:A", area: 10 };
+  const bNoPicture = { src: "https://video.twimg.com/222/vid/b.mp4", poster: "", frame: null, area: 10 };
+  const first = mergeShots([], [a, bNoPicture]);
+
+  // Next open: x.com removed A's player from the page, B now has a frame, and C is new.
+  const bFrame = { ...bNoPicture, frame: "data:B" };
+  const c = { src: "blob:https://x.com/3", poster: "https://pbs.twimg.com/amplify_video_thumb/333/img/c.jpg", frame: null, area: 5 };
+  const second = mergeShots(first, [bFrame, c]);
+  const byKey = new Map(second.map(s => [s.poster || s.src, s]));
+  assert.equal(byKey.get(a.poster).frame, "data:A");       // scrolled away, picture kept
+  assert.equal(byKey.get(bNoPicture.src).frame, "data:B"); // missing last time, found now
+  assert.ok(byKey.has(c.poster));                          // new player added
+
+  // A later look without A's frame (canvas tainted this time) never loses the frame found before.
+  const third = mergeShots(second, [{ ...a, frame: null }]);
+  assert.equal(third.find(s => s.poster === a.poster).frame, "data:A");
+
+  // An old blob-only shot ties to no link; it is not carried forward.
+  assert.equal(mergeShots([{ src: "blob:https://x.com/9", poster: "", frame: "data:Z" }], []).length, 0);
+});
+
+test("probeUncached measures each link once and keeps the answer for the next open", async () => {
+  const cache = new Map();
+  const calls = [];
+  const sizes = { "https://a/x.mp4": 5000, "https://a/y.mp4": null };
+  const make = item => async () => { calls.push(item.url); return { url: item.url, kind: "direct", size: sizes[item.url] }; };
+  const items = [{ url: "https://a/x.mp4" }, { url: "https://a/y.mp4" }];
+
+  const first = await probeUncached(items, cache, make);
+  assert.deepEqual(first.map(r => r.size), [5000, null]);
+  assert.deepEqual(calls, ["https://a/x.mp4", "https://a/y.mp4"]);
+
+  calls.length = 0;
+  const second = await probeUncached(items, cache, make);
+  assert.equal(second[0].size, 5000);
+  assert.deepEqual(calls, ["https://a/y.mp4"]); // only the one with no size yet is asked again
+});
+
+test("isPlausibleMediaSize hides files under the user's minimum, never an unknown size", () => {
+  const oneMb = 1024 * 1024;
+  assert.ok(!isPlausibleMediaSize(500 * 1024, oneMb)); // 500 KB under a 1 MB minimum is hidden
+  assert.ok(isPlausibleMediaSize(oneMb, oneMb));       // boundary is inclusive
+  assert.ok(isPlausibleMediaSize(null, 10 * 1024 ** 3)); // size not known yet -> always shown
+});
+
+test("list minimum size: 1 MB by default, slider runs 0 to 10 GB in steps", () => {
+  assert.equal(LIST_MIN_SIZE_DEFAULT, 1024 * 1024);
+  assert.equal(LIST_MIN_SIZE_STEPS[0], 0);
+  assert.equal(LIST_MIN_SIZE_STEPS.at(-1), 10 * 1024 ** 3);
+  for (let i = 1; i < LIST_MIN_SIZE_STEPS.length; i++)
+    assert.ok(LIST_MIN_SIZE_STEPS[i] > LIST_MIN_SIZE_STEPS[i - 1]);
+  assert.ok(LIST_MIN_SIZE_STEPS.includes(LIST_MIN_SIZE_DEFAULT));
+});
+
+test("listMinSizeStep maps a stored size to the largest step not above it", () => {
+  assert.equal(listMinSizeStep(0), 0);
+  assert.equal(LIST_MIN_SIZE_STEPS[listMinSizeStep(1024 * 1024)], 1024 * 1024);
+  assert.equal(LIST_MIN_SIZE_STEPS[listMinSizeStep(3 * 1024 * 1024)], 2 * 1024 * 1024);
+  assert.equal(listMinSizeStep(50 * 1024 ** 3), LIST_MIN_SIZE_STEPS.length - 1);
+});
+
+test("getListMinSize defaults to 1 MB and round-trips what setListMinSize stores", async () => {
+  const saved = global.chrome.storage;
+  const store = {};
+  global.chrome.storage = { local: {
+    get: async d => ({ ...d, ...store }),
+    set: v => Object.assign(store, v)
+  } };
+  try {
+    assert.equal(await getListMinSize(), 1024 * 1024);
+    setListMinSize(0);
+    assert.equal(await getListMinSize(), 0);
+    setListMinSize(5 * 1024 ** 3);
+    assert.equal(await getListMinSize(), 5 * 1024 ** 3);
+    store.listMinSizeBytes = "junk";
+    assert.equal(await getListMinSize(), 1024 * 1024);
+  } finally {
+    global.chrome.storage = saved;
+  }
+});
+
 test("getSavePath/setSavePath round-trip through extension storage, trimmed", async () => {
   const store = {};
   global.chrome.storage = {
@@ -1310,9 +1406,12 @@ test("reading response headers needs no permission the extension did not already
       "cookies", "downloads"],
     hostPermissions: ["<all_urls>"]
   };
+  // Chrome/Edge also list "sidePanel" (1.24.0, the side panel open mode). It shows the user no
+  // warning; Firefox needs no permission for its sidebar.
+  const extra = { "manifest.json": ["sidePanel"], "manifest.firefox.json": [] };
   for (const file of ["manifest.json", "manifest.firefox.json"]) {
     const m = JSON.parse(fs.readFileSync(`${__dirname}/${file}`, "utf8"));
-    assert.deepEqual(m.permissions, expected.permissions, `${file} permissions changed`);
+    assert.deepEqual(m.permissions, [...expected.permissions, ...extra[file]], `${file} permissions changed`);
     assert.ok(m.host_permissions.includes("<all_urls>"), `${file} must already read every host`);
   }
 });
@@ -2239,4 +2338,67 @@ test("quality lookups for many pages never hold more than the cap of connections
   } finally {
     global.fetch = realFetch;
   }
+});
+
+// ---------------- Popup or side panel (the toolbar button's open mode) ----------------
+// Swaps the browser pieces the open mode touches, runs fn, and puts them back.
+async function withBrowser(parts, fn) {
+  const keys = ["storage", "action", "sidePanel", "sidebarAction"];
+  const saved = Object.fromEntries(keys.map(k => [k, global.chrome[k]]));
+  const store = {};
+  const calls = [];
+  for (const k of keys) delete global.chrome[k];
+  global.chrome.storage = { local: { get: async d => ({ ...d, ...store }), set: v => Object.assign(store, v) } };
+  global.chrome.action = { setPopup: async o => calls.push(["setPopup", o.popup]) };
+  if (parts.chrome) global.chrome.sidePanel = { setPanelBehavior: async o => calls.push(["behavior", o.openPanelOnActionClick]) };
+  if (parts.firefox) global.chrome.sidebarAction = { toggle: () => {} };
+  try {
+    await fn(calls, store);
+  } finally {
+    for (const k of keys) { if (saved[k] === undefined) delete global.chrome[k]; else global.chrome[k] = saved[k]; }
+  }
+}
+
+test("open mode is the popup by default and round-trips the side panel choice", async () => {
+  await withBrowser({ chrome: true }, async (_, store) => {
+    assert.equal(await getOpenMode(), "popup");
+    setOpenMode("panel");
+    assert.equal(await getOpenMode(), "panel");
+    setOpenMode("junk");
+    assert.equal(await getOpenMode(), "popup");
+    store.openMode = "panel";
+    assert.equal(await getOpenMode(), "panel");
+  });
+});
+
+test("a browser with no side panel never reads as panel mode, whatever was stored", async () => {
+  await withBrowser({}, async (calls, store) => {
+    assert.equal(canOpenPanel(), false);
+    store.openMode = "panel";
+    assert.equal(await getOpenMode(), "popup");
+    await applyOpenMode("panel");
+    assert.deepEqual(calls, [["setPopup", "popup.html"]]); // the button keeps its popup
+  });
+});
+
+test("Chrome/Edge: panel mode removes the popup and lets the button open and close the side panel", async () => {
+  await withBrowser({ chrome: true }, async calls => {
+    assert.equal(canOpenPanel(), true);
+    await applyOpenMode("panel");
+    assert.deepEqual(calls, [["setPopup", ""], ["behavior", true]]);
+    calls.length = 0;
+    await applyOpenMode("popup");
+    assert.deepEqual(calls, [["setPopup", "popup.html"], ["behavior", false]]);
+  });
+});
+
+test("Firefox: panel mode removes the popup so the click reaches the sidebar toggle", async () => {
+  await withBrowser({ firefox: true }, async calls => {
+    assert.equal(canOpenPanel(), true);
+    await applyOpenMode("panel");
+    assert.deepEqual(calls, [["setPopup", ""]]);
+    calls.length = 0;
+    await applyOpenMode("popup");
+    assert.deepEqual(calls, [["setPopup", "popup.html"]]);
+  });
 });

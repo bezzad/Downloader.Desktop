@@ -321,6 +321,46 @@ Rough order to turn the current skeleton into the MVP above:
      end edge** (`MainViewModel.SidebarWidth`, 68–400 px, saved in `Config.SidebarWidth`); below
      120 px it shows only the icons (`IsSidebarCompact` → `compact` class on the `Sidebar` panel).
 
+23. ✅ **Hide small files in the popup list (`listMinSizeBytes`)** (DONE, 2026-10-21):
+   - Options page → "Files found on a page" → **Hide files smaller than** slider, **1 MB by default**,
+     0 to 10 GB through fixed steps (`LIST_MIN_SIZE_STEPS` in `common.js`: 0, 100 KB, 500 KB, 1-2-5 MB …
+     10 GB) because a straight 0–10 GB slider cannot pick 1 MB. Stored apart from the interception
+     rules (it applies with interception off). An unknown size is always shown; the 8 KB junk floor
+     (`MIN_MEDIA_BYTES`) still applies at 0. The e2e fixtures set it to 0 (every fixture is < 1 MB);
+     `e2e/tests/min-size.spec.js` puts the default back. Extension 1.23.0.
+   - **Popup cache** (1.23.2): `background.js` `tabCache` keeps each link's probe result
+     (`probeUncached` in `common.js`) and the page's thumbnails per tab, so reopening the popup does not
+     measure or capture again. Cleared on any `status: "loading"` (a reload has no `url` there). A probe
+     that found no size is not cached. "Download all" sends `currentGroups`, i.e. only what the filter shows.
+   - **1.23.3 fix (x.com feed)**: `getMedia` now returns the cached probes + thumbnails so the first
+     paint is the same list as last time, and the page is ALWAYS looked at again; its shots are added to
+     the saved ones with `mergeShots` (key = poster, else src). x.com removes players that scroll away,
+     so replacing the shots lost their pictures, and caching "no picture" never retried it.
+
+23. ✅ **Size of a multi-part (HLS) download (Twitter showed ~1 KB)** (DONE, 2026-10-21):
+   - The row kept the size of the PLAYLIST text (the name probe of the `.m3u8` link), because a size,
+     once set, was never replaced, and an unsized plan reported a total of 0. Now `RunPlanAsync` clears
+     the row's size, and an unsized plan reports an estimate: the mean size of 8 parts spread over the
+     WHOLE list (probed once, `SampleIndices`/`EstimateTotal`) × part count — spread, because a plan
+     with a separate audio rendition has big video segments first and small audio segments last, so
+     "mean of the parts done so far" was ~2× too big for the first half. Short plans (< 32 parts) are not
+     probed; the mean of finished parts stands in. A plan row's size may be replaced (`FlushProgress`).
+   - Extension 1.23.1: size probes run 8 at a time (was 4); the popup waits for all of them.
+
+24. ✅ **Extension side panel (stays open)** (DONE, 2026-10-21, extension 1.24.0):
+   - A popup ALWAYS closes on an outside click (browser rule), so the popup footer has a **side panel
+     button beside Settings** (`#togglePanel`, 1.24.1 — it was an options-page select in 1.24.0): it
+     opens the panel right away (`sidePanel.open`/`sidebarAction.open`, inside the click) and stores the
+     mode; in the panel the same button (accent, `on`) goes back to the popup. Settings icon is a gear. Chrome/Edge: `side_panel` + `sidePanel` permission;
+     `applyOpenMode` (common.js) sets `action.setPopup("")` + `sidePanel.setPanelBehavior({openPanelOnActionClick})`,
+     so the browser itself opens/closes the panel on the button. Firefox: `sidebar_action`
+     (`open_at_install: false`); with no popup the click reaches `action.onClicked` → `sidebarAction.toggle()`.
+   - **Left/right is the browser's choice, not an API**: Chrome/Edge Appearance settings, Firefox sidebar menu.
+   - The same `popup.html` is the panel; in panel mode it adds `body.panel` (fluid width), reloads on tab
+     switch / page load, and re-reads media on the background's `mediaAdded` message and on page scroll
+     (`watchPageScroll` injects a throttled scroll listener that sends `pageScrolled`; the panel then also
+     re-scans the page's media links).
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

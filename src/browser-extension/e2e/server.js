@@ -10,6 +10,8 @@ const PORT = 8991;
 
 const MIME = { ".html": "text/html", ".m3u8": "application/vnd.apple.mpegurl", ".mp4": "video/mp4", ".ts": "video/mp2t", ".zip": "application/zip", ".jpg": "image/jpeg" };
 
+let growCount = 0;
+
 function start() {
   const server = http.createServer((req, res) => {
     let urlPath = decodeURIComponent(req.url.split("?")[0]);
@@ -72,6 +74,15 @@ function start() {
         return;
       }
       stream.pipe(res);
+      return;
+    }
+
+    // A file that grows by 1 KB on every request, so a test can tell a cached size from a measured one.
+    if (urlPath === "/videos/grow.mp4") {
+      growCount++;
+      const body = Buffer.alloc(20000 + growCount * 1024);
+      res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": body.length });
+      res.end(req.method === "HEAD" ? undefined : body);
       return;
     }
 

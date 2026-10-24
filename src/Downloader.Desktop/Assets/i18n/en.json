@@ -211,6 +211,7 @@
   "About_Desc": "Cross-platform download manager. No installation or dependencies required.",
   "About_Title": "About",
   "About_Version": "Version {0}",
+  "About_ReleaseDate": "Released {0}",
   "About_DevelopedWith": "Developed with ❤ for you",
   "About_Donate": "Donate",
   "About_Sec1_Title": "Free & open source",

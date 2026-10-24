@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Reflection;
 using System.Windows.Input;
 using Downloader.Desktop.Services;
 using ReactiveUI;
@@ -48,6 +50,14 @@ public class AboutViewModel : ViewModelBase
 
     /// <summary>The clean 3-part version shown under the title (same value the update check uses).</summary>
     public string VersionText => string.Format(Localizer.Instance["About_Version"], UpdateService.CurrentVersion);
+
+    /// <summary>The UTC date this build was made (yyyy-MM-dd), stamped by the csproj. A release is built on release day.</summary>
+    public static string BuildDate => typeof(AboutViewModel).Assembly
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(a => a.Key == "BuildDate")?.Value ?? "";
+
+    /// <summary>The release date shown under the version.</summary>
+    public string ReleaseDateText => string.Format(Localizer.Instance["About_ReleaseDate"], BuildDate);
 
     private static void Open(string url) => ShellLauncher.Open(url);
 }

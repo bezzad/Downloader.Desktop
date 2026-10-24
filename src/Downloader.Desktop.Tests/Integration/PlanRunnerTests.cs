@@ -543,6 +543,56 @@ public class PlanRunnerTests
         Assert.Equal(1, mgr.SegmentSlots());
     }
 
+    // ---------------- Size of an unsized plan (Twitter HLS showed ~1 KB) ----------------
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Size_samples_are_spread_over_the_whole_plan()
+    {
+        Assert.Empty(DownloadManager.SampleIndices(DownloadManager.SizeSamples * 4 - 1)); // short plan: no probes
+
+        var picked = DownloadManager.SampleIndices(2197);
+        Assert.Equal(DownloadManager.SizeSamples, picked.Count);
+        Assert.Equal(picked.Count, picked.Distinct().Count());
+        Assert.All(picked, i => Assert.InRange(i, 0, 2196));
+        // Both halves are measured: video segments first and audio segments last must both count.
+        Assert.Equal(DownloadManager.SizeSamples / 2, picked.Count(i => i < 2197 / 2));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void Estimated_total_is_the_mean_of_known_samples_times_the_part_count()
+    {
+        Assert.Equal(70_000, DownloadManager.EstimateTotal(new long[] { 3000, 500, 0, 3000, 500 }, 40));
+        Assert.Equal(0, DownloadManager.EstimateTotal(new long[] { 0, 0 }, 40)); // nothing known: no guess
+    }
+
+    /// <summary>The reported bug end to end: a long segment plan where no part carries a size (an HLS
+    /// playlist), big video segments first and small audio segments last. The runner used to report a
+    /// total of 0, so the row kept the playlist's own size; it must now report the real total early,
+    /// while only the video half is done.</summary>
+    [Fact(Timeout = TestTimeouts.SlowMs)]
+    public async Task An_unsized_segment_plan_reports_its_estimated_total_while_running()
+    {
+        // 80 parts at 4 at a time: the first half takes ~10 server delays (~2.5 s), the 8 size probes (3 at
+        // a time, through the shared probe gate) about 3. With 40 parts and 150 ms the window was ~0.75 s,
+        // and busy CI runners missed it again and again.
+        var files = Enumerable.Range(0, 80).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 40 ? 3000 : 500));
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
+        var dir = TempDir();
+        try
+        {
+            var reports = new ConcurrentQueue<(long Downloaded, long Total)>();
+            var finalPath = await new DownloadManager().ExecutePlanAsync(
+                SegmentPlan(server.Url, files.Keys.OrderBy(k => k, StringComparer.Ordinal)), dir, "x.mp4", null,
+                _ => { }, _ => { }, p => reports.Enqueue((p.Downloaded, p.Total)), () => false,
+                CancellationToken.None);
+
+            Assert.NotNull(finalPath);
+            const long real = 40 * 3000 + 40 * 500;
+            Assert.Contains(reports, r => r.Total == real && r.Downloaded < real / 2);
+        }
+        finally { TryDelete(dir); }
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Run_state_tracks_every_segment_to_done()
     {

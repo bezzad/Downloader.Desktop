@@ -2615,3 +2615,12 @@ null; in engine 5.9.8 that is `RequestInstances.First()`, and `RequestInstances`
   `LocalApiService.BuildItem` applies `LinkText.EscapeWhitespace` to url + mirrors, which covers the
   silent `/api/add` and every CLI add (the CLI forwards JSON that `SilentAdd` builds with `BuildItem`).
   Known ambiguity, accepted: `https://h/x.zip is the file` on one line now reads as one link.
+
+## A plan row's size: estimate, never the link's size (2026-10-21)
+- The name probe of an `.m3u8` link sets the row size to the PLAYLIST's bytes (~1 KB). `RunPlanAsync` clears
+  it; `FlushProgress` lets a plan row (`PlanRun != null`) replace its size, because the estimate changes.
+- Unsized plan total = mean of `SampleIndices` probes × part count (`ExecutePlanAsync`). Never "mean of the
+  parts done so far": HLS with a separate audio rendition lists video segments first, audio last, so that
+  mean is ~2× too big for half the run.
+- Probes are skipped below 32 parts on purpose: PlanRunnerTests count requests per segment (`Requested`),
+  and a probe is a GET `bytes=0-0` that the loopback server records like a download.

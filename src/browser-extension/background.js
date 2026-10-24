@@ -9,6 +9,15 @@ if (typeof importScripts === "function") importScripts("common.js");
 
 // tabId -> Map(url -> { url, type, group, capturedAt })   detected media for the current page
 const tabMedia = new Map();
+// tabId -> { probes: Map(url -> probe result), thumbs }   what the popup measured on this page, kept
+// so opening the popup again is instant. Cleared when the tab reloads or navigates.
+const tabCache = new Map();
+
+function cacheFor(tabId) {
+  let c = tabCache.get(tabId);
+  if (!c) { c = { probes: new Map(), thumbs: null }; tabCache.set(tabId, c); }
+  return c;
+}
 
 // ---------------- Context menus ----------------
 api.runtime.onInstalled.addListener(() => {
@@ -38,9 +47,29 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === "dl-selection") {
     for (const url of extractUrls(info.selectionText)) await capture(url);
   } else if (info.menuItemId === "dl-page") {
-    if (tab?.id != null) api.action.openPopup?.();
+    if (tab?.id != null) openUi(tab);
   }
 });
+
+// ---------------- Popup or side panel ----------------
+// Kept in a variable so a click handler can act on it at once: a browser only opens a panel
+// while it is still handling the user's click, and an await would lose that.
+let openMode = "popup";
+getOpenMode().then(mode => { openMode = mode; applyOpenMode(mode); });
+api.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes.openMode) return;
+  getOpenMode().then(mode => { openMode = mode; applyOpenMode(mode); });
+});
+
+// Firefox: in panel mode the button has no popup, so its click arrives here. Chrome never gets
+// here in panel mode: it opens and closes its side panel by itself.
+api.action.onClicked.addListener(() => { api.sidebarAction?.toggle(); });
+
+function openUi(tab) {
+  if (openMode !== "panel") api.action.openPopup?.();
+  else if (api.sidePanel?.open) api.sidePanel.open({ windowId: tab.windowId });
+  else api.sidebarAction?.open();
+}
 
 function extractUrls(text) {
   if (!text) return [];
@@ -261,6 +290,8 @@ function addMedia(tabId, url, type) {
   if (map.has(url)) return;
   map.set(url, { url, type: type || extOf(url), group: groupKey(url), capturedAt: Date.now() });
   updateBadge(tabId, map.size);
+  // For an open side panel; with no panel open there is nobody to receive it, which is fine.
+  try { api.runtime.sendMessage({ type: "mediaAdded", tabId })?.catch?.(() => {}); } catch { /* none */ }
 }
 
 // Runs the size/resolution probes for every item currently known for a tab. Kept separate from
@@ -270,7 +301,7 @@ async function probeMediaForTab(tabId) {
   const map = tabMedia.get(tabId);
   if (!map) return [];
   const items = [...map.values()];
-  const tasks = items.map(item => async signal => {
+  return probeUncached(items, cacheFor(tabId).probes, item => async signal => {
     if (extOf(item.url) === "m3u8") {
       const variants = await parseHlsMaster(item.url, { signal });
       // Unreadable: report nothing rather than guess. The popup then falls back to judging the URL.
@@ -289,7 +320,6 @@ async function probeMediaForTab(tabId) {
     }
     return { url: item.url, kind: "direct", size: await probeSize(item.url, { signal }) };
   });
-  return runProbesBounded(tasks, { concurrency: 4, timeoutMs: 2500 });
 }
 
 function updateBadge(tabId, count) {
@@ -301,6 +331,8 @@ function updateBadge(tabId, count) {
 
 // Reset a tab's findings when it navigates.
 api.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  // A reload has no `url` here, but its sizes and pictures may have changed, so they are measured again.
+  if (changeInfo.status === "loading") tabCache.delete(tabId);
   if (changeInfo.status === "loading" && changeInfo.url) {
     tabMedia.delete(tabId);
     updateBadge(tabId, 0);
@@ -308,6 +340,7 @@ api.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 api.tabs.onRemoved.addListener(tabId => {
   tabMedia.delete(tabId);
+  tabCache.delete(tabId);
 });
 
 // ---------------- Messages from the popup + content script ----------------
@@ -319,10 +352,19 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // visibility hint from a content script being fresh at the exact moment the popup asked, which
         // on a feed page (x.com) it routinely was not — so the page's own video was demoted into a
         // collapsed section. The popup orders by media type instead (common.js sortDetectedGroups).
+        // With what earlier opens measured and saw, so the popup's first paint is already complete.
         const map = tabMedia.get(msg.tabId);
-        sendResponse({ media: map ? [...map.values()] : [] });
+        const cache = tabCache.get(msg.tabId);
+        sendResponse({
+          media: map ? [...map.values()] : [],
+          probes: cache ? [...cache.probes.values()] : [],
+          thumbs: cache?.thumbs || null
+        });
       } else if (msg.type === "probeMedia") {
         sendResponse({ results: await probeMediaForTab(msg.tabId) });
+      } else if (msg.type === "saveThumbs") {
+        cacheFor(msg.tabId).thumbs = msg.thumbs;
+        sendResponse({});
       } else if (msg.type === "send") {
         sendResponse({ ok: await sendToApp(msg.url, msg.filename, { variantId: msg.variantId }) });
       } else if (msg.type === "ping") {

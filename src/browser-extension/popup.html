@@ -68,10 +68,17 @@
       aria-label="Copy the detected links"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"
       stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect
       x="5.6" y="5.6" width="8.1" height="8.1" rx="1.5"/><path d="M10.4 5.6V3.8a1.5 1.5 0 0 0-1.5-1.5H3.8a1.5 1.5 0 0 0-1.5 1.5v5.1a1.5 1.5 0 0 0 1.5 1.5h1.8"/></svg></button>
+    <!-- Popup or side panel. The browser closes a popup on any click outside it; the side panel
+         stays open. Hidden by popup.js where the browser has no side panel. -->
+    <button id="togglePanel" class="icon" title="Keep open in a side panel (the browser decides left or right)"
+      aria-label="Keep open in a side panel" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect
+      x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></svg></button>
     <button id="openOptions" class="icon" title="Settings &amp; download interception"
-      aria-label="Settings"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle
-      cx="8" cy="8" r="2.3"/><path d="M8 1.6v1.8M8 12.6v1.8M2.4 8h1.8M11.8 8h1.8M4 4l1.3 1.3M10.7 10.7 12 12M12 4l-1.3 1.3M5.3 10.7 4 12"/></svg></button>
+      aria-label="Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path
+      d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle
+      cx="12" cy="12" r="3"/></svg></button>
   </footer>
 
   <script src="common.js"></script>

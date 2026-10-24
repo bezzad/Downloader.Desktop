@@ -42,13 +42,19 @@
          reads Major.Minor.Build); the 4th component (a unique, increasing revision = half-seconds since
          midnight UTC) only differentiates builds in FileVersion. Keep VersionPrefix three-part. -->
     <PropertyGroup Label="Versioning">
-        <VersionPrefix>2.16.2</VersionPrefix>
+        <VersionPrefix>2.17.0</VersionPrefix>
         <_RevisionNumber>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</_RevisionNumber>
         <Version>$(VersionPrefix).$(_RevisionNumber)</Version>
         <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
         <FileVersion>$(Version)</FileVersion>
         <InformationalVersion>$(Version)</InformationalVersion>
     </PropertyGroup>
+
+    <!-- The build date (UTC) is shown as the release date in the About dialog. A release is built
+         from its tag on release day, so the two match. -->
+    <ItemGroup>
+        <AssemblyMetadata Include="BuildDate" Value="$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd'))" />
+    </ItemGroup>
 
     <PropertyGroup>
         <CFBundleName>Downloader</CFBundleName> <!-- Also defines .app file name -->

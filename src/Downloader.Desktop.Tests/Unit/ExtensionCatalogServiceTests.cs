@@ -87,6 +87,36 @@ public class ExtensionCatalogServiceTests : IDisposable
         Assert.Empty(await ExtensionCatalogService.FetchAsync(TestContext.Current.CancellationToken));
     }
 
+    /// <summary>
+    /// The reported bug: every time the install dialog opened it asked GitHub again (~10 s), even right
+    /// after a fetch had finished. The catalog is now fetched once per app run and shared; only
+    /// "Check again" (refresh) starts a new fetch.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task The_catalog_is_fetched_once_and_shared_until_a_refresh()
+    {
+        using var server = new LoopbackServer();
+        server.MapStatus("/releases/latest", 404);
+        ExtensionCatalogService.ReleasesUrlOverride = server.Url("releases/latest");
+        ExtensionCatalogService.ResetCache();
+        try
+        {
+            var first = ExtensionCatalogService.GetAsync();
+            Assert.Same(first, ExtensionCatalogService.GetAsync());     // joined while running
+            await first;
+            Assert.Same(first, ExtensionCatalogService.GetAsync());     // reused once done
+
+            var refreshed = ExtensionCatalogService.GetAsync(refresh: true);
+            Assert.NotSame(first, refreshed);
+            Assert.Same(refreshed, ExtensionCatalogService.GetAsync());
+            await refreshed;
+        }
+        finally
+        {
+            ExtensionCatalogService.ResetCache();
+        }
+    }
+
     [Fact(Timeout = TestTimeouts.SlowMs)]
     public async Task An_unreachable_release_offers_nothing_rather_than_throwing()
     {

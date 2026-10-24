@@ -193,6 +193,36 @@ function setAddMode(mode) {
   try { api.storage.local.set({ addMode: mode === "dialog" ? "dialog" : "silent" }); } catch { /* optional */ }
 }
 
+// How the toolbar button opens the extension: "popup" (the browser closes it on any click outside)
+// or "panel" (the browser's side panel, which stays open until the button is clicked again).
+// Chrome/Edge have chrome.sidePanel; Firefox has a sidebar. The browser, not the extension,
+// decides whether that panel sits on the left or the right.
+function canOpenPanel() {
+  return !!(api.sidePanel?.setPanelBehavior || api.sidebarAction?.toggle);
+}
+
+async function getOpenMode() {
+  try {
+    const r = await api.storage.local.get({ openMode: "popup" });
+    return r.openMode === "panel" && canOpenPanel() ? "panel" : "popup";
+  } catch {
+    return "popup";
+  }
+}
+
+function setOpenMode(mode) {
+  try { api.storage.local.set({ openMode: mode === "panel" ? "panel" : "popup" }); } catch { /* optional */ }
+}
+
+// Makes the toolbar button do what the mode says. With no popup set, a click reaches
+// action.onClicked (Firefox toggles its sidebar there, see background.js); Chrome opens and
+// closes its side panel itself once openPanelOnActionClick is on.
+async function applyOpenMode(mode) {
+  const panel = mode === "panel" && canOpenPanel();
+  try { await api.action.setPopup({ popup: panel ? "" : "popup.html" }); } catch { /* keep the popup */ }
+  try { await api.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: panel }); } catch { /* optional */ }
+}
+
 // Silent add via the local API. Returns "ok" (added — on a pre-API app the same request opens
 // Map one browser cookie (chrome.cookies.getAll shape) to the app's /api/add cookie shape.
 // Session cookies (no expirationDate) omit `expires`; the app writes them with expiry 0.
@@ -861,7 +891,9 @@ function groupKey(url) {
 // Runs `tasks` (each a function receiving an AbortSignal and returning a promise) with a
 // concurrency cap and a per-task timeout. Never rejects: a timed-out or throwing task resolves to
 // null in the result array, in the same order as `tasks` — callers never need to catch.
-async function runProbesBounded(tasks, { concurrency = 4, timeoutMs = 2500 } = {}) {
+// The popup shows sizes only once EVERY probe has answered, and a feed page (x.com) holds dozens of
+// streams, so 4 at a time made the sizes appear many seconds late.
+async function runProbesBounded(tasks, { concurrency = 8, timeoutMs = 2500 } = {}) {
   const results = new Array(tasks.length).fill(null);
   let next = 0;
   async function worker() {
@@ -880,6 +912,17 @@ async function runProbesBounded(tasks, { concurrency = 4, timeoutMs = 2500 } = {
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
   return results;
+}
+
+// Probes only the items `cache` (url -> result) has no answer for, and keeps each new answer there,
+// so opening the popup again on the same page does not measure every link again. A probe that found
+// nothing (null, or a direct file with no size) is not kept: the next open tries it once more.
+async function probeUncached(items, cache, makeTask, options) {
+  const todo = items.filter(item => !cache.has(item.url));
+  const fresh = await runProbesBounded(todo.map(makeTask), options);
+  for (const r of fresh)
+    if (r && !(r.kind === "direct" && r.size == null)) cache.set(r.url, r);
+  return items.map(item => cache.get(item.url) || fresh[todo.indexOf(item)] || null);
 }
 
 // Hostnames known to stream via MSE/DRM with no stable, single-file downloadable URL (see
@@ -958,8 +1001,39 @@ function unsupportedSiteState({ hostUnsupported, appHandlesPage, handlerName, an
 // unprobed item's size is `null`, which always passes (never rejected before it's measured).
 const MIN_MEDIA_BYTES = 8192;
 
-function isPlausibleMediaSize(size) {
-  return size == null || size >= MIN_MEDIA_BYTES;
+function isPlausibleMediaSize(size, minBytes = MIN_MEDIA_BYTES) {
+  return size == null || size >= minBytes;
+}
+
+// The user's "hide files smaller than" choice for the popup list (options page slider). A slider
+// from 0 to 10 GB is useless on a straight line — 1 MB would sit a hair from 0 — so it moves
+// through these steps instead. An unknown size is never hidden (see isPlausibleMediaSize).
+const LIST_MIN_SIZE_STEPS = [
+  0, 100 * 1024, 500 * 1024,
+  ...[1, 2, 5, 10, 20, 50, 100, 200, 500].map(mb => mb * 1024 ** 2),
+  ...[1, 2, 5, 10].map(gb => gb * 1024 ** 3)
+];
+const LIST_MIN_SIZE_DEFAULT = 1024 ** 2; // 1 MB
+
+// The slider position for a stored size: the largest step not above it, so a value never moves up.
+function listMinSizeStep(bytes) {
+  let i = 0;
+  while (i + 1 < LIST_MIN_SIZE_STEPS.length && LIST_MIN_SIZE_STEPS[i + 1] <= bytes) i++;
+  return i;
+}
+
+async function getListMinSize() {
+  try {
+    const r = await api.storage.local.get({ listMinSizeBytes: LIST_MIN_SIZE_DEFAULT });
+    const n = Number(r.listMinSizeBytes);
+    return Number.isFinite(n) && n >= 0 ? n : LIST_MIN_SIZE_DEFAULT;
+  } catch {
+    return LIST_MIN_SIZE_DEFAULT;
+  }
+}
+
+function setListMinSize(bytes) {
+  try { api.storage.local.set({ listMinSizeBytes: Math.max(0, Number(bytes) || 0) }); } catch { /* optional */ }
 }
 
 // How the popup orders its one list. Two rules, in this order:
@@ -1163,6 +1237,26 @@ function mediaTokens(url) {
   const stem = last.includes(".") ? last.slice(0, last.lastIndexOf(".")) : last;
   if (stem.length >= 10 && /\d/.test(stem) && /[a-z]/i.test(stem)) tokens.push(stem);
   return tokens;
+}
+
+// Adds what the page shows now to what it showed on earlier opens. A feed (x.com) removes players
+// that scrolled away, so a fresh look alone would lose their pictures. A shot is known by its poster,
+// else its src. The newer look wins, but a frame or poster it lacks is kept from the older one — so a
+// picture missing once is tried again on the next open, and a picture found once is never lost.
+//
+// An old shot with only a blob: src is dropped: that address dies with its player and ties the
+// picture to no link, so it would only pile up.
+function mergeShots(oldShots, newShots) {
+  const byKey = new Map();
+  const keyOf = shot => shot?.poster || shot?.src;
+  const old = (oldShots || []).filter(shot => isHttp(keyOf(shot)));
+  for (const shot of [...old, ...(newShots || [])]) {
+    const key = keyOf(shot);
+    if (!key) continue;
+    const before = byKey.get(key);
+    byKey.set(key, { ...shot, frame: shot.frame || before?.frame || null, poster: shot.poster || before?.poster || "" });
+  }
+  return [...byKey.values()];
 }
 
 // Maps media URLs — and the media tokens of both a shot's src and its poster — to that shot's image.
@@ -1785,16 +1879,17 @@ if (typeof module !== "undefined") {
     extOf, isHttp, looksLikeMedia, isMediaContentType, MEDIA_EXTENSIONS,
     isManifest, MANIFEST_EXTENSIONS,
     formatBytes, shortVersion, probeSize, parseHlsMaster, estimateHlsSize,
-    groupKey, extractQualityToken, runProbesBounded,
+    groupKey, extractQualityToken, runProbesBounded, probeUncached,
     isKnownUnsupportedHost, KNOWN_UNSUPPORTED_HOSTS,
     unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME,
     createLookupLimiter, MAX_VARIANT_LOOKUPS,
     appPageVariants, askAppPageVariants, variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
     isPlausibleMediaSize, MIN_MEDIA_BYTES,
+    LIST_MIN_SIZE_STEPS, LIST_MIN_SIZE_DEFAULT, listMinSizeStep, getListMinSize, setListMinSize,
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
-    shotImage, mediaTokens, buildThumbnailIndex, pickThumbnail, assignThumbnails,
+    shotImage, mediaTokens, mergeShots, buildThumbnailIndex, pickThumbnail, assignThumbnails,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     chipLabel,
     isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
@@ -1813,6 +1908,7 @@ if (typeof module !== "undefined") {
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
     getInterceptSettings, setInterceptSettings,
     postAdd, handOffToApp, awaitAddTicket,
-    getAddMode, setAddMode
+    getAddMode, setAddMode,
+    canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
   };
 }

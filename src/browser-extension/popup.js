@@ -11,8 +11,11 @@ const statusTextEl = document.getElementById("statusText");
 const listCountEl = document.getElementById("listCount");
 
 let rawItems = []; // { url, type, group, capturedAt }
+let listMinBytes = LIST_MIN_SIZE_DEFAULT; // the user's minimum size for the list, see getListMinSize
 const probedByUrl = new Map(); // url -> probeMedia result ({ kind, size } or { kind: "hls", variants })
 let thumbIndex = { byUrl: new Map(), byToken: new Map(), single: null };
+let savedShots = []; // every player the page has shown while this tab stayed on it (see mergeShots)
+let savedPageImage = "";
 let currentTabId = null;
 let isUnsupportedHost = false;
 let siteState = { mode: "normal", message: null }; // set once the app has been asked about this page
@@ -122,7 +125,7 @@ function buildGroups() {
 
     // Drop options a probe confirmed are implausibly tiny for real media (tracking beacons,
     // empty init segments — e.g. sub-1KB responses seen on X.com) — never before a probe has run.
-    g.options = g.options.filter(opt => isPlausibleMediaSize(opt.size));
+    g.options = g.options.filter(opt => isPlausibleMediaSize(opt.size, Math.max(listMinBytes, MIN_MEDIA_BYTES)));
   }
   for (const [key, g] of map) if (g.options.length === 0) map.delete(key);
 
@@ -524,7 +527,13 @@ async function collectThumbnails() {
       }
     });
     const data = results?.[0]?.result;
-    if (data) thumbIndex = buildThumbnailIndex(data.shots, data.pageImage);
+    if (data) {
+      // Added to what earlier opens saw: a feed drops players that scrolled away (see mergeShots).
+      savedShots = mergeShots(savedShots, data.shots);
+      const pageImage = data.pageImage || savedPageImage;
+      thumbIndex = buildThumbnailIndex(savedShots, pageImage);
+      send("saveThumbs", { tabId: currentTabId, thumbs: { shots: savedShots, pageImage } });
+    }
   } catch {
     // Browser-internal pages and pages that forbid injection: rows keep their placeholders, and
     // every Download action still works.
@@ -554,10 +563,18 @@ async function loadDetected() {
     // seconds, so it must never hold up the first paint below.
     if (handled) loadPageVariants(tab.url);
   }
-  const { media } = await send("getMedia", { tabId: tab.id });
+  const { media, probes, thumbs } = (await send("getMedia", { tabId: tab.id })) || {};
   for (const m of media || []) if (!rawItems.some(i => i.url === m.url)) rawItems.push(m);
+  // Sizes and pictures from earlier opens on this page, so the first paint is the same list as last time.
+  for (const r of probes || []) probedByUrl.set(r.url, r);
+  if (thumbs) {
+    savedShots = thumbs.shots || [];
+    savedPageImage = thumbs.pageImage || "";
+    thumbIndex = buildThumbnailIndex(savedShots, savedPageImage);
+  }
   render();
-  // Both upgrade the list in place; neither delays this first paint.
+  // Both upgrade the list in place; neither delays this first paint. Only new links are measured; the
+  // page is always looked at again, for new players and for pictures that were missing.
   probeAndRender();
   collectThumbnails().then(render);
 }
@@ -608,6 +625,10 @@ document.getElementById("sendAll").onclick = async () => {
   }
 };
 
+// "Hide files smaller than" from the options page. The list first paints with the default and
+// repaints once the stored value is read.
+getListMinSize().then(bytes => { listMinBytes = bytes; render(); });
+
 // Silent-vs-dialog choice (persisted; the background worker reads it on every send).
 const silentEl = document.getElementById("silentMode");
 getAddMode().then(mode => { silentEl.checked = mode === "silent"; });
@@ -646,6 +667,24 @@ document.getElementById("openOptions").onclick = () => {
   else api.tabs?.create({ url: api.runtime.getURL("options.html") });
 };
 
+// Popup <-> side panel. Opens the other one at once (still inside the user's click, which the
+// browser requires) and closes this one; the toolbar button then opens the chosen one.
+const panelBtn = document.getElementById("togglePanel");
+let windowId = null; // read now: an await inside the click would lose the click for sidePanel.open
+api.windows?.getCurrent?.().then(w => { windowId = w.id; }).catch(() => {});
+panelBtn.hidden = !canOpenPanel();
+panelBtn.onclick = async () => {
+  const toPanel = !document.body.classList.contains("panel");
+  if (toPanel) {
+    if (api.sidePanel?.open) api.sidePanel.open({ windowId }).catch(() => {});
+    else api.sidebarAction?.open();
+  }
+  setOpenMode(toPanel ? "panel" : "popup");
+  if (toPanel) setTimeout(() => window.close(), 300); // the popup; the new panel stays
+  else if (api.sidebarAction?.close) api.sidebarAction.close();
+  else window.close(); // closes the side panel
+};
+
 // Shows the installed extension's own version next to its name, so a report ("I'm on the latest
 // version but...") can be answered from a screenshot instead of asking the user to dig through
 // about:addons. `getManifest()` is synchronous and always available — no permission, no network.
@@ -661,3 +700,60 @@ syncAccent(document.documentElement);
 
 refreshStatus();
 loadDetected();
+
+// Panel mode: asks the page to say when it is scrolled, since a feed loads new videos as it
+// scrolls. Throttled in the page, so a long scroll sends one message a second at most.
+async function watchPageScroll() {
+  const tab = await activeTab();
+  try {
+    await api.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        if (window.__downloaderScrollWatch) return;
+        window.__downloaderScrollWatch = true;
+        let last = 0;
+        addEventListener("scroll", () => {
+          const now = Date.now();
+          if (now - last < 1000) return;
+          last = now;
+          try { chrome.runtime.sendMessage({ type: "pageScrolled" })?.catch?.(() => {}); } catch { /* reloaded */ }
+        }, { passive: true, capture: true });
+      }
+    });
+  } catch {
+    // Browser-internal pages and pages that forbid injection: media still arrives by mediaAdded.
+  }
+}
+
+// In panel mode this page is the side panel, which stays open while the user browses. So it fills
+// the panel's width, starts over when another tab is shown or the page loads again, and picks up
+// media the page starts playing, or shows on scroll, after the panel opened.
+getOpenMode().then(mode => {
+  if (mode !== "panel") return;
+  document.body.classList.add("panel");
+  panelBtn.classList.add("on");
+  panelBtn.title = panelBtn.ariaLabel = "Back to the small window";
+  api.tabs.onActivated.addListener(info => {
+    if (windowId == null || info.windowId === windowId) location.reload();
+  });
+  api.tabs.onUpdated.addListener((tabId, change) => {
+    if (tabId === currentTabId && change.status === "complete") location.reload();
+  });
+  let pending = null;
+  let scanToo = false;
+  api.runtime.onMessage.addListener((msg, sender) => {
+    const added = msg?.type === "mediaAdded" && msg.tabId === currentTabId;
+    const scrolled = msg?.type === "pageScrolled" && sender?.tab?.id === currentTabId;
+    if (!(added || scrolled)) return;
+    scanToo ||= scrolled;
+    if (pending) return;
+    pending = setTimeout(async () => {
+      const scan = scanToo;
+      pending = null;
+      scanToo = false;
+      await loadDetected();
+      if (scan) scanPageLinks(); // the page's own video/audio tags and media links
+    }, 1000);
+  });
+  watchPageScroll();
+});

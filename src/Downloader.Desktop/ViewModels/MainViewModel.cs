@@ -648,7 +648,7 @@ public class MainViewModel : ViewModelBase
             // An empty catalog is NOT the end of the check: the app carries its own copy of the extension,
             // and that copy is what a browser running an older one is behind. Returning here meant the
             // check could never fire on any machine today, since no published release carries a catalog.
-            var catalog = await ExtensionCatalogService.FetchAsync().ConfigureAwait(true);
+            var catalog = await ExtensionCatalogService.GetAsync().ConfigureAwait(true);
 
             // One pointer per run, however many browsers are behind: the action lives in the window
             // (Settings → Install browser extension), because a native notification cannot carry a click.

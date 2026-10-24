@@ -81,6 +81,8 @@ textarea, select {
 }
 select { width: auto; flex: 1; }
 textarea { resize: vertical; }
+input[type="range"] { flex: 1; accent-color: var(--accent); }
+output { min-width: 80px; text-align: end; font-variant-numeric: tabular-nums; }
 
 button {
   cursor: pointer; border: none; border-radius: 7px; padding: 7px 11px;

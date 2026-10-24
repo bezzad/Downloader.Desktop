@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ inputs.os || 'macos-latest' }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install .NET
         uses: actions/setup-dotnet@v5

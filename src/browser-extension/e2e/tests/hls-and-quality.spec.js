@@ -213,3 +213,31 @@ test("an audio-only rendition is listed BELOW a real video file, never above it"
   expect(audio).toBeGreaterThanOrEqual(0);
   expect(video).toBeLessThan(audio);
 });
+
+test("Download all sends only the files the size filter shows", async ({ context, extensionId }) => {
+  const running = await appAnsweringInRange();
+  test.skip(running != null, `a real app is answering on ${running} — it would receive this test's add`);
+  const app = await startAddRecorder();
+  test.skip(!app, "no free port in the app range for the stub");
+  try {
+    await setCachedPort(context, app.port);
+    const [sw] = context.serviceWorkers();
+    // two-videos.html has an ~11 KB and a ~22 KB video: only the larger one passes 15 000 bytes.
+    await sw.evaluate(() => chrome.storage.local.set({ listMinSizeBytes: 15000 }));
+
+    const page = await context.newPage();
+    await page.goto("/two-videos.html");
+    await page.waitForTimeout(1500);
+
+    const popup = await openPopupFor(context, extensionId, page);
+    await expect(popup.locator("#list li")).toHaveCount(1, { timeout: 10000 });
+    await popup.locator("#sendAll").click();
+
+    await expect.poll(() => app.adds.length, { timeout: 15000 }).toBe(1);
+    await popup.waitForTimeout(1000); // nothing else arrives
+    expect(app.adds).toHaveLength(1);
+    expect(decodeURIComponent(app.adds[0].url + JSON.stringify(app.adds[0].body))).toContain("alpha_360p.mp4");
+  } finally {
+    await new Promise(r => app.server.close(r));
+  }
+});

@@ -131,7 +131,7 @@ public class DashEndToEndTests
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────────
 
-    private static async Task<string> RunAsync(
+    internal static async Task<string> RunAsync(
         string exe, string args, string? workingDirectory = null, bool captureStdout = false)
     {
         var psi = new ProcessStartInfo(exe, args)
@@ -153,7 +153,7 @@ public class DashEndToEndTests
         return captureStdout ? await stdout : string.Empty;
     }
 
-    private static string? FindOnPath(string tool)
+    internal static string? FindOnPath(string tool)
     {
         var path = Environment.GetEnvironmentVariable("PATH");
         if (string.IsNullOrEmpty(path)) return null;
@@ -164,7 +164,7 @@ public class DashEndToEndTests
     }
 
     /// <summary>Serves a directory over loopback — whatever ffmpeg wrote, at the paths the manifest names.</summary>
-    private sealed class DirectoryServer : IDisposable
+    internal sealed class DirectoryServer : IDisposable
     {
         private readonly HttpListener _listener = new();
         private readonly string _root;
@@ -238,7 +238,7 @@ public class DashEndToEndTests
         }
     }
 
-    private sealed class TempDir : IDisposable
+    internal sealed class TempDir : IDisposable
     {
         public string Path { get; } = Directory.CreateTempSubdirectory("dash-e2e-").FullName;
         public void Dispose()
