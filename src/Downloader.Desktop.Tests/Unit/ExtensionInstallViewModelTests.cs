@@ -124,6 +124,38 @@ public class ExtensionInstallViewModelTests
     }
 
     /// <summary>
+    /// The reported bug: closing the dialog while it installed, then opening it again, showed nothing of
+    /// that install. The install keeps running, and a new copy of the dialog waits for it and shows its
+    /// result instead of starting the same work again.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_reopened_dialog_waits_for_the_install_a_closed_one_started()
+    {
+        var download = new TaskCompletionSource<ExtensionInstallResult>();
+        string installedVersion = null;
+        var first = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", "2.0.0") },
+            install: (e, _, _) => download.Task,
+            readInstalled: _ => installedVersion == null ? null : new InstalledCopy("/data/extension/chrome", installedVersion));
+        await first.LoadAsync();
+        var install = first.InstallSelectedAsync();          // the user closes the dialog here
+
+        var second = Vm(new[] { Chrome }, new[] { Entry("chrome", "chromium", "2.0.0") },
+            readInstalled: _ => installedVersion == null ? null : new InstalledCopy("/data/extension/chrome", installedVersion));
+        var reopen = second.LoadAsync();
+        Assert.False(reopen.IsCompleted);
+        Assert.True(second.IsBusy);
+        Assert.False(second.CanInstall);
+
+        installedVersion = "2.0.0";
+        download.SetResult(ExtensionInstallResult.Ok("/data/extension/chrome", "2.0.0"));
+        await install;
+        await reopen;
+
+        Assert.False(second.IsBusy);
+        Assert.Equal("2.0.0", second.Targets.Single(t => t.Family == BrowserFamily.Chromium).InstalledVersion);
+    }
+
+    /// <summary>
     /// The reported bug: with only Firefox detected, the dialog offered ONLY the Gecko folder — so a user
     /// running Chrome (which a snap-confined app cannot see at all) had no folder to install into. Both
     /// families are always offered, whatever detection found.

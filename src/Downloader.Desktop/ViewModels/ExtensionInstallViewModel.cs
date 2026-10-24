@@ -219,7 +219,8 @@ public class ExtensionTargetRow : ViewModelBase
 public class ExtensionInstallViewModel : ViewModelBase
 {
     private readonly Func<IReadOnlyList<DetectedBrowser>> _detect;
-    private readonly Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> _fetchCatalog;
+    /// <summary>Gets the catalog; the flag is true for "Check again" (a new fetch, not the shared one).</summary>
+    private readonly Func<bool, Task<IReadOnlyList<ExtensionCatalogEntry>>> _fetchCatalog;
     private readonly Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> _install;
     private readonly Func<string, string> _lastSeenVersion;
     private readonly Func<string, InstalledCopy> _readInstalled;
@@ -229,9 +230,13 @@ public class ExtensionInstallViewModel : ViewModelBase
     private IReadOnlyList<ExtensionCatalogEntry> _catalog = Array.Empty<ExtensionCatalogEntry>();
     private CancellationTokenSource _cts;
 
+    /// <summary>The install in progress, shared by every copy of the dialog (closing it does not stop
+    /// the install).</summary>
+    private static Task _runningInstall = Task.CompletedTask;
+
     public ExtensionInstallViewModel(
         Func<IReadOnlyList<DetectedBrowser>> detect = null,
-        Func<CancellationToken, Task<IReadOnlyList<ExtensionCatalogEntry>>> fetchCatalog = null,
+        Func<bool, Task<IReadOnlyList<ExtensionCatalogEntry>>> fetchCatalog = null,
         Func<ExtensionCatalogEntry, IProgress<double>, CancellationToken, Task<ExtensionInstallResult>> install = null,
         Func<string, string> lastSeenVersion = null,
         Func<string, InstalledCopy> readInstalled = null,
@@ -242,13 +247,13 @@ public class ExtensionInstallViewModel : ViewModelBase
         _bundledVersion = bundledVersion ?? ExtensionInstallService.BundledVersion;
         // EVERY supported browser, not only the detected ones — see BrowserDetector.All.
         _detect = detect ?? BrowserDetector.All;
-        _fetchCatalog = fetchCatalog ?? ExtensionCatalogService.FetchAsync;
+        _fetchCatalog = fetchCatalog ?? ExtensionCatalogService.GetAsync;
         _install = install ?? ExtensionInstallService.InstallAsync;
         _lastSeenVersion = lastSeenVersion ?? (browser => LocalApiService.LastSeenExtension(browser)?.Version);
         _readInstalled = readInstalled ?? ExtensionInstallService.ReadInstalledCopy;
 
         InstallCommand = ReactiveCommand.CreateFromTask(InstallSelectedAsync);
-        RefreshCommand = ReactiveCommand.CreateFromTask(LoadAsync);
+        RefreshCommand = ReactiveCommand.CreateFromTask(() => LoadAsync(refresh: true));
         CopyPathCommand = ReactiveCommand.CreateFromTask<ExtensionTargetRow>(CopyPathAsync);
         OpenFolderCommand = ReactiveCommand.Create<ExtensionTargetRow>(OpenFolder);
         CancelCommand = ReactiveCommand.Create(CancelInstall);
@@ -330,7 +335,7 @@ public class ExtensionInstallViewModel : ViewModelBase
 
     /// <summary>Detect the browsers, read the catalog, and reconcile both against what is already
     /// installed and what has actually called us. Safe to call again — it is the Refresh command too.</summary>
-    public async Task LoadAsync()
+    public async Task LoadAsync(bool refresh = false)
     {
         IsBusy = true;
         ErrorMessage = null;
@@ -347,8 +352,11 @@ public class ExtensionInstallViewModel : ViewModelBase
             RebuildTargets();
             RefreshConnectionState();
 
-            _catalog = await _fetchCatalog(CancellationToken.None).ConfigureAwait(true)
+            _catalog = await _fetchCatalog(refresh).ConfigureAwait(true)
                        ?? Array.Empty<ExtensionCatalogEntry>();
+            // An install started from an earlier (closed) copy of this dialog keeps running; wait for it,
+            // so this copy shows its result instead of starting the same work again.
+            await _runningInstall.ConfigureAwait(true);
 
             RebuildTargets();
             RefreshConnectionState();
@@ -438,6 +446,8 @@ public class ExtensionInstallViewModel : ViewModelBase
         if (families.Count == 0)
             families = Targets.Select(t => t.Family).Distinct().ToList();
 
+        var done = new TaskCompletionSource();
+        _runningInstall = done.Task;
         IsBusy = true;
         ErrorMessage = null;
         Notice = null;
@@ -489,6 +499,7 @@ public class ExtensionInstallViewModel : ViewModelBase
         {
             _cts?.Dispose();
             _cts = null;
+            done.SetResult();
             IsBusy = false;
             RaiseUpdateState();
         }

@@ -50,6 +50,31 @@ public static class ExtensionCatalogService
         return c;
     }
 
+    private static readonly object CacheLock = new();
+    private static Task<IReadOnlyList<ExtensionCatalogEntry>> _cached;
+
+    /// <summary>
+    /// The catalog, fetched once per app run and shared: reopening the install dialog reuses it instead of
+    /// asking GitHub again (two requests, often ~10 s), and a fetch still running is joined, not repeated.
+    /// <paramref name="refresh"/> ("Check again") starts a new fetch.
+    /// </summary>
+    public static Task<IReadOnlyList<ExtensionCatalogEntry>> GetAsync(bool refresh = false)
+    {
+        lock (CacheLock)
+        {
+            if (refresh || _cached == null)
+                _cached = FetchAsync();
+            return _cached;
+        }
+    }
+
+    /// <summary>Test seam: forget the shared catalog.</summary>
+    internal static void ResetCache()
+    {
+        lock (CacheLock)
+            _cached = null;
+    }
+
     /// <summary>
     /// The extension builds this app can offer, from the latest release. Entries whose asset is not on
     /// that release, or that require a newer app, are dropped. Empty on any failure.
