@@ -214,6 +214,17 @@ public class LogicTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void About_shows_the_release_date_stamped_at_build()
+    {
+        Assert.True(System.DateTime.TryParseExact(AboutViewModel.BuildDate, "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _));
+
+        var text = new AboutViewModel().ReleaseDateText;
+        Assert.Contains(AboutViewModel.BuildDate, text);
+        Assert.DoesNotContain("About_ReleaseDate", text);   // a real string, not the missing-key fallback
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void Donate_links_include_github_sponsors()
     {
         Assert.Equal("https://github.com/sponsors/bezzad", DonateViewModel.GitHubSponsorsUrl);

@@ -50,6 +50,12 @@
         <InformationalVersion>$(Version)</InformationalVersion>
     </PropertyGroup>
 
+    <!-- The build date (UTC) is shown as the release date in the About dialog. A release is built
+         from its tag on release day, so the two match. -->
+    <ItemGroup>
+        <AssemblyMetadata Include="BuildDate" Value="$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd'))" />
+    </ItemGroup>
+
     <PropertyGroup>
         <CFBundleName>Downloader</CFBundleName> <!-- Also defines .app file name -->
         <CFBundleDisplayName>Downloader</CFBundleDisplayName>

@@ -43,6 +43,8 @@
                                        HorizontalAlignment="Center" />
                             <TextBlock Text="{Binding VersionText}" HorizontalAlignment="Center"
                                        Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            <TextBlock Text="{Binding ReleaseDateText}" HorizontalAlignment="Center" FontSize="12"
+                                       Foreground="{DynamicResource SystemBaseMediumColor}" />
 
                             <TextBlock Text="{i18n:Tr About_DevelopedWith}" Margin="0 14 0 2"
                                        HorizontalAlignment="Center"
