@@ -123,6 +123,45 @@ public class CaptureScreenshots
         frame!.Save(Path.Combine(OutDir, file));
     }
 
+    /// <summary>The "Install the browser extension" dialog while it loads (spinner on the main button)
+    /// and once loaded.</summary>
+    [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task CaptureExtensionDialog()
+    {
+        if (Environment.GetEnvironmentVariable("DLDESKTOP_CAPTURE") != "1")
+            return;
+
+        Localizer.Instance.Load("en");
+        var catalog = new TaskCompletionSource<System.Collections.Generic.IReadOnlyList<ExtensionCatalogEntry>>();
+        var vm = new ExtensionInstallViewModel(
+            detect: () => new[]
+            {
+                new DetectedBrowser { Id = "chrome", Name = "Google Chrome", Family = BrowserFamily.Chromium, ExecutablePath = "/usr/bin/google-chrome" },
+                new DetectedBrowser { Id = "edge", Name = "Microsoft Edge", Family = BrowserFamily.Chromium },
+                new DetectedBrowser { Id = "firefox", Name = "Mozilla Firefox", Family = BrowserFamily.Gecko, ExecutablePath = "/usr/bin/firefox" },
+            },
+            fetchCatalog: _ => catalog.Task,
+            lastSeenVersion: _ => null,
+            readInstalled: id => new InstalledCopy($"/home/user/.config/Downloader/extension/{id}", "1.24.0"),
+            bundledVersion: () => "1.24.1");
+        var window = new ExtensionInstallView { DataContext = vm };
+        window.Show();
+        var load = vm.LoadAsync();
+
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "extension-dialog-loading-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        Save(window, "extension-dialog-loading-dark.png");
+
+        catalog.SetResult(Array.Empty<ExtensionCatalogEntry>());
+        await load;
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
+        Save(window, "extension-dialog-light.png");
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        Save(window, "extension-dialog-dark.png");
+        window.Close();
+    }
+
     [AvaloniaFact(Timeout = TestTimeouts.DefaultMs)]
     public void Capture()
     {
