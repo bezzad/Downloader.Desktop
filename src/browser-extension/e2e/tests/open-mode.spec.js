@@ -1,6 +1,6 @@
 const { test, expect, openPopupFor } = require("../fixtures");
 
-// "Open as" (options page): the small popup, or the browser's side panel that stays open.
+// The button beside Settings in the popup: the small popup, or the browser's side panel that stays open.
 // Playwright cannot click the toolbar button, so these check what the button is set to do.
 
 async function buttonState(sw) {
@@ -17,26 +17,32 @@ test("the toolbar button opens the popup by default", async ({ context }) => {
   });
 });
 
-test("choosing the side panel in the options makes the button open and close the side panel", async ({ context, extensionId }) => {
+test("the button beside Settings switches to the side panel and back", async ({ context, extensionId }) => {
   const [sw] = context.serviceWorkers();
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await expect(options.locator("#openSection")).toBeVisible();
-  await expect(options.locator("#openMode")).toHaveValue("popup");
-
-  await options.selectOption("#openMode", "panel");
-  await expect.poll(() => buttonState(sw)).toEqual({ popup: "", panelOnClick: true });
-
-  // The page as a side panel fills the panel instead of keeping the popup's fixed width.
   const page = await context.newPage();
   await page.goto("/video-playing.html");
+
+  const popup = await openPopupFor(context, extensionId, page);
+  const toggle = popup.locator("#togglePanel");
+  await expect(toggle).toBeVisible();
+  await expect(popup.locator("body")).not.toHaveClass(/\bpanel\b/);
+  await toggle.click();
+  await expect.poll(() => buttonState(sw)).toEqual({ popup: "", panelOnClick: true });
+
+  // Now the page is the side panel: it fills the panel, and the same button goes back.
   const panel = await openPopupFor(context, extensionId, page);
   await expect(panel.locator("body")).toHaveClass(/\bpanel\b/);
-
-  await options.selectOption("#openMode", "popup");
+  await expect(panel.locator("#togglePanel")).toHaveClass(/\bon\b/);
+  await panel.locator("#togglePanel").click();
   await expect.poll(() => buttonState(sw)).toEqual({
     popup: expect.stringMatching(/popup\.html$/), panelOnClick: false
   });
+});
+
+test("the options page no longer carries the open mode", async ({ context, extensionId }) => {
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await expect(options.locator("#openMode")).toHaveCount(0);
 });
 
 test("the side panel's list updates when the page is scrolled", async ({ context, extensionId }) => {

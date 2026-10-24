@@ -667,6 +667,24 @@ document.getElementById("openOptions").onclick = () => {
   else api.tabs?.create({ url: api.runtime.getURL("options.html") });
 };
 
+// Popup <-> side panel. Opens the other one at once (still inside the user's click, which the
+// browser requires) and closes this one; the toolbar button then opens the chosen one.
+const panelBtn = document.getElementById("togglePanel");
+let windowId = null; // read now: an await inside the click would lose the click for sidePanel.open
+api.windows?.getCurrent?.().then(w => { windowId = w.id; }).catch(() => {});
+panelBtn.hidden = !canOpenPanel();
+panelBtn.onclick = async () => {
+  const toPanel = !document.body.classList.contains("panel");
+  if (toPanel) {
+    if (api.sidePanel?.open) api.sidePanel.open({ windowId }).catch(() => {});
+    else api.sidebarAction?.open();
+  }
+  setOpenMode(toPanel ? "panel" : "popup");
+  if (toPanel) setTimeout(() => window.close(), 300); // the popup; the new panel stays
+  else if (api.sidebarAction?.close) api.sidebarAction.close();
+  else window.close(); // closes the side panel
+};
+
 // Shows the installed extension's own version next to its name, so a report ("I'm on the latest
 // version but...") can be answered from a screenshot instead of asking the user to dig through
 // about:addons. `getManifest()` is synchronous and always available — no permission, no network.
@@ -713,8 +731,8 @@ async function watchPageScroll() {
 getOpenMode().then(mode => {
   if (mode !== "panel") return;
   document.body.classList.add("panel");
-  let windowId = null;
-  api.windows?.getCurrent?.().then(w => { windowId = w.id; }).catch(() => {});
+  panelBtn.classList.add("on");
+  panelBtn.title = panelBtn.ariaLabel = "Back to the small window";
   api.tabs.onActivated.addListener(info => {
     if (windowId == null || info.windowId === windowId) location.reload();
   });

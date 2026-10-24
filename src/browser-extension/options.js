@@ -18,8 +18,6 @@ const els = {
   savePath: document.getElementById("savePath"),
   listMinSize: document.getElementById("listMinSize"),
   listMinSizeValue: document.getElementById("listMinSizeValue"),
-  openSection: document.getElementById("openSection"),
-  openMode: document.getElementById("openMode"),
   saved: document.getElementById("saved")
 };
 
@@ -125,11 +123,6 @@ async function showAppStatus() {
   showAppStatus();
   renderSavePath();
   renderListMinSize();
-
-  // Popup or side panel. Hidden where the browser has no panel to offer.
-  els.openSection.hidden = !canOpenPanel();
-  els.openMode.value = await getOpenMode();
-  els.openMode.addEventListener("change", () => { setOpenMode(els.openMode.value); flashSaved(); });
 
   els.listMinSize.addEventListener("input", showListMinSize); // label follows the drag
   els.listMinSize.addEventListener("change", () => { setListMinSize(showListMinSize()); flashSaved(); });

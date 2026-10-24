@@ -348,8 +348,10 @@ Rough order to turn the current skeleton into the MVP above:
    - Extension 1.23.1: size probes run 8 at a time (was 4); the popup waits for all of them.
 
 24. ✅ **Extension side panel (stays open)** (DONE, 2026-10-21, extension 1.24.0):
-   - A popup ALWAYS closes on an outside click (browser rule), so the options page got "Open as":
-     popup (default) or **side panel**. Chrome/Edge: `side_panel` + `sidePanel` permission;
+   - A popup ALWAYS closes on an outside click (browser rule), so the popup footer has a **side panel
+     button beside Settings** (`#togglePanel`, 1.24.1 — it was an options-page select in 1.24.0): it
+     opens the panel right away (`sidePanel.open`/`sidebarAction.open`, inside the click) and stores the
+     mode; in the panel the same button (accent, `on`) goes back to the popup. Settings icon is a gear. Chrome/Edge: `side_panel` + `sidePanel` permission;
      `applyOpenMode` (common.js) sets `action.setPopup("")` + `sidePanel.setPanelBehavior({openPanelOnActionClick})`,
      so the browser itself opens/closes the panel on the button. Firefox: `sidebar_action`
      (`open_at_install: false`); with no popup the click reaches `action.onClicked` → `sidebarAction.toggle()`.
