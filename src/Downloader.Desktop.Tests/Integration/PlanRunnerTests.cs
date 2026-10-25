@@ -572,9 +572,8 @@ public class PlanRunnerTests
     [Fact(Timeout = TestTimeouts.SlowMs)]
     public async Task An_unsized_segment_plan_reports_its_estimated_total_while_running()
     {
-        // 80 parts at 4 at a time: the first half takes ~10 server delays (~2.5 s), the 8 size probes (3 at
-        // a time, through the shared probe gate) about 3. With 40 parts and 150 ms the window was ~0.75 s,
-        // and busy CI runners missed it again and again.
+        // 80 parts at 4 at a time: the first half takes ~10 server delays (~2.5 s); the 8 size probes run
+        // at once (not through the preview gate, see the test below), so they answer in about one.
         var files = Enumerable.Range(0, 80).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 40 ? 3000 : 500));
         using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
         var dir = TempDir();
@@ -591,6 +590,41 @@ public class PlanRunnerTests
             Assert.Contains(reports, r => r.Total == real && r.Downloaded < real / 2);
         }
         finally { TryDelete(dir); }
+    }
+
+    /// <summary>
+    /// The size samples of a running plan must not wait behind the preview probe gate. That gate is
+    /// process-wide (3 slots, up to 8 s each) and name previews of other rows fill it; the samples used to
+    /// queue there, so the estimate came after the plan was half done (or never) and the row showed no
+    /// size — the CI failure of the test above on Windows and Linux.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_unsized_plan_is_measured_while_previews_fill_the_probe_gate()
+    {
+        var files = Enumerable.Range(0, 80).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 40 ? 3000 : 500));
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
+        using var slow = new LoopbackServer(new Dictionary<string, byte[]> { ["busy"] = Bytes("B", 10) })
+            { ResponseDelay = TimeSpan.FromSeconds(6) };
+        // Three previews that hold every gate slot for ~6 s: longer than the first half of the plan.
+        var previews = Enumerable.Range(0, 3).Select(_ => UrlResolver.ResolveFileInfoAsync(slow.Url + "busy")).ToList();
+        var dir = TempDir();
+        try
+        {
+            var reports = new ConcurrentQueue<(long Downloaded, long Total)>();
+            var finalPath = await new DownloadManager().ExecutePlanAsync(
+                SegmentPlan(server.Url, files.Keys.OrderBy(k => k, StringComparer.Ordinal)), dir, "x.mp4", null,
+                _ => { }, _ => { }, p => reports.Enqueue((p.Downloaded, p.Total)), () => false,
+                CancellationToken.None);
+
+            Assert.NotNull(finalPath);
+            const long real = 40 * 3000 + 40 * 500;
+            Assert.Contains(reports, r => r.Total == real && r.Downloaded < real / 2);
+        }
+        finally
+        {
+            await Task.WhenAll(previews); // free the gate for the tests that run next
+            TryDelete(dir);
+        }
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]

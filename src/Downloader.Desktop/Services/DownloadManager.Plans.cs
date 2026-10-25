@@ -478,7 +478,7 @@ public partial class DownloadManager
             var cfg = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
             ApplyRequestContext(cfg, context);
             ApplyHeaders(cfg, parts[i].Headers);
-            var info = await UrlResolver.ResolveFileInfoAsync(parts[i].Url, cfg).ConfigureAwait(false);
+            var info = await UrlResolver.ProbeRunningFileInfoAsync(parts[i].Url, cfg).ConfigureAwait(false);
             return info?.FileSize ?? 0;
         });
         return EstimateTotal(await Task.WhenAll(probes).ConfigureAwait(false), parts.Count);
