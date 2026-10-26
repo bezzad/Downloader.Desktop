@@ -2624,3 +2624,11 @@ null; in engine 5.9.8 that is `RequestInstances.First()`, and `RequestInstances`
   mean is ~2× too big for half the run.
 - Probes are skipped below 32 parts on purpose: PlanRunnerTests count requests per segment (`Requested`),
   and a probe is a GET `bytes=0-0` that the loopback server records like a download.
+
+## System pickers: paste on macOS / Linux
+- macOS: Cmd+X/C/V/A in NSOpenPanel/NSSavePanel text boxes (e.g. "New Folder") work ONLY via main-menu Edit
+  items (`paste:` etc.). Avalonia makes no Edit menu, so `DialogHelper` calls `MacEditMenu.Ensure()` before
+  every picker. Avalonia text boxes handle the keys themselves; the items stay disabled for them.
+- Linux: with xdg-desktop-portal running (GNOME), the picker is the portal's own process. Without a portal
+  (cloud container) Avalonia falls back to in-process GTK3, where paste works. Repro there with
+  `Xvfb :55` + `xdotool` + `xclip`.
