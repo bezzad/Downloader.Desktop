@@ -360,6 +360,12 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           probes: cache ? [...cache.probes.values()] : [],
           thumbs: cache?.thumbs || null
         });
+      } else if (msg.type === "clearMedia") {
+        // The popup's refresh button: start this page's list over.
+        tabMedia.delete(msg.tabId);
+        tabCache.delete(msg.tabId);
+        updateBadge(msg.tabId, 0);
+        sendResponse({});
       } else if (msg.type === "probeMedia") {
         sendResponse({ results: await probeMediaForTab(msg.tabId) });
       } else if (msg.type === "saveThumbs") {

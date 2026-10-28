@@ -361,6 +361,12 @@ Rough order to turn the current skeleton into the MVP above:
      (`watchPageScroll` injects a throttled scroll listener that sends `pageScrolled`; the panel then also
      re-scans the page's media links).
 
+25. ✅ **Refresh button in the extension header** (DONE, 2026-10-28, extension 1.25.0):
+   - `#refreshList` (popup + side panel, same page) sends `clearMedia` to the background (drops the
+     tab's `tabMedia` + `tabCache`, clears the badge), resets the popup's state, then runs
+     `loadDetected` + `scanPageLinks`. A stream the page already loaded only comes back when the page
+     requests it again. Pinned by `e2e/tests/refresh-list.spec.js`.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

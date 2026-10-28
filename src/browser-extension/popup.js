@@ -617,6 +617,21 @@ document.getElementById("sendManual").onclick = () => {
   if (url) { sendOne(url); input.value = ""; }
 };
 document.getElementById("scanLinks").onclick = scanPageLinks;
+
+// Refresh: the background forgets this page's finds (and the saved sizes and pictures), then the
+// list is built again from what the page shows now. A stream the page already loaded comes back
+// when the page loads it again.
+document.getElementById("refreshList").onclick = async () => {
+  if (currentTabId == null) return;
+  await send("clearMedia", { tabId: currentTabId });
+  rawItems = [];
+  probedByUrl.clear();
+  savedShots = [];
+  savedPageImage = "";
+  thumbIndex = buildThumbnailIndex([], "");
+  await loadDetected();
+  scanPageLinks();
+};
 document.getElementById("sendAll").onclick = async () => {
   for (const g of currentGroups) {
     const picker = selectsByGroup.get(g.key);
