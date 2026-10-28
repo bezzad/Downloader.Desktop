@@ -63,3 +63,30 @@ test("the side panel's list updates when the page is scrolled", async ({ context
   });
   await expect(panel.locator("#list li")).toHaveCount(1, { timeout: 10000 });
 });
+
+test("in the side panel only the list scrolls; header and footer stay in place", async ({ context, extensionId }) => {
+  const [sw] = context.serviceWorkers();
+  await sw.evaluate(() => chrome.storage.local.set({ openMode: "panel" }));
+
+  const page = await context.newPage();
+  await page.goto("/empty.html");
+  const panel = await openPopupFor(context, extensionId, page);
+  await panel.setViewportSize({ width: 360, height: 500 });
+  await expect(panel.locator("body")).toHaveClass(/\bpanel\b/);
+
+  // Far more rows than fit, so the list must scroll.
+  await panel.evaluate(() => {
+    const list = document.getElementById("list");
+    for (let i = 0; i < 60; i++) list.insertAdjacentHTML("beforeend", `<li><div class="row">file ${i}.mp4</div></li>`);
+    list.scrollTop = list.scrollHeight;
+  });
+
+  const box = await panel.evaluate(() => ({
+    pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
+    listScrolls: document.getElementById("list").scrollTop > 0,
+    headerTop: document.querySelector("header").getBoundingClientRect().top,
+    footerBottom: document.querySelector("footer").getBoundingClientRect().bottom,
+    height: innerHeight
+  }));
+  expect(box).toEqual({ pageScrolls: false, listScrolls: true, headerTop: 0, footerBottom: box.height, height: 500 });
+});
