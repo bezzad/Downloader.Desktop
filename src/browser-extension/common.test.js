@@ -14,7 +14,7 @@ const {
   sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
   isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
   qualityHeight, qualityHeightFromUrl,
-  buildThumbnailIndex, pickThumbnail, mergeShots, assignThumbnails, shotImage, mediaTokens,
+  buildThumbnailIndex, pickThumbnail, mergeShots, assignThumbnails, shotImage, mediaTokens, pickRevealIndex,
   getSavePath, setSavePath, fetchAppDefaultSavePath,
   candidatePorts, discoverAppPort, APP_PORT_RANGE, appNotFoundMessage,
   captureCookies, mapCookie, sendToAppSilently, cookieUrlsFor, confirmAppFetching, handOffUrls,
@@ -2401,4 +2401,44 @@ test("Firefox: panel mode removes the popup so the click reaches the sidebar tog
     await applyOpenMode("popup");
     assert.deepEqual(calls, [["setPopup", "popup.html"]]);
   });
+});
+
+// ---------------- pickRevealIndex ----------------
+
+const revealGroup = (url, extra = {}) => ({ key: groupKey(url), options: [{ url }], ...extra });
+
+test("pickRevealIndex finds the element that plays the row's own URL", () => {
+  const elements = [
+    { urls: ["https://c/other.mp4"], area: 100, media: true },
+    { urls: ["https://c/clip.mp4"], area: 100, media: true }
+  ];
+  assert.equal(pickRevealIndex(elements, revealGroup("https://c/clip.mp4"), false), 1);
+});
+
+test("pickRevealIndex pairs a blob player by the media id its poster shares with the file (x.com)", () => {
+  const elements = [
+    { urls: ["blob:https://x.com/1", "https://pbs/ext_tw_video_thumb/1712345678901234567/img/a.jpg"], area: 100, media: true },
+    { urls: ["blob:https://x.com/2", "https://pbs/ext_tw_video_thumb/1798765432109876543/img/b.jpg"], area: 100, media: true }
+  ];
+  const group = revealGroup("https://video/ext_tw_video/1798765432109876543/pu/vid/720p.mp4");
+  assert.equal(pickRevealIndex(elements, group, false), 1);
+});
+
+test("pickRevealIndex skips hidden elements and does not guess for one of many rows", () => {
+  const elements = [
+    { urls: ["https://c/clip.mp4"], area: 0, media: true },
+    { urls: ["blob:https://c/1"], area: 500, media: true }
+  ];
+  assert.equal(pickRevealIndex(elements, revealGroup("https://c/clip.mp4"), false), -1);
+});
+
+test("pickRevealIndex falls back to the largest player for a page row or the only row", () => {
+  const elements = [
+    { urls: ["https://c/a.html"], area: 900, media: false },
+    { urls: ["blob:https://c/1"], area: 100, media: true },
+    { urls: ["blob:https://c/2"], area: 400, media: true }
+  ];
+  assert.equal(pickRevealIndex(elements, revealGroup("https://c/watch?v=1", { kind: "page" }), false), 2);
+  assert.equal(pickRevealIndex(elements, revealGroup("https://c/clip.mp4"), true), 2);
+  assert.equal(pickRevealIndex([], revealGroup("https://c/clip.mp4"), true), -1);
 });

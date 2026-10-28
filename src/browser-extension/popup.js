@@ -324,6 +324,8 @@ function buildCard(group, thumbSrc) {
   btn.onclick = () => sendOption(currentOption(), btn);
 
   row.append(buildThumb(group, thumbSrc), meta, right, btn);
+  // A click on the row itself (not its button) shows that item in the middle of the page.
+  row.onclick = e => { if (!e.target.closest("button")) revealInPage(group); };
   li.appendChild(row);
   if (band) li.appendChild(band);
   return li;
@@ -537,6 +539,39 @@ async function collectThumbnails() {
   } catch {
     // Browser-internal pages and pages that forbid injection: rows keep their placeholders, and
     // every Download action still works.
+  }
+}
+
+// Scrolls the page so the element this row stands for sits in the middle of it. Two short injections:
+// the page lists its players and links, the popup decides which one is this row's (pickRevealIndex,
+// testable without a browser), and the page scrolls to it. Nothing happens when no element is provably
+// this row's — e.g. a feed already removed the player.
+const REVEAL_SELECTOR = "video, audio, a[href]";
+async function revealInPage(group) {
+  if (currentTabId == null) return;
+  try {
+    const [found] = await api.scripting.executeScript({
+      target: { tabId: currentTabId },
+      args: [REVEAL_SELECTOR],
+      func: selector => [...document.querySelectorAll(selector)].map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          urls: [el.currentSrc, el.src, el.poster, el.href].filter(u => typeof u === "string" && u),
+          area: rect.width * rect.height,
+          media: el.tagName !== "A"
+        };
+      })
+    });
+    const index = pickRevealIndex(found?.result, group, currentGroups.length === 1);
+    if (index < 0) return;
+    await api.scripting.executeScript({
+      target: { tabId: currentTabId },
+      args: [REVEAL_SELECTOR, index],
+      func: (selector, i) => document.querySelectorAll(selector)[i]
+        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+    });
+  } catch {
+    // Pages that forbid injection: the row just does nothing.
   }
 }
 

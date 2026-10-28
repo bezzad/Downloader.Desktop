@@ -126,7 +126,7 @@ button.icon:hover { background: var(--soft); color: var(--text); }
 }
 .list li { border-bottom: 1px solid var(--line); }
 .list li:hover { background: var(--soft); }
-.list .row { display: flex; align-items: center; gap: 9px; padding: 7px 13px; }
+.list .row { display: flex; align-items: center; gap: 9px; padding: 7px 13px; cursor: pointer; }
 /* One fixed 28px slot: the captured preview when there is one, the file type when there isn't. Small
    enough that six rows fit, still a colour cue that tells two similar clips apart. */
 .list .thumb {
