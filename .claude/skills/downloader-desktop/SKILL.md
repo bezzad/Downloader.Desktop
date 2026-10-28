@@ -2632,3 +2632,10 @@ null; in engine 5.9.8 that is `RequestInstances.First()`, and `RequestInstances`
 - Linux: with xdg-desktop-portal running (GNOME), the picker is the portal's own process. Without a portal
   (cloud container) Avalonia falls back to in-process GTK3, where paste works. Repro there with
   `Xvfb :55` + `xdotool` + `xclip`.
+
+### A plan fails when ONE part fails — read the log before guessing (2026-10-28)
+x.com HLS rows failed near 80–99% and finished at once on Start. It looked like the "Assembling" step,
+but the log (`Plan failed:` lines) showed a part's `ConnectTimeout` during the engine's size probe. The
+engine reports that as Stopped WITH an error, so the plan threw. Fix: per-part retry in
+`DownloadPartAsync` (`PartRetries`/`PartRetryDelay`). To fake a one-off part error in a test, fail the
+first 2 requests (the probe + the GET of one attempt) with 404: the engine retries 503/429 itself.
