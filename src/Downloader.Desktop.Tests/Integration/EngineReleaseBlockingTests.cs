@@ -190,7 +190,16 @@ public class EngineReleaseBlockingTests
                     {
                         ctx.Response.StatusCode = 200;
                         ctx.Response.ContentLength64 = payload.Length;
-                        await ctx.Response.OutputStream.WriteAsync(payload, _cts.Token).ConfigureAwait(false);
+                        // Send the file slowly (about half a second). Sent at once, it could finish
+                        // before the test attached its completion handler, and the test then waited
+                        // for an event that had already gone (seen on CI as a false failure at 30 s).
+                        for (var i = 0; i < payload.Length; i += 1024)
+                        {
+                            await ctx.Response.OutputStream.WriteAsync(payload.AsMemory(i, 1024), _cts.Token)
+                                .ConfigureAwait(false);
+                            await ctx.Response.OutputStream.FlushAsync(_cts.Token).ConfigureAwait(false);
+                            await Task.Delay(15, _cts.Token).ConfigureAwait(false);
+                        }
                         ctx.Response.Close();
                     }
                     catch { /* client went away */ }
