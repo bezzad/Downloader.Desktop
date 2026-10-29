@@ -160,6 +160,12 @@ public partial class DownloadManager
     /// <summary>How many times a part may be re-fetched because a pause landed on its finish line.</summary>
     internal const int PausedPartRetries = 2;
 
+    /// <summary>How many times a part that failed with an error is tried again before the plan fails.</summary>
+    internal const int PartRetries = 3;
+
+    /// <summary>Wait before trying a failed part again; grows with each failure (1 s, 2 s, 3 s).</summary>
+    internal static TimeSpan PartRetryDelay { get; set; } = TimeSpan.FromSeconds(1);
+
     internal async Task<string> ExecutePlanAsync(
         PersistedPlan plan, string folder, string finalName, IPostProcessor processor,
         Action<DownloadService> onPartService, Action<string> onStage,
@@ -246,12 +252,26 @@ public partial class DownloadManager
             // finalizes its file. That is indistinguishable here from a genuine short download, so when a
             // pause overlapped the attempt, fetch the part again after the resume instead of failing the
             // whole plan. (Bounded: a part that keeps coming up empty without a pause still fails.)
-            for (var attempt = 0; ; attempt++)
+            int pauseRetries = 0, failures = 0;
+            while (true)
             {
                 var pausesBefore = controller.PauseCount;
-                if (await DownloadPartOnceAsync(index).ConfigureAwait(false))
-                    return; // cancelled or finished
-                if (attempt >= PausedPartRetries || controller.PauseCount == pausesBefore)
+                try
+                {
+                    if (await DownloadPartOnceAsync(index).ConfigureAwait(false))
+                        return; // cancelled or finished
+                }
+                catch (Exception ex) when (failures < PartRetries && !Cancelled())
+                {
+                    // One part among hundreds hitting a network error (seen on x.com: a connection that
+                    // could not be made in time while several downloads ran) used to fail the whole plan,
+                    // and Start then finished it at once from the parts on disk. Try that part again.
+                    failures++;
+                    AppLog.Warn($"Part {index + 1}/{parts.Count} failed ({ex.Message}); trying again ({failures}/{PartRetries})");
+                    await Task.Delay(PartRetryDelay * failures, ct).ConfigureAwait(false);
+                    continue;
+                }
+                if (pauseRetries++ >= PausedPartRetries || controller.PauseCount == pausesBefore)
                     throw new IOException($"Part {index + 1}/{parts.Count} did not finish downloading.");
                 await WaitWhilePausedAsync().ConfigureAwait(false);
                 if (Cancelled())
@@ -478,7 +498,7 @@ public partial class DownloadManager
             var cfg = _config?.Settings?.ToConfiguration() ?? new DownloadConfiguration();
             ApplyRequestContext(cfg, context);
             ApplyHeaders(cfg, parts[i].Headers);
-            var info = await UrlResolver.ResolveFileInfoAsync(parts[i].Url, cfg).ConfigureAwait(false);
+            var info = await UrlResolver.ProbeRunningFileInfoAsync(parts[i].Url, cfg).ConfigureAwait(false);
             return info?.FileSize ?? 0;
         });
         return EstimateTotal(await Task.WhenAll(probes).ConfigureAwait(false), parts.Count);

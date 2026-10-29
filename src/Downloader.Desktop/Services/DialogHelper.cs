@@ -252,6 +252,16 @@ public static class DialogHelper
     /// <inheritdoc cref="OpenFilePickerOverride"/>
     internal static Func<Uri> OpenFolderPickerOverride { get; set; }
 
+    /// <summary>
+    /// On macOS, Cmd+V in the system picker's text boxes (e.g. the "New Folder" name) needs an Edit menu.
+    /// See <see cref="MacEditMenu"/>.
+    /// </summary>
+    private static void AddMacEditMenu()
+    {
+        if (OperatingSystem.IsMacOS())
+            MacEditMenu.Ensure();
+    }
+
     /// <summary>Asks the user to pick an existing file (filtered by extension); returns its path or null.</summary>
     public static async Task<Uri> OpenFilePicker(string title, string filterName, string extension)
     {
@@ -262,6 +272,7 @@ public static class DialogHelper
         if (owner == null)
             return null;
 
+        AddMacEditMenu();
         var result = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = title,
@@ -284,6 +295,7 @@ public static class DialogHelper
         if (MainWindow == null)
             return null;
 
+        AddMacEditMenu();
         var file = await MainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = title,
@@ -303,6 +315,7 @@ public static class DialogHelper
         var parent = owner ?? MainWindow;
         if (parent != null)
         {
+            AddMacEditMenu();
             var result = await parent.StorageProvider.OpenFolderPickerAsync(
                 new FolderPickerOpenOptions()
                 {

@@ -1,0 +1,17 @@
+<!doctype html>
+<html><body style="margin:0">
+<!-- Two players far apart on a long page, x.com-shaped: each <video> never names its file, only a
+     poster that carries the same media id as the file's path. A click on a popup row must scroll the
+     page so THAT row's player is in the middle. -->
+<div style="height:2000px"></div>
+<video id="a" width="480" height="270"
+  poster="/amplify_video_thumb/1712345678901234567/img/thumbA.jpg"></video>
+<div style="height:2000px"></div>
+<video id="b" width="320" height="180"
+  poster="/amplify_video_thumb/1798765432109876543/img/thumbB.jpg"></video>
+<div style="height:2000px"></div>
+<script>
+  fetch('/amplify_video/1712345678901234567/vid/main_video.mp4');
+  fetch('/amplify_video/1798765432109876543/vid/videos/alpha_360p.mp4');
+</script>
+</body></html>

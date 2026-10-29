@@ -74,7 +74,7 @@ internal static class MacNotifier
     private static IntPtr Sel(string name) => sel_registerName(name);
 
     /// <summary>Creates an autoreleased NSString from a UTF-8 C string.</summary>
-    private static IntPtr NsString(string value)
+    internal static IntPtr NsString(string value)
     {
         IntPtr cls = objc_getClass("NSString");
         IntPtr sel = sel_registerName("stringWithUTF8String:");

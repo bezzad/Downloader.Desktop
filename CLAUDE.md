@@ -361,6 +361,25 @@ Rough order to turn the current skeleton into the MVP above:
      (`watchPageScroll` injects a throttled scroll listener that sends `pageScrolled`; the panel then also
      re-scans the page's media links).
 
+25. ✅ **Refresh button in the extension header** (DONE, 2026-10-28, extension 1.25.0):
+   - `#refreshList` (popup + side panel, same page) sends `clearMedia` to the background (drops the
+     tab's `tabMedia` + `tabCache`, clears the badge), resets the popup's state, then runs
+     `loadDetected` + `scanPageLinks`. A stream the page already loaded only comes back when the page
+     requests it again. Pinned by `e2e/tests/refresh-list.spec.js`.
+26. ✅ **Click a row → the page scrolls to it** (DONE, 2026-10-28, extension 1.26.0):
+   - A click on a popup/side-panel row (not on its buttons) scrolls the open page so that item's
+     element is in the middle (`revealInPage` in `popup.js`, `scrollIntoView({block:"center"})`).
+     The page lists its `video, audio, a[href]`; `pickRevealIndex` (common.js) picks the row's own one
+     with the thumbnail evidence (exact URL, else a media token only one element shares); a page row or
+     the only row falls back to the largest player. No match → nothing happens.
+27. ✅ **Multi-part (x.com HLS) downloads failed near the end** (DONE, 2026-10-28):
+   - The log showed it: with several downloads at once, ONE segment's connection could not be made in
+     time (`ConnectTimeout`, the engine reports it as a cancel with an error), and one failed part failed
+     the whole plan. Start then finished it at once from the parts on disk. Not the assembly step.
+   - `ExecutePlanAsync` now tries a failed part again up to `PartRetries` (3) times, waiting
+     `PartRetryDelay` × failures (1 s, 2 s, 3 s). A stop is never retried. Test:
+     `PlanRunnerTests.A_part_that_fails_once_is_tried_again_instead_of_failing_the_plan`.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

@@ -83,6 +83,14 @@ public static class UrlResolver
         => ProbeAsync(url, configuration, gated: true);
 
     /// <summary>
+    /// The same probe, not gated: for a download that is already running (an unsized plan's size
+    /// samples). It must not wait behind background preview probes — a full gate held its samples back
+    /// until the plan was half done, so the row showed no size at all.
+    /// </summary>
+    public static Task<RemoteFileInfo> ProbeRunningFileInfoAsync(string url, DownloadConfiguration configuration)
+        => ProbeAsync(url, configuration, gated: false);
+
+    /// <summary>
     /// Runs <see cref="RemoteFileResolver.GetFileInfoAsync(string, DownloadConfiguration, CancellationToken)"/>
     /// with an optional concurrency gate and a hard timeout. Never throws — returns null on any failure.
     /// </summary>

@@ -65,6 +65,38 @@ public class PlanRunnerTests
         finally { TryDelete(dir); }
     }
 
+    /// <summary>
+    /// One part of hundreds hitting a network error must not fail the whole plan. The author's x.com
+    /// downloads failed near the end every time: one segment's connection timed out, the plan failed,
+    /// and Start finished it at once from the parts already on disk. The part is now tried again.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task A_part_that_fails_once_is_tried_again_instead_of_failing_the_plan()
+    {
+        var parts = new Dictionary<string, byte[]>
+        {
+            ["a.ts"] = Bytes("AAAA", 5000),
+            ["b.ts"] = Bytes("BBBB", 6000),
+            ["c.ts"] = Bytes("CCCC", 7000)
+        };
+        using var server = new LoopbackServer(parts);
+        server.FailFirst["b.ts"] = 2; // the probe and the request of ONE attempt
+        var dir = TempDir();
+        try
+        {
+            var finalPath = await new DownloadManager().ExecutePlanAsync(
+                Plan(server.Url, PostProcessKind.Concat, "a.ts", "b.ts", "c.ts"),
+                dir, "video.mp4", new ConcatProcessor(),
+                onPartService: _ => { }, onStage: _ => { },
+                onProgress: _ => { }, isCancelled: () => false, CancellationToken.None);
+
+            var expected = parts["a.ts"].Concat(parts["b.ts"]).Concat(parts["c.ts"]).ToArray();
+            var got = await File.ReadAllBytesAsync(finalPath, TestContext.Current.CancellationToken);
+            Assert.True(expected.SequenceEqual(got));
+        }
+        finally { TryDelete(dir); }
+    }
+
     [Fact(Timeout = TestTimeouts.DefaultMs)]
     public async Task Per_part_headers_reach_the_server()
     {
@@ -572,9 +604,8 @@ public class PlanRunnerTests
     [Fact(Timeout = TestTimeouts.SlowMs)]
     public async Task An_unsized_segment_plan_reports_its_estimated_total_while_running()
     {
-        // 80 parts at 4 at a time: the first half takes ~10 server delays (~2.5 s), the 8 size probes (3 at
-        // a time, through the shared probe gate) about 3. With 40 parts and 150 ms the window was ~0.75 s,
-        // and busy CI runners missed it again and again.
+        // 80 parts at 4 at a time: the first half takes ~10 server delays (~2.5 s); the 8 size probes run
+        // at once (not through the preview gate, see the test below), so they answer in about one.
         var files = Enumerable.Range(0, 80).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 40 ? 3000 : 500));
         using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
         var dir = TempDir();
@@ -591,6 +622,41 @@ public class PlanRunnerTests
             Assert.Contains(reports, r => r.Total == real && r.Downloaded < real / 2);
         }
         finally { TryDelete(dir); }
+    }
+
+    /// <summary>
+    /// The size samples of a running plan must not wait behind the preview probe gate. That gate is
+    /// process-wide (3 slots, up to 8 s each) and name previews of other rows fill it; the samples used to
+    /// queue there, so the estimate came after the plan was half done (or never) and the row showed no
+    /// size — the CI failure of the test above on Windows and Linux.
+    /// </summary>
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public async Task An_unsized_plan_is_measured_while_previews_fill_the_probe_gate()
+    {
+        var files = Enumerable.Range(0, 80).ToDictionary(i => $"v{i:D2}.ts", i => Bytes($"V{i:D2}", i < 40 ? 3000 : 500));
+        using var server = new LoopbackServer(files) { ResponseDelay = TimeSpan.FromMilliseconds(250) };
+        using var slow = new LoopbackServer(new Dictionary<string, byte[]> { ["busy"] = Bytes("B", 10) })
+            { ResponseDelay = TimeSpan.FromSeconds(6) };
+        // Three previews that hold every gate slot for ~6 s: longer than the first half of the plan.
+        var previews = Enumerable.Range(0, 3).Select(_ => UrlResolver.ResolveFileInfoAsync(slow.Url + "busy")).ToList();
+        var dir = TempDir();
+        try
+        {
+            var reports = new ConcurrentQueue<(long Downloaded, long Total)>();
+            var finalPath = await new DownloadManager().ExecutePlanAsync(
+                SegmentPlan(server.Url, files.Keys.OrderBy(k => k, StringComparer.Ordinal)), dir, "x.mp4", null,
+                _ => { }, _ => { }, p => reports.Enqueue((p.Downloaded, p.Total)), () => false,
+                CancellationToken.None);
+
+            Assert.NotNull(finalPath);
+            const long real = 40 * 3000 + 40 * 500;
+            Assert.Contains(reports, r => r.Total == real && r.Downloaded < real / 2);
+        }
+        finally
+        {
+            await Task.WhenAll(previews); // free the gate for the tests that run next
+            TryDelete(dir);
+        }
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
@@ -707,6 +773,10 @@ public class PlanRunnerTests
         /// <summary>The highest number of simultaneously in-flight requests the server observed.</summary>
         public int MaxConcurrent => _maxConcurrent;
 
+        /// <summary>Paths that fail their first N requests (404 — an answer the engine does not retry
+        /// itself), then work: a one-off error on one part.</summary>
+        public ConcurrentDictionary<string, int> FailFirst { get; } = new();
+
         public LoopbackServer(Dictionary<string, byte[]> files)
         {
             _files = files;
@@ -756,6 +826,13 @@ public class PlanRunnerTests
 
                 var resp = ctx.Response;
                 resp.Headers["Accept-Ranges"] = "bytes";
+                if (FailFirst.TryGetValue(name, out var left) && left > 0)
+                {
+                    FailFirst[name] = left - 1;
+                    resp.StatusCode = 404;
+                    resp.OutputStream.Close();
+                    return;
+                }
                 if (!_files.TryGetValue(name, out var data))
                 {
                     resp.StatusCode = 404;

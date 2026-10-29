@@ -1327,6 +1327,27 @@ function assignThumbnails(index, groups) {
   return result;
 }
 
+// Which element on the page a clicked row stands for, so the page can scroll to it. `elements` is what
+// the page reported, in page order: { urls: [src, poster, href …], area, media }. The same evidence as a
+// thumbnail (pickThumbnail): an exact URL, else a media token exactly one element shares. A page row, or
+// the only row, may fall back to the largest player. -1 when nothing on the page is provably this row's.
+function pickRevealIndex(elements, group, onlyItem) {
+  const list = (elements || []).map((el, i) => ({ ...el, i })).filter(el => el.area > 0);
+  const candidates = [group?.key, ...(group?.options || []).flatMap(o => [o?.url, o?.sendUrl])]
+    .filter(isHttp);
+  const keys = new Set(candidates.flatMap(url => [url, groupKey(url)]));
+  for (const el of list)
+    if ((el.urls || []).some(url => isHttp(url) && (keys.has(url) || keys.has(groupKey(url))))) return el.i;
+  for (const token of new Set(candidates.flatMap(mediaTokens))) {
+    const hits = list.filter(el => (el.urls || []).some(url => mediaTokens(url).includes(token)));
+    if (hits.length === 1) return hits[0].i;
+  }
+  if (group?.kind !== "page" && !onlyItem) return -1;
+  const players = list.filter(el => el.media);
+  if (!players.length) return -1;
+  return players.reduce((a, b) => (b.area > a.area ? b : a)).i;
+}
+
 // ---------------- Download folder ----------------
 
 // Where the extension tells the app to save. Prefilled on the options page from the app's own default
@@ -1889,7 +1910,7 @@ if (typeof module !== "undefined") {
     sortDetectedGroups, groupTypeUrl, groupKnownSize, groupQualityHeight, leadsList,
     isHlsRenditionUrl, looksAudioOnlyUrl, describeDetectedLinks,
     qualityHeight, qualityHeightFromUrl, MIN_QUALITY_HEIGHT, MAX_QUALITY_HEIGHT,
-    shotImage, mediaTokens, mergeShots, buildThumbnailIndex, pickThumbnail, assignThumbnails,
+    shotImage, mediaTokens, mergeShots, buildThumbnailIndex, pickThumbnail, assignThumbnails, pickRevealIndex,
     getSavePath, setSavePath, fetchAppDefaultSavePath,
     chipLabel,
     isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
