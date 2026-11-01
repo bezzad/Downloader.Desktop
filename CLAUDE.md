@@ -380,6 +380,13 @@ Rough order to turn the current skeleton into the MVP above:
      `PartRetryDelay` × failures (1 s, 2 s, 3 s). A stop is never retried. Test:
      `PlanRunnerTests.A_part_that_fails_once_is_tried_again_instead_of_failing_the_plan`.
 
+28. ✅ **"Add silently" OFF had no effect on video rows** (DONE, 2026-11-01, extension 1.26.2):
+   - A row with a picked quality (`variantId` — every x.com HLS / YouTube page row) was ALWAYS sent
+     silently, on the popup path and the hand-off path, because the old URL-only `/add` dialog could not
+     carry the pick. The confirm-mode `/api/add` (issue #13) carries the whole request, so dialog mode now
+     always sends `confirm: true` through `/api/add` (`sendToApp` + `handOffToApp`); legacy `/add` is only
+     the fallback for an app without `/api/add`.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

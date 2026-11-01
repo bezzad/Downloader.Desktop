@@ -347,6 +347,7 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
     if (savePath) body.path = savePath;
     if (variantId) body.variantId = variantId;
     if (mime) body.mime = mime;
+    if (context?.confirm) body.confirm = true;
     Object.assign(body, extensionIdentity());
     const res = await postAdd(base, body);
     if (res.ok) return "ok";
@@ -358,9 +359,10 @@ async function sendToAppSilently(base, url, filename, cookies, context) {
   if (savePath) endpoint += `&path=${encodeURIComponent(savePath)}`;
   if (variantId) endpoint += `&variantId=${encodeURIComponent(variantId)}`;
   if (mime) endpoint += `&mime=${encodeURIComponent(mime)}`;
+  if (context?.confirm) endpoint += "&confirm=true";
   try {
     const res = await appFetch(withIdentity(endpoint), withIdentityHeaders({ method: "GET" }), APP_TIMEOUT_MS.add);
-    if (res.ok) return "ok"; // 201 silent add; 200 = older app opened its dialog with the link
+    if (res.ok) return "ok"; // 201 silent add; 202 confirm dialog opened; 200 = older app opened its dialog
     if (res.status === 404) return "fallback";
     return "fail";
   } catch {
@@ -376,20 +378,19 @@ async function sendToApp(url, filename, context) {
   const port = await discoverAppPort();
   if (port == null) return false;
   const base = appBase(port);
-  // A chosen variant can only travel over the local API: the legacy dialog endpoint carries a URL and
-  // nothing else, so opening the dialog would silently discard the quality the user just picked. The
-  // explicit pick wins over the general "open the dialog" preference.
-  if (await getAddMode() === "silent" || context?.variantId) {
-    // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
-    const cookies = await captureCookies(url);
-    // The extension's own folder, unless the caller already resolved one. An unset folder sends
-    // nothing and the app applies its own setting, exactly as before this existed.
-    const savePath = context?.savePath ?? await getSavePath();
-    const silent = await sendToAppSilently(base, url, filename, cookies, { ...context, savePath });
-    if (silent === "ok") return true;
-    if (silent === "fail") return false;
-    // "fallback": retry through the dialog endpoint below so older apps still capture the link.
-  }
+  // Both modes go through the local API. In dialog mode the request carries `confirm`, so the app opens
+  // its Add dialog with the WHOLE request — cookies and a picked quality included — instead of adding it.
+  // (A picked quality used to force a silent add, so the toggle did nothing for most video rows.)
+  const confirm = await getAddMode() === "dialog";
+  // Best-effort: capture live cookies for this exact URL (never blocks the send if it fails).
+  const cookies = await captureCookies(url);
+  // The extension's own folder, unless the caller already resolved one. An unset folder sends
+  // nothing and the app applies its own setting, exactly as before this existed.
+  const savePath = context?.savePath ?? await getSavePath();
+  const sent = await sendToAppSilently(base, url, filename, cookies, { ...context, savePath, confirm });
+  if (sent === "ok") return true;
+  if (sent === "fail") return false;
+  // "fallback": an older app without /api/add — its dialog endpoint still captures the link.
   try {
     const res = await appFetch(withIdentity(`${base}/add?url=${encodeURIComponent(url)}`), withIdentityHeaders({ method: "GET" }), APP_TIMEOUT_MS.add);
     return res.ok;
@@ -603,15 +604,15 @@ async function handOffToApp(url, filename, context) {
   const savePath = context?.savePath ?? await getSavePath();
   if (savePath) body.path = savePath;
   // The user's silent-vs-dialog choice governs THIS path too (issue #13): an intercepted download used
-  // to be added and started with no dialog whatever the toggle said. A picked variant stays silent for
-  // the same reason it does in sendToApp — the dialog would discard the pick the user just made.
+  // to be added and started with no dialog whatever the toggle said. A picked variant asks too: the
+  // confirm dialog receives the whole request, the pick included.
   const variantId = typeof context?.variantId === "string" ? context.variantId.trim() : "";
   if (variantId) body.variantId = variantId;
   // What the browser said this is. The app files the download under a type from it when the name
   // carries no usable extension — which is the common case for a signed CDN link.
   const mime = typeof context?.mime === "string" ? context.mime.trim() : "";
   if (mime) body.mime = mime;
-  const wantsDialog = !variantId && (await getAddMode()) === "dialog";
+  const wantsDialog = (await getAddMode()) === "dialog";
   if (wantsDialog) body.confirm = true;
   Object.assign(body, extensionIdentity());
 
@@ -1928,7 +1929,7 @@ if (typeof module !== "undefined") {
     MIME_EXTENSIONS,
     INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES,
     getInterceptSettings, setInterceptSettings,
-    postAdd, handOffToApp, awaitAddTicket,
+    postAdd, sendToApp, handOffToApp, awaitAddTicket,
     getAddMode, setAddMode,
     canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
   };

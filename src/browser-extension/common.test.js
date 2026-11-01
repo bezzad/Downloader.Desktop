@@ -25,7 +25,7 @@ const {
   candidateExts, isPlausiblePathExt,
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
-  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
+  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp, sendToApp,
   unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
   createLookupLimiter, MAX_VARIANT_LOOKUPS, askAppPageVariants,
   variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
@@ -1972,17 +1972,59 @@ test("silent mode sends no confirm flag at all", async () => {
   assert.equal(res.ok, true);
 });
 
-test("a picked variant stays silent even in dialog mode, so the pick is not discarded", async () => {
+test("a picked variant asks too in dialog mode, and the pick travels with it", async () => {
   global.chrome.cookies.getAll = async () => [];
-  let body = null;
-  global.fetch = async (endpoint, opts) => String(endpoint).includes("/ping")
-    ? { ok: true, status: 200 }
-    : ((body = JSON.parse(opts.body)), { ok: true, status: 201, json: async () => ({ id: "abc" }) });
+  const seen = stubConfirmingApp([{ state: "added", id: "item-1" }]);
 
   await withAddMode("dialog", () =>
-    handOffToApp("https://example.com/master.m3u8", null, { variantId: "1200000" }));
-  assert.equal(body.confirm, undefined);
-  assert.equal(body.variantId, "1200000");
+    handOffToApp("https://example.com/master.m3u8", null, { variantId: "1200000", ticketOpts: fastTicket }));
+  assert.equal(seen.body.confirm, true);
+  assert.equal(seen.body.variantId, "1200000");
+});
+
+// The popup / context-menu path. The reported bug: with "Add silently" OFF the app still added the
+// download with no question, because a row with a picked quality (every x.com / YouTube video row)
+// was always sent silently.
+function stubAddEndpoint() {
+  const seen = { url: null, body: null };
+  global.fetch = async (endpoint, opts) => {
+    const url = String(endpoint);
+    if (url.includes("/ping")) return { ok: true, status: 200 };
+    seen.url = url;
+    seen.body = opts?.body ? JSON.parse(opts.body) : null;
+    return { ok: true, status: 202, json: async () => ({ ticket: "T1" }) };
+  };
+  return seen;
+}
+
+test("sendToApp in dialog mode asks the app to confirm a picked quality", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  const seen = stubAddEndpoint();
+  const ok = await withAddMode("dialog", () =>
+    sendToApp("https://x.com/master.m3u8", null, { variantId: "1200000" }));
+  assert.equal(ok, true);
+  assert.match(seen.url, /\/api\/add\?/);
+  assert.match(seen.url, /[?&]confirm=true/);
+  assert.match(seen.url, /[?&]variantId=1200000/);
+});
+
+test("sendToApp in dialog mode asks the app to confirm a plain link with cookies", async () => {
+  global.chrome.cookies.getAll = async () => [
+    { name: "SID", value: "v", domain: ".example.com", path: "/", session: true }
+  ];
+  const seen = stubAddEndpoint();
+  const ok = await withAddMode("dialog", () => sendToApp("https://example.com/a.zip"));
+  assert.equal(ok, true);
+  assert.equal(seen.body.confirm, true);
+  assert.equal(seen.body.cookies[0].name, "SID");
+});
+
+test("sendToApp in silent mode sends no confirm flag", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  const seen = stubAddEndpoint();
+  await withAddMode("silent", () =>
+    sendToApp("https://x.com/master.m3u8", null, { variantId: "1200000" }));
+  assert.doesNotMatch(seen.url, /confirm/);
 });
 
 test("a cancelled dialog is not a successful hand-off, so the browser keeps its download", async () => {
