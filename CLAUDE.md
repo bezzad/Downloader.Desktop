@@ -387,6 +387,13 @@ Rough order to turn the current skeleton into the MVP above:
      always sends `confirm: true` through `/api/add` (`sendToApp` + `handOffToApp`); legacy `/add` is only
      the fallback for an app without `/api/add`.
 
+29. ✅ **Sent check marks stay (x.com feed)** (DONE, 2026-11-01, extension 1.27.0):
+   - The check mark on a sent row was only button state, so a rebuilt list (scroll, reopen) lost it.
+     Sent rows are now saved in `storage.local.sentKeys` (`addSentKey`/`getSentKeys`, last 2000).
+     `sentKey`: a `*.twimg.com` address is known by its media id (10+ digit path segment, unique per
+     video, stable when the address changes); anything else by its URL. `isGroupSent` checks every
+     option (and `sendUrl`) of a row. Pinned by `e2e/tests/sent-mark.spec.js`.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

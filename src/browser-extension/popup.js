@@ -25,6 +25,7 @@ let currentGroups = [];
 let pageVariants = []; // the app's qualities for THIS page, once it has answered
 let pageVariantsNote = null; // why there are none, when the app said why
 const selectsByGroup = new Map(); // group.key -> the row's quality picker ({ value }), or null
+let sentKeys = new Set(); // rows already sent to the app (see sentKey), read from storage below
 
 async function activeTab() {
   // Test-only override: e2e tests open popup.html as a normal tab (there's no public API to
@@ -322,6 +323,7 @@ function buildCard(group, thumbSrc) {
   btn.setAttribute("aria-label", "Download");
   btn.appendChild(svgIcon("download"));
   btn.onclick = () => sendOption(currentOption(), btn);
+  if (isGroupSent(group, sentKeys)) showSent(btn, true);
 
   row.append(buildThumb(group, thumbSrc), meta, right, btn);
   // A click on the row itself (not its button) shows that item in the middle of the page.
@@ -441,15 +443,21 @@ async function sendOne(url, btn, variantId) {
   } catch {
     ok = false;
   }
-  if (btn) {
-    btn.classList.remove("busy");
-    btn.classList.toggle("done", ok);
-    btn.classList.toggle("failed", !ok);
-    btn.title = ok ? "Sent" : "Failed — click to try again";
-    btn.setAttribute("aria-label", btn.title);
-    btn.replaceChildren(svgIcon(ok ? "done" : "failed"));
-    btn.disabled = ok; // a failure is worth trying again; a sent item is not
+  if (ok) {
+    sentKeys.add(sentKey(url));
+    addSentKey(url);
   }
+  if (btn) showSent(btn, ok);
+}
+
+function showSent(btn, ok) {
+  btn.classList.remove("busy");
+  btn.classList.toggle("done", ok);
+  btn.classList.toggle("failed", !ok);
+  btn.title = ok ? "Sent" : "Failed — click to try again";
+  btn.setAttribute("aria-label", btn.title);
+  btn.replaceChildren(svgIcon(ok ? "done" : "failed"));
+  btn.disabled = ok; // a failure is worth trying again; a sent item is not
 }
 
 // Sends one chosen option: its `sendUrl` when the option stands for a rendition of a manifest the app
@@ -678,6 +686,7 @@ document.getElementById("sendAll").onclick = async () => {
 // "Hide files smaller than" from the options page. The list first paints with the default and
 // repaints once the stored value is read.
 getListMinSize().then(bytes => { listMinBytes = bytes; render(); });
+getSentKeys().then(keys => { sentKeys = keys; render(); });
 
 // Silent-vs-dialog choice (persisted; the background worker reads it on every send).
 const silentEl = document.getElementById("silentMode");

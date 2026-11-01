@@ -214,6 +214,43 @@ function setOpenMode(mode) {
   try { api.storage.local.set({ openMode: mode === "panel" ? "panel" : "popup" }); } catch { /* optional */ }
 }
 
+// Rows the user already sent to the app, kept in extension storage so the check mark stays when the
+// list is built again (a feed page like x.com rebuilds it on every scroll) or the popup is reopened.
+// An x.com video is known by its media id (a long number in the path, unique per video): the address
+// itself can change between loads, the id does not. Anything else is known by its URL.
+const SENT_KEYS_MAX = 2000; // the oldest are forgotten first
+
+function sentKey(url) {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)twimg\.com$/.test(u.hostname)) {
+      const id = u.pathname.split("/").find(seg => /^\d{10,}$/.test(seg));
+      if (id) return "x:" + id;
+    }
+  } catch { /* not a URL: use it as is */ }
+  return url;
+}
+
+// True when any address of the row was sent before.
+function isGroupSent(group, sentKeys) {
+  return (group.options || []).some(o => sentKeys.has(sentKey(o.url)) || (o.sendUrl && sentKeys.has(sentKey(o.sendUrl))));
+}
+
+async function getSentKeys() {
+  try {
+    const r = await api.storage.local.get({ sentKeys: [] });
+    return new Set(Array.isArray(r.sentKeys) ? r.sentKeys : []);
+  } catch {
+    return new Set();
+  }
+}
+
+async function addSentKey(url) {
+  const keys = [...await getSentKeys()].filter(k => k !== sentKey(url));
+  keys.push(sentKey(url));
+  try { await api.storage.local.set({ sentKeys: keys.slice(-SENT_KEYS_MAX) }); } catch { /* optional */ }
+}
+
 // Makes the toolbar button do what the mode says. With no popup set, a click reaches
 // action.onClicked (Firefox toggles its sidebar there, see background.js); Chrome opens and
 // closes its side panel itself once openPanelOnActionClick is on.
@@ -1931,6 +1968,7 @@ if (typeof module !== "undefined") {
     getInterceptSettings, setInterceptSettings,
     postAdd, sendToApp, handOffToApp, awaitAddTicket,
     getAddMode, setAddMode,
-    canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
+    canOpenPanel, getOpenMode, setOpenMode, applyOpenMode,
+    sentKey, isGroupSent, getSentKeys, addSentKey, SENT_KEYS_MAX
   };
 }

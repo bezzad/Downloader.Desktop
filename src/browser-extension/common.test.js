@@ -33,7 +33,8 @@ const {
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
   contrastRatio,
   appFetch, APP_TIMEOUT_MS, awaitAddTicket,
-  canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
+  canOpenPanel, getOpenMode, setOpenMode, applyOpenMode,
+  sentKey, isGroupSent, getSentKeys, addSentKey, SENT_KEYS_MAX
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -2483,4 +2484,49 @@ test("pickRevealIndex falls back to the largest player for a page row or the onl
   assert.equal(pickRevealIndex(elements, revealGroup("https://c/watch?v=1", { kind: "page" }), false), 2);
   assert.equal(pickRevealIndex(elements, revealGroup("https://c/clip.mp4"), true), 2);
   assert.equal(pickRevealIndex([], revealGroup("https://c/clip.mp4"), true), -1);
+});
+
+test("sentKey knows an x.com video by its media id, so a new address of the same video still matches", () => {
+  const a = "https://video.twimg.com/amplify_video/1851234567890123456/pl/abc.m3u8?tag=16";
+  const b = "https://video.twimg.com/amplify_video/1851234567890123456/vid/avc1/1280x720/xyz.mp4?tag=16";
+  const other = "https://video.twimg.com/amplify_video/1859999999999999999/pl/abc.m3u8?tag=16";
+  assert.equal(sentKey(a), "x:1851234567890123456");
+  assert.equal(sentKey(a), sentKey(b));
+  assert.notEqual(sentKey(a), sentKey(other));
+  // Other sites: the URL itself, so two files under one numeric folder are never mixed up.
+  const site = "https://cdn.example.com/u/1234567890/a.mp4";
+  assert.equal(sentKey(site), site);
+});
+
+test("isGroupSent matches any option of the row, including the manifest it sends", () => {
+  const sent = new Set([sentKey("https://video.twimg.com/ext_tw_video/1851234567890123456/pu/pl/m.m3u8")]);
+  const row = { options: [{ url: "https://video.twimg.com/ext_tw_video/1851234567890123456/pu/pl/720.m3u8" }] };
+  const viaSendUrl = { options: [{ url: "https://x/r.m3u8", sendUrl: "https://video.twimg.com/ext_tw_video/1851234567890123456/pu/pl/m.m3u8" }] };
+  const notSent = { options: [{ url: "https://video.twimg.com/ext_tw_video/1850000000000000000/pu/pl/720.m3u8" }] };
+  assert.equal(isGroupSent(row, sent), true);
+  assert.equal(isGroupSent(viaSendUrl, sent), true);
+  assert.equal(isGroupSent(notSent, sent), false);
+});
+
+test("addSentKey stores the sent rows in extension storage, oldest dropped past the cap", async () => {
+  const saved = global.chrome.storage;
+  const store = {};
+  global.chrome.storage = { local: {
+    get: async d => ({ ...d, ...store }),
+    set: async v => { Object.assign(store, v); }
+  } };
+  try {
+    assert.equal((await getSentKeys()).size, 0);
+    await addSentKey("https://video.twimg.com/amplify_video/1851234567890123456/pl/a.m3u8");
+    await addSentKey("https://video.twimg.com/amplify_video/1851234567890123456/pl/b.m3u8");
+    assert.deepEqual([...await getSentKeys()], ["x:1851234567890123456"]);
+    store.sentKeys = Array.from({ length: SENT_KEYS_MAX }, (_, i) => "k" + i);
+    await addSentKey("https://example.com/new.mp4");
+    const keys = [...await getSentKeys()];
+    assert.equal(keys.length, SENT_KEYS_MAX);
+    assert.equal(keys[0], "k1");
+    assert.equal(keys.at(-1), "https://example.com/new.mp4");
+  } finally {
+    global.chrome.storage = saved;
+  }
 });
