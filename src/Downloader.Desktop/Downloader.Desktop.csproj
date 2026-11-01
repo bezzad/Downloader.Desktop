@@ -29,6 +29,11 @@
         <CreatePackage>false</CreatePackage>
         <RuntimeIdentifiers Condition="'$(IsMacBuild)'=='true'">osx-arm64;osx-x64</RuntimeIdentifiers>
         <UseAppHost>true</UseAppHost>
+        <!-- Issue #20: .NET marks the exe as CET (shadow stack) compatible by default. On a Windows
+             that does not fully support CET (e.g. Windows 11 21H2 without updates) the runtime then
+             stops at once with "Your Windows doesn't fully support CET" and no window. Turn it off so
+             the app starts on those machines too. -->
+        <CETCompat>false</CETCompat>
         <!--<PublishSingleFile>true</PublishSingleFile>-->
         <!--<PublishTrimmed>true</PublishTrimmed>-->
         <!--<PublishReadyToRun>true</PublishReadyToRun>-->

@@ -2639,3 +2639,11 @@ but the log (`Plan failed:` lines) showed a part's `ConnectTimeout` during the e
 engine reports that as Stopped WITH an error, so the plan threw. Fix: per-part retry in
 `DownloadPartAsync` (`PartRetries`/`PartRetryDelay`). To fake a one-off part error in a test, fail the
 first 2 requests (the probe + the GET of one attempt) with 404: the engine retries 503/429 itself.
+
+### Windows: "app does nothing" + Event Viewer `0x80131506` (issue #20)
+.NET marks the exe CET (shadow stack) compatible by default. On a Windows that does not fully support
+CET (Windows 11 21H2 without updates) the runtime stops before any app code runs: no window, no
+`%AppData%\Downloader` folder, Event Viewer shows ".NET Runtime internal error 0x80131506". A GUI exe
+prints nothing, so ask the user to run `Downloader.exe > out.txt 2>&1` — the file shows the real
+message ("Your Windows doesn't fully support CET"). Fix: `<CETCompat>false</CETCompat>` in the app
+csproj (pinned by `CetCompatTests`).
