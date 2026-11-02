@@ -25,7 +25,7 @@ const {
   candidateExts, isPlausiblePathExt,
   rememberResponseHeaders, recallResponseHeaders,
   RESPONSE_HEADER_CACHE_MAX, RESPONSE_HEADER_TTL_MS,
-  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp,
+  INTERCEPT_DEFAULTS, INTERCEPT_FILE_TYPES, handOffToApp, sendToApp,
   unsupportedSiteState, appCanHandlePage, askAppCanHandlePage, SITE_MEDIA_PLUGIN_NAME, appPageVariants,
   createLookupLimiter, MAX_VARIANT_LOOKUPS, askAppPageVariants,
   variantLookupFailureNote, VARIANT_LOOKUP_NO_ANSWER,
@@ -33,7 +33,8 @@ const {
   isHexColor, accentInk, accentTextColor, accentTokens, applyAccent, fetchAppAccent, syncAccent,
   contrastRatio,
   appFetch, APP_TIMEOUT_MS, awaitAddTicket,
-  canOpenPanel, getOpenMode, setOpenMode, applyOpenMode
+  canOpenPanel, getOpenMode, setOpenMode, applyOpenMode,
+  sentKey, isGroupSent, getSentKeys, addSentKey, SENT_KEYS_MAX
 } = require("./common.js");
 
 function fakeHeaders(map) {
@@ -1972,17 +1973,59 @@ test("silent mode sends no confirm flag at all", async () => {
   assert.equal(res.ok, true);
 });
 
-test("a picked variant stays silent even in dialog mode, so the pick is not discarded", async () => {
+test("a picked variant asks too in dialog mode, and the pick travels with it", async () => {
   global.chrome.cookies.getAll = async () => [];
-  let body = null;
-  global.fetch = async (endpoint, opts) => String(endpoint).includes("/ping")
-    ? { ok: true, status: 200 }
-    : ((body = JSON.parse(opts.body)), { ok: true, status: 201, json: async () => ({ id: "abc" }) });
+  const seen = stubConfirmingApp([{ state: "added", id: "item-1" }]);
 
   await withAddMode("dialog", () =>
-    handOffToApp("https://example.com/master.m3u8", null, { variantId: "1200000" }));
-  assert.equal(body.confirm, undefined);
-  assert.equal(body.variantId, "1200000");
+    handOffToApp("https://example.com/master.m3u8", null, { variantId: "1200000", ticketOpts: fastTicket }));
+  assert.equal(seen.body.confirm, true);
+  assert.equal(seen.body.variantId, "1200000");
+});
+
+// The popup / context-menu path. The reported bug: with "Add silently" OFF the app still added the
+// download with no question, because a row with a picked quality (every x.com / YouTube video row)
+// was always sent silently.
+function stubAddEndpoint() {
+  const seen = { url: null, body: null };
+  global.fetch = async (endpoint, opts) => {
+    const url = String(endpoint);
+    if (url.includes("/ping")) return { ok: true, status: 200 };
+    seen.url = url;
+    seen.body = opts?.body ? JSON.parse(opts.body) : null;
+    return { ok: true, status: 202, json: async () => ({ ticket: "T1" }) };
+  };
+  return seen;
+}
+
+test("sendToApp in dialog mode asks the app to confirm a picked quality", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  const seen = stubAddEndpoint();
+  const ok = await withAddMode("dialog", () =>
+    sendToApp("https://x.com/master.m3u8", null, { variantId: "1200000" }));
+  assert.equal(ok, true);
+  assert.match(seen.url, /\/api\/add\?/);
+  assert.match(seen.url, /[?&]confirm=true/);
+  assert.match(seen.url, /[?&]variantId=1200000/);
+});
+
+test("sendToApp in dialog mode asks the app to confirm a plain link with cookies", async () => {
+  global.chrome.cookies.getAll = async () => [
+    { name: "SID", value: "v", domain: ".example.com", path: "/", session: true }
+  ];
+  const seen = stubAddEndpoint();
+  const ok = await withAddMode("dialog", () => sendToApp("https://example.com/a.zip"));
+  assert.equal(ok, true);
+  assert.equal(seen.body.confirm, true);
+  assert.equal(seen.body.cookies[0].name, "SID");
+});
+
+test("sendToApp in silent mode sends no confirm flag", async () => {
+  global.chrome.cookies.getAll = async () => [];
+  const seen = stubAddEndpoint();
+  await withAddMode("silent", () =>
+    sendToApp("https://x.com/master.m3u8", null, { variantId: "1200000" }));
+  assert.doesNotMatch(seen.url, /confirm/);
 });
 
 test("a cancelled dialog is not a successful hand-off, so the browser keeps its download", async () => {
@@ -2441,4 +2484,49 @@ test("pickRevealIndex falls back to the largest player for a page row or the onl
   assert.equal(pickRevealIndex(elements, revealGroup("https://c/watch?v=1", { kind: "page" }), false), 2);
   assert.equal(pickRevealIndex(elements, revealGroup("https://c/clip.mp4"), true), 2);
   assert.equal(pickRevealIndex([], revealGroup("https://c/clip.mp4"), true), -1);
+});
+
+test("sentKey knows an x.com video by its media id, so a new address of the same video still matches", () => {
+  const a = "https://video.twimg.com/amplify_video/1851234567890123456/pl/abc.m3u8?tag=16";
+  const b = "https://video.twimg.com/amplify_video/1851234567890123456/vid/avc1/1280x720/xyz.mp4?tag=16";
+  const other = "https://video.twimg.com/amplify_video/1859999999999999999/pl/abc.m3u8?tag=16";
+  assert.equal(sentKey(a), "x:1851234567890123456");
+  assert.equal(sentKey(a), sentKey(b));
+  assert.notEqual(sentKey(a), sentKey(other));
+  // Other sites: the URL itself, so two files under one numeric folder are never mixed up.
+  const site = "https://cdn.example.com/u/1234567890/a.mp4";
+  assert.equal(sentKey(site), site);
+});
+
+test("isGroupSent matches any option of the row, including the manifest it sends", () => {
+  const sent = new Set([sentKey("https://video.twimg.com/ext_tw_video/1851234567890123456/pu/pl/m.m3u8")]);
+  const row = { options: [{ url: "https://video.twimg.com/ext_tw_video/1851234567890123456/pu/pl/720.m3u8" }] };
+  const viaSendUrl = { options: [{ url: "https://x/r.m3u8", sendUrl: "https://video.twimg.com/ext_tw_video/1851234567890123456/pu/pl/m.m3u8" }] };
+  const notSent = { options: [{ url: "https://video.twimg.com/ext_tw_video/1850000000000000000/pu/pl/720.m3u8" }] };
+  assert.equal(isGroupSent(row, sent), true);
+  assert.equal(isGroupSent(viaSendUrl, sent), true);
+  assert.equal(isGroupSent(notSent, sent), false);
+});
+
+test("addSentKey stores the sent rows in extension storage, oldest dropped past the cap", async () => {
+  const saved = global.chrome.storage;
+  const store = {};
+  global.chrome.storage = { local: {
+    get: async d => ({ ...d, ...store }),
+    set: async v => { Object.assign(store, v); }
+  } };
+  try {
+    assert.equal((await getSentKeys()).size, 0);
+    await addSentKey("https://video.twimg.com/amplify_video/1851234567890123456/pl/a.m3u8");
+    await addSentKey("https://video.twimg.com/amplify_video/1851234567890123456/pl/b.m3u8");
+    assert.deepEqual([...await getSentKeys()], ["x:1851234567890123456"]);
+    store.sentKeys = Array.from({ length: SENT_KEYS_MAX }, (_, i) => "k" + i);
+    await addSentKey("https://example.com/new.mp4");
+    const keys = [...await getSentKeys()];
+    assert.equal(keys.length, SENT_KEYS_MAX);
+    assert.equal(keys[0], "k1");
+    assert.equal(keys.at(-1), "https://example.com/new.mp4");
+  } finally {
+    global.chrome.storage = saved;
+  }
 });

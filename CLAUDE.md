@@ -44,7 +44,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
-- **Downloader 5.10.1** NuGet package (the core download engine — not in this repo; the sibling `../Downloader` checkout is where it is developed). Bump it here in `Downloader.Desktop.csproj` when a release fixes something this app hits.
+- **Downloader 5.10.2** NuGet package (the core download engine — not in this repo; the sibling `../Downloader` checkout is where it is developed). Bump it here in `Downloader.Desktop.csproj` when a release fixes something this app hits.
 - DI via `Microsoft.Extensions.DependencyInjection`; logging via `Microsoft.Extensions.Logging`.
 - macOS `.app` bundling via `Dotnet.Bundle`.
 - `Nullable` is **disabled** in the app csproj (enabled in `Directory.Build.props` but overridden).
@@ -379,6 +379,20 @@ Rough order to turn the current skeleton into the MVP above:
    - `ExecutePlanAsync` now tries a failed part again up to `PartRetries` (3) times, waiting
      `PartRetryDelay` × failures (1 s, 2 s, 3 s). A stop is never retried. Test:
      `PlanRunnerTests.A_part_that_fails_once_is_tried_again_instead_of_failing_the_plan`.
+
+28. ✅ **"Add silently" OFF had no effect on video rows** (DONE, 2026-11-01, extension 1.26.2):
+   - A row with a picked quality (`variantId` — every x.com HLS / YouTube page row) was ALWAYS sent
+     silently, on the popup path and the hand-off path, because the old URL-only `/add` dialog could not
+     carry the pick. The confirm-mode `/api/add` (issue #13) carries the whole request, so dialog mode now
+     always sends `confirm: true` through `/api/add` (`sendToApp` + `handOffToApp`); legacy `/add` is only
+     the fallback for an app without `/api/add`.
+
+29. ✅ **Sent check marks stay (x.com feed)** (DONE, 2026-11-01, extension 1.27.0):
+   - The check mark on a sent row was only button state, so a rebuilt list (scroll, reopen) lost it.
+     Sent rows are now saved in `storage.local.sentKeys` (`addSentKey`/`getSentKeys`, last 2000).
+     `sentKey`: a `*.twimg.com` address is known by its media id (10+ digit path segment, unique per
+     video, stable when the address changes); anything else by its URL. `isGroupSent` checks every
+     option (and `sendUrl`) of a row. Pinned by `e2e/tests/sent-mark.spec.js`.
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
