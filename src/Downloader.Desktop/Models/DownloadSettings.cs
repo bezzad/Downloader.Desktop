@@ -189,6 +189,9 @@ public class DownloadSettings
         req.MaximumAutomaticRedirections = Math.Max(1, MaximumAutomaticRedirections);
         req.ConnectTimeout = Math.Max(1000, ConnectTimeout);
         req.KeepAlive = KeepAlive;
+        // An empty WebProxy means "no proxy". Since Downloader 6.0.0 a null Proxy means the SYSTEM proxy,
+        // but an empty proxy box here has always meant direct, the same as AppProxy for the app's own clients.
+        req.Proxy = new WebProxy();
         if (!string.IsNullOrWhiteSpace(ProxyAddress))
         {
             try { req.Proxy = new WebProxy(ProxyAddress); }

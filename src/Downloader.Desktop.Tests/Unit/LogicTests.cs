@@ -113,6 +113,27 @@ public class LogicTests
     }
 
     [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void ToConfiguration_with_no_proxy_address_goes_direct()
+    {
+        // Downloader 6.0.0 uses the SYSTEM proxy when RequestConfiguration.Proxy is null. An empty proxy
+        // box must still mean "no proxy", the same as AppProxy does for the app's own requests.
+        var cfg = new DownloadSettings { ProxyAddress = "" }.ToConfiguration();
+
+        Assert.NotNull(cfg.RequestConfiguration.Proxy);
+        Assert.True(cfg.RequestConfiguration.Proxy.IsBypassed(new Uri("https://example.com/file.zip")));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
+    public void ToConfiguration_with_a_proxy_address_uses_it()
+    {
+        var cfg = new DownloadSettings { ProxyAddress = "http://10.0.0.1:8080" }.ToConfiguration();
+
+        var target = new Uri("https://example.com/file.zip");
+        Assert.False(cfg.RequestConfiguration.Proxy.IsBypassed(target));
+        Assert.Equal(new Uri("http://10.0.0.1:8080/"), cfg.RequestConfiguration.Proxy.GetProxy(target));
+    }
+
+    [Fact(Timeout = TestTimeouts.DefaultMs)]
     public void DefaultFileExistPolicy_is_IgnoreDownload()
     {
         Assert.Equal(FileExistPolicy.IgnoreDownload, new DownloadSettings().FileExistPolicy);
