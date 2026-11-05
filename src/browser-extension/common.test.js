@@ -2486,6 +2486,54 @@ test("pickRevealIndex falls back to the largest player for a page row or the onl
   assert.equal(pickRevealIndex([], revealGroup("https://c/clip.mp4"), true), -1);
 });
 
+test("pickRevealIndex finds a grouped HLS item by the media id its master and variants share", () => {
+  const elements = [
+    { urls: ["blob:https://x.com/1", "https://pbs/amplify_video_thumb/1712345678901234567/img/a.jpg"], area: 100, media: true },
+    { urls: ["blob:https://x.com/2", "https://pbs/amplify_video_thumb/1798765432109876543/img/b.jpg"], area: 100, media: true }
+  ];
+  const master = "https://video/amplify_video/1798765432109876543/pl/Ab12Cd34Ef.m3u8?tag=16";
+  const group = {
+    key: master, kind: "hls", isMaster: true,
+    options: [
+      { url: "https://video/amplify_video/1798765432109876543/pl/avc1/480x270/x1y2z3w4v5.m3u8", sendUrl: master },
+      { url: "https://video/amplify_video/1798765432109876543/pl/avc1/1280x720/q9r8s7t6u5.m3u8", sendUrl: master }
+    ]
+  };
+  assert.equal(pickRevealIndex(elements, group, false), 1);
+});
+
+test("pickRevealIndex picks the player when the same video shows twice, or a player and its picture", () => {
+  const thumb = "https://pbs/amplify_video_thumb/1798765432109876543/img/b.jpg";
+  const group = revealGroup("https://video/amplify_video/1798765432109876543/vid/720p.mp4");
+  // A picture of the video before its player, then the player: the player wins.
+  assert.equal(pickRevealIndex([
+    { urls: [thumb], area: 100, media: false },
+    { urls: ["blob:https://x.com/1", thumb], area: 100, media: true }
+  ], group, false), 1);
+  // The same video twice in a feed: the first one (both are this row's video).
+  assert.equal(pickRevealIndex([
+    { urls: ["blob:https://x.com/1", thumb], area: 100, media: true },
+    { urls: ["blob:https://x.com/2", thumb], area: 100, media: true }
+  ], group, false), 0);
+  // Only a picture of the video is on the page (its player is not mounted yet): the picture.
+  assert.equal(pickRevealIndex([{ urls: [thumb], area: 100, media: false }], group, false), 0);
+});
+
+test("pickRevealIndex uses the only player on the page for a video row with no other evidence", () => {
+  const elements = [
+    { urls: ["https://c/about"], area: 900, media: false },
+    { urls: ["blob:https://c/1"], area: 400, media: true }
+  ];
+  const hls = { key: "https://cdn/hls/master.m3u8", kind: "hls", options: [{ url: "https://cdn/hls/720/index.m3u8" }] };
+  assert.equal(pickRevealIndex(elements, hls, false), 1);
+  assert.equal(pickRevealIndex(elements, revealGroup("https://cdn/clip.mp4"), false), 1);
+  // A plain file is not something a player shows.
+  assert.equal(pickRevealIndex(elements, revealGroup("https://cdn/setup.zip"), false), -1);
+  // Two players and no evidence: no guess.
+  const two = [...elements, { urls: ["blob:https://c/2"], area: 400, media: true }];
+  assert.equal(pickRevealIndex(two, hls, false), -1);
+});
+
 test("sentKey knows an x.com video by its media id, so a new address of the same video still matches", () => {
   const a = "https://video.twimg.com/amplify_video/1851234567890123456/pl/abc.m3u8?tag=16";
   const b = "https://video.twimg.com/amplify_video/1851234567890123456/vid/avc1/1280x720/xyz.mp4?tag=16";

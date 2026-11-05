@@ -1366,23 +1366,36 @@ function assignThumbnails(index, groups) {
 }
 
 // Which element on the page a clicked row stands for, so the page can scroll to it. `elements` is what
-// the page reported, in page order: { urls: [src, poster, href …], area, media }. The same evidence as a
-// thumbnail (pickThumbnail): an exact URL, else a media token exactly one element shares. A page row, or
-// the only row, may fall back to the largest player. -1 when nothing on the page is provably this row's.
+// the page reported, in page order: { urls: [src, poster, href …], area, media }. Evidence first, the
+// same as a thumbnail (pickThumbnail): an exact URL, else a media token. When several elements carry the
+// token (the same video twice in a feed, or a player and its thumbnail picture), a player wins, else the
+// first one — they all show this row's video. Without any evidence, a page row, the only row, or any
+// video row on a page with just one player falls back to the largest player. A row whose own element is
+// on the page but hidden (a feed unloaded it) gets -1: the visible player is provably another one.
 function pickRevealIndex(elements, group, onlyItem) {
-  const list = (elements || []).map((el, i) => ({ ...el, i })).filter(el => el.area > 0);
-  const candidates = [group?.key, ...(group?.options || []).flatMap(o => [o?.url, o?.sendUrl])]
-    .filter(isHttp);
+  const all = (elements || []).map((el, i) => ({ ...el, i }));
+  const list = all.filter(el => el.area > 0);
+  const options = group?.options || [];
+  const candidates = [group?.key, ...options.flatMap(o => [o?.url, o?.sendUrl])].filter(isHttp);
   const keys = new Set(candidates.flatMap(url => [url, groupKey(url)]));
-  for (const el of list)
-    if ((el.urls || []).some(url => isHttp(url) && (keys.has(url) || keys.has(groupKey(url))))) return el.i;
-  for (const token of new Set(candidates.flatMap(mediaTokens))) {
-    const hits = list.filter(el => (el.urls || []).some(url => mediaTokens(url).includes(token)));
-    if (hits.length === 1) return hits[0].i;
-  }
-  if (group?.kind !== "page" && !onlyItem) return -1;
+  const tokens = [...new Set(candidates.flatMap(mediaTokens))];
+  const isOwn = url => isHttp(url) && (keys.has(url) || keys.has(groupKey(url)));
+  const byUrl = els => els.find(el => (el.urls || []).some(isOwn));
+  const byToken = els => {
+    for (const token of tokens) {
+      const hits = els.filter(el => (el.urls || []).some(url => mediaTokens(url).includes(token)));
+      if (hits.length) return hits.find(el => el.media) || hits[0];
+    }
+    return null;
+  };
+  const hit = byUrl(list) || byToken(list);
+  if (hit) return hit.i;
+  if (byUrl(all) || byToken(all)) return -1;
   const players = list.filter(el => el.media);
   if (!players.length) return -1;
+  const playable = group?.kind === "hls"
+    || options.some(o => !extOf(o?.url) || looksLikeMedia(o?.url));
+  if (group?.kind !== "page" && !onlyItem && !(playable && players.length === 1)) return -1;
   return players.reduce((a, b) => (b.area > a.area ? b : a)).i;
 }
 

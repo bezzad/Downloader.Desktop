@@ -394,6 +394,14 @@ Rough order to turn the current skeleton into the MVP above:
      video, stable when the address changes); anything else by its URL. `isGroupSent` checks every
      option (and `sendUrl`) of a row. Pinned by `e2e/tests/sent-mark.spec.js`.
 
+30. ✅ **Click a row → scroll: most clicks found nothing** (DONE, 2026-11-05, extension 1.27.1):
+   - `pageReveal` (popup.js) now looks in **every frame** (`allFrames`, embedded players) and inside
+     **shadow roots**, and lists `img` too (a feed shows a picture before it mounts the player). The
+     whole `<li>` is clickable, so the empty part of a grouped item's quality band works.
+   - `pickRevealIndex`: a token several elements share no longer means "no answer" — a player wins,
+     else the first hit. With no evidence, a video/HLS row on a page with ONE player scrolls to it.
+     A row whose own element is on the page but hidden still gets nothing.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

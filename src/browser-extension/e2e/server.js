@@ -90,7 +90,7 @@ function start() {
     // id in their paths (video.twimg.com/amplify_video/<id>/… and pbs.twimg.com/amplify_video_thumb/<id>/…).
     // That shared id is the only thing tying a blob:-playing <video> to the URL it plays, so the
     // thumbnail test needs real routes of exactly that shape.
-    const xVideo = /^\/amplify_video\/\d+\/vid\/(.+)$/.exec(urlPath);
+    const xVideo = /^\/amplify_video\/\d+\/(?:vid|pl)\/(.+)$/.exec(urlPath);
     if (xVideo) urlPath = "/" + xVideo[1];
     else if (/^\/amplify_video_thumb\/\d+\/img\//.test(urlPath)) urlPath = "/poster.jpg";
 
