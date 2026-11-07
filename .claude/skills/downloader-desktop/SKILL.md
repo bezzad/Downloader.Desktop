@@ -32,9 +32,10 @@ Skip the discovery grep; jump straight to the file. `src/Downloader.Desktop/`:
 4. **Build once per logical chunk**, not after every edit; `Edit` already fails loudly on a bad match, so don't re-`Read` a file just to confirm an edit landed.
 5. For a small, well-scoped fix, target the one file the Code map names, edit, then one build+filtered-test — that's the whole loop.
 
-## Engine (`Downloader` 6.0.1) quick reference
+## Engine (`Downloader` 7.0.0) quick reference
 - `DownloadBuilder` is **single-URL only** (`WithUrl(string)`) and its `IDownload` **cannot take a logger** (no `AddLogger` on `IDownload`). For mirrors and logging, use `DownloadService` directly instead of the builder.
 - `DownloadService(DownloadConfiguration cfg, ILoggerFactory factory = null)` — implements `IDownloadService`: same events (`DownloadStarted/DownloadProgressChanged/ChunkDownloadProgressChanged/DownloadFileCompleted`), plus `Package`, `Pause()`, `Resume()`, `CancelAsync()`/`CancelTaskAsync()`, `Clear()`, and `AddLogger(ILogger)`.
+- **7.0.0 (#256)**: `DownloadProgressChanged` is raised by ONE deliverer on the thread pool, one call at a time, in order; a slow handler gets merged updates, and the LAST update can arrive AFTER `DownloadFileCompleted` (our `FlushProgress` drops values unless Running, so that is safe). `ChunkDownloadProgressChanged` still runs on each chunk's thread. Live streaming now uses one chunk.
 - **Multi-URL / mirrors** are first-class: `DownloadFileTaskAsync(string[] urls, DirectoryInfo folder, ct)` (auto-resolves name), `(string[] urls, string fileName, ct)`, and package overloads. `DownloadPackage.Urls` is `string[]`. So the data model should carry `List<string> Urls` (first = primary, rest = mirrors), not a separate `Url` + `Mirrors`.
 - Filename still auto-resolves from URL/Content-Disposition; read it from `DownloadStartedEventArgs.FileName` (full path).
 
