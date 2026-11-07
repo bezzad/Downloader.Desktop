@@ -326,8 +326,9 @@ function buildCard(group, thumbSrc) {
   if (isGroupSent(group, sentKeys)) showSent(btn, true);
 
   row.append(buildThumb(group, thumbSrc), meta, right, btn);
-  // A click on the row itself (not its button) shows that item in the middle of the page.
-  row.onclick = e => { if (!e.target.closest("button")) revealInPage(group); };
+  // A click on the item (not on a button) shows it in the middle of the page — also on the empty part
+  // of its quality band, which is most of a grouped item.
+  li.onclick = e => { if (!e.target.closest("button")) revealInPage(group); };
   li.appendChild(row);
   if (band) li.appendChild(band);
   return li;
@@ -551,32 +552,56 @@ async function collectThumbnails() {
 }
 
 // Scrolls the page so the element this row stands for sits in the middle of it. Two short injections:
-// the page lists its players and links, the popup decides which one is this row's (pickRevealIndex,
-// testable without a browser), and the page scrolls to it. Nothing happens when no element is provably
-// this row's — e.g. a feed already removed the player.
-const REVEAL_SELECTOR = "video, audio, a[href]";
+// every frame lists its players, pictures and links, the popup decides which one is this row's
+// (pickRevealIndex, testable without a browser), and that frame scrolls to it. Nothing happens when no
+// element is provably this row's — e.g. a feed already removed the player.
+//
+// Runs IN the page, so it must not use anything from this file. With `index` < 0 it describes the
+// elements; else it scrolls to that one. Both calls walk the same list, shadow roots included (many
+// players live in one), so an index means the same element in both.
+function pageReveal(index) {
+  const found = [];
+  const walk = root => {
+    for (const el of root.querySelectorAll("*")) {
+      if (el.matches("video, audio, img, a[href]")) found.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  if (index >= 0) {
+    found[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return null;
+  }
+  return found.map(el => {
+    const rect = el.getBoundingClientRect();
+    return {
+      urls: [el.currentSrc, el.src, el.poster, el.href].filter(u => typeof u === "string" && u),
+      area: rect.width * rect.height,
+      media: el.tagName === "VIDEO" || el.tagName === "AUDIO"
+    };
+  });
+}
+
 async function revealInPage(group) {
   if (currentTabId == null) return;
   try {
-    const [found] = await api.scripting.executeScript({
-      target: { tabId: currentTabId },
-      args: [REVEAL_SELECTOR],
-      func: selector => [...document.querySelectorAll(selector)].map(el => {
-        const rect = el.getBoundingClientRect();
-        return {
-          urls: [el.currentSrc, el.src, el.poster, el.href].filter(u => typeof u === "string" && u),
-          area: rect.width * rect.height,
-          media: el.tagName !== "A"
-        };
-      })
+    // A player is often inside a frame (an embedded player), so every frame is asked; the top page first.
+    const ask = allFrames => api.scripting.executeScript({
+      target: { tabId: currentTabId, allFrames },
+      args: [-1],
+      func: pageReveal
     });
-    const index = pickRevealIndex(found?.result, group, currentGroups.length === 1);
-    if (index < 0) return;
+    // A frame that refuses injection must not cost the top page its answer.
+    const frames = await ask(true).catch(() => ask(false));
+    const elements = (frames || [])
+      .sort((a, b) => (a.frameId || 0) - (b.frameId || 0))
+      .flatMap(f => (f.result || []).map((el, local) => ({ ...el, frameId: f.frameId || 0, local })));
+    const target = elements[pickRevealIndex(elements, group, currentGroups.length === 1)];
+    if (!target) return;
     await api.scripting.executeScript({
-      target: { tabId: currentTabId },
-      args: [REVEAL_SELECTOR, index],
-      func: (selector, i) => document.querySelectorAll(selector)[i]
-        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+      target: { tabId: currentTabId, frameIds: [target.frameId] },
+      args: [target.local],
+      func: pageReveal
     });
   } catch {
     // Pages that forbid injection: the row just does nothing.

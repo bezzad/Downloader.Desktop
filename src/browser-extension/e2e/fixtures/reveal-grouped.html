@@ -1,0 +1,18 @@
+<!doctype html>
+<html><body style="margin:0">
+<!-- Grouped item + hard places for a player. Player "b" lives inside a shadow root (as many custom
+     players do) and plays an HLS master that the popup shows as ONE item with a quality band. Player
+     "a" lives in a cross-origin frame (an embedded player). A click on either item, also on the empty
+     part of the quality band, must scroll the page to that item's player. -->
+<div style="height:2000px"></div>
+<iframe id="a" src="http://localhost:8991/reveal-frame.html" width="480" height="270" style="border:0"></iframe>
+<div style="height:2000px"></div>
+<x-player id="b" style="display:block;width:320px;height:180px"></x-player>
+<div style="height:2000px"></div>
+<script>
+  document.getElementById("b").attachShadow({ mode: "open" }).innerHTML =
+    '<video width="320" height="180" poster="/amplify_video_thumb/1798765432109876543/img/thumbB.jpg"></video>';
+  fetch('/amplify_video/1798765432109876543/pl/master.m3u8');
+  fetch('/amplify_video/1712345678901234567/vid/main_video.mp4');
+</script>
+</body></html>
