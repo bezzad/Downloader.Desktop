@@ -402,6 +402,15 @@ Rough order to turn the current skeleton into the MVP above:
      else the first hit. With no evidence, a video/HLS row on a page with ONE player scrolls to it.
      A row whose own element is on the page but hidden still gets nothing.
 
+31. ✅ **MCP server for AI agents** (DONE, 2026-11-10):
+   - `Downloader mcp` (checked in `Program.Main` before the CLI verbs) runs `Services/McpServer` on
+     stdin/stdout: JSON-RPC 2.0, one message per line, hand-written with `System.Text.Json.Nodes` (no SDK
+     package). Tools: `add_download`, `list_downloads`, `pause|resume|cancel|retry|remove_download`.
+   - It adds NO behaviour: each tool is one request to the running app's `/api/*` (ports from
+     `CliRunner.ResolveCandidatePorts`, last good port first). App not running → a tool error saying so.
+   - Tests: `Unit/McpServerTests` (fake API) + `Integration/McpEndToEndTests` (real local API). Docs:
+     `docs/local-api.md#mcp-server-ai-agents`.
+
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.
 4. **Persistence**: re-enable save-on-shutdown (`DesktopOnShutdownRequested`) and resume incomplete downloads on startup using the engine's resume support.

@@ -103,7 +103,7 @@ public static class CliRunner
 
     /// <summary>Ordered ports to try: the last-known-good persisted port first (if valid), then the whole
     /// declared range. Reads the same config file the app writes its effective port to.</summary>
-    private static System.Collections.Generic.IEnumerable<int> ResolveCandidatePorts()
+    internal static System.Collections.Generic.IEnumerable<int> ResolveCandidatePorts()
     {
         int persisted = 0;
         try { persisted = new FileService().LoadFromFileAsync().GetAwaiter().GetResult()?.Settings?.LocalApiPort ?? 0; }
