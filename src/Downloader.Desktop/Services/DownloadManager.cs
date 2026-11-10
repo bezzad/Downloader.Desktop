@@ -942,7 +942,7 @@ public partial class DownloadManager : IDownloadManager, IDisposable
     /// <summary>The message a failed row shows. An expired link that the app could not refresh by itself
     /// gets wording that names the real problem and points at the fix (paste a fresh link in Details, #6)
     /// instead of a bare "Network error: 403".</summary>
-    private static string DescribeFailure(Exception ex) => DescribeFailure(ex, item: null);
+    internal static string DescribeFailure(Exception ex) => DescribeFailure(ex, item: null);
 
     /// <summary>As above, but knowing which download failed. A download the browser extension handed over
     /// while its OWN copy kept running must not be described as an expired link the user has to replace:
