@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -86,6 +87,9 @@ public class MemoryReleaseTests
             var manager = new DownloadManager();
             manager.Initialize(cfg);
 
+            // Hold the body: a 64 KB loopback download can finish before Cancel lands, and
+            // stopping a Completed row is a no-op (Windows CI saw "Expected: Stopped, Actual: Completed").
+            server.Gate.Reset();
             var vm = manager.Add(new DownloadItem { Urls = new() { server.Url + "retry.bin" }, SaveFolder = dir }, autoStart: true);
 
             // Stop it → terminal (Stopped) → engine released.
@@ -95,6 +99,7 @@ public class MemoryReleaseTests
             Assert.Null(vm.Download); // released on stop
 
             // Retry must rebuild a fresh engine and complete.
+            server.Gate.Set();
             manager.Retry(vm);
             await PumpUntil(() => vm.Status == DownloadStatus.Completed, 20000);
             // Say WHY when it doesn't: this one fails on macOS CI now and then, and a bare
@@ -128,6 +133,10 @@ public class MemoryReleaseTests
         private readonly HttpListener _listener;
         private readonly byte[] _data;
         public string Url { get; }
+
+        /// <summary>While reset, file bodies wait (the 1-byte size probe does not), so a test can stop a
+        /// download before a fast loopback transfer finishes it.</summary>
+        public ManualResetEventSlim Gate { get; } = new(initialState: true);
 
         public Loopback(byte[] data)
         {
@@ -184,6 +193,8 @@ public class MemoryReleaseTests
                 }
 
                 var len = end - start + 1;
+                if (len > 1)
+                    Gate.Wait(TimeSpan.FromSeconds(30));
                 resp.ContentLength64 = len;
                 resp.OutputStream.Write(_data, start, len);
                 resp.OutputStream.Close();
@@ -198,6 +209,8 @@ public class MemoryReleaseTests
         {
             try { _listener.Stop(); } catch { /* ignore */ }
             try { _listener.Close(); } catch { /* ignore */ }
+            Gate.Set(); // let any held handler finish before the event is disposed
+            Gate.Dispose();
         }
     }
 }
