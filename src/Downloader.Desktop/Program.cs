@@ -17,6 +17,14 @@ static class Program
         // CLI verbs (add/list/pause/…) run headless and exit — no Avalonia, no single-instance
         // claim (a `list` must not steal the lock or surface the window). Anything that isn't a
         // recognized verb (bare URL, --minimized, --cli-add) is a normal GUI launch.
+        // `Downloader mcp`: an MCP server on stdin/stdout for AI agents. It talks to the running app's
+        // local API, so like the CLI verbs it never starts Avalonia or claims the single instance.
+        if (args.Length == 1 && args[0].Equals("mcp", StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.Exit(McpServer.RunStdio());
+            return;
+        }
+
         if (CliParser.TryParse(args, out var cli))
         {
             Environment.Exit(CliRunner.Run(cli));

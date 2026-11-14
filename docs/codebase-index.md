@@ -45,6 +45,7 @@ Not in the solution: `src/browser-extension/` (plain JS, no bundler; its own `np
 The clearest way into the codebase is the launch sequence:
 
 1. **`Downloader.Desktop/Program.cs`** — `Main`. Three-way fork before Avalonia even starts:
+   - `mcp` → `McpServer.RunStdio` (MCP server on stdin/stdout for AI agents; each tool calls the local API) → exit;
    - a recognized **CLI verb** (`add`/`list`/`pause`/…) → `CliParser.TryParse` → `CliRunner.Run` → exit;
    - a **second instance** → `SingleInstanceService.TryClaim` forwards argv to the primary and exits;
    - otherwise `BuildAvaloniaApp().StartWithClassicDesktopLifetime` (X11 `WmClass`, per-monitor DPI,
@@ -141,7 +142,8 @@ from the manual path to the store path, no code change.
 
 `LocalApiService.cs` (loopback HTTP: the extension's `/add`, `/ping` + a JSON `/api/*` for
 add/list/control) · `CliParser.cs` + `CliRunner.cs` (headless verbs; `add` goes through the
-single-instance channel, the rest talk HTTP) · `CookieFile.cs` (cookie handoff from the browser
+single-instance channel, the rest talk HTTP) · `McpServer.cs` (`Downloader mcp`: MCP tools over
+stdio, each one a call to `/api/*`) · `CookieFile.cs` (cookie handoff from the browser
 extension) · `SingleInstanceService.cs`.
 
 **OS integration** (all fail-soft — an unsupported platform logs and stays inactive)

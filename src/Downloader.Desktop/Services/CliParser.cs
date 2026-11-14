@@ -32,6 +32,7 @@ public static class CliParser
           Downloader add --url <url> [--filename <name>] [--path <folder>] [--queue <name>] [--no-start]
           Downloader list
           Downloader pause|resume|cancel|retry|remove <id>
+          Downloader mcp      (MCP server on stdin/stdout, for AI agents)
 
         Exit codes: 0 success, 1 error (app not running / API disabled / unknown id), 2 usage error.
         list/pause/resume/cancel/retry/remove need the app running with integration enabled in Settings.

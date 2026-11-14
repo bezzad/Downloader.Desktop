@@ -272,6 +272,42 @@ Exit codes: `0` success · `1` error (app not running / API off / unknown id) ·
 > **Windows note:** the app is a windowed program, so CLI output can appear *after* the prompt
 > returns in `cmd`/PowerShell. The command still worked — press Enter to get a clean prompt.
 
+## MCP server (AI agents)
+
+`Downloader mcp` starts an [MCP](https://modelcontextprotocol.io) server on stdin/stdout. An AI agent
+or any other MCP client starts it and gets these tools:
+
+| Tool | What it does |
+|---|---|
+| `add_download` | Add a download (`url`, optional `filename`, `path`, `queue`, `start`). Returns its `id`. |
+| `list_downloads` | All downloads with status, progress, size, speed, … (same as `GET /api/list`) |
+| `pause_download` · `resume_download` · `cancel_download` · `retry_download` · `remove_download` | Control one download by `id` |
+
+Each tool is one request to the local API above, so the app must be running with
+**Settings → Browser extension & local API** on. If it is not, the tool answers with an error that
+says so. If **"Ask before adding programmatic downloads"** is on, `add_download` opens the Add dialog
+and returns a `ticket` instead of an `id` (see [Asking the user first](#asking-the-user-first)).
+
+Add it to your MCP client with the app's executable as the command and `mcp` as the only argument.
+For example, Claude Code:
+
+```bash
+claude mcp add downloader -- Downloader mcp
+```
+
+or a JSON config (Claude Desktop, Cursor, VS Code, …):
+
+```json
+{
+  "mcpServers": {
+    "downloader": { "command": "Downloader", "args": ["mcp"] }
+  }
+}
+```
+
+Use the full path of the executable if it is not on your `PATH` (in JSON, write each `\` of a
+Windows path as `\\`). With the Snap package the command is `downloader`.
+
 ## Batch example
 
 ```js

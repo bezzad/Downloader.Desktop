@@ -44,7 +44,7 @@ Cross-platform desktop GUI (Windows/Linux/macOS) for the [Downloader](https://gi
 ## Stack
 - **.NET 10** (`net10.0`); macOS build target switches to `net10.0-macos` when `IsMacBuild=true` (requires the `macos` workload + Xcode; only used for the native `.app` bundle, not the CI release which builds plain `net10.0`).
 - **Avalonia UI 12** with **ReactiveUI** (MVVM), Fluent theme, Inter font, Skia, DataGrid.
-- **Downloader 7.0.0** NuGet package (the core download engine — not in this repo; the sibling `../Downloader` checkout is where it is developed). Bump it here in `Downloader.Desktop.csproj` when a release fixes something this app hits.
+- **Downloader 7.1.0** NuGet package (the core download engine — not in this repo; the sibling `../Downloader` checkout is where it is developed). Bump it here in `Downloader.Desktop.csproj` when a release fixes something this app hits.
 - DI via `Microsoft.Extensions.DependencyInjection`; logging via `Microsoft.Extensions.Logging`.
 - macOS `.app` bundling via `Dotnet.Bundle`.
 - `Nullable` is **disabled** in the app csproj (enabled in `Directory.Build.props` but overridden).
@@ -401,6 +401,15 @@ Rough order to turn the current skeleton into the MVP above:
    - `pickRevealIndex`: a token several elements share no longer means "no answer" — a player wins,
      else the first hit. With no evidence, a video/HLS row on a page with ONE player scrolls to it.
      A row whose own element is on the page but hidden still gets nothing.
+
+31. ✅ **MCP server for AI agents** (DONE, 2026-11-10):
+   - `Downloader mcp` (checked in `Program.Main` before the CLI verbs) runs `Services/McpServer` on
+     stdin/stdout: JSON-RPC 2.0, one message per line, hand-written with `System.Text.Json.Nodes` (no SDK
+     package). Tools: `add_download`, `list_downloads`, `pause|resume|cancel|retry|remove_download`.
+   - It adds NO behaviour: each tool is one request to the running app's `/api/*` (ports from
+     `CliRunner.ResolveCandidatePorts`, last good port first). App not running → a tool error saying so.
+   - Tests: `Unit/McpServerTests` (fake API) + `Integration/McpEndToEndTests` (real local API). Docs:
+     `docs/local-api.md#mcp-server-ai-agents`.
 
 ## Design / privacy note
 This is an **original design**. Do not reference or name other download-manager apps in the repo or docs — there is no clone. IDM is only an internal feature-set benchmark.

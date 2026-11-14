@@ -2648,3 +2648,8 @@ CET (Windows 11 21H2 without updates) the runtime stops before any app code runs
 prints nothing, so ask the user to run `Downloader.exe > out.txt 2>&1` — the file shows the real
 message ("Your Windows doesn't fully support CET"). Fix: `<CETCompat>false</CETCompat>` in the app
 csproj (pinned by `CetCompatTests`).
+
+## MCP server (`Downloader mcp`)
+- `Services/McpServer.cs`: stdio JSON-RPC, one line per message, no SDK. Only a thin layer over `/api/*` — add a new MCP tool by adding the API route first, then one entry in `Tools()` + `CallTool`.
+- stdout must carry ONLY JSON-RPC lines (UTF-8, no BOM): never log to Console in this path, and do NOT call `CliRunner.AttachWindowsConsole` (the client gives us pipes).
+- Test with a fake `Func<method, route, body, (status, body)>`; end-to-end with `McpServer.SendToApp` against a started `LocalApiService` (pump the dispatcher, see `McpEndToEndTests`).

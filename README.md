@@ -212,6 +212,10 @@ the same **Settings → Browser extension & local API** toggle, on by default. I
 already using port `15151`, the app automatically switches to the next port in `15151`–`15155` — the
 extension and CLI find it on their own, and Settings shows the current address.
 
+**AI agents (MCP):** `Downloader mcp` runs an [MCP](https://modelcontextprotocol.io) server, so an AI
+agent (Claude, Cursor, VS Code, …) can add, list, pause, resume, stop, retry and remove downloads in the
+running app. See [MCP server](docs/local-api.md#mcp-server-ai-agents).
+
 📖 **Full reference with examples:** [`docs/local-api.md`](docs/local-api.md)
 
 ---
